@@ -67,91 +67,79 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
 
     return (
         <>
-            <div className="no-print mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
+            <div className="no-print mx-auto" style={{ maxWidth: "80mm" }}><PrintTrigger /></div>
 
-            <div className="sheet" style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
-                {drugs.map((d) => {
+            <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
+                {drugs.map((d, i) => {
                     const inv = pickInv(d);
                     const name = inv?.item_name || "ยา";
                     const strength = inv?.strength || "";
                     const generic = inv?.generic_name || "";
                     const sig = (d.sig_text || "").trim() || "ใช้ตามแพทย์สั่ง";
                     return (
-                        <div key={d.id} className="label">
+                        <div key={d.id} className={`label${i < drugs.length - 1 ? " label-break" : ""}`}>
                             {/* หัวฉลาก: ชื่อคลินิก + วันที่ */}
                             <div className="flex items-baseline justify-between gap-2 border-b border-slate-300 pb-[1mm]">
-                                <span className="text-[11px] font-bold truncate">{clinicName}</span>
-                                <span className="text-[10px] text-slate-600 shrink-0">{dateStr}</span>
+                                <span className="text-[12px] font-bold truncate">{clinicName}</span>
+                                <span className="text-[11px] text-slate-600 shrink-0">{dateStr}</span>
                             </div>
 
                             {/* ผู้ป่วย */}
-                            <div className="flex items-baseline justify-between gap-2 mt-[1mm]">
-                                <span className="text-[12px] font-semibold truncate">{ptName}</span>
-                                <span className="text-[10px] font-mono text-slate-600 shrink-0">HN {visit.hn}</span>
+                            <div className="flex items-baseline justify-between gap-2 mt-[1.5mm]">
+                                <span className="text-[14px] font-semibold truncate">{ptName}</span>
+                                <span className="text-[11px] font-mono text-slate-600 shrink-0">HN {visit.hn}</span>
                             </div>
 
                             {/* ชื่อยา */}
-                            <div className="mt-[1.5mm]">
-                                <div className="text-[15px] font-black leading-tight">
-                                    {name} {strength && <span className="text-[12px] font-bold">{strength}</span>}
+                            <div className="mt-[2mm]">
+                                <div className="text-[19px] font-black leading-tight">
+                                    {name} {strength && <span className="text-[14px] font-bold">{strength}</span>}
                                 </div>
                                 {generic && generic !== name && (
-                                    <div className="text-[10px] text-slate-500 leading-tight italic">{generic}</div>
+                                    <div className="text-[11px] text-slate-500 leading-tight italic">{generic}</div>
                                 )}
                             </div>
 
                             {/* วิธีใช้ (สำคัญสุด) */}
-                            <div className="mt-[1.5mm] flex gap-[1.5mm]">
-                                <span className="text-[11px] font-bold text-slate-500 shrink-0">วิธีใช้</span>
-                                <span className="text-[14px] font-bold leading-snug">{sig}</span>
+                            <div className="mt-[2mm] flex gap-[2mm]">
+                                <span className="text-[12px] font-bold text-slate-500 shrink-0 mt-[1px]">วิธีใช้</span>
+                                <span className="text-[17px] font-bold leading-snug">{sig}</span>
                             </div>
 
                             {/* จำนวน + เบอร์คลินิก */}
                             <div className="mt-auto flex items-baseline justify-between gap-2 border-t border-dashed border-slate-300 pt-[1mm]">
-                                <span className="text-[11px]">จำนวน <span className="font-bold">{Number(d.qty || 0)}</span> {d.unit || ""}</span>
-                                {phone && <span className="text-[9px] text-slate-500 shrink-0">โทร {phone}</span>}
+                                <span className="text-[12px]">จำนวน <span className="font-bold">{Number(d.qty || 0)}</span> {d.unit || ""}</span>
+                                {phone && <span className="text-[10px] text-slate-500 shrink-0">โทร {phone}</span>}
                             </div>
                         </div>
                     );
                 })}
             </div>
             <p className="no-print text-center text-[11px] text-slate-400 mt-2">
-                ฉลากยา {drugs.length} ดวง · กระดาษ A4 (2 ดวง/แถว) — พิมพ์บนกระดาษสติ๊กเกอร์ A4 หรือกระดาษธรรมดาแล้วตัด
+                ฉลากยา {drugs.length} ดวง · กระดาษ 8×6 ซม. (1 ดวง/แผ่น)
             </p>
 
             <style>{`
-                .sheet {
-                    width: 210mm;
+                .label {
+                    width: 80mm;
+                    height: 60mm;
                     box-sizing: border-box;
                     background: white;
-                    margin: 0 auto;
-                    padding: 6mm;
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 4mm;
-                    align-content: flex-start;
-                }
-                .label {
-                    width: 95mm;
-                    height: 48mm;
-                    box-sizing: border-box;
-                    border: 1px solid #cbd5e1;
-                    border-radius: 2mm;
-                    padding: 3mm;
+                    padding: 4mm;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
                 }
+                .label-break { break-after: page; page-break-after: always; }
                 @media print {
                     .no-print { display: none !important; }
-                    @page { size: A4; margin: 0; }
+                    @page { size: 80mm 60mm; margin: 0; }
                     body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .sheet { margin: 0; box-shadow: none; }
-                    .label { break-inside: avoid; }
+                    .label { margin: 0; }
                 }
                 @media screen {
                     body { background: #f1f5f9; }
-                    .sheet { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 24px auto; }
+                    .label { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 16px auto; }
                 }
             `}</style>
         </>
