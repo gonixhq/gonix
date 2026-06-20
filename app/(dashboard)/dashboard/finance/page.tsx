@@ -61,6 +61,17 @@ export default async function FinancePage() {
         .reduce((s, r) => s + Number(r.paid_amount || 0), 0) + anonRev.total;
     const pendingAmount = (pending || []).reduce((s, r) => s + Number(r.balance_due || 0), 0);
 
+    // นับใบเสร็จนิรนามที่จ่ายวันนี้รวมเข้าตัวนับด้วย (เดิมนับเฉพาะ invoice_headers)
+    const startMs = new Date(dayStartISO).getTime();
+    const endMs = new Date(dayEndISO).getTime();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const todayAnonCount = (anonPaid || []).filter((a: any) => {
+        if (!a.paid_at) return false;
+        const ms = new Date(a.paid_at as string).getTime();
+        return ms >= startMs && ms < endMs;
+    }).length;
+    const totalTodayCount = (todayInvoiceCount || 0) + todayAnonCount;
+
     // รวมเคสนิรนามเข้ารายการ (เรียงตามเวลาล่าสุด)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
@@ -87,7 +98,7 @@ export default async function FinancePage() {
             invoices={mergedInvoices}
             todayRevenue={todayRevenue}
             pendingAmount={pendingAmount}
-            todayInvoiceCount={todayInvoiceCount || 0}
+            todayInvoiceCount={totalTodayCount}
         />
     );
 }
