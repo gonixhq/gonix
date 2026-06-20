@@ -42,7 +42,7 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
 
     return (
         <>
-            <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" onReady={initLiff} />
+            <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" onReady={() => { void initLiff(); }} />
             <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "linear-gradient(160deg,#0b1020,#141A33 55%,#1C2244)" }}>
                 <div className="w-full max-w-sm">
                     <div className="flex items-center gap-2.5 mb-5 text-white justify-center">

@@ -23,7 +23,12 @@ export interface ThaiIdCard {
     lastNameEn: string;
     gender: string;     // "M" | "F" | ""
     birthDate: string;  // ISO "YYYY-MM-DD" (ค.ศ.)
-    address: string;    // ที่อยู่รวม (บ้านเลขที่ หมู่ ซอย ถนน ตำบล อำเภอ จังหวัด)
+    address: string;    // ที่อยู่รวม (fallback)
+    addressDetail: string; // บ้านเลขที่ + ตรอก/ซอย/ถนน
+    moo: string;        // เลขหมู่ (ตัดคำว่า "หมู่ที่" ออก)
+    tambon: string;     // ตำบล (ตัดคำว่า "ตำบล/แขวง" ออก)
+    amphoe: string;     // อำเภอ (ตัด "อำเภอ/เขต")
+    province: string;   // จังหวัด (ตัด "จังหวัด")
 }
 
 const THAI_MONTHS = [
@@ -91,8 +96,11 @@ export function parseSiamIdData(text: string): ThaiIdCard {
     const c = parseCsvLine(last);
     const genderRaw = c[10] || "";
     const gender = /ชาย|^m|male|^1$/i.test(genderRaw) ? "M" : /หญิง|^f|female|^2$/i.test(genderRaw) ? "F" : "";
+    const strip = (s: string | undefined, re: RegExp) => (s || "").trim().replace(re, "").trim();
     const address = [c[14], c[15], c[16], c[17], c[18], c[19], c[20], c[21]]
         .map((x) => (x || "").trim()).filter(Boolean).join(" ");
+    // แยกส่วน: บ้านเลขที่ + ตรอก/ซอย/ถนน (ไม่รวมหมู่/ตำบล/อำเภอ/จังหวัด)
+    const addressDetail = [c[14], c[16], c[17], c[18]].map((x) => (x || "").trim()).filter(Boolean).join(" ");
 
     return {
         citizenId: (c[2] || "").replace(/\s/g, ""),
@@ -104,6 +112,11 @@ export function parseSiamIdData(text: string): ThaiIdCard {
         gender,
         birthDate: parseThaiDate(c[9] || ""),
         address,
+        addressDetail,
+        moo: strip(c[15], /^(หมู่ที่|หมู่|ม\.)\s*/),
+        tambon: strip(c[19], /^(ตำบล|ต\.|แขวง)\s*/),
+        amphoe: strip(c[20], /^(อำเภอ|อ\.|เขต)\s*/),
+        province: strip(c[21], /^(จังหวัด|จ\.)\s*/),
     };
 }
 

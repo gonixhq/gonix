@@ -130,8 +130,28 @@ export default function NewPatientPage() {
                 set("first_name_en", card.firstNameEn);
                 set("last_name_en", card.lastNameEn);
                 set("gender", card.gender);
-                set("address_detail", card.address);
+                set("address_detail", card.addressDetail || card.address);
+                set("address_moo", card.moo);
             }, 50);
+
+            // auto-เลือกตำบลจากบัตร → เติม อำเภอ/จังหวัด/รหัสไปรษณีย์
+            if (card.tambon) {
+                const { data } = await supabase
+                    .from("address_ref")
+                    .select("subdistrict_code, subdistrict_name, district_name, province_name, postal_code")
+                    .ilike("subdistrict_name", `%${card.tambon}%`)
+                    .limit(30);
+                const ms = data || [];
+                const norm = (s: string) => (s || "").replace(/\s/g, "");
+                const best =
+                    ms.find((a) => norm(a.subdistrict_name) === norm(card.tambon)
+                        && (!card.amphoe || norm(a.district_name).includes(norm(card.amphoe)))
+                        && (!card.province || norm(a.province_name).includes(norm(card.province))))
+                    || ms.find((a) => (!card.amphoe || norm(a.district_name).includes(norm(card.amphoe)))
+                        && (!card.province || norm(a.province_name).includes(norm(card.province))))
+                    || ms[0];
+                if (best) selectTambon(best);
+            }
         } catch (e) {
             // ผู้ใช้กดยกเลิกหน้าต่างเลือกไฟล์ → ไม่ต้องแจ้ง error
             if ((e as { name?: string })?.name === "AbortError") { setReadingCard(false); return; }
