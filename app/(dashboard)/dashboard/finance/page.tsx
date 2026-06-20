@@ -35,11 +35,10 @@ export default async function FinancePage() {
         .order("paid_at", { ascending: false })
         .limit(50);
 
-    // Today's paid revenue (filter ตาม created_at — Asia/Bangkok window)
+    // Today's revenue: ยอดที่ชำระจริง (paid_amount) รวมมัดจำ/partial ยกเว้น voided/refunded
     const { data: todayPaid } = await supabase
         .from("invoice_headers")
-        .select("total_amount, paid_amount")
-        .eq("status", "paid")
+        .select("paid_amount, status")
         .gte("created_at", dayStartISO)
         .lt("created_at", dayEndISO);
 
@@ -57,7 +56,9 @@ export default async function FinancePage() {
         .lt("created_at", dayEndISO);
 
     const anonRev = await getAnonRevenue(today, today); // + รายรับคลินิกนิรนามวันนี้
-    const todayRevenue = (todayPaid || []).reduce((s, r) => s + Number(r.paid_amount || r.total_amount || 0), 0) + anonRev.total;
+    const todayRevenue = (todayPaid || [])
+        .filter((r) => r.status !== "voided" && r.status !== "refunded")
+        .reduce((s, r) => s + Number(r.paid_amount || 0), 0) + anonRev.total;
     const pendingAmount = (pending || []).reduce((s, r) => s + Number(r.balance_due || 0), 0);
 
     // รวมเคสนิรนามเข้ารายการ (เรียงตามเวลาล่าสุด)

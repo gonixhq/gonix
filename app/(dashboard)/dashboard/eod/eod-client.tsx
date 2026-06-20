@@ -87,7 +87,7 @@ export default function EODClient({ summary, history }: Props) {
                 <div className="rounded-2xl bg-emerald-50/80 border-2 border-emerald-300 px-5 py-4 flex items-start gap-3">
                     <CheckCircle className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
                     <div className="flex-1">
-                        <div className="font-bold text-emerald-900">ปิดยอดวันนี้เรียบร้อยแล้ว</div>
+                        <div className="font-bold text-emerald-900">ปิดยอดวันที่ {formatDate(summary.close_date)} เรียบร้อยแล้ว</div>
                         <div className="text-sm text-emerald-700 mt-0.5">
                             ปิดโดย <span className="font-semibold">{summary.closed_record?.closed_by_name || "—"}</span>
                             {summary.closed_record?.closed_at && (

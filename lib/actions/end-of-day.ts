@@ -60,21 +60,18 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
                 };
             });
 
-        // ── Revenue (Asia/Bangkok day window) ──
-        const dayStartISO = new Date(`${targetDate}T00:00:00+07:00`).toISOString();
-        const nextDate = new Date(`${targetDate}T00:00:00+07:00`);
-        nextDate.setDate(nextDate.getDate() + 1);
-        const dayEndISO = nextDate.toISOString();
-
+        // ── Revenue: ยอดที่ชำระจริง (paid_amount) รวมมัดจำ/partial ยกเว้น voided/refunded ──
+        //    ใช้ invoice_date + นิยามเดียวกับหน้ารายงาน/RPC ปิดยอด (migration 057)
         const { data: invoices } = await supabase
             .from("invoice_headers")
-            .select("total_amount")
+            .select("paid_amount, status")
             .eq("clinic_id", profile.clinic_id)
-            .eq("status", "paid")
-            .gte("created_at", dayStartISO)
-            .lt("created_at", dayEndISO);
+            .eq("invoice_date", targetDate);
         const anonRev = await getAnonRevenue(targetDate, targetDate); // + รายรับคลินิกนิรนาม
-        const totalRevenue = (invoices || []).reduce((sum, i) => sum + Number(i.total_amount || 0), 0) + anonRev.total;
+        const regRevenue = (invoices || [])
+            .filter((i) => i.status !== "voided" && i.status !== "refunded")
+            .reduce((sum, i) => sum + Number(i.paid_amount || 0), 0);
+        const totalRevenue = regRevenue + anonRev.total;
 
         // ── Counters ──
         const { data: counters } = await supabase
@@ -192,9 +189,9 @@ export async function getCloseDayHistory(limit = 30): Promise<CloseDayHistory[]>
             .limit(limit);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return ((data || []) as any[]).map((r) => ({
+        const rows = ((data || []) as any[]).map((r) => ({
             id: r.id,
-            close_date: r.close_date,
+            close_date: r.close_date as string,
             closed_at: r.closed_at,
             closed_by_name: Array.isArray(r.profiles) ? r.profiles[0]?.full_name || null : r.profiles?.full_name || null,
             total_visits: r.total_visits,
@@ -205,6 +202,17 @@ export async function getCloseDayHistory(limit = 30): Promise<CloseDayHistory[]>
             queue_last_number: r.queue_last_number,
             notes: r.notes,
         }));
+
+        // รวมยอดคลินิกนิรนามต่อวัน ให้ตรงกับการ์ดสรุปด้านบน (snapshot ไม่ได้เก็บยอดนิรนาม)
+        if (rows.length > 0) {
+            const dates = rows.map((r) => r.close_date).sort();
+            const anon = await getAnonRevenue(dates[0], dates[dates.length - 1]);
+            const anonByDay = Object.fromEntries(anon.byDay.map((d) => [d.date, d.amount]));
+            for (const r of rows) {
+                r.total_revenue = Math.round((r.total_revenue + (anonByDay[r.close_date] || 0)) * 100) / 100;
+            }
+        }
+        return rows;
     } catch {
         return [];
     }
