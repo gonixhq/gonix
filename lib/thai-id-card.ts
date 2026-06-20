@@ -148,3 +148,46 @@ export async function readCardFromHandle(handle: any): Promise<ThaiIdCard> {
     }
     return parseSiamIdData(text);
 }
+
+/** เลือก "โฟลเดอร์ SIAM-ID" 1 ครั้ง → อ่าน Data.txt + รูปได้ (Chrome/Edge) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function pickSiamIdFolder(): Promise<any> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    if (typeof w.showDirectoryPicker !== "function") {
+        throw new Error("เบราว์เซอร์นี้ไม่รองรับ — กรุณาใช้ Chrome หรือ Edge");
+    }
+    return await w.showDirectoryPicker({ id: "siamid", mode: "read" });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readFolderText(dir: any): Promise<string> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let fh: any = null;
+    for (const name of ["Data.txt", "Data", "DATA.TXT", "data.txt"]) {
+        try { fh = await dir.getFileHandle(name); break; } catch { /* ลองชื่อถัดไป */ }
+    }
+    if (!fh) throw new Error("ไม่พบไฟล์ Data ในโฟลเดอร์ — เลือกโฟลเดอร์ SIAM-ID ให้ถูกต้อง");
+    const buf = await (await fh.getFile()).arrayBuffer();
+    let text = new TextDecoder("utf-8").decode(buf);
+    if (text.includes("�")) { try { text = new TextDecoder("windows-874").decode(buf); } catch { /* ใช้ utf-8 */ } }
+    return text;
+}
+
+/** อ่านบัตร + รูป จากโฟลเดอร์ (รูปชื่อ <เลขบัตร>.jpg/.bmp/.png) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readCardFromFolder(dir: any): Promise<{ card: ThaiIdCard; photo: File | null }> {
+    const card = parseSiamIdData(await readFolderText(dir));
+    let photo: File | null = null;
+    if (card.citizenId) {
+        for (const ext of ["jpg", "jpeg", "bmp", "png"]) {
+            try {
+                const f = await (await dir.getFileHandle(`${card.citizenId}.${ext}`)).getFile();
+                const type = f.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
+                photo = new File([await f.arrayBuffer()], `${card.citizenId}.${ext}`, { type });
+                break;
+            } catch { /* ลองนามสกุลถัดไป */ }
+        }
+    }
+    return { card, photo };
+}

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { bangkokDate } from "@/lib/utils/date";
-import { pickDataFile, readCardFromHandle, mapPrefix } from "@/lib/thai-id-card";
+import { pickSiamIdFolder, readCardFromFolder, mapPrefix } from "@/lib/thai-id-card";
 import {
     ArrowLeft, Save, Loader2, CheckCircle, AlertTriangle,
     User, Phone, Heart, Camera, MapPin, Undo2, Search, X, ShieldCheck, CreditCard, UserCheck
@@ -110,11 +110,18 @@ export default function NewPatientPage() {
         setReadingCard(true);
         try {
             if (!cardHandleRef.current) {
-                cardHandleRef.current = await pickDataFile();  // เลือกไฟล์ Data.txt ครั้งแรก
+                cardHandleRef.current = await pickSiamIdFolder();  // เลือกโฟลเดอร์ SIAM-ID ครั้งแรก
             }
-            const card = await readCardFromHandle(cardHandleRef.current);
+            const { card, photo } = await readCardFromFolder(cardHandleRef.current);
             setIdType("thai");
             if (card.birthDate) setDob(card.birthDate);
+            // แนบรูปจากบัตรอัตโนมัติ
+            if (photo) {
+                setPhotoFile(photo);
+                const reader = new FileReader();
+                reader.onload = () => setPhotoPreview(reader.result as string);
+                reader.readAsDataURL(photo);
+            }
             // ฟอร์มเป็น uncontrolled → เติมค่าผ่าน DOM (รอ field render ก่อน)
             setTimeout(() => {
                 const form = document.querySelector("form") as HTMLFormElement | null;
