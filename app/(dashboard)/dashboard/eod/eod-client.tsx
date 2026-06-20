@@ -10,7 +10,7 @@ import {
     DoorClosed, AlertCircle, CheckCircle, Wallet, Users, FileText,
     Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar,
 } from "lucide-react";
-import { closeClinicDay } from "@/lib/actions/end-of-day";
+import { closeClinicDay, reopenClinicDay } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
 
 interface Props {
@@ -42,6 +42,21 @@ export default function EODClient({ summary, history }: Props) {
             setSuccess(`✓ ปิดยอดวันที่ ${formatDate(summary.close_date)} สำเร็จ — Counter ถูก reset แล้ว`);
             setShowConfirm(false);
             setTimeout(() => router.refresh(), 1500);
+        });
+    }
+
+    function handleReopen() {
+        if (!confirm(`ยกเลิกการปิดยอดวันที่ ${formatDate(summary.close_date)}?\n\nวันนี้จะกลับมาเป็น "ยังไม่ปิด" — แก้ไข/เพิ่มรายการแล้วปิดยอดใหม่ได้ (ยอดจะคำนวณใหม่ทั้งหมด)`)) return;
+        setError(null);
+        setSuccess(null);
+        startTransition(async () => {
+            const res = await reopenClinicDay(summary.close_date);
+            if (!res.success) {
+                setError(res.error || "ยกเลิกการปิดยอดไม่สำเร็จ");
+                return;
+            }
+            setSuccess("✓ ยกเลิกการปิดยอดแล้ว — ตรวจสอบยอดให้ครบแล้วกดปิดยอดอีกครั้ง");
+            setTimeout(() => router.refresh(), 1200);
         });
     }
 
@@ -95,6 +110,15 @@ export default function EODClient({ summary, history }: Props) {
                             )}
                         </div>
                     </div>
+                    <Button
+                        onClick={handleReopen}
+                        disabled={pending}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50 shrink-0"
+                    >
+                        <RotateCcw className="h-4 w-4" /> ยกเลิกการปิดยอด
+                    </Button>
                 </div>
             ) : hasPending ? (
                 <div className="rounded-2xl bg-amber-50/80 border-2 border-amber-300 px-5 py-4 flex items-start gap-3">

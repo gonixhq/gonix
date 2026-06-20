@@ -166,6 +166,37 @@ export async function closeClinicDay(input: { date?: string; notes?: string }) {
     }
 }
 
+/** ยกเลิกการปิดยอด (เปิดวันใหม่) — ใช้แก้กรณีปิดผิด/ปิดก่อนยอดครบ */
+export async function reopenClinicDay(date: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { error } = await supabase.rpc("fn_reopen_clinic_day", {
+            p_clinic_id: profile.clinic_id,
+            p_close_date: date,
+        });
+
+        if (error) {
+            if ((error.message || "").includes("NOT_CLOSED")) {
+                return { success: false, error: "วันนี้ยังไม่ได้ปิดยอด" };
+            }
+            return { success: false, error: error.message };
+        }
+
+        revalidatePath("/dashboard/eod");
+        revalidatePath("/dashboard/overview");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** History of past day closes */
 export async function getCloseDayHistory(limit = 30): Promise<CloseDayHistory[]> {
     try {

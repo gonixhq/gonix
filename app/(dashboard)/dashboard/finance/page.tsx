@@ -22,7 +22,7 @@ export default async function FinancePage() {
         .from("invoice_headers")
         .select(`
             id, vn, hn, invoice_date, subtotal, discount_amount, total_amount, paid_amount, balance_due, status, created_at,
-            patients!inner(prefix, first_name, last_name)
+            patients(prefix, first_name, last_name)
         `)
         .order("created_at", { ascending: false })
         .limit(50);
