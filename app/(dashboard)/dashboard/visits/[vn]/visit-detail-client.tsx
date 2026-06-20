@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Printer, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock } from "lucide-react";
 import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
 import type { FaceChartData } from "@/lib/aesthetic-types";
 import VisitStatusActions from "./visit-status-actions";
@@ -193,16 +193,11 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         )}
                     </div>
 
-                    {/* VN + Print button */}
-                    <div className="pt-3 border-t border-slate-200/60 space-y-2">
+                    {/* VN (พิมพ์ย้ายไปหน้าจ่ายยา/คิดเงิน) */}
+                    <div className="pt-3 border-t border-slate-200/60">
                         <div className="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-[11px] font-bold font-mono tracking-wider text-center">
                             {vn}
                         </div>
-                        <Link href={`/print/visits/${vn}?noauto=1`} target="_blank" className="block">
-                            <Button variant="outline" size="sm" className="rounded-lg gap-1.5 h-8 text-xs w-full">
-                                <Printer className="h-3.5 w-3.5" /> พิมพ์ / PDF
-                            </Button>
-                        </Link>
                     </div>
 
                     {/* Emergency Contact */}
