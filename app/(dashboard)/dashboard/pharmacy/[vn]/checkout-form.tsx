@@ -270,7 +270,7 @@ export default function CheckoutForm({
     }
 
     const handlePrintAllLabels = () => {
-        alert("ส่งคำสั่งพิมพ์สติ๊กเกอร์ยาทั้งหมดแล้ว");
+        window.open(`/print/drug-labels/${visit.vn}`, "_blank");
         setDispensedItems(drugOrders.map((d: DrugOrder) => d.id));
     };
 
@@ -342,11 +342,19 @@ export default function CheckoutForm({
                     <Badge className="bg-rose-100 text-rose-700 border-0">{visit.status === "waiting_medicine" ? "รอจัดยา" : "รอชำระเงิน"}</Badge>
                     <span className="text-xs text-slate-500 font-mono">HN: {visit.hn} · VN: {visit.vn}</span>
                 </div>
-                <Link href={`/print/visits/${visit.vn}`} target="_blank">
-                    <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-blue-300 text-blue-700 hover:bg-blue-50">
-                        <Printer className="h-4 w-4" /> พิมพ์ OPD Record
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                    {drugOrders.length > 0 && (
+                        <Button onClick={handlePrintAllLabels} variant="outline" size="sm"
+                            className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50">
+                            <Pill className="h-4 w-4" /> พิมพ์ฉลากยา
+                        </Button>
+                    )}
+                    <Link href={`/print/visits/${visit.vn}`} target="_blank">
+                        <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-blue-300 text-blue-700 hover:bg-blue-50">
+                            <Printer className="h-4 w-4" /> พิมพ์ OPD Record
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             {error && (
