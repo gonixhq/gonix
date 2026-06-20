@@ -86,7 +86,9 @@ export default function CheckoutForm({
     inventoryDrugs?: InventoryDrug[];
 }) {
     const router = useRouter();
-    const p = visit.patient;
+    const p = Array.isArray(visit.patients) ? visit.patients[0] : (visit.patients || visit.patient);
+    const ptAge = p?.dob ? Math.floor((Date.now() - new Date(p.dob).getTime()) / 31557600000) : null;
+    const ptGender = p?.gender === "M" ? "ชาย" : p?.gender === "F" ? "หญิง" : "";
 
     const [loading, setLoading] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -338,9 +340,20 @@ export default function CheckoutForm({
                         </Button>
                     </Link>
                     <span className="text-slate-300">·</span>
-                    <span className="text-base font-bold text-slate-800">{p?.first_name} {p?.last_name}</span>
-                    <Badge className="bg-rose-100 text-rose-700 border-0">{visit.status === "waiting_medicine" ? "รอจัดยา" : "รอชำระเงิน"}</Badge>
-                    <span className="text-xs text-slate-500 font-mono">HN: {visit.hn} · VN: {visit.vn}</span>
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-base font-bold text-slate-800">{p?.prefix || ""}{p?.first_name} {p?.last_name}</span>
+                            <Badge className="bg-rose-100 text-rose-700 border-0">{visit.status === "waiting_medicine" ? "รอจัดยา" : "รอชำระเงิน"}</Badge>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
+                            <span className="font-mono">HN {visit.hn}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="font-mono">VN {visit.vn}</span>
+                            {ptGender && <><span className="text-slate-300">·</span><span>{ptGender}</span></>}
+                            {ptAge != null && <><span className="text-slate-300">·</span><span>อายุ {ptAge} ปี</span></>}
+                            {p?.phone && <><span className="text-slate-300">·</span><span>โทร {p.phone}</span></>}
+                        </div>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {drugOrders.length > 0 && (
