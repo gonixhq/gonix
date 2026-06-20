@@ -1,0 +1,736 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+    BarChart3, Users, Activity, TrendingUp, Calendar, Wallet,
+    Download, AlertTriangle, Pill, Sparkles, FileText, ChevronRight,
+    Banknote, CreditCard, QrCode, ArrowLeftRight, X, UserPlus, UserCheck,
+    ShoppingBasket, ArrowRight, Link2,
+} from "lucide-react";
+import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
+import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+    cash: "เงินสด",
+    transfer: "โอน",
+    credit_card: "บัตรเครดิต",
+    qr_promptpay: "QR / พร้อมเพย์",
+    insurance: "ประกัน",
+    nhso: "สปสช.",
+    package: "หักจากคอส",
+    points: "แต้มสะสม",
+    mixed: "ผสม",
+};
+
+const PAYMENT_METHOD_ICON: Record<string, React.ElementType> = {
+    cash: Banknote,
+    transfer: ArrowLeftRight,
+    credit_card: CreditCard,
+    qr_promptpay: QrCode,
+};
+
+const ITEM_TYPE_LABEL: Record<string, string> = {
+    drug: "ยา",
+    supply: "เวชภัณฑ์",
+    doctor_fee: "ค่าตรวจ",
+    procedure: "หัตถการ",
+    service: "บริการ",
+    package: "คอสบริการ",
+    lab: "แล็บ",
+    lab_external: "แล็บภายนอก",
+    other: "อื่นๆ",
+};
+
+const ITEM_TYPE_COLOR: Record<string, string> = {
+    drug: "bg-amber-100 text-amber-700",
+    supply: "bg-indigo-100 text-indigo-700",
+    doctor_fee: "bg-cyan-100 text-cyan-700",
+    procedure: "bg-rose-100 text-rose-700",
+    service: "bg-blue-100 text-blue-700",
+    package: "bg-pink-100 text-pink-700",
+    lab: "bg-purple-100 text-purple-700",
+    other: "bg-slate-100 text-slate-700",
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+    general_med: "เวชกรรมทั่วไป",
+    aesthetic: "ความงาม",
+    wound_care: "ทำแผล",
+    med_cert: "ใบรับรอง",
+    checkup: "ตรวจสุขภาพ",
+    std_test: "ตรวจ STD",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+    partial: "ชำระบางส่วน",
+    issued: "ค้างชำระ",
+};
+
+// RFM segment tone (เหมือนหน้ารายงานธุรกิจเดิม)
+const SEG_TONE: Record<string, string> = {
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    green: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    cyan: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    blue: "bg-blue-50 border-blue-200 text-blue-700",
+    indigo: "bg-indigo-50 border-indigo-200 text-indigo-700",
+    amber: "bg-amber-50 border-amber-200 text-amber-700",
+    orange: "bg-orange-50 border-orange-200 text-orange-700",
+    rose: "bg-rose-50 border-rose-200 text-rose-700",
+    red: "bg-red-50 border-red-200 text-red-700",
+    slate: "bg-slate-50 border-slate-200 text-slate-600",
+};
+
+function fmt(n: number): string {
+    return n.toLocaleString("th-TH", { minimumFractionDigits: 0 });
+}
+function fmt2(n: number): string {
+    return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatDateThai(d: string): string {
+    return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+}
+
+export default function ReportsClient({
+    summary, outstanding, biz, rfm, basket, startDate, endDate, today,
+}: {
+    summary: ReportSummary;
+    outstanding: OutstandingInvoice[];
+    biz: BusinessInsights;
+    rfm: RfmResult;
+    basket: BasketAnalysis;
+    startDate: string;
+    endDate: string;
+    today: string;
+}) {
+    const router = useRouter();
+    const [showOutstanding, setShowOutstanding] = useState(false);
+    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior">("overview");
+
+    const newPct = biz.totalRevenue > 0 ? Math.round((biz.newRevenue / biz.totalRevenue) * 100) : 0;
+    const retPct = 100 - newPct;
+
+    // Quick range presets
+    function applyPreset(preset: "today" | "week" | "month" | "lastMonth") {
+        const now = new Date(today + "T00:00:00");
+        let start = today, end = today;
+        if (preset === "today") {
+            start = today; end = today;
+        } else if (preset === "week") {
+            const dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
+            const monday = new Date(now); monday.setDate(now.getDate() - dow);
+            start = monday.toLocaleDateString("sv-SE"); end = today;
+        } else if (preset === "month") {
+            const [y, m] = today.split("-");
+            start = `${y}-${m}-01`; end = today;
+        } else if (preset === "lastMonth") {
+            const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+            start = lm.toLocaleDateString("sv-SE"); end = lmEnd.toLocaleDateString("sv-SE");
+        }
+        router.push(`/dashboard/reports?start=${start}&end=${end}`);
+    }
+
+    function exportCSV() {
+        const lines: string[] = [];
+        lines.push(`รายงานสรุป,${formatDateThai(startDate)} ถึง ${formatDateThai(endDate)}`);
+        lines.push("");
+        lines.push("=== สรุปยอด ===");
+        lines.push(`รายรับ (ชำระจริง),${summary.totalRevenue}`);
+        lines.push(`ยอดออกบิล,${summary.totalBilled}`);
+        lines.push(`ค้างชำระ,${summary.outstanding}`);
+        lines.push(`จำนวนใบเสร็จ,${summary.invoiceCount}`);
+        lines.push(`Visit ทั้งหมด,${summary.totalVisits}`);
+        lines.push(`ผู้ป่วยใหม่,${summary.newPatients}`);
+        lines.push("");
+        lines.push("=== รายรับรายวัน ===");
+        lines.push("วันที่,ยอดรับ");
+        summary.revenueByDay.forEach(r => lines.push(`${r.date},${r.amount}`));
+        lines.push("");
+        lines.push("=== แยกตามวิธีชำระ ===");
+        lines.push("วิธีชำระ,จำนวนครั้ง,ยอด");
+        summary.revenueByMethod.forEach(r => lines.push(`${PAYMENT_METHOD_LABEL[r.method] || r.method},${r.count},${r.amount}`));
+        lines.push("");
+        lines.push("=== ยอดขายตามประเภท ===");
+        lines.push("ประเภท,จำนวนรายการ,ยอด");
+        summary.salesByType.forEach(r => lines.push(`${ITEM_TYPE_LABEL[r.type] || r.type},${r.count},${r.amount}`));
+        lines.push("");
+        lines.push("=== รายการขายดี ===");
+        lines.push("ชื่อ,ประเภท,จำนวน,ยอด");
+        summary.topItems.forEach(r => lines.push(`"${r.name}",${ITEM_TYPE_LABEL[r.type] || r.type},${r.qty},${r.amount}`));
+        lines.push("");
+        lines.push("=== ลูกค้าใหม่ vs เก่า ===");
+        lines.push("กลุ่ม,จำนวนราย,รายได้");
+        lines.push(`ลูกค้าใหม่,${biz.newCustomers},${biz.newRevenue}`);
+        lines.push(`ลูกค้าเก่า,${biz.returningCustomers},${biz.returningRevenue}`);
+        lines.push("");
+        lines.push("=== กลุ่มลูกค้า RFM (ทั้งหมด) ===");
+        lines.push("กลุ่ม,จำนวนราย,ยอดใช้จ่ายรวม");
+        rfm.segments.filter(s => s.customers > 0).forEach(s => lines.push(`"${s.label}",${s.customers},${s.revenue}`));
+        lines.push("");
+        lines.push("=== สินค้าที่ซื้อคู่กันบ่อย (Market Basket) ===");
+        lines.push("สินค้า A,สินค้า B,ซื้อคู่กัน(ครั้ง),Lift");
+        basket.pairs.forEach(p => lines.push(`"${p.a}","${p.b}",${p.count},${p.lift}`));
+        lines.push("");
+        lines.push("=== ซื้อแล้วครั้งถัดไปมักซื้ออะไร ===");
+        lines.push("ซื้อก่อน,ครั้งถัดไป,จำนวนครั้ง,เฉลี่ยห่าง(วัน)");
+        basket.transitions.forEach(t => lines.push(`"${t.from}","${t.to}",${t.count},${t.avgGapDays}`));
+
+        const csv = "﻿" + lines.join("\n");  // BOM for Excel Thai
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `report-${startDate}_${endDate}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
+    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "all") {
+        window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}`, "_blank");
+    }
+
+    const TAB_LABEL: Record<string, string> = {
+        overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
+        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ",
+    };
+
+    const maxDayRevenue = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
+
+    return (
+        <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
+            {/* Header — title + period picker */}
+            <div className="gonix-card-premium p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 rounded-2xl flex items-center justify-center bg-[#2B54F0]/10 shrink-0">
+                        <BarChart3 className="h-5 w-5 text-[#2B54F0]" />
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-black text-slate-800 tracking-tight leading-tight">รายงาน & สถิติ</h1>
+                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            <Calendar className="h-3 w-3" /> {formatDateThai(startDate)} — {formatDateThai(endDate)}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Presets */}
+                    <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
+                        <PresetBtn onClick={() => applyPreset("today")}>วันนี้</PresetBtn>
+                        <PresetBtn onClick={() => applyPreset("week")}>สัปดาห์</PresetBtn>
+                        <PresetBtn onClick={() => applyPreset("month")}>เดือนนี้</PresetBtn>
+                        <PresetBtn onClick={() => applyPreset("lastMonth")}>เดือนก่อน</PresetBtn>
+                    </div>
+
+                    {/* Custom range */}
+                    <form method="get" className="inline-flex items-center gap-1.5">
+                        <input type="date" name="start" defaultValue={startDate} max={today}
+                            className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:border-[#2B54F0] focus:outline-none" />
+                        <span className="text-slate-300 text-xs">–</span>
+                        <input type="date" name="end" defaultValue={endDate} max={today}
+                            className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:border-[#2B54F0] focus:outline-none" />
+                        <Button type="submit" size="sm" variant="outline" className="rounded-lg h-9 text-xs">ดู</Button>
+                    </form>
+                </div>
+            </div>
+
+            {/* Outstanding alert */}
+            {summary.outstanding > 0 && (
+                <button
+                    onClick={() => setShowOutstanding(true)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border-2 border-amber-200 hover:bg-amber-100/60 transition-colors text-left"
+                >
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div className="flex-1">
+                        <span className="font-bold text-amber-900">ค้างชำระทั้งหมด ฿{fmt2(outstanding.reduce((s, o) => s + o.balance, 0))}</span>
+                        <span className="text-sm text-amber-700 ml-2">({outstanding.length} ใบเสร็จ)</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-amber-600" />
+                </button>
+            )}
+
+            {/* Top stat cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard icon={Wallet} label="รายรับ (ชำระจริง)" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" sub={`ออกบิล ฿${fmt(summary.totalBilled)}`} />
+                <StatCard icon={AlertTriangle} label="ค้างชำระ" value={`฿${fmt(summary.outstanding)}`} color="amber" sub={`${summary.partialCount} บางส่วน`} />
+                <StatCard icon={Activity} label="Visit" value={fmt(summary.totalVisits)} color="sky" sub={`เสร็จ ${summary.completedVisits} · ยกเลิก ${summary.cancelledVisits}`} />
+                <StatCard icon={Users} label="ผู้ป่วยใหม่" value={fmt(summary.newPatients)} color="violet" sub={`ใบเสร็จ ${summary.invoiceCount} ใบ`} />
+            </div>
+
+            {/* Tabs + Export toolbar */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5 flex-wrap">
+                    <TabBtn active={tab === "overview"} onClick={() => setTab("overview")}>ภาพรวม</TabBtn>
+                    <TabBtn active={tab === "sales"} onClick={() => setTab("sales")}>ยอดขาย</TabBtn>
+                    <TabBtn active={tab === "items"} onClick={() => setTab("items")}>รายการขายดี</TabBtn>
+                    <TabBtn active={tab === "customers"} onClick={() => setTab("customers")}>ลูกค้า & ธุรกิจ</TabBtn>
+                    <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
+                </div>
+
+                <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                    <button onClick={exportCSV} title="ดาวน์โหลด Excel (.csv) ทั้งรายงาน"
+                        className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors">
+                        <Download className="h-4 w-4" /> Excel
+                    </button>
+                    <div className="w-px h-5 bg-slate-200" />
+                    <button onClick={() => openPDF(tab)} title={`บันทึก PDF เฉพาะแท็บ ${TAB_LABEL[tab]}`}
+                        className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 transition-colors">
+                        <FileText className="h-4 w-4" /> PDF แท็บนี้
+                    </button>
+                    <div className="w-px h-5 bg-slate-200" />
+                    <button onClick={() => openPDF("all")} title="บันทึก PDF รวมทุกหัวข้อ"
+                        className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                        PDF ทั้งหมด
+                    </button>
+                </div>
+            </div>
+
+            {/* ── OVERVIEW ── */}
+            {tab === "overview" && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Revenue by day */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-emerald-600" />
+                            <h2 className="text-sm font-bold text-slate-800">รายรับรายวัน</h2>
+                        </div>
+                        <div className="p-5">
+                            {summary.revenueByDay.length === 0 ? (
+                                <p className="text-center text-sm text-slate-400 py-8">ไม่มีรายรับในช่วงนี้</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {summary.revenueByDay.slice(-14).map(r => {
+                                        const pct = Math.round((r.amount / maxDayRevenue) * 100);
+                                        return (
+                                            <div key={r.date} className="flex items-center gap-3">
+                                                <span className="text-xs text-slate-500 w-16 shrink-0 text-right">
+                                                    {new Date(r.date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                                </span>
+                                                <div className="flex-1 h-5 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                                </div>
+                                                <span className="text-xs font-bold text-emerald-700 w-20 text-right tabular-nums">฿{fmt(r.amount)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Payment methods */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Wallet className="h-4 w-4 text-cyan-600" />
+                            <h2 className="text-sm font-bold text-slate-800">แยกตามวิธีชำระ</h2>
+                        </div>
+                        <div className="p-5">
+                            {summary.revenueByMethod.length === 0 ? (
+                                <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {summary.revenueByMethod.map(r => {
+                                        const PIcon = PAYMENT_METHOD_ICON[r.method] || Wallet;
+                                        const totalMethodRev = summary.revenueByMethod.reduce((s, m) => s + Math.abs(m.amount), 0);
+                                        const pct = totalMethodRev > 0 ? Math.round((Math.abs(r.amount) / totalMethodRev) * 100) : 0;
+                                        return (
+                                            <div key={r.method} className="flex items-center gap-3">
+                                                <div className="h-9 w-9 rounded-xl bg-cyan-50 flex items-center justify-center shrink-0">
+                                                    <PIcon className="h-4 w-4 text-cyan-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between text-sm mb-0.5">
+                                                        <span className="font-medium text-slate-700">{PAYMENT_METHOD_LABEL[r.method] || r.method}</span>
+                                                        <span className="font-bold text-slate-800 tabular-nums">฿{fmt(r.amount)}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 w-16 text-right">{r.count} ครั้ง</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Visits by category */}
+                    <div className="gonix-card-premium overflow-hidden lg:col-span-2">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-violet-600" />
+                            <h2 className="text-sm font-bold text-slate-800">Visit แยกตามประเภทบริการ</h2>
+                        </div>
+                        <div className="p-5">
+                            {summary.revenueByCategory.length === 0 ? (
+                                <p className="text-center text-sm text-slate-400 py-8">ไม่มี Visit ในช่วงนี้</p>
+                            ) : (
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                                    {summary.revenueByCategory.map(c => (
+                                        <div key={c.category} className="rounded-xl border border-slate-200 p-3 text-center">
+                                            <div className="text-2xl font-black text-slate-800 tabular-nums">{c.count}</div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">{CATEGORY_LABEL[c.category] || c.category}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── SALES ── */}
+            {tab === "sales" && (
+                <div className="gonix-card-premium overflow-hidden">
+                    <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                        <h2 className="text-sm font-bold text-slate-800">ยอดขายแยกตามประเภทรายการ</h2>
+                    </div>
+                    <div className="p-5">
+                        {summary.salesByType.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-8">ไม่มียอดขายในช่วงนี้</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {(() => {
+                                    const totalSales = summary.salesByType.reduce((s, t) => s + t.amount, 0);
+                                    return summary.salesByType.map(t => {
+                                        const pct = totalSales > 0 ? Math.round((t.amount / totalSales) * 100) : 0;
+                                        return (
+                                            <div key={t.type}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase ${ITEM_TYPE_COLOR[t.type] || ITEM_TYPE_COLOR.other}`}>
+                                                        {ITEM_TYPE_LABEL[t.type] || t.type}
+                                                    </span>
+                                                    <div className="text-sm">
+                                                        <span className="font-bold text-slate-800 tabular-nums">฿{fmt2(t.amount)}</span>
+                                                        <span className="text-slate-400 ml-2 text-xs">{pct}% · {t.count} รายการ</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full" style={{ width: `${pct}%` }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ── TOP ITEMS ── */}
+            {tab === "items" && (
+                <div className="gonix-card-premium overflow-hidden">
+                    <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-rose-600" />
+                        <h2 className="text-sm font-bold text-slate-800">รายการขายดี (Top 15)</h2>
+                    </div>
+                    {summary.topItems.length === 0 ? (
+                        <p className="text-center text-sm text-slate-400 py-12">ไม่มีรายการขายในช่วงนี้</p>
+                    ) : (
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50/60">
+                                <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <th className="text-left px-5 py-2.5 w-10">#</th>
+                                    <th className="text-left px-4 py-2.5">รายการ</th>
+                                    <th className="text-left px-4 py-2.5">ประเภท</th>
+                                    <th className="text-center px-4 py-2.5">จำนวน</th>
+                                    <th className="text-right px-5 py-2.5">ยอดขาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {summary.topItems.map((it, i) => (
+                                    <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                        <td className="px-5 py-2.5 text-slate-400 font-bold tabular-nums">{i + 1}</td>
+                                        <td className="px-4 py-2.5 font-bold text-slate-800">{it.name}</td>
+                                        <td className="px-4 py-2.5">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${ITEM_TYPE_COLOR[it.type] || ITEM_TYPE_COLOR.other}`}>
+                                                {ITEM_TYPE_LABEL[it.type] || it.type}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-center tabular-nums text-slate-600">{fmt(it.qty)}</td>
+                                        <td className="px-5 py-2.5 text-right font-bold text-emerald-700 tabular-nums">฿{fmt2(it.amount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            )}
+
+            {/* ── CUSTOMERS & BUSINESS ── */}
+            {tab === "customers" && (
+                <div className="space-y-4">
+                    {/* New vs returning revenue */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Users className="h-4 w-4 text-blue-600" />
+                            <h2 className="text-sm font-bold text-slate-800">รายได้: ลูกค้าใหม่ vs เก่า</h2>
+                            <span className="text-xs text-slate-400">(ในช่วงที่เลือก)</span>
+                        </div>
+                        <div className="p-5">
+                            <div className="flex h-4 rounded-full overflow-hidden bg-slate-100 mb-3">
+                                <div style={{ width: `${newPct}%`, background: "#2B54F0" }} />
+                                <div style={{ width: `${retPct}%`, background: "#10B981" }} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-xl bg-[#2B54F0]/5 border border-[#2B54F0]/15 p-3">
+                                    <div className="text-[11px] font-bold text-[#2B54F0] inline-flex items-center gap-1"><UserPlus className="h-3.5 w-3.5" /> ลูกค้าใหม่</div>
+                                    <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{fmt(biz.newRevenue)}</div>
+                                    <div className="text-[11px] text-slate-500">{newPct}% · {biz.newCustomers} ราย</div>
+                                </div>
+                                <div className="rounded-xl bg-[#10B981]/5 border border-[#10B981]/15 p-3">
+                                    <div className="text-[11px] font-bold text-emerald-600 inline-flex items-center gap-1"><UserCheck className="h-3.5 w-3.5" /> ลูกค้าเก่า</div>
+                                    <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{fmt(biz.returningRevenue)}</div>
+                                    <div className="text-[11px] text-slate-500">{retPct}% · {biz.returningCustomers} ราย</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* RFM segments */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-violet-600" />
+                            <h2 className="text-sm font-bold text-slate-800">กลุ่มลูกค้า (RFM)</h2>
+                            <span className="text-xs text-slate-400">{rfm.total} ราย (ทั้งหมด)</span>
+                        </div>
+                        <div className="p-4">
+                            {rfm.segments.filter(s => s.customers > 0).length === 0 ? (
+                                <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีข้อมูลลูกค้าเพียงพอ</p>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                                        {rfm.segments.filter(s => s.customers > 0).map(s => (
+                                            <div key={s.key} className={`rounded-xl border p-3 ${SEG_TONE[s.color] || SEG_TONE.slate}`}>
+                                                <div className="text-sm font-bold">{s.label}</div>
+                                                <div className="text-2xl font-black tabular-nums mt-0.5">{s.customers}</div>
+                                                <div className="text-[11px] opacity-80">฿{fmt(s.revenue)}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-3">
+                                        แบ่งจาก Recency (ซื้อล่าสุด) · Frequency (ความถี่) · Monetary (ยอดใช้จ่าย) — ใช้วางแผนแคมเปญ เช่น &quot;ห้ามเสียไป/เสี่ยงหาย&quot; ส่งโปรดึงกลับ, &quot;ลูกค้าชั้นยอด&quot; ดูแลพิเศษ
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── PURCHASE BEHAVIOR (เฟส 2) ── */}
+            {tab === "behavior" && (
+                <div className="space-y-4">
+                    {/* summary line */}
+                    <div className="flex flex-wrap gap-3 text-xs">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold">
+                            ใบเสร็จในช่วง <b className="text-slate-800 tabular-nums">{fmt(basket.totalBaskets)}</b> ใบ
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 font-semibold">
+                            มี ≥2 รายการ <b className="text-slate-800 tabular-nums">{fmt(basket.multiItemBaskets)}</b> ใบ
+                        </span>
+                    </div>
+
+                    {/* Market basket — co-occurrence */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <ShoppingBasket className="h-4 w-4 text-blue-600" />
+                            <h2 className="text-sm font-bold text-slate-800">สินค้า/บริการที่มักซื้อคู่กัน</h2>
+                            <span className="text-xs text-slate-400">(ในใบเสร็จเดียวกัน)</span>
+                        </div>
+                        {basket.pairs.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-10">ยังไม่พบคู่ที่ซื้อร่วมกันบ่อยพอ (ต้อง ≥ 2 ครั้ง)</p>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50/60">
+                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <th className="text-left px-5 py-2.5">คู่สินค้า / บริการ</th>
+                                        <th className="text-center px-4 py-2.5">ซื้อคู่กัน</th>
+                                        <th className="text-center px-4 py-2.5">โอกาสซื้อคู่</th>
+                                        <th className="text-right px-5 py-2.5">Lift</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {basket.pairs.map((p, i) => (
+                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                            <td className="px-5 py-2.5">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-semibold text-slate-800">{p.a}</span>
+                                                    <Link2 className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                                                    <span className="font-semibold text-slate-800">{p.b}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center tabular-nums font-bold text-slate-700">{fmt(p.count)} ครั้ง</td>
+                                            <td className="px-4 py-2.5 text-center text-xs text-slate-500">
+                                                <span title="ลูกค้าที่ซื้อ A แล้วซื้อ B ด้วย">{Math.round(Math.max(p.confAtoB, p.confBtoA))}%</span>
+                                            </td>
+                                            <td className="px-5 py-2.5 text-right">
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${p.lift >= 1.2 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                                    ×{p.lift.toFixed(1)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                        <p className="text-[11px] text-slate-400 px-5 py-2.5 border-t border-slate-100">
+                            <b>Lift ×{">"}1</b> = ซื้อคู่กันมากกว่าที่จะบังเอิญ — เหมาะจัดโปรขายคู่ / แนะนำเพิ่มหน้าเคาน์เตอร์
+                        </p>
+                    </div>
+
+                    {/* Next-purchase transitions */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <ArrowRight className="h-4 w-4 text-violet-600" />
+                            <h2 className="text-sm font-bold text-slate-800">ซื้อแล้ว…ครั้งถัดไปมักซื้ออะไร</h2>
+                            <span className="text-xs text-slate-400">(คนไข้คนเดิม ใบเสร็จถัดไป)</span>
+                        </div>
+                        {basket.transitions.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-10">ยังไม่พบลำดับการซื้อซ้ำมากพอ (ต้อง ≥ 2 ครั้ง)</p>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50/60">
+                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <th className="text-left px-5 py-2.5">ซื้อก่อน → ครั้งถัดไป</th>
+                                        <th className="text-center px-4 py-2.5">จำนวนครั้ง</th>
+                                        <th className="text-right px-5 py-2.5">เฉลี่ยห่างกัน</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {basket.transitions.map((t, i) => (
+                                        <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                            <td className="px-5 py-2.5">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-semibold text-slate-700">{t.from}</span>
+                                                    <ArrowRight className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                                                    <span className="font-semibold text-slate-800">{t.to}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-center tabular-nums font-bold text-slate-700">{fmt(t.count)}</td>
+                                            <td className="px-5 py-2.5 text-right tabular-nums text-slate-600">{Math.round(t.avgGapDays)} วัน</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                        <p className="text-[11px] text-slate-400 px-5 py-2.5 border-t border-slate-100">
+                            ใช้ตั้งเตือนติดตาม / ส่งโปรกระตุ้นซื้อซ้ำตามรอบเวลาที่ลูกค้ามักกลับมา
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Outstanding modal */}
+            {showOutstanding && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowOutstanding(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                            <div>
+                                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                    <AlertTriangle className="h-5 w-5 text-amber-600" /> ใบเสร็จค้างชำระ
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-0.5">{outstanding.length} ใบ · รวม ฿{fmt2(outstanding.reduce((s, o) => s + o.balance, 0))}</p>
+                            </div>
+                            <button onClick={() => setShowOutstanding(false)} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center">
+                                <X className="h-4 w-4 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50/60 sticky top-0">
+                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <th className="text-left px-4 py-2">ใบเสร็จ</th>
+                                        <th className="text-left px-4 py-2">คนไข้</th>
+                                        <th className="text-right px-4 py-2">ค้าง</th>
+                                        <th className="w-8"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {outstanding.map(o => (
+                                        <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                            <td className="px-4 py-2.5">
+                                                <Link href={`/dashboard/finance/${o.id}`} className="font-mono text-[11px] text-cyan-600 hover:underline">
+                                                    {o.id}
+                                                </Link>
+                                                <div className="text-[10px] text-slate-400">{formatDateThai(o.invoice_date)}</div>
+                                            </td>
+                                            <td className="px-4 py-2.5">
+                                                <div className="font-medium text-slate-700">{o.patient_name}</div>
+                                                <div className="text-[10px] text-slate-400 font-mono">{o.hn}</div>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right">
+                                                <div className="font-bold text-amber-700 tabular-nums">฿{fmt2(o.balance)}</div>
+                                                <div className="text-[10px] text-slate-400">{STATUS_LABEL[o.status] || o.status}</div>
+                                            </td>
+                                            <td className="px-2">
+                                                <Link href={`/dashboard/finance/${o.id}`}>
+                                                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function PresetBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+    return (
+        <button onClick={onClick} className="h-8 px-3 rounded-lg text-xs font-bold text-slate-600 hover:bg-white hover:text-[#2B54F0] hover:shadow-sm transition-all">
+            {children}
+        </button>
+    );
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`h-9 px-4 rounded-lg text-sm font-bold transition-all ${active ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600 hover:text-slate-800"}`}
+        >
+            {children}
+        </button>
+    );
+}
+
+function StatCard({ icon: Icon, label, value, color, sub }: {
+    icon: React.ElementType;
+    label: string;
+    value: string;
+    color: "emerald" | "amber" | "sky" | "violet";
+    sub?: string;
+}) {
+    const styles = {
+        emerald: { tile: "bg-[#10B981]/10", iconText: "text-[#10B981]", glow: "from-[#15FF83]/25 to-[#10B981]/5" },
+        amber: { tile: "bg-amber-100", iconText: "text-amber-600", glow: "from-amber-200/30 to-orange-100/5" },
+        sky: { tile: "bg-[#0EA5A0]/10", iconText: "text-[#0EA5A0]", glow: "from-[#00FFCC]/25 to-[#0EA5A0]/5" },
+        violet: { tile: "bg-[#6366F1]/10", iconText: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" },
+    }[color];
+    return (
+        <div className="gonix-card-premium p-4 relative overflow-hidden">
+            <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${styles.glow} blur-2xl pointer-events-none`} />
+            <div className="relative">
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-3 ${styles.tile}`}>
+                    <Icon className={`h-5 w-5 ${styles.iconText}`} />
+                </div>
+                <div className="text-2xl font-extrabold text-slate-800 tabular-nums tracking-tight">{value}</div>
+                <div className="text-sm font-medium text-slate-700 mt-0.5">{label}</div>
+                {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+            </div>
+        </div>
+    );
+}

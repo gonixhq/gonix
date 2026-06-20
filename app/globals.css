@@ -1,0 +1,399 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Font — Noto Sans Thai for Thai+Latin, Montserrat as Latin display ── */
+    --font-sans: var(--font-thai), var(--font-montserrat), "Noto Sans Thai", "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    /* ── Background ── Cloud White off-white (#F2F2ED) */
+    --background: 60 16% 94%;
+    --foreground: 231 40% 14%;          /* Dark Knight #151931 */
+
+    /* ── Card ── white with soft presence */
+    --card: 0 0% 100%;
+    --card-foreground: 231 40% 14%;
+
+    /* ── Popover ── */
+    --popover: 0 0% 100%;
+    --popover-foreground: 231 40% 14%;
+
+    /* ── Primary — Bright Blue (#2B54F0) ── */
+    --primary: 228 87% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 228 90% 96%;
+
+    /* ── Brand accent tokens (Vibrant Mesh palette) ── */
+    --accent-cyan: 187 100% 52%;        /* #0ADAFF */
+    --accent-plunge: 168 100% 50%;      /* #00FFCC */
+    --accent-mint: 148 100% 54%;        /* #15FF83 */
+    --accent-deep: 226 100% 32%;        /* #0026A1 */
+
+    /* ── Secondary ── */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 215 28% 17%;
+
+    /* ── Muted ── */
+    --muted: 215 25% 93%;
+    --muted-foreground: 215 16% 47%;
+
+    /* ── Accent ── */
+    --accent: 210 40% 96%;
+    --accent-foreground: 215 28% 17%;
+
+    /* ── Destructive ── */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Border & Input ── lighter, subtler */
+    --border: 240 12% 88%;
+    --input: 240 12% 88%;
+    --ring: 228 87% 55%;
+
+    /* ── Radius — more rounded ── */
+    --radius: 0.75rem;
+
+    /* ── Sidebar — Light blue-white ── */
+    --sidebar: 210 30% 98%;
+    --sidebar-foreground: 215 28% 35%;
+    --sidebar-border: 215 20% 91%;
+    --sidebar-accent: 210 80% 52%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-muted-foreground: 215 16% 55%;
+
+    /* ── Semantic — Status Colors ── */
+    --success: 148 75% 42%;             /* mint-driven success */
+    --success-foreground: 0 0% 100%;
+    --warning: 37 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-size: 18.5px;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1, "liga" 1;
+    font-size: 1rem;
+    line-height: 1.7;
+    letter-spacing: 0.005em;
+    /* ── Soft Vibrant Mesh — gentle everywhere (keeps data pages readable) ── */
+    background-color: hsl(60 16% 94%);
+    background-image:
+      radial-gradient(at 0% 0%, hsl(187 100% 80% / 0.55) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsl(168 100% 82% / 0.5) 0px, transparent 52%),
+      radial-gradient(at 100% 100%, hsl(228 90% 85% / 0.5) 0px, transparent 55%),
+      radial-gradient(at 0% 100%, hsl(148 90% 85% / 0.4) 0px, transparent 50%);
+    background-attachment: fixed;
+    position: relative;
+  }
+
+  /* ── Grain / Noise overlay — faint, fixed, non-interactive ── */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.28'/%3E%3C/svg%3E");
+  }
+
+  /* App content sits above the noise layer */
+  body > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Typography — Thai-aware line height */
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes shimmer-slide {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Slow float — for hero orb */
+@keyframes orb-float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-18px) scale(1.02); }
+}
+
+/* Gentle orbit for accent dots */
+@keyframes orb-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.45; }
+}
+
+/* ── Utility Classes ── */
+@layer utilities {
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.4s ease-out;
+  }
+
+  .animate-pulse-soft {
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-orb-float {
+    animation: orb-float 7s ease-in-out infinite;
+  }
+
+  .animate-orb-pulse {
+    animation: orb-pulse 4s ease-in-out infinite;
+  }
+
+  /* Premium shadows — soft + layered */
+  .shadow-premium {
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.04),
+      0 4px 16px rgb(15 23 42 / 0.04),
+      0 0 0 1px rgb(15 23 42 / 0.02);
+  }
+
+  .shadow-premium-hover {
+    box-shadow:
+      0 2px 4px rgb(15 23 42 / 0.05),
+      0 12px 32px rgb(15 23 42 / 0.08),
+      0 0 0 1px hsl(var(--primary) / 0.08);
+  }
+
+  .shadow-glow {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.1),
+      0 8px 32px hsl(var(--primary) / 0.12);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(210 90% 50%) 0%, hsl(190 85% 45%) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Subtle gradient border (using mask) */
+  .border-gradient {
+    position: relative;
+    background-clip: padding-box;
+  }
+
+  .border-gradient::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(210 90% 60% / 0.3), hsl(190 85% 60% / 0.15));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* ── Component Classes ── */
+@layer components {
+
+  /* Sidebar Items */
+  .gonix-sidebar-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200;
+  }
+
+  .gonix-sidebar-item-active {
+    @apply bg-primary text-white shadow-md shadow-primary/25;
+  }
+
+  .gonix-sidebar-item-inactive {
+    @apply text-[hsl(var(--sidebar-foreground))] hover:bg-primary/5 hover:text-primary;
+  }
+
+  /* Page Header */
+  .gonix-page-header {
+    @apply bg-card px-6 py-4 rounded-2xl shadow-sm;
+  }
+
+  /* Data Table */
+  .gonix-data-table-wrapper {
+    @apply rounded-2xl border border-border bg-card overflow-hidden shadow-sm;
+  }
+
+  /* Glass Card Effect */
+  .gonix-glass {
+    @apply bg-white/75 backdrop-blur-xl border border-white/70 shadow-xl shadow-slate-900/[0.06];
+  }
+
+  /* Premium Card — Glassmorphism (frosted glass, floats over mesh) */
+  .gonix-card-premium {
+    @apply rounded-2xl transition-all duration-300;
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 1px 2px rgb(43 84 240 / 0.04),
+      0 8px 32px rgb(21 25 49 / 0.06);
+  }
+
+  .gonix-card-premium:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 2px 6px rgb(43 84 240 / 0.06),
+      0 16px 40px rgb(21 25 49 / 0.1);
+  }
+
+  /* Pure glass panel — for login, modals, floating panels */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px 0 rgb(43 84 240 / 0.1);
+  }
+
+  /* Vibrant mesh — opt-in for login / overview hero areas */
+  .mesh-vibrant {
+    background-color: hsl(60 16% 94%);
+    background-image:
+      radial-gradient(at 8% 12%, hsl(187 100% 55% / 0.55) 0px, transparent 45%),
+      radial-gradient(at 92% 8%, hsl(168 100% 50% / 0.5) 0px, transparent 48%),
+      radial-gradient(at 88% 92%, hsl(228 87% 58% / 0.55) 0px, transparent 50%),
+      radial-gradient(at 12% 88%, hsl(148 100% 54% / 0.45) 0px, transparent 45%),
+      radial-gradient(at 50% 50%, hsl(244 100% 69% / 0.3) 0px, transparent 55%);
+  }
+
+  /* Page header — gradient subtle */
+  .gonix-page-title {
+    @apply text-2xl font-bold tracking-tight text-slate-800;
+  }
+
+  /* KPI Card */
+  .gonix-kpi-card {
+    @apply rounded-2xl bg-card p-5 border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300 cursor-pointer;
+  }
+
+  /* Quick Action Button */
+  .gonix-quick-action {
+    @apply rounded-xl border border-border/60 p-4 text-sm font-medium hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm transition-all duration-200 flex flex-col items-center gap-2.5 text-center;
+  }
+
+  /* Pill Badge */
+  .gonix-pill {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-medium;
+  }
+
+  /* Input Style Override */
+  .gonix-input {
+    @apply rounded-xl border-border/60 bg-white shadow-sm focus:border-primary focus:ring-primary/20;
+  }
+
+  /* Select Style */
+  .gonix-select {
+    @apply flex h-10 w-full rounded-xl border border-border/60 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary;
+  }
+}

@@ -1,0 +1,146 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import type { FaceChartData, AestheticRecords, AestheticPhoto } from "@/lib/aesthetic-types";
+
+const ALLOWED_IMAGE_MIME = new Set([
+    "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic",
+]);
+const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+
+async function getCtx() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+    const { data: profile } = await supabase.from("profiles")
+        .select("clinic_id, full_name").eq("id", user.id).single();
+    if (!profile?.clinic_id) throw new Error("Profile/clinic not found");
+    return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
+}
+
+async function getCurrentRecords(vn: string): Promise<AestheticRecords> {
+    const { supabase } = await getCtx();
+    const { data } = await supabase.from("visits").select("aesthetic_records").eq("vn", vn).maybeSingle();
+    return (data?.aesthetic_records as AestheticRecords) || {};
+}
+
+/** บันทึก face chart (strokes + pins) ลง visits.aesthetic_records */
+export async function saveFaceChart(vn: string, faceChart: FaceChartData) {
+    try {
+        const { supabase } = await getCtx();
+        const current = await getCurrentRecords(vn);
+        const next: AestheticRecords = {
+            ...current,
+            face_chart: {
+                ...faceChart,
+                updated_at: new Date().toISOString(),
+            },
+        };
+        const { error } = await supabase
+            .from("visits")
+            .update({ aesthetic_records: next })
+            .eq("vn", vn);
+        if (error) return { success: false, error: error.message };
+        revalidatePath(`/dashboard/visits/${vn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** อัปโหลดรูป before/after */
+export async function uploadAestheticPhoto(
+    formData: FormData
+) {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const file = formData.get("file") as File | null;
+        const vn = formData.get("vn") as string;
+        const type = formData.get("type") as "before" | "after";
+        const label = (formData.get("label") as string) || "";
+
+        if (!file || file.size === 0) return { success: false, error: "ไม่พบไฟล์" };
+        if (!vn) return { success: false, error: "ไม่พบ VN" };
+        if (type !== "before" && type !== "after") return { success: false, error: "type ไม่ถูกต้อง" };
+        if (file.size > MAX_BYTES) return { success: false, error: "ไฟล์ใหญ่เกิน 10MB" };
+        if (!ALLOWED_IMAGE_MIME.has(file.type)) return { success: false, error: `รองรับเฉพาะรูปภาพ` };
+
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const uid = crypto.randomUUID();
+        const path = `${clinicId}/visits/${vn}/aesthetic/${type}/${uid}.${ext}`;
+
+        const buffer = await file.arrayBuffer();
+        const { error: uploadErr } = await supabase.storage
+            .from("clinic-assets")
+            .upload(path, buffer, { contentType: file.type, upsert: false });
+        if (uploadErr) return { success: false, error: `Upload: ${uploadErr.message}` };
+
+        const { data: urlData } = supabase.storage.from("clinic-assets").getPublicUrl(path);
+        const url = urlData.publicUrl;
+
+        const current = await getCurrentRecords(vn);
+        const newPhoto: AestheticPhoto = {
+            path,
+            url,
+            label: label || undefined,
+            uploaded_at: new Date().toISOString(),
+        };
+        const photos = current.photos || {};
+        const list = photos[type] || [];
+        const next: AestheticRecords = {
+            ...current,
+            photos: {
+                ...photos,
+                [type]: [...list, newPhoto],
+            },
+        };
+        const { error } = await supabase.from("visits").update({ aesthetic_records: next }).eq("vn", vn);
+        if (error) {
+            await supabase.storage.from("clinic-assets").remove([path]);
+            return { success: false, error: error.message };
+        }
+
+        revalidatePath(`/dashboard/visits/${vn}`);
+        return { success: true, photo: newPhoto };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ลบรูป before/after */
+export async function deleteAestheticPhoto(vn: string, type: "before" | "after", path: string) {
+    try {
+        const { supabase } = await getCtx();
+        await supabase.storage.from("clinic-assets").remove([path]);
+
+        const current = await getCurrentRecords(vn);
+        const photos = current.photos || {};
+        const list = (photos[type] || []).filter(p => p.path !== path);
+        const next: AestheticRecords = {
+            ...current,
+            photos: { ...photos, [type]: list },
+        };
+        const { error } = await supabase.from("visits").update({ aesthetic_records: next }).eq("vn", vn);
+        if (error) return { success: false, error: error.message };
+        revalidatePath(`/dashboard/visits/${vn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** บันทึก treatment notes */
+export async function saveTreatmentNotes(vn: string, notes: string) {
+    try {
+        const { supabase } = await getCtx();
+        const current = await getCurrentRecords(vn);
+        const next: AestheticRecords = { ...current, treatment_notes: notes };
+        const { error } = await supabase.from("visits").update({ aesthetic_records: next }).eq("vn", vn);
+        if (error) return { success: false, error: error.message };
+        revalidatePath(`/dashboard/visits/${vn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
