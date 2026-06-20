@@ -178,16 +178,22 @@ async function readFolderText(dir: any): Promise<string> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function readCardFromFolder(dir: any): Promise<{ card: ThaiIdCard; photo: File | null }> {
     const card = parseSiamIdData(await readFolderText(dir));
+    // ไล่ดูไฟล์ในโฟลเดอร์ → หารูป (ทนทุกนามสกุล/ตัวพิมพ์ใหญ่-เล็ก)
     let photo: File | null = null;
-    if (card.citizenId) {
-        for (const ext of ["jpg", "jpeg", "bmp", "png"]) {
-            try {
-                const f = await (await dir.getFileHandle(`${card.citizenId}.${ext}`)).getFile();
-                const type = f.type || `image/${ext === "jpg" ? "jpeg" : ext}`;
-                photo = new File([await f.arrayBuffer()], `${card.citizenId}.${ext}`, { type });
-                break;
-            } catch { /* ลองนามสกุลถัดไป */ }
+    let fallback: File | null = null;
+    const idLower = (card.citizenId || "").toLowerCase();
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for await (const entry of (dir as any).values()) {
+            if (entry.kind !== "file") continue;
+            const name: string = entry.name;
+            const lower = name.toLowerCase();
+            if (!/\.(jpe?g|bmp|png)$/.test(lower)) continue;
+            const f = await entry.getFile();
+            const file = new File([await f.arrayBuffer()], name, { type: f.type || "image/jpeg" });
+            if (idLower && lower.startsWith(idLower)) { photo = file; break; }  // ตรงเลขบัตร = เอาเลย
+            if (!fallback) fallback = file;                                     // ไม่งั้นเก็บรูปแรกไว้
         }
-    }
-    return { card, photo };
+    } catch { /* อ่านโฟลเดอร์ไม่ได้ → ไม่มีรูป */ }
+    return { card, photo: photo || fallback };
 }
