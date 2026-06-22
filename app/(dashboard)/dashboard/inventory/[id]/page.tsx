@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { notFound } from "next/navigation";
 import { getInventoryAuditLogs, getItemLots } from "@/lib/actions/inventory";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import InventoryDetailClient from "./inventory-detail-client";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,9 @@ export default async function InventoryDetailPage({
         .order("recorded_at", { ascending: false })
         .limit(50);
 
-    const [editLogs, lots] = await Promise.all([getInventoryAuditLogs(id), getItemLots(id)]);
+    const [editLogs, lots, perm] = await Promise.all([
+        getInventoryAuditLogs(id), getItemLots(id), getEffectivePermissionsForUser(),
+    ]);
 
-    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} lots={lots} />;
+    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} lots={lots} isOwner={perm.role === "owner"} />;
 }

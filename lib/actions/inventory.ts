@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 
 export interface ReceiveStockInput {
     item_id: string;
@@ -81,6 +82,80 @@ export async function updateInventoryItem(input: { id: string } & Record<string,
         revalidatePath(`/dashboard/inventory/${input.id}`);
         revalidatePath("/dashboard/inventory");
         return { success: true, changed: Object.keys(patch).length - 1 };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ปิด/เปิดใช้งานสินค้า (soft delete) — เก็บประวัติไว้ */
+export async function setInventoryActive(id: string, active: boolean) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { data: cur } = await supabase.from("inventory")
+            .select("is_active").eq("id", id).eq("clinic_id", profile.clinic_id).maybeSingle();
+        if (!cur) return { success: false, error: "ไม่พบรายการ" };
+        if (cur.is_active === active) return { success: true };
+
+        const { error } = await supabase.from("inventory")
+            .update({ is_active: active, updated_at: new Date().toISOString() })
+            .eq("id", id).eq("clinic_id", profile.clinic_id);
+        if (error) return { success: false, error: error.message };
+
+        await supabase.from("audit_logs").insert({
+            clinic_id: profile.clinic_id, table_name: "inventory", record_id: id,
+            action: active ? "restore" : "deactivate",
+            old_data: { is_active: cur.is_active }, new_data: { is_active: active },
+            performed_by: user.id,
+        });
+        revalidatePath(`/dashboard/inventory/${id}`);
+        revalidatePath("/dashboard/inventory");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ลบถาวร — เฉพาะเจ้าของคลินิก (owner) + เฉพาะสินค้าที่ไม่เคยมีรายการเคลื่อนไหว */
+export async function deleteInventoryItem(id: string) {
+    try {
+        const { userId, role, clinicId } = await getEffectivePermissionsForUser();
+        if (!userId || !clinicId) return { success: false, error: "Unauthorized" };
+        if (role !== "owner") return { success: false, error: "เฉพาะเจ้าของคลินิกเท่านั้นที่ลบถาวรได้ — ใช้ 'ปิดใช้งาน' แทน" };
+
+        const supabase = await createClient();
+        const { data: item } = await supabase.from("inventory")
+            .select("item_name").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+        if (!item) return { success: false, error: "ไม่พบรายการ" };
+
+        // guard: ห้ามลบถ้าเคยถูกใช้/อ้างอิง
+        const [inv, drug, svc] = await Promise.all([
+            supabase.from("invoice_items").select("id", { count: "exact", head: true }).eq("item_ref_id", id),
+            supabase.from("drug_orders").select("id", { count: "exact", head: true }).eq("item_id", id),
+            supabase.from("service_catalog").select("id", { count: "exact", head: true }).eq("inventory_item_id", id),
+        ]);
+        const used = (inv.count || 0) + (drug.count || 0) + (svc.count || 0);
+        if (used > 0) {
+            return { success: false, error: `ลบถาวรไม่ได้ — สินค้านี้มีประวัติการใช้/อ้างอิง ${used} รายการ (บิล/ใบสั่งยา/kit). กรุณาใช้ "ปิดใช้งาน" แทน` };
+        }
+
+        // ลบล็อต + stock_card ที่ผูกอยู่ แล้วลบรายการ
+        await supabase.from("inventory_lots").delete().eq("item_id", id).eq("clinic_id", clinicId);
+        await supabase.from("stock_card").delete().eq("item_id", id).eq("clinic_id", clinicId);
+        const { error } = await supabase.from("inventory").delete().eq("id", id).eq("clinic_id", clinicId);
+        if (error) return { success: false, error: error.message };
+
+        await supabase.from("audit_logs").insert({
+            clinic_id: clinicId, table_name: "inventory", record_id: id,
+            action: "delete", old_data: { item_name: item.item_name }, new_data: null,
+            performed_by: userId,
+        });
+        revalidatePath("/dashboard/inventory");
+        return { success: true };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };
     }

@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
     ArrowLeft, Plus, Minus, Edit3, Package, AlertTriangle, History, X,
-    TrendingUp, TrendingDown, CheckCircle, AlertCircle, Pencil, Clock,
+    TrendingUp, TrendingDown, CheckCircle, AlertCircle, Pencil, Clock, Ban, Trash2,
 } from "lucide-react";
-import { receiveStock, adjustStock, updateInventoryItem, updateLot, deleteLot } from "@/lib/actions/inventory";
+import { receiveStock, adjustStock, updateInventoryItem, updateLot, deleteLot, setInventoryActive, deleteInventoryItem } from "@/lib/actions/inventory";
 import { SEGMENT_LABEL } from "@/lib/segments";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface Props { item: any; history: any[]; editLogs: any[]; lots: any[] }
+interface Props { item: any; history: any[]; editLogs: any[]; lots: any[]; isOwner: boolean }
 
 function lotExpiryStatus(expiry: string | null): { label: string; cls: string } | null {
     if (!expiry) return null;
@@ -88,7 +88,7 @@ function fmtVal(field: string, v: unknown): string {
     return String(v);
 }
 
-export default function InventoryDetailClient({ item, history, editLogs, lots }: Props) {
+export default function InventoryDetailClient({ item, history, editLogs, lots, isOwner }: Props) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showReceive, setShowReceive] = useState(false);
@@ -149,6 +149,29 @@ export default function InventoryDetailClient({ item, history, editLogs, lots }:
             if (!res.success) { setError(res.error || "ลบล็อตไม่สำเร็จ"); return; }
             setSuccess("✓ ลบล็อตแล้ว");
             setTimeout(() => router.refresh(), 600);
+        });
+    }
+
+    function toggleActive() {
+        const next = !item.is_active;
+        if (!confirm(next ? "เปิดใช้งานสินค้านี้?" : "ปิดใช้งานสินค้านี้?\n(ซ่อนจากรายการ แต่เก็บประวัติ/บิลเก่าไว้ครบ — เปิดกลับได้)")) return;
+        setError(null);
+        startTransition(async () => {
+            const res = await setInventoryActive(item.id, next);
+            if (!res.success) { setError(res.error || "ทำรายการไม่สำเร็จ"); return; }
+            setSuccess(next ? "✓ เปิดใช้งานแล้ว" : "✓ ปิดใช้งานแล้ว");
+            setTimeout(() => router.refresh(), 700);
+        });
+    }
+
+    function hardDelete() {
+        if (!confirm(`ลบถาวร "${item.item_name}"?\n\n⚠️ ลบออกจากระบบจริง กู้คืนไม่ได้\n(ลบได้เฉพาะสินค้าที่ไม่เคยมีในบิล/ใบสั่งยา/kit)`)) return;
+        setError(null);
+        startTransition(async () => {
+            const res = await deleteInventoryItem(item.id);
+            if (!res.success) { setError(res.error || "ลบไม่สำเร็จ"); return; }
+            setSuccess("✓ ลบถาวรแล้ว — กำลังกลับไปหน้าคลัง");
+            setTimeout(() => router.push("/dashboard/inventory"), 900);
         });
     }
 
@@ -492,6 +515,35 @@ export default function InventoryDetailClient({ item, history, editLogs, lots }:
                     onError={setError}
                 />
             )}
+
+            {/* Danger zone */}
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/40 overflow-hidden">
+                <div className="px-5 py-3 border-b border-rose-200/60 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-rose-600" />
+                    <h2 className="text-sm font-bold text-rose-800">โซนอันตราย</h2>
+                </div>
+                <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                    <div>
+                        <div className="text-sm font-bold text-slate-700">{item.is_active ? "ปิดใช้งานสินค้า (แนะนำ)" : "เปิดใช้งานสินค้า"}</div>
+                        <div className="text-xs text-slate-500">{item.is_active ? "ซ่อนจากรายการ แต่เก็บประวัติ/บิลเก่าไว้ครบ — เปิดกลับได้" : "สินค้านี้ถูกปิดใช้งานอยู่"}</div>
+                    </div>
+                    <Button onClick={toggleActive} disabled={pending} variant="outline"
+                        className={`rounded-xl gap-1.5 shrink-0 ${item.is_active ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"}`}>
+                        {item.is_active ? <><Ban className="h-4 w-4" /> ปิดใช้งาน</> : <><CheckCircle className="h-4 w-4" /> เปิดใช้งาน</>}
+                    </Button>
+                </div>
+                {isOwner && (
+                    <div className="p-5 border-t border-rose-200/60 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                        <div>
+                            <div className="text-sm font-bold text-rose-700">ลบถาวร</div>
+                            <div className="text-xs text-slate-500">ลบออกจริง กู้คืนไม่ได้ — ได้เฉพาะสินค้าที่ไม่เคยมีในบิล/ใบสั่งยา · <span className="font-semibold">เฉพาะเจ้าของคลินิก</span></div>
+                        </div>
+                        <Button onClick={hardDelete} disabled={pending} className="rounded-xl gap-1.5 shrink-0 bg-rose-600 hover:bg-rose-700 text-white">
+                            <Trash2 className="h-4 w-4" /> ลบถาวร
+                        </Button>
+                    </div>
+                )}
+            </div>
 
             {/* Edit lot Modal */}
             {lotEdit && (
