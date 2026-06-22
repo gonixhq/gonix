@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { bangkokDate } from "@/lib/utils/date";
 import { genVerifyCode } from "@/lib/utils/anon-code";
+import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
 import { revalidatePath } from "next/cache";
 
 async function getCtx() {
@@ -503,7 +504,11 @@ export async function recordAnonPayment(id: string, payment_method: string) {
 export async function cancelAnonPayment(id: string) {
     const { supabase, clinicId } = await getCtx();
     const { data: c } = await supabase.from("anon_cases")
-        .select("verify_code, case_code, stock_deducted").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+        .select("verify_code, case_code, stock_deducted, paid_at").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+    // ล็อก: ถ้าวันที่จ่ายถูกปิดยอดแล้ว ห้ามยกเลิกการชำระ
+    if (c?.paid_at && await isDayClosed(supabase, clinicId, bangkokDate(new Date(c.paid_at as string)))) {
+        return { ok: false, error: DAY_LOCKED_MSG };
+    }
     await supabase.from("anon_cases").update({ paid: false, paid_at: null, payment_method: null })
         .eq("id", id).eq("clinic_id", clinicId);
 

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
 
 /** Log invoice action to audit_logs */
 async function logInvoiceAction(
@@ -48,10 +49,11 @@ export async function voidInvoice(invId: string, reason?: string) {
 
         // Check current status
         const { data: inv } = await supabase
-            .from("invoice_headers").select("status, vn, clinic_id").eq("id", invId).single();
+            .from("invoice_headers").select("status, vn, clinic_id, invoice_date").eq("id", invId).single();
         if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
         if (inv.status === "voided") return { success: false, error: "ใบเสร็จนี้ยกเลิกแล้ว" };
         if (inv.status === "refunded") return { success: false, error: "ใบเสร็จนี้คืนเงินไปแล้ว" };
+        if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
 
         // Update status
         const { error } = await supabase
@@ -97,10 +99,11 @@ export async function refundInvoice(invId: string, reason?: string) {
 
         const { data: inv } = await supabase
             .from("invoice_headers")
-            .select("status, total_amount, paid_amount, clinic_id")
+            .select("status, total_amount, paid_amount, clinic_id, invoice_date")
             .eq("id", invId).single();
         if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
         if (inv.status !== "paid") return { success: false, error: "ใบเสร็จยังไม่ได้ชำระเงิน — ใช้ยกเลิกแทน" };
+        if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
 
         // Update status to refunded
         const { error } = await supabase
@@ -163,12 +166,13 @@ export async function addPayment(input: {
         // Fetch invoice
         const { data: inv } = await supabase
             .from("invoice_headers")
-            .select("id, clinic_id, total_amount, paid_amount, status")
+            .select("id, clinic_id, total_amount, paid_amount, status, invoice_date")
             .eq("id", input.invId).single();
         if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
         if (["voided", "refunded"].includes(inv.status)) {
             return { success: false, error: "ใบเสร็จนี้ปิดแล้ว ไม่สามารถรับชำระเพิ่ม" };
         }
+        if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
 
         const oldPaid = Number(inv.paid_amount || 0);
         const total = Number(inv.total_amount || 0);

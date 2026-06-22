@@ -61,6 +61,8 @@ export default function EODClient({ summary, history }: Props) {
             }
             setSuccess(`✓ ปิดยอดวันที่ ${formatDate(summary.close_date)} สำเร็จ — Counter ถูก reset แล้ว`);
             setShowConfirm(false);
+            // เด้งหน้าพิมพ์ใบสรุปปิดกะ
+            window.open(`/print/eod/${summary.close_date}`, "_blank");
             setTimeout(() => router.refresh(), 1500);
         });
     }
@@ -130,15 +132,22 @@ export default function EODClient({ summary, history }: Props) {
                             )}
                         </div>
                     </div>
-                    <Button
-                        onClick={handleReopen}
-                        disabled={pending}
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50 shrink-0"
-                    >
-                        <RotateCcw className="h-4 w-4" /> ยกเลิกการปิดยอด
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Link href={`/print/eod/${summary.close_date}`} target="_blank">
+                            <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                                <FileText className="h-4 w-4" /> พิมพ์ใบปิดกะ
+                            </Button>
+                        </Link>
+                        <Button
+                            onClick={handleReopen}
+                            disabled={pending}
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50"
+                        >
+                            <RotateCcw className="h-4 w-4" /> ยกเลิกการปิดยอด
+                        </Button>
+                    </div>
                 </div>
             ) : hasPending ? (
                 <div className="rounded-2xl bg-amber-50/80 border-2 border-amber-300 px-5 py-4 flex items-start gap-3">
