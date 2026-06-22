@@ -18,6 +18,8 @@ export interface EODSummary {
     credit_total: number;     // ยอดบัตรเครดิตรวม
     credit_count: number;     // จำนวนรายการบัตร
     last_starting_float: number;  // เงินทอนตั้งต้นครั้งล่าสุด (pre-fill)
+    opening_float: number | null; // เงินทอนตั้งต้นที่ตั้งไว้ตอนเช้าของวันนี้ (null = ยังไม่ตั้ง)
+    opening_float_by: string | null; // ใครตั้ง
     closed_recon?: {          // ค่าที่บันทึกไว้ (เมื่อปิดยอดแล้ว)
         starting_float: number;
         expected_cash: number;

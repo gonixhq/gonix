@@ -124,6 +124,21 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
             .order("close_date", { ascending: false }).limit(1).maybeSingle();
         const lastStartingFloat = Number(lastClose?.starting_float || 0);
 
+        // เงินทอนตั้งต้นที่ตั้งไว้ตอนเช้าของวันนี้ (ถ้ามี → เอามาเติมแทน last)
+        const { data: openFloat } = await supabase
+            .from("clinic_opening_float")
+            .select("amount, set_by:staff!clinic_opening_float_set_by_fkey(profiles(full_name))")
+            .eq("clinic_id", profile.clinic_id).eq("float_date", targetDate).maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ofTyped = openFloat as any;
+        const openingFloat = ofTyped ? Number(ofTyped.amount || 0) : null;
+        let openingFloatBy: string | null = null;
+        if (ofTyped?.set_by) {
+            const st = Array.isArray(ofTyped.set_by) ? ofTyped.set_by[0] : ofTyped.set_by;
+            const prof = st?.profiles ? (Array.isArray(st.profiles) ? st.profiles[0] : st.profiles) : null;
+            openingFloatBy = prof?.full_name || null;
+        }
+
         // ── Counters ──
         const { data: counters } = await supabase
             .from("running_numbers")
@@ -169,6 +184,8 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
             credit_total: breakdown.credit_total,
             credit_count: breakdown.credit_count,
             last_starting_float: lastStartingFloat,
+            opening_float: openingFloat,
+            opening_float_by: openingFloatBy,
             closed_recon: isClosed && closedRecordTyped ? {
                 starting_float: Number(closedRecordTyped.starting_float || 0),
                 expected_cash: Number(closedRecordTyped.expected_cash || 0),
@@ -287,6 +304,39 @@ export async function reopenClinicDay(date: string) {
 
         revalidatePath("/dashboard/eod");
         revalidatePath("/dashboard/overview");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ตั้ง/แก้ เงินทอนตั้งต้นของวัน (ตอนเปิดร้าน) — upsert ต่อ คลินิก-วัน */
+export async function setOpeningFloat(date: string, amount: number) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const amt = Number(amount);
+        if (amt < 0 || isNaN(amt)) return { success: false, error: "จำนวนเงินไม่ถูกต้อง" };
+
+        const { data: staffRow } = await supabase
+            .from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+
+        const { error } = await supabase.from("clinic_opening_float").upsert({
+            clinic_id: profile.clinic_id,
+            float_date: date,
+            amount: amt,
+            set_by: staffRow?.id || null,
+            set_at: new Date().toISOString(),
+        }, { onConflict: "clinic_id,float_date" });
+        if (error) return { success: false, error: error.message };
+
+        revalidatePath("/dashboard/eod");
         return { success: true };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };

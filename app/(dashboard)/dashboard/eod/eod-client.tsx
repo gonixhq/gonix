@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import {
     DoorClosed, AlertCircle, CheckCircle, Wallet, Users, FileText,
     Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar, ShieldCheck,
-    Calculator, Coins, CreditCard, ArrowLeftRight,
+    Calculator, Coins, CreditCard, ArrowLeftRight, Save,
 } from "lucide-react";
-import { closeClinicDay, reopenClinicDay } from "@/lib/actions/end-of-day";
+import { closeClinicDay, reopenClinicDay, setOpeningFloat } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
 import { cn } from "@/lib/utils";
 
@@ -31,9 +31,19 @@ export default function EODClient({ summary, history }: Props) {
     const [success, setSuccess] = useState<string | null>(null);
 
     // ── กระทบเงินสด ──
-    const [startingFloat, setStartingFloat] = useState(summary.last_starting_float ? String(summary.last_starting_float) : "");
+    const [startingFloat, setStartingFloat] = useState(
+        summary.opening_float != null ? String(summary.opening_float)
+            : summary.last_starting_float ? String(summary.last_starting_float) : "");
     const [actualCash, setActualCash] = useState("");
     const [reconNote, setReconNote] = useState("");
+    const [floatSaved, setFloatSaved] = useState(false);
+
+    function saveOpeningFloat() {
+        startTransition(async () => {
+            const res = await setOpeningFloat(summary.close_date, floatNum);
+            if (res.success) { setFloatSaved(true); setTimeout(() => router.refresh(), 600); }
+        });
+    }
 
     const hasPending = summary.pending_visits.length > 0;
     const canClose = !summary.already_closed && !hasPending;
@@ -86,92 +96,68 @@ export default function EODClient({ summary, history }: Props) {
 
     return (
         <div className="space-y-5 max-w-6xl mx-auto animate-fade-in pb-12">
-            {/* Sub-header — compact + date picker */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                <p className="text-sm font-medium text-slate-500">
-                    <span className="font-bold text-blue-700">สรุปยอดวันที่ {formatDate(summary.close_date)}</span>
-                    {summary.close_date !== todayISO && (
-                        <span className="ml-2 text-[11px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 font-bold uppercase">ย้อนหลัง</span>
-                    )}
-                </p>
+            {/* ── Day header hero ── */}
+            <div className="gonix-card-premium overflow-hidden">
+                <div className={cn("h-1.5 w-full", summary.already_closed ? "bg-emerald-500" : hasPending ? "bg-amber-400" : "bg-blue-500")} />
+                <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={cn("h-14 w-14 rounded-2xl flex items-center justify-center shrink-0",
+                            summary.already_closed ? "bg-emerald-100" : hasPending ? "bg-amber-100" : "bg-blue-100")}>
+                            <Calendar className={cn("h-7 w-7", summary.already_closed ? "text-emerald-700" : hasPending ? "text-amber-600" : "text-blue-700")} strokeWidth={2.2} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h1 className="text-xl font-black text-slate-800 leading-tight">{formatDateLong(summary.close_date)}</h1>
+                                {summary.close_date !== todayISO && <span className="text-[11px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 font-bold uppercase">ย้อนหลัง</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                {summary.already_closed ? (
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700"><CheckCircle className="h-3.5 w-3.5" /> ปิดยอดแล้ว</span>
+                                ) : hasPending ? (
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700"><AlertCircle className="h-3.5 w-3.5" /> มี Visit ค้าง {summary.pending_visits.length} รายการ</span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700"><DoorClosed className="h-3.5 w-3.5" /> พร้อมปิดยอด</span>
+                                )}
+                                {summary.already_closed && summary.closed_record && (
+                                    <span className="text-xs text-slate-500">โดย <span className="font-semibold text-slate-600">{summary.closed_record.closed_by_name || "—"}</span>{summary.closed_record.closed_at && ` · ${formatDateTime(summary.closed_record.closed_at)}`}</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
-                <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-600 inline-flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" /> เลือกวันที่:
-                    </label>
-                    <form method="get" className="inline-flex items-center gap-1.5">
-                        <input
-                            type="date"
-                            name="date"
-                            defaultValue={summary.close_date}
-                            max={todayISO}
-                            className="h-9 px-2 rounded-lg border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                        />
-                        <Button type="submit" size="sm" variant="outline" className="rounded-lg h-9 text-xs">ดู</Button>
-                    </form>
-                    {summary.close_date !== todayISO && (
-                        <Link href="/dashboard/eod">
-                            <Button size="sm" variant="ghost" className="rounded-lg h-9 text-xs gap-1">
-                                <ArrowRight className="h-3 w-3" /> วันนี้
-                            </Button>
-                        </Link>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {summary.already_closed && (
+                            <>
+                                <Link href={`/print/eod/${summary.close_date}`} target="_blank">
+                                    <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50"><FileText className="h-4 w-4" /> พิมพ์ใบปิดกะ</Button>
+                                </Link>
+                                <Button onClick={handleReopen} disabled={pending} variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50"><RotateCcw className="h-4 w-4" /> ยกเลิกการปิดยอด</Button>
+                            </>
+                        )}
+                        <form method="get" className="inline-flex items-center gap-1.5">
+                            <input type="date" name="date" defaultValue={summary.close_date} max={todayISO}
+                                className="h-9 px-2 rounded-lg border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                            <Button type="submit" size="sm" variant="outline" className="rounded-lg h-9 text-xs">ดู</Button>
+                        </form>
+                        {summary.close_date !== todayISO && (
+                            <Link href="/dashboard/eod"><Button size="sm" variant="ghost" className="rounded-lg h-9 text-xs gap-1"><ArrowRight className="h-3 w-3" /> วันนี้</Button></Link>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Status banner */}
-            {summary.already_closed ? (
-                <div className="rounded-2xl bg-emerald-50/80 border-2 border-emerald-300 px-5 py-4 flex items-start gap-3">
-                    <CheckCircle className="h-6 w-6 text-emerald-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                        <div className="font-bold text-emerald-900">ปิดยอดวันที่ {formatDate(summary.close_date)} เรียบร้อยแล้ว</div>
-                        <div className="text-sm text-emerald-700 mt-0.5">
-                            ปิดโดย <span className="font-semibold">{summary.closed_record?.closed_by_name || "—"}</span>
-                            {summary.closed_record?.closed_at && (
-                                <> เมื่อ {formatDateTime(summary.closed_record.closed_at)}</>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <Link href={`/print/eod/${summary.close_date}`} target="_blank">
-                            <Button variant="outline" size="sm" className="rounded-xl gap-1.5 h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                                <FileText className="h-4 w-4" /> พิมพ์ใบปิดกะ
-                            </Button>
-                        </Link>
-                        <Button
-                            onClick={handleReopen}
-                            disabled={pending}
-                            variant="outline"
-                            size="sm"
-                            className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50"
-                        >
-                            <RotateCcw className="h-4 w-4" /> ยกเลิกการปิดยอด
-                        </Button>
-                    </div>
-                </div>
-            ) : hasPending ? (
-                <div className="rounded-2xl bg-amber-50/80 border-2 border-amber-300 px-5 py-4 flex items-start gap-3">
-                    <AlertCircle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                        <div className="font-bold text-amber-900">
-                            ยังไม่สามารถปิดยอดได้ — มี Visit ค้างอยู่ {summary.pending_visits.length} รายการ
-                        </div>
-                        <div className="text-sm text-amber-700 mt-0.5">
-                            กรุณาจัดการ Visit ค้าง (รอตรวจ/อยู่ห้องตรวจ/รอยา/รอชำระเงิน) ให้เสร็จก่อน
-                        </div>
-                    </div>
+            {/* Actionable banner (เฉพาะยังไม่ปิด) */}
+            {!summary.already_closed && (hasPending ? (
+                <div className="rounded-2xl bg-amber-50/80 border border-amber-200 px-4 py-3 flex items-center gap-3 text-sm">
+                    <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                    <span className="text-amber-800">ปิดยอดไม่ได้จนกว่าจะเคลียร์ <span className="font-bold">Visit ค้าง {summary.pending_visits.length} รายการ</span> (รอตรวจ/ห้องตรวจ/รอยา/รอชำระ) ด้านล่าง</span>
                 </div>
             ) : (
-                <div className="rounded-2xl bg-blue-50/80 border-2 border-blue-300 px-5 py-4 flex items-start gap-3">
-                    <DoorClosed className="h-6 w-6 text-blue-700 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                        <div className="font-bold text-blue-900">พร้อมปิดยอด</div>
-                        <div className="text-sm text-blue-700 mt-0.5">
-                            Visit ทั้งหมดของวันนี้ปิดงานเรียบร้อยแล้ว — กดปุ่ม &quot;ปิดยอดประจำวัน&quot; ที่ด้านล่าง
-                        </div>
-                    </div>
+                <div className="rounded-2xl bg-blue-50/80 border border-blue-200 px-4 py-3 flex items-center gap-3 text-sm">
+                    <DoorClosed className="h-5 w-5 text-blue-700 shrink-0" />
+                    <span className="text-blue-800">Visit ปิดงานครบแล้ว — ตรวจกระทบยอดเงินด้านล่างแล้วกด <span className="font-bold">&quot;ปิดยอดประจำวัน&quot;</span></span>
                 </div>
-            )}
+            ))}
 
             {/* Summary stats */}
             <div className={`grid grid-cols-2 gap-3 ${summary.anon_count > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
@@ -273,19 +259,36 @@ export default function EODClient({ summary, history }: Props) {
                         </div>
 
                         {/* เงินทอนตั้งต้น */}
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm text-slate-500">เงินทอนตั้งต้น</span>
-                            {summary.already_closed ? (
+                        {summary.already_closed ? (
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm text-slate-500">เงินทอนตั้งต้น</span>
                                 <span className="text-sm font-bold tabular-nums">{money(summary.closed_recon?.starting_float || 0)}</span>
-                            ) : (
-                                <div className="relative w-32">
-                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
-                                    <input value={startingFloat} onChange={(e) => setStartingFloat(e.target.value.replace(/[^\d.]/g, ""))}
-                                        inputMode="decimal" placeholder="0"
-                                        className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                            </div>
+                        ) : (
+                            <div className="rounded-lg bg-amber-50/60 border border-amber-100 p-2.5 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-bold text-slate-600">เงินทอนตั้งต้น (เปิดร้าน)</span>
+                                    {summary.opening_float != null ? (
+                                        <span className="text-[11px] text-emerald-600 font-bold inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> ตั้งแล้ว{summary.opening_float_by ? ` · ${summary.opening_float_by}` : ""}</span>
+                                    ) : (
+                                        <span className="text-[11px] text-amber-600 font-semibold">ยังไม่ได้ตั้งตอนเช้า</span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="relative flex-1">
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+                                        <input value={startingFloat} onChange={(e) => { setStartingFloat(e.target.value.replace(/[^\d.]/g, "")); setFloatSaved(false); }}
+                                            inputMode="decimal" placeholder="0"
+                                            className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                    </div>
+                                    <Button onClick={saveOpeningFloat} disabled={pending} size="sm" variant="outline"
+                                        className={cn("h-9 rounded-lg text-xs gap-1", floatSaved && "border-emerald-300 text-emerald-700 bg-emerald-50")}>
+                                        {floatSaved ? <CheckCircle className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {floatSaved ? "บันทึกแล้ว" : "บันทึก"}
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-slate-400">ตั้งตอนเช้าได้เลย — ตอนปิดยอดจะดึงมาเติมให้อัตโนมัติ กันลืม</p>
+                            </div>
+                        )}
                         <div className="flex items-center justify-between text-sm"><span className="text-slate-500">+ รับเงินสดวันนี้</span><span className="font-semibold tabular-nums text-emerald-700">{money(summary.cash_received)}</span></div>
                         <div className="flex items-center justify-between text-sm"><span className="text-slate-500">− รายจ่ายย่อย</span><span className="font-semibold tabular-nums text-rose-600">{money(summary.petty_total)}</span></div>
                         <div className="flex items-center justify-between border-t border-slate-200 pt-2">
@@ -576,6 +579,15 @@ function formatDate(d: string): string {
     try {
         const date = new Date(d + "T00:00:00");
         return date.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+    } catch {
+        return d;
+    }
+}
+
+function formatDateLong(d: string): string {
+    try {
+        const date = new Date(d + "T00:00:00");
+        return date.toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     } catch {
         return d;
     }
