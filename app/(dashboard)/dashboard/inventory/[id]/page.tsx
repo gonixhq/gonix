@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { notFound } from "next/navigation";
+import { getInventoryAuditLogs } from "@/lib/actions/inventory";
 import InventoryDetailClient from "./inventory-detail-client";
 
 export const dynamic = "force-dynamic";
@@ -34,5 +35,7 @@ export default async function InventoryDetailPage({
         .order("recorded_at", { ascending: false })
         .limit(50);
 
-    return <InventoryDetailClient item={item} history={history || []} />;
+    const editLogs = await getInventoryAuditLogs(id);
+
+    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} />;
 }

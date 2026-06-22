@@ -11,6 +11,111 @@ export interface ReceiveStockInput {
     lot_no?: string;
 }
 
+// ฟิลด์ที่แก้ไขได้ผ่านฟอร์ม "แก้ไขรายละเอียด" (ไม่รวม stock_qty — ใช้ปรับสต๊อกแทน)
+const EDITABLE_FIELDS = [
+    "item_name", "generic_name", "trade_name", "strength", "dosage_form",
+    "category", "segment", "unit", "sell_price", "cost_price", "min_stock",
+    "location", "supplier", "note", "expiry_date",
+] as const;
+const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock"]);
+
+/** แก้ไขรายละเอียดสินค้า + บันทึก audit (ใครแก้อะไรเมื่อไหร่) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function updateInventoryItem(input: { id: string } & Record<string, any>) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { data: cur } = await supabase
+            .from("inventory")
+            .select("item_name, generic_name, trade_name, strength, dosage_form, category, segment, unit, sell_price, cost_price, min_stock, location, supplier, note, expiry_date")
+            .eq("id", input.id).eq("clinic_id", profile.clinic_id).maybeSingle();
+        if (!cur) return { success: false, error: "ไม่พบรายการในคลัง" };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const patch: any = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const oldData: any = {}; const newData: any = {};
+        for (const f of EDITABLE_FIELDS) {
+            if (input[f] === undefined) continue;
+            let v = input[f];
+            if (NUMERIC_FIELDS.has(f)) v = Number(v) || 0;
+            else if (typeof v === "string") v = v.trim() || null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const oldV = (cur as any)[f];
+            if (String(oldV ?? "") !== String(v ?? "")) {
+                patch[f] = v; oldData[f] = oldV ?? null; newData[f] = v;
+            }
+        }
+        if (Object.keys(patch).length === 0) return { success: true, changed: 0 };
+
+        if (!input.item_name?.toString().trim() && patch.item_name !== undefined)
+            return { success: false, error: "ชื่อสินค้าห้ามว่าง" };
+
+        patch.updated_at = new Date().toISOString();
+        const { error } = await supabase
+            .from("inventory").update(patch).eq("id", input.id).eq("clinic_id", profile.clinic_id);
+        if (error) return { success: false, error: error.message };
+
+        // บันทึก audit log
+        await supabase.from("audit_logs").insert({
+            clinic_id: profile.clinic_id,
+            table_name: "inventory",
+            record_id: input.id,
+            action: "update",
+            old_data: oldData,
+            new_data: newData,
+            performed_by: user.id,
+        });
+
+        revalidatePath(`/dashboard/inventory/${input.id}`);
+        revalidatePath("/dashboard/inventory");
+        return { success: true, changed: Object.keys(patch).length - 1 };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ประวัติการแก้ไขรายละเอียดสินค้า (จาก audit_logs) */
+export async function getInventoryAuditLogs(itemId: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+
+        const { data } = await supabase
+            .from("audit_logs")
+            .select("id, action, old_data, new_data, performed_by, performed_at")
+            .eq("clinic_id", profile.clinic_id)
+            .eq("table_name", "inventory").eq("record_id", itemId)
+            .order("performed_at", { ascending: false }).limit(30);
+        const logs = data || [];
+
+        const ids = [...new Set(logs.map((l) => l.performed_by).filter(Boolean))];
+        const nameMap: Record<string, string> = {};
+        if (ids.length > 0) {
+            const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", ids as string[]);
+            for (const p of profs || []) nameMap[p.id as string] = (p.full_name as string) || "";
+        }
+        return logs.map((l) => ({
+            id: l.id as string,
+            old_data: (l.old_data || {}) as Record<string, unknown>,
+            new_data: (l.new_data || {}) as Record<string, unknown>,
+            performed_at: l.performed_at as string,
+            by: nameMap[l.performed_by as string] || "—",
+        }));
+    } catch {
+        return [];
+    }
+}
+
 /** รับยา/วัสดุเข้าสต๊อก (PO_RECEIVE) */
 export async function receiveStock(input: ReceiveStockInput) {
     try {
