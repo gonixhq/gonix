@@ -21,6 +21,7 @@ export interface CheckoutInput {
     total: number;
     paid: number;
     paymentMethod: string;
+    paymentRef?: string;   // อ้างอิง เช่น เลขท้ายสลิป 4 ตัว (โอน/บัตร)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     drugOrders: any[];
 }
@@ -29,7 +30,7 @@ export async function completeCheckout(input: CheckoutInput) {
     const supabase = await createClient();
 
     try {
-        const { vn, items, subtotal, discount, total, paid, paymentMethod, drugOrders } = input;
+        const { vn, items, subtotal, discount, total, paid, paymentMethod, paymentRef, drugOrders } = input;
 
         // Fetch visit (clinic_id, hn)
         const { data: visit, error: vErr } = await supabase
@@ -145,6 +146,7 @@ export async function completeCheckout(input: CheckoutInput) {
                     clinic_id: clinicId,
                     payment_method: dbPaymentMethod,
                     amount: paid,
+                    transaction_ref: paymentRef?.trim() || null,
                     note: paid < total ? `มัดจำ — ค้าง ฿${(total - paid).toLocaleString()}` : null,
                 });
 

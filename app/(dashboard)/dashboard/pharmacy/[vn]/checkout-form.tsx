@@ -110,6 +110,7 @@ export default function CheckoutForm({
     // Billing
     const [discount, setDiscount] = useState<number>(0);
     const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "credit">("cash");
+    const [paymentRef, setPaymentRef] = useState("");
     const [amountReceived, setAmountReceived] = useState<string>("0");
 
     // Package picker (for selling new)
@@ -307,6 +308,7 @@ export default function CheckoutForm({
                 total: grandTotal,
                 paid: Math.min(received, grandTotal),  // จ่ายตามที่รับมา (cap ที่ total)
                 paymentMethod,
+                paymentRef: paymentRef.trim() || undefined,
                 drugOrders,
             });
 
@@ -682,6 +684,15 @@ export default function CheckoutForm({
                                     );
                                 })}
                             </div>
+                            {/* อ้างอิงสำหรับโอน/บัตร (เลขท้ายสลิป) — optional */}
+                            {paymentMethod !== "cash" && (
+                                <input
+                                    value={paymentRef}
+                                    onChange={(e) => setPaymentRef(e.target.value)}
+                                    placeholder={paymentMethod === "transfer" ? "อ้างอิง / เลขท้ายสลิป 4 ตัว (ไม่บังคับ)" : "อ้างอิง / เลขท้ายบัตร (ไม่บังคับ)"}
+                                    className="w-full h-9 rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none mt-1"
+                                />
+                            )}
                         </div>
 
                         {/* Cash/Payment calculator */}
