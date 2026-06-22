@@ -55,6 +55,7 @@ interface LineItem {
     qty: number;
     unit_price: number;
     locked?: boolean;       // ลบไม่ได้ (เช่น ค่าตรวจ)
+    segment?: string | null;  // แผนกรายได้ (จาก source)
 }
 
 let uidCounter = 0;
@@ -70,6 +71,7 @@ interface InventoryDrug {
     sell_price: number;
     stock_qty: number;
     category?: string;  // 'drug' | 'supply'
+    segment?: string | null;
 }
 
 export default function CheckoutForm({
@@ -129,6 +131,7 @@ export default function CheckoutForm({
             item_name: `${drug.item_name}${drug.strength ? ` ${drug.strength}` : ""}`,
             qty: 1,
             unit_price: Number(drug.sell_price),
+            segment: drug.segment || "product",
         }]);
         setShowDrugPicker(false);
         setDrugSearch("");
@@ -171,6 +174,7 @@ export default function CheckoutForm({
             item_name: `${pkg.name} (${pkg.total_sessions} ครั้ง)`,
             qty: 1,
             unit_price: Number(pkg.price),
+            segment: "aesthetic",   // คอร์ส/แพ็กเกจ → ความงาม (ปรับได้)
         }]);
         setShowPackagePicker(false);
     }
@@ -185,7 +189,8 @@ export default function CheckoutForm({
 
         // ค่ายา (1 row ต่อตัว)
         drugOrders.forEach((d) => {
-            const invName = (Array.isArray(d.inventory) ? d.inventory[0]?.item_name : d.inventory?.item_name) || d.item_name || "ยา";
+            const inv = Array.isArray(d.inventory) ? d.inventory[0] : d.inventory;
+            const invName = inv?.item_name || d.item_name || "ยา";
             initialItems.push({
                 id: uid(),
                 item_type: "drug",
@@ -193,6 +198,7 @@ export default function CheckoutForm({
                 item_name: invName,
                 qty: Number(d.qty || 1),
                 unit_price: Number(d.cost_per_unit || 0),
+                segment: inv?.segment || "product",
             });
         });
 
@@ -205,6 +211,7 @@ export default function CheckoutForm({
                 item_name: l.lab_name || "Lab Test",
                 qty: 1,
                 unit_price: Number(l.price || 0),
+                segment: "medical",
             });
         });
 
@@ -298,6 +305,7 @@ export default function CheckoutForm({
                 qty: it.qty,
                 unit_price: it.unit_price,
                 line_total: it.qty * it.unit_price,
+                segment: it.segment ?? null,
             }));
 
             const res = await completeCheckout({
@@ -471,9 +479,11 @@ export default function CheckoutForm({
                                                     setItems(prev => [...prev, {
                                                         id: uid(),
                                                         item_type: svc.item_type,
+                                                        item_ref_id: svc.id,
                                                         item_name: svc.service_name,
                                                         qty: 1,
                                                         unit_price: Number(svc.selling_price) || 0,
+                                                        segment: svc.segment || "medical",
                                                     }]);
                                                     setError("");
                                                 }

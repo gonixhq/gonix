@@ -17,7 +17,7 @@ export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("item_type")
@@ -42,7 +42,7 @@ export async function listAllServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment")
             .eq("clinic_id", profile.clinic_id)
             .order("is_active", { ascending: false })
             .order("item_type")
@@ -64,6 +64,7 @@ export interface ServiceInput {
     is_active?: boolean;
     inventory_item_id?: string | null;
     consume_qty?: number | null;
+    segment?: string | null;   // แผนกรายได้ medical/aesthetic/product
 }
 
 /** รายการในคลังสำหรับเลือกผูกเป็น kit (ตัด stock) */
@@ -142,6 +143,7 @@ export async function createService(input: ServiceInput) {
                 is_active: input.is_active ?? true,
                 inventory_item_id: input.inventory_item_id || null,
                 consume_qty: input.consume_qty ?? 1,
+                segment: input.segment || "medical",
             })
             .select("id")
             .single();
@@ -229,6 +231,7 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
         if (input.is_active !== undefined) update.is_active = input.is_active;
         if (input.inventory_item_id !== undefined) update.inventory_item_id = input.inventory_item_id || null;
         if (input.consume_qty !== undefined) update.consume_qty = input.consume_qty ?? 1;
+        if (input.segment !== undefined) update.segment = input.segment || "medical";
 
         const { error } = await supabase
             .from("service_catalog")

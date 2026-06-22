@@ -11,6 +11,7 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { addPettyCash, deletePettyCash, type PettyCashItem } from "@/lib/actions/expenses";
+import { SEGMENTS, SEGMENT_STYLE, type Segment } from "@/lib/segments";
 
 const PETTY_CATEGORIES = ["ค่าส่งไปรษณีย์", "ค่าเดินทาง/น้ำมัน", "ค่าอุปกรณ์/ของใช้", "ค่าอาหาร/เครื่องดื่ม", "ค่าแม่บ้าน/ทำความสะอาด", "อื่นๆ"];
 
@@ -46,6 +47,7 @@ export default function FinanceClient({
     netCashFlow,
     deferredValue,
     deferredCount,
+    segments,
 }: {
     invoices: Invoice[];
     todayRevenue: number;
@@ -56,6 +58,7 @@ export default function FinanceClient({
     netCashFlow: number;
     deferredValue: number;
     deferredCount: number;
+    segments: { segment: string; amount: number }[];
 }) {
     const { language } = useLanguage();
     const router = useRouter();
@@ -238,6 +241,49 @@ export default function FinanceClient({
                     </div>
                 </div>
             </div>
+
+            {/* Revenue by Segment (แยกแผนก) */}
+            {(() => {
+                const segMap: Record<string, number> = {};
+                for (const s of segments) segMap[s.segment] = s.amount;
+                const segTotal = SEGMENTS.reduce((a, s) => a + (segMap[s.key] || 0), 0);
+                if (segTotal <= 0) return null;
+                return (
+                    <div className="gonix-card-premium p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                            <TrendingUp className="h-4 w-4 text-blue-700" />
+                            <h2 className="text-sm font-bold text-slate-800">
+                                {language === "en" ? "Revenue by Department (Today)" : "สัดส่วนรายได้ตามแผนก (วันนี้)"}
+                            </h2>
+                        </div>
+                        {/* stacked bar */}
+                        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100 mb-3">
+                            {SEGMENTS.map((s) => {
+                                const amt = segMap[s.key] || 0;
+                                const pct = (amt / segTotal) * 100;
+                                if (pct <= 0) return null;
+                                return <div key={s.key} className={SEGMENT_STYLE[s.key as Segment].bar} style={{ width: `${pct}%` }} title={`${s.label} ${pct.toFixed(0)}%`} />;
+                            })}
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {SEGMENTS.map((s) => {
+                                const amt = segMap[s.key] || 0;
+                                const pct = segTotal > 0 ? (amt / segTotal) * 100 : 0;
+                                const st = SEGMENT_STYLE[s.key as Segment];
+                                return (
+                                    <div key={s.key} className="text-center">
+                                        <div className={cn("inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-md", st.bg, st.text)}>
+                                            <span className={cn("h-2 w-2 rounded-full", st.bar)} /> {s.label}
+                                        </div>
+                                        <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-[11px] text-slate-400">{pct.toFixed(0)}%</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Petty Cash + Net Cash Flow */}
             <div className="gonix-card-premium overflow-hidden">

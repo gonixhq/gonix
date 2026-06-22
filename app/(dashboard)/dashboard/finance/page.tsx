@@ -4,6 +4,7 @@ import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
 import { getPettyCash } from "@/lib/actions/expenses";
 import { getDeferredRevenue } from "@/lib/actions/packages";
+import { getSegmentRevenue } from "@/lib/actions/segment-revenue";
 import FinanceClient from "./finance-client";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,9 @@ export default async function FinancePage() {
     // Deferred Revenue (มูลค่าคอร์สค้างใช้)
     const deferred = await getDeferredRevenue();
 
+    // รายได้แยกแผนกวันนี้ (medical/aesthetic/product)
+    const segments = await getSegmentRevenue(today, today);
+
     // รวมเคสนิรนามเข้ารายการ (เรียงตามเวลาล่าสุด)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
@@ -113,6 +117,7 @@ export default async function FinancePage() {
             netCashFlow={netCashFlow}
             deferredValue={deferred.outstanding}
             deferredCount={deferred.count}
+            segments={segments}
         />
     );
 }

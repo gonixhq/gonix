@@ -15,6 +15,7 @@ export interface ServiceCatalogItem {
     is_active: boolean;
     inventory_item_id: string | null;   // kit ในคลังที่ตัด stock
     consume_qty: number | null;         // จำนวนที่ตัดต่อครั้ง
+    segment?: string | null;            // แผนกรายได้ medical/aesthetic/product
 }
 
 export interface InventoryPick {

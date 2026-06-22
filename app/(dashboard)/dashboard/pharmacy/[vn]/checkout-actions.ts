@@ -11,6 +11,7 @@ export interface InvoiceItemInput {
     qty: number;
     unit_price: number;
     line_total: number;
+    segment?: string | null;   // แผนกรายได้ (denormalize จาก source)
 }
 
 export interface CheckoutInput {
@@ -128,6 +129,7 @@ export async function completeCheckout(input: CheckoutInput) {
                 qty: it.qty,
                 unit_price: it.unit_price,
                 line_total: it.line_total,
+                segment: it.segment || null,
             }));
             const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
             if (itemsErr) {

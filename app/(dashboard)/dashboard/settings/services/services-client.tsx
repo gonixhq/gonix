@@ -299,6 +299,7 @@ function ServiceFormModal({
     const [note, setNote] = useState(initial?.note || "");
     const [kitId, setKitId] = useState(initial?.inventory_item_id || "");
     const [consumeQty, setConsumeQty] = useState(initial?.consume_qty?.toString() || "1");
+    const [segment, setSegment] = useState(initial?.segment || "medical");
     const [submitting, setSubmitting] = useState(false);
 
     async function handleSave() {
@@ -313,6 +314,7 @@ function ServiceFormModal({
             is_active: initial?.is_active ?? true,
             inventory_item_id: kitId || null,
             consume_qty: kitId ? (parseFloat(consumeQty) || 1) : null,
+            segment,
         });
         setSubmitting(false);
     }
@@ -344,6 +346,14 @@ function ServiceFormModal({
                                     {SERVICE_ITEM_TYPE_OPTIONS.map(opt => (
                                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                                     ))}
+                                </select>
+                            </FieldRow>
+
+                            <FieldRow label="แผนก (รายได้)" required>
+                                <select value={segment} onChange={e => setSegment(e.target.value)} className={FORM_SELECT_CLS}>
+                                    <option value="medical">การแพทย์ (Medical)</option>
+                                    <option value="aesthetic">ความงาม (Aesthetic)</option>
+                                    <option value="product">ขายของ (Product)</option>
                                 </select>
                             </FieldRow>
 

@@ -149,6 +149,7 @@ export default function InventoryForm() {
     // --- Section 1: Basic Info ---
     const [itemName, setItemName] = useState("");
     const [category, setCategory] = useState("drug");
+    const [segment, setSegment] = useState("product");
     const [unit, setUnit] = useState("");
     const [genericName, setGenericName] = useState("");
     const [tradeName, setTradeName] = useState("");
@@ -233,6 +234,7 @@ export default function InventoryForm() {
                 item_code: await genItemCode(profile.clinic_id),
                 item_name: itemName,
                 category,
+                segment,
                 unit,
                 generic_name: genericName || null,
                 trade_name: tradeName || null,
@@ -304,6 +306,14 @@ export default function InventoryForm() {
                             <option value="drug">ยา (Drug)</option>
                             <option value="supply">เวชภัณฑ์ (Supply)</option>
                             <option value="service">บริการ (Service)</option>
+                        </select>
+                    </FieldRow>
+
+                    <FieldRow label="แผนก (รายได้)">
+                        <select className={selectCls} value={segment} onChange={e => setSegment(e.target.value)}>
+                            <option value="product">ขายของ (Product)</option>
+                            <option value="medical">การแพทย์ (Medical)</option>
+                            <option value="aesthetic">ความงาม (Aesthetic)</option>
                         </select>
                     </FieldRow>
 

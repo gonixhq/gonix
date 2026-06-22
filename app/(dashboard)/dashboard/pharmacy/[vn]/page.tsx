@@ -40,7 +40,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
             unit,
             cost_per_unit,
             sig_text,
-            inventory!inner(item_name, generic_name, strength)
+            inventory!inner(item_name, generic_name, strength, segment)
         `)
         .eq("vn", vn);
 
@@ -63,7 +63,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     // Active drugs + supplies from inventory (สำหรับ "เพิ่มยา/เวชภัณฑ์" picker)
     const { data: drugs } = await supabase
         .from("inventory")
-        .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category")
+        .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category, segment")
         .in("category", ["drug", "supply"])
         .eq("is_active", true)
         .order("category")
