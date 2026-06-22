@@ -120,8 +120,8 @@ function SectionTitle({ icon: Icon, title, color }: {
         emerald: "bg-emerald-200 text-emerald-800",
     }[color];
     return (
-        <div className={`flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r ${styles} border-b-2 rounded-t-2xl`}>
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${iconBg}`}>
+        <div className={`flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r ${styles} border-b rounded-t-2xl`}>
+            <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${iconBg}`}>
                 <Icon className="h-5 w-5" />
             </div>
             <h2 className="text-lg font-bold">{title}</h2>
@@ -182,6 +182,7 @@ export default function InventoryForm() {
     const [minStock, setMinStock] = useState("0");
     const [autoCutStock, setAutoCutStock] = useState("true");
     const [expiryDate, setExpiryDate] = useState("");
+    const [lotNo, setLotNo] = useState("");
     const [dfDoctor, setDfDoctor] = useState("0");
     const [dfNurse, setDfNurse] = useState("0");
     const [dfAssistant, setDfAssistant] = useState("0");
@@ -265,8 +266,23 @@ export default function InventoryForm() {
                 note: note || null,
             };
 
-            const { error: insertErr } = await supabase.from("inventory").insert(payload);
+            const { data: created, error: insertErr } = await supabase.from("inventory").insert(payload).select("id").single();
             if (insertErr) throw insertErr;
+
+            // สร้างล็อตเปิด (ถ้ามีสต๊อกตั้งต้น) — เพื่อให้ระบบ lot/FEFO ทำงาน
+            const openingQty = parseFloat(stockQty) || 0;
+            if (created?.id && openingQty > 0) {
+                await supabase.from("inventory_lots").insert({
+                    clinic_id: profile.clinic_id,
+                    item_id: created.id,
+                    lot_no: lotNo.trim() || null,
+                    expiry_date: expiryDate || null,
+                    qty_received: openingQty,
+                    qty_remaining: openingQty,
+                    cost_per_unit: parseFloat(costPrice) || 0,
+                    note: "ยอดยกมา (ตั้งต้น)",
+                });
+            }
 
             setSaved(true);
             setTimeout(() => {
@@ -286,7 +302,7 @@ export default function InventoryForm() {
     const selectCls = "w-full h-11 px-3 text-[16px] rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500";
 
     return (
-        <div className="space-y-4 pb-24 max-w-5xl mx-auto">
+        <div className="space-y-5 pb-24 max-w-5xl mx-auto">
             {error && (
                 <div className="bg-red-50 text-red-700 px-4 py-3 rounded-xl border-2 border-red-200 text-[15px] font-medium flex items-start gap-2">
                     <X className="h-5 w-5 shrink-0 mt-0.5" />
@@ -295,9 +311,9 @@ export default function InventoryForm() {
             )}
 
             {/* ═══════════ SECTION 1: ข้อมูลพื้นฐาน ═══════════ */}
-            <div className="rounded-2xl border-2 border-slate-200 shadow-sm bg-white overflow-hidden">
+            <div className="rounded-2xl border border-slate-200/80 shadow-md shadow-slate-200/40 bg-white overflow-hidden">
                 <SectionTitle icon={FileText} title="ข้อมูลพื้นฐาน" color="slate" />
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     <FieldRow label="รหัส">
                         <Input value={codePreview} disabled className={`${inputCls} bg-slate-100 text-slate-500 border-dashed font-mono`} />
                     </FieldRow>
@@ -372,7 +388,7 @@ export default function InventoryForm() {
             {/* ═══════════ SECTION 2: ข้อมูลฉลากยา ═══════════ */}
             <div className="rounded-2xl border-2 border-amber-200 shadow-sm bg-white overflow-hidden">
                 <SectionTitle icon={Tag} title="ข้อมูลฉลากยา" color="amber" />
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     <SubHeader label="ข้อมูลทั่วไป" />
                     <FieldRow label="ชื่อภาษาไทย">
                         <Input value={itemNameTh} onChange={e => setItemNameTh(e.target.value)} placeholder="พาราเซตามอล" className={inputCls} />
@@ -459,7 +475,7 @@ export default function InventoryForm() {
             {/* ═══════════ SECTION 3: ราคา สต๊อก ค่าธรรมเนียม ═══════════ */}
             <div className="rounded-2xl border-2 border-emerald-200 shadow-sm bg-white overflow-hidden">
                 <SectionTitle icon={CircleDollarSign} title="ราคา สต๊อก และค่าธรรมเนียม" color="emerald" />
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                     <SubHeader label="ราคาและสต๊อก" />
                     <FieldRow label="ราคาขาย (฿)" required>
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
@@ -479,8 +495,14 @@ export default function InventoryForm() {
                             <option value="false">ปิด (No)</option>
                         </select>
                     </FieldRow>
-                    <FieldRow label="วันหมดอายุ">
+                    <FieldRow label="เลขล็อต (Lot)">
+                        <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="ล็อตของยอดตั้งต้น" className={`${inputCls} font-mono`} />
+                    </FieldRow>
+                    <FieldRow label="วันหมดอายุ (ล็อต)">
                         <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className={inputCls} />
+                    </FieldRow>
+                    <FieldRow label="" colSpan={2}>
+                        <p className="text-[11px] text-slate-400">เลขล็อต + วันหมดอายุนี้จะถูกบันทึกเป็น &quot;ล็อตตั้งต้น&quot; ของยอดคงเหลือ — รับเข้าล็อตใหม่ภายหลังได้ที่หน้าสินค้า</p>
                     </FieldRow>
 
                     <SubHeader label="ค่าธรรมเนียม (Doctor Fee)" />
