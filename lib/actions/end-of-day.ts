@@ -101,11 +101,16 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
             total_revenue: totalRevenue,
         };
 
+        // จำนวนเคสนิรนามที่จ่ายเงินวันนั้น (นับจากยอดรายรับนิรนาม)
+        const anonCount = anonRev.byMethod.reduce((s, m) => s + m.count, 0);
+
         return {
             close_date: targetDate,
             total_visits: finalStats.total_visits,
             visits_by_status: finalStats.visits_by_status,
             total_revenue: finalStats.total_revenue,
+            anon_count: anonCount,
+            anon_revenue: anonRev.total,
             pending_visits: pendingVisits,
             queue_last_number: counterMap["QUEUE"] || 0,
             vn_last_number: counterMap["VN"] || 0,

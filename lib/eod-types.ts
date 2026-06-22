@@ -8,6 +8,8 @@ export interface EODSummary {
     total_visits: number;
     visits_by_status: Record<string, number>;
     total_revenue: number;
+    anon_count: number;       // จำนวนเคสนิรนามที่จ่ายเงินวันนั้น
+    anon_revenue: number;     // ยอดรายรับจากคลินิกนิรนามวันนั้น
     pending_visits: PendingVisit[];
     queue_last_number: number;
     vn_last_number: number;

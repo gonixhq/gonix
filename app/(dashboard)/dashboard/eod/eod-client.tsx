@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
     DoorClosed, AlertCircle, CheckCircle, Wallet, Users, FileText,
-    Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar,
+    Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar, ShieldCheck,
 } from "lucide-react";
 import { closeClinicDay, reopenClinicDay } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
@@ -145,7 +145,7 @@ export default function EODClient({ summary, history }: Props) {
             )}
 
             {/* Summary stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className={`grid grid-cols-2 gap-3 ${summary.anon_count > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
                 <StatCard
                     icon={Users}
                     label="Visits ทั้งหมด"
@@ -167,9 +167,18 @@ export default function EODClient({ summary, history }: Props) {
                     iconBg="bg-slate-100"
                     iconColor="text-slate-600"
                 />
+                {summary.anon_count > 0 && (
+                    <StatCard
+                        icon={ShieldCheck}
+                        label="เคสนิรนาม"
+                        value={`${summary.anon_count} · ฿${summary.anon_revenue.toLocaleString()}`}
+                        iconBg="bg-cyan-100"
+                        iconColor="text-cyan-700"
+                    />
+                )}
                 <StatCard
                     icon={Wallet}
-                    label="รายได้"
+                    label="รายได้รวม"
                     value={`฿${summary.total_revenue.toLocaleString()}`}
                     iconBg="bg-amber-100"
                     iconColor="text-amber-700"
