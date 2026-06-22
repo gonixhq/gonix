@@ -13,6 +13,35 @@ import type {
 // Catalog (service_packages)
 // ════════════════════════════════════════════════════════════
 
+/** Deferred Revenue — มูลค่าคอร์ส/แพ็กเกจที่ขายแล้วแต่ยังไม่ได้ใช้ (Outstanding Value) */
+export async function getDeferredRevenue(): Promise<{ outstanding: number; count: number }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { outstanding: 0, count: 0 };
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { outstanding: 0, count: 0 };
+
+        const { data } = await supabase
+            .from("patient_packages")
+            .select("selling_price, total_sessions, remaining_sessions")
+            .eq("clinic_id", profile.clinic_id)
+            .eq("status", "active");
+
+        let outstanding = 0, count = 0;
+        for (const p of data || []) {
+            const ts = Number(p.total_sessions || 0);
+            const rem = Number(p.remaining_sessions || 0);
+            const price = Number(p.selling_price || 0);
+            if (ts > 0 && rem > 0) { outstanding += price * rem / ts; count++; }
+        }
+        return { outstanding: Math.round(outstanding * 100) / 100, count };
+    } catch {
+        return { outstanding: 0, count: 0 };
+    }
+}
+
 export async function listActivePackages(): Promise<ServicePackage[]> {
     try {
         const supabase = await createClient();

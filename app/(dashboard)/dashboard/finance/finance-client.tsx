@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
-    Trash2, X, Loader2, ArrowDownCircle,
+    Trash2, X, Loader2, ArrowDownCircle, Package, Download,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,8 @@ export default function FinanceClient({
     pettyTotal,
     pettyItems,
     netCashFlow,
+    deferredValue,
+    deferredCount,
 }: {
     invoices: Invoice[];
     todayRevenue: number;
@@ -52,6 +54,8 @@ export default function FinanceClient({
     pettyTotal: number;
     pettyItems: PettyCashItem[];
     netCashFlow: number;
+    deferredValue: number;
+    deferredCount: number;
 }) {
     const { language } = useLanguage();
     const router = useRouter();
@@ -84,6 +88,39 @@ export default function FinanceClient({
             await deletePettyCash(id);
             router.refresh();
         });
+    }
+
+    // Export CSV (รายรับ + รายจ่ายย่อย) — เปิดใน Excel ได้
+    function exportCSV() {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cell = (v: any) => {
+            const s = String(v ?? "");
+            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const lines: string[] = [];
+        lines.push("รายรับ (ใบเสร็จล่าสุด)");
+        lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "ชำระแล้ว", "คงเหลือ", "สถานะ"].map(cell).join(","));
+        for (const inv of invoices) {
+            const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
+            const name = inv.is_anon ? "นิรนาม" : `${pt?.prefix || ""}${pt?.first_name || ""} ${pt?.last_name || ""}`.trim();
+            lines.push([inv.id, inv.invoice_date, name, inv.is_anon ? "นิรนาม" : "ปกติ",
+                Number(inv.total_amount || 0), Number(inv.paid_amount || 0), Number(inv.balance_due || 0),
+                statusLabel[inv.status] || inv.status].map(cell).join(","));
+        }
+        lines.push("");
+        lines.push("รายจ่ายย่อย (วันนี้)");
+        lines.push(["หมวดหมู่", "รายละเอียด", "จำนวนเงิน", "ผู้บันทึก"].map(cell).join(","));
+        for (const it of pettyItems) {
+            lines.push([it.category, it.description, Number(it.amount || 0), it.recorded_by_name || ""].map(cell).join(","));
+        }
+        const csv = "﻿" + lines.join("\r\n");   // BOM ให้ Excel อ่านไทยถูก
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const d = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+        a.href = url; a.download = `การเงิน-${d}.csv`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     const outstandingCount = useMemo(
@@ -134,8 +171,8 @@ export default function FinanceClient({
                 </Link>
             </div>
 
-            {/* Stats — 3 cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Stats — 4 cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Today Revenue */}
                 <div className="gonix-card-premium p-5 relative overflow-hidden">
                     <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-[#15FF83]/25 to-[#10B981]/5 blur-2xl pointer-events-none" />
@@ -180,6 +217,23 @@ export default function FinanceClient({
                         <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">{todayInvoiceCount}</h3>
                         <p className="text-sm font-semibold text-slate-600 mt-1">
                             {language === "en" ? "Today's Invoices" : "ใบเสร็จวันนี้"}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Deferred Revenue — มูลค่าคอร์สค้างใช้ */}
+                <div className="gonix-card-premium p-5 relative overflow-hidden">
+                    <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-violet-300/25 to-fuchsia-200/5 blur-2xl pointer-events-none" />
+                    <div className="relative">
+                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-violet-100">
+                            <Package className="h-5 w-5 text-violet-600" strokeWidth={2.5} />
+                        </div>
+                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">
+                            <span className="text-lg mr-0.5 text-slate-400">฿</span>
+                            {deferredValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </h3>
+                        <p className="text-sm font-semibold text-slate-600 mt-1">
+                            {language === "en" ? `Deferred (${deferredCount} pkg)` : `คอร์สค้างใช้ (${deferredCount} คอส)`}
                         </p>
                     </div>
                 </div>
@@ -250,6 +304,10 @@ export default function FinanceClient({
                     </h2>
                     <span className="text-xs text-slate-400">({filteredInvoices.length}{filter !== "all" ? ` / ${invoices.length}` : ""})</span>
                     <div className="ml-auto flex items-center gap-1.5">
+                        <Button onClick={exportCSV} variant="outline" size="sm" className="rounded-lg h-7 text-xs gap-1 border-slate-300 text-slate-600 hover:bg-slate-50">
+                            <Download className="h-3.5 w-3.5" /> Export CSV
+                        </Button>
+                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
                         <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด</FilterChip>
                         <FilterChip active={filter === "outstanding"} onClick={() => setFilter("outstanding")} color="amber">
                             ค้างชำระ ({outstandingCount})
