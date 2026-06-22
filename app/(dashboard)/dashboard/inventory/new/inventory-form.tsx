@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { updateInventoryItem } from "@/lib/actions/inventory";
+import { Section, FieldRow, SubHeader as SubHeaderBase, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
 import { FileText, Tag, CircleDollarSign, Save, Loader2, CheckCircle, X, Sparkles, Sun, Sunrise, Sunset, Moon } from "lucide-react";
 
 // ─── Dropdown options ────────────────────────────────────
@@ -87,56 +88,9 @@ const LABEL_TYPE_OPTIONS = [
     { value: "เวชภัณฑ์", label: "เวชภัณฑ์ทางการแพทย์" },
 ];
 
-// ── Layout helpers (module scope — ห้ามนิยามใน component มิฉะนั้น input จะ remount/เสีย focus ทุกครั้งที่พิมพ์) ──
-function FieldRow({ label, required, children, colSpan = 1, hidden }: {
-    label: React.ReactNode;
-    required?: boolean;
-    children: React.ReactNode;
-    colSpan?: 1 | 2;
-    hidden?: boolean;
-}) {
-    return (
-        <div className={`grid grid-cols-[150px_1fr] items-center gap-3 ${colSpan === 2 ? "md:col-span-2" : ""} ${hidden ? "hidden" : ""}`}>
-            <label className={`text-[16px] font-semibold text-right ${required ? "text-red-600" : "text-slate-700"} truncate`}>
-                {required && <span className="mr-0.5">*</span>}{label}
-            </label>
-            <div>{children}</div>
-        </div>
-    );
-}
-
-function SectionTitle({ icon: Icon, title, color }: {
-    icon: React.ElementType;
-    title: string;
-    color: "slate" | "amber" | "emerald";
-}) {
-    const styles = {
-        slate: "from-slate-100 to-slate-50 border-slate-300 text-slate-800",
-        amber: "from-amber-100 to-amber-50 border-amber-300 text-amber-900",
-        emerald: "from-emerald-100 to-emerald-50 border-emerald-300 text-emerald-900",
-    }[color];
-    const iconBg = {
-        slate: "bg-slate-200 text-slate-700",
-        amber: "bg-amber-200 text-amber-800",
-        emerald: "bg-emerald-200 text-emerald-800",
-    }[color];
-    return (
-        <div className={`flex items-center gap-2.5 px-5 py-3.5 bg-gradient-to-r ${styles} border-b rounded-t-2xl`}>
-            <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${iconBg}`}>
-                <Icon className="h-5 w-5" />
-            </div>
-            <h2 className="text-lg font-bold">{title}</h2>
-        </div>
-    );
-}
-
+// ใช้ layout เดียวกับหน้าเพิ่มผู้ป่วยใหม่ (shared horizontal-form) — adapter ให้ SubHeader รับ prop label เดิม
 function SubHeader({ label }: { label: string }) {
-    return (
-        <div className="col-span-full text-[13px] font-bold uppercase tracking-wider text-slate-500 pb-2 mb-1 border-b border-slate-200 flex items-center gap-1.5">
-            <span className="h-1 w-5 bg-slate-300 rounded-full" />
-            {label}
-        </div>
-    );
+    return <SubHeaderBase>{label}</SubHeaderBase>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -324,9 +278,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
         }
     }
 
-    // CSS class helpers — compact horizontal form (larger text)
-    const inputCls = "h-11 text-[16px] rounded-lg border-slate-300 focus-visible:ring-blue-500/20 focus-visible:border-blue-500";
-    const selectCls = "w-full h-11 px-3 text-[16px] rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500";
+    // ใช้ class เดียวกับฟอร์มผู้ป่วย (โทนแบรนด์)
+    const inputCls = FORM_INPUT_CLS;
+    const selectCls = FORM_SELECT_CLS;
 
     return (
         <div className="space-y-5 pb-24 max-w-5xl mx-auto">
@@ -338,9 +292,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
             )}
 
             {/* ═══════════ SECTION 1: ข้อมูลพื้นฐาน ═══════════ */}
-            <div className="rounded-2xl border border-slate-200/80 shadow-md shadow-slate-200/40 bg-white overflow-hidden">
-                <SectionTitle icon={FileText} title="ข้อมูลพื้นฐาน" color="slate" />
-                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <Section title="ข้อมูลพื้นฐาน" icon={FileText} color="teal">
                     <FieldRow label="รหัส">
                         <Input value={codePreview} disabled className={`${inputCls} bg-slate-100 text-slate-500 border-dashed font-mono`} />
                     </FieldRow>
@@ -409,13 +361,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </p>
                         )}
                     </FieldRow>
-                </div>
-            </div>
+            </Section>
 
             {/* ═══════════ SECTION 2: ข้อมูลฉลากยา ═══════════ */}
-            <div className="rounded-2xl border-2 border-amber-200 shadow-sm bg-white overflow-hidden">
-                <SectionTitle icon={Tag} title="ข้อมูลฉลากยา" color="amber" />
-                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <Section title="ข้อมูลฉลากยา" icon={Tag} color="amber">
                     <SubHeader label="ข้อมูลทั่วไป" />
                     <FieldRow label="ชื่อภาษาไทย">
                         <Input value={itemNameTh} onChange={e => setItemNameTh(e.target.value)} placeholder="พาราเซตามอล" className={inputCls} />
@@ -496,13 +445,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             className={`${inputCls} border-red-200 focus-visible:ring-red-500/20 focus-visible:border-red-400 bg-red-50/30`}
                         />
                     </FieldRow>
-                </div>
-            </div>
+            </Section>
 
             {/* ═══════════ SECTION 3: ราคา สต๊อก ค่าธรรมเนียม ═══════════ */}
-            <div className="rounded-2xl border-2 border-emerald-200 shadow-sm bg-white overflow-hidden">
-                <SectionTitle icon={CircleDollarSign} title="ราคา สต๊อก และค่าธรรมเนียม" color="emerald" />
-                <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <Section title="ราคา สต๊อก และค่าธรรมเนียม" icon={CircleDollarSign} color="emerald">
                     <SubHeader label="ราคาและสต๊อก" />
                     <FieldRow label="ราคาขาย (฿)" required>
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
@@ -560,8 +506,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     <FieldRow label="หมายเหตุ" colSpan={2}>
                         <Input value={note} onChange={e => setNote(e.target.value)} placeholder="บันทึกช่วยจำ" className={inputCls} />
                     </FieldRow>
-                </div>
-            </div>
+            </Section>
 
             {/* ═══════════ Bottom Sticky Action Bar ═══════════ */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t-2 border-slate-200 flex justify-end gap-3 z-50 px-6 sm:pl-72 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.15)]">
