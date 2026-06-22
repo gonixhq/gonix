@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
+import { getPettyCash } from "@/lib/actions/expenses";
 import FinanceClient from "./finance-client";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +73,10 @@ export default async function FinancePage() {
     }).length;
     const totalTodayCount = (todayInvoiceCount || 0) + todayAnonCount;
 
+    // รายจ่ายย่อย (เงินสด) ของวันนี้ + กระแสเงินสดสุทธิ
+    const petty = await getPettyCash(today);
+    const netCashFlow = todayRevenue - petty.total;
+
     // รวมเคสนิรนามเข้ารายการ (เรียงตามเวลาล่าสุด)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
@@ -99,6 +104,9 @@ export default async function FinancePage() {
             todayRevenue={todayRevenue}
             pendingAmount={pendingAmount}
             todayInvoiceCount={totalTodayCount}
+            pettyTotal={petty.total}
+            pettyItems={petty.items}
+            netCashFlow={netCashFlow}
         />
     );
 }

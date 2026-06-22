@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
+    Trash2, X, Loader2, ArrowDownCircle,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { addPettyCash, deletePettyCash, type PettyCashItem } from "@/lib/actions/expenses";
+
+const PETTY_CATEGORIES = ["ค่าส่งไปรษณีย์", "ค่าเดินทาง/น้ำมัน", "ค่าอุปกรณ์/ของใช้", "ค่าอาหาร/เครื่องดื่ม", "ค่าแม่บ้าน/ทำความสะอาด", "อื่นๆ"];
 
 interface Patient {
     prefix?: string | null;
@@ -36,14 +41,50 @@ export default function FinanceClient({
     todayRevenue,
     pendingAmount,
     todayInvoiceCount,
+    pettyTotal,
+    pettyItems,
+    netCashFlow,
 }: {
     invoices: Invoice[];
     todayRevenue: number;
     pendingAmount: number;
     todayInvoiceCount: number;
+    pettyTotal: number;
+    pettyItems: PettyCashItem[];
+    netCashFlow: number;
 }) {
     const { language } = useLanguage();
+    const router = useRouter();
     const [filter, setFilter] = useState<"all" | "outstanding" | "paid" | "voided">("all");
+
+    // ── Petty cash (รายจ่ายย่อย) ──
+    const [showPetty, setShowPetty] = useState(false);
+    const [pAmount, setPAmount] = useState("");
+    const [pCategory, setPCategory] = useState(PETTY_CATEGORIES[0]);
+    const [pDesc, setPDesc] = useState("");
+    const [pErr, setPErr] = useState("");
+    const [pending, startTransition] = useTransition();
+
+    function submitPetty() {
+        setPErr("");
+        const amt = Number(pAmount);
+        if (!amt || amt <= 0) { setPErr("กรอกจำนวนเงินให้ถูกต้อง"); return; }
+        if (!pDesc.trim()) { setPErr("กรอกรายละเอียด"); return; }
+        startTransition(async () => {
+            const res = await addPettyCash({ amount: amt, category: pCategory, description: pDesc.trim() });
+            if (!res.success) { setPErr(res.error || "บันทึกไม่สำเร็จ"); return; }
+            setShowPetty(false); setPAmount(""); setPDesc(""); setPCategory(PETTY_CATEGORIES[0]);
+            router.refresh();
+        });
+    }
+
+    function removePetty(id: string) {
+        if (!confirm("ลบรายการรายจ่ายย่อยนี้?")) return;
+        startTransition(async () => {
+            await deletePettyCash(id);
+            router.refresh();
+        });
+    }
 
     const outstandingCount = useMemo(
         () => invoices.filter(i => i.status === "issued" || i.status === "partial").length,
@@ -142,6 +183,62 @@ export default function FinanceClient({
                         </p>
                     </div>
                 </div>
+            </div>
+
+            {/* Petty Cash + Net Cash Flow */}
+            <div className="gonix-card-premium overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
+                    <ArrowDownCircle className="h-4 w-4 text-rose-600" />
+                    <h2 className="text-sm font-bold text-slate-800">
+                        {language === "en" ? "Petty Cash (Today)" : "รายจ่ายย่อยวันนี้"}
+                    </h2>
+                    <span className="text-xs text-slate-400">({pettyItems.length})</span>
+                    <div className="ml-auto flex items-center gap-3">
+                        {/* Net Cash Flow inline */}
+                        <div className="text-right hidden sm:block">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {language === "en" ? "Net Cash Flow" : "กระแสเงินสดสุทธิ"}
+                            </div>
+                            <div className={cn("text-base font-black tabular-nums leading-none", netCashFlow >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                ฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                        <Button onClick={() => setShowPetty(true)} size="sm"
+                            className="rounded-xl gap-1.5 h-9 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-500/20">
+                            <Plus className="h-4 w-4" /> {language === "en" ? "Add Expense" : "บันทึกรายจ่ายย่อย"}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Net cash breakdown (mobile + summary line) */}
+                <div className="px-5 py-2.5 bg-slate-50/60 border-b border-slate-200/40 flex items-center gap-4 text-xs flex-wrap">
+                    <span className="text-slate-500">รายรับวันนี้ <span className="font-bold text-emerald-700 tabular-nums">฿{todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                    <span className="text-slate-300">−</span>
+                    <span className="text-slate-500">รายจ่ายย่อย <span className="font-bold text-rose-600 tabular-nums">฿{pettyTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                    <span className="text-slate-300">=</span>
+                    <span className="text-slate-500">สุทธิ <span className={cn("font-black tabular-nums", netCashFlow >= 0 ? "text-emerald-700" : "text-rose-600")}>฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                </div>
+
+                {pettyItems.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                        {language === "en" ? "No petty cash recorded today" : "ยังไม่มีรายจ่ายย่อยวันนี้"}
+                    </div>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {pettyItems.map((it) => (
+                            <div key={it.id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">{it.category}</span>
+                                <span className="text-sm text-slate-700 truncate flex-1">{it.description}</span>
+                                {it.recorded_by_name && <span className="text-[11px] text-slate-400 hidden md:block shrink-0">{it.recorded_by_name}</span>}
+                                <span className="text-sm font-bold text-rose-600 tabular-nums shrink-0">−฿{it.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                <button onClick={() => removePetty(it.id)} disabled={pending}
+                                    className="text-slate-300 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-40">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Invoice list */}
@@ -251,6 +348,62 @@ export default function FinanceClient({
                     </div>
                 )}
             </div>
+
+            {/* Add petty cash modal */}
+            {showPetty && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                                    <ArrowDownCircle className="h-5 w-5 text-rose-600" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-900">บันทึกรายจ่ายย่อย</h3>
+                            </div>
+                            <button onClick={() => setShowPetty(false)} className="text-slate-400 hover:text-slate-700">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">จำนวนเงิน (บาท)</label>
+                            <input value={pAmount} onChange={(e) => setPAmount(e.target.value.replace(/[^\d.]/g, ""))}
+                                inputMode="decimal" placeholder="0.00" autoFocus
+                                className="w-full h-12 rounded-xl border-2 border-slate-200 px-3 text-lg font-bold tabular-nums focus:border-rose-500 focus:outline-none" />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">หมวดหมู่</label>
+                            <div className="flex flex-wrap gap-1.5">
+                                {PETTY_CATEGORIES.map((c) => (
+                                    <button key={c} type="button" onClick={() => setPCategory(c)}
+                                        className={cn("px-2.5 h-8 rounded-lg text-xs font-bold transition-all",
+                                            pCategory === c ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>
+                                        {c}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">รายละเอียด</label>
+                            <input value={pDesc} onChange={(e) => setPDesc(e.target.value)}
+                                placeholder="เช่น ค่าส่งพัสดุ EMS"
+                                className="w-full h-11 rounded-xl border-2 border-slate-200 px-3 text-sm focus:border-rose-500 focus:outline-none" />
+                        </div>
+
+                        {pErr && <p className="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2">{pErr}</p>}
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                            <Button variant="outline" onClick={() => setShowPetty(false)} disabled={pending} className="rounded-xl">ยกเลิก</Button>
+                            <Button onClick={submitPetty} disabled={pending}
+                                className="rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white">
+                                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} บันทึก
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
