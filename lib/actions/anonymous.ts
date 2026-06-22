@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bangkokDate } from "@/lib/utils/date";
 import { genVerifyCode } from "@/lib/utils/anon-code";
 import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
+import { deductFEFO, restoreFEFO } from "@/lib/inventory-fefo";
 import { revalidatePath } from "next/cache";
 
 async function getCtx() {
@@ -476,6 +477,9 @@ async function applyKitStock(supabase: SB, clinicId: string, caseId: string, ref
             tx_type: sign < 0 ? "INTERNAL_USE" : "ADJUST_IN",
             qty_delta: delta, balance_after: newStock, ref_inv_id: `ANON:${ref || caseId}`,
         });
+        // FEFO: ตัด/คืน ล็อตตามทิศ
+        if (sign < 0) await deductFEFO(supabase, clinicId, itemId, qty);
+        else await restoreFEFO(supabase, clinicId, itemId, qty);
     }
 }
 

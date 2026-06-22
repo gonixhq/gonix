@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
+import { deductFEFO } from "@/lib/inventory-fefo";
 
 export interface InvoiceItemInput {
     item_type: string;
@@ -88,6 +89,8 @@ export async function completeCheckout(input: CheckoutInput) {
                                 .from("inventory")
                                 .update({ stock_qty: newStock })
                                 .eq("id", drug.item_id);
+                            // ตัดล็อตแบบ FEFO (ล็อตหมดอายุก่อน=ตัดก่อน)
+                            await deductFEFO(supabase, clinicId, drug.item_id, billedQty);
                         }
                     }
                 }
