@@ -23,6 +23,10 @@ const FIELD_LABEL: Record<string, string> = {
     strength: "ความแรง", dosage_form: "รูปแบบ", category: "หมวดหมู่", segment: "แผนก",
     unit: "หน่วย", sell_price: "ราคาขาย", cost_price: "ราคาทุน", min_stock: "สต๊อกขั้นต่ำ",
     location: "ที่เก็บ", supplier: "ผู้ขาย", note: "หมายเหตุ", expiry_date: "วันหมดอายุ",
+    item_name_th: "ชื่อภาษาไทย", indication: "สรรพคุณ", storage_info: "การเก็บรักษา",
+    dose_qty: "ขนาด/ครั้ง", use_type: "วิธีรับประทาน", frequency: "ความถี่",
+    sig_text_default: "วิธีใช้ Default", label_type: "ประเภทฉลาก", warning_label: "คำเตือน",
+    df_doctor: "DF แพทย์", df_nurse: "DF พยาบาล", df_assistant: "DF ผู้ช่วย",
 };
 
 const TX_TYPE_LABEL: Record<string, string> = {
@@ -93,6 +97,15 @@ export default function InventoryDetailClient({ item, history, editLogs }: Props
         sell_price: (item.sell_price ?? "").toString(), cost_price: (item.cost_price ?? "").toString(),
         min_stock: (item.min_stock ?? "").toString(), location: item.location || "",
         supplier: item.supplier || "", note: item.note || "", expiry_date: item.expiry_date || "",
+        // ฉลากยา
+        item_name_th: item.item_name_th || "", indication: item.indication || "",
+        storage_info: item.storage_info || "", dose_qty: item.dose_qty || "",
+        use_type: item.use_type || "", frequency: item.frequency || "",
+        sig_text_default: item.sig_text_default || "", label_type: item.label_type || "",
+        warning_label: item.warning_label || "",
+        // DF
+        df_doctor: (item.df_doctor ?? "").toString(), df_nurse: (item.df_nurse ?? "").toString(),
+        df_assistant: (item.df_assistant ?? "").toString(),
     });
 
     function saveEdit() {
@@ -428,6 +441,24 @@ export default function InventoryDetailClient({ item, history, editLogs }: Props
                             <EditField label="หมายเหตุ" colSpan={2}>
                                 <textarea value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} rows={2} className={`${EDIT_INPUT} resize-none`} />
                             </EditField>
+
+                            {/* ── ข้อมูลฉลากยา ── */}
+                            <div className="md:col-span-2 mt-1 pt-2 border-t border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">ข้อมูลฉลากยา</div>
+                            <EditField label="ชื่อภาษาไทย"><Input value={edit.item_name_th} onChange={(e) => setEdit({ ...edit, item_name_th: e.target.value })} placeholder="ชื่อบนฉลาก" className={EDIT_INPUT} /></EditField>
+                            <EditField label="สรรพคุณ"><Input value={edit.indication} onChange={(e) => setEdit({ ...edit, indication: e.target.value })} placeholder="ยาบรรเทาปวด ลดไข้" className={EDIT_INPUT} /></EditField>
+                            <EditField label="ขนาด/ครั้ง"><Input value={edit.dose_qty} onChange={(e) => setEdit({ ...edit, dose_qty: e.target.value })} placeholder="1 เม็ด" className={EDIT_INPUT} /></EditField>
+                            <EditField label="วิธีรับประทาน"><Input value={edit.use_type} onChange={(e) => setEdit({ ...edit, use_type: e.target.value })} placeholder="หลังอาหาร" className={EDIT_INPUT} /></EditField>
+                            <EditField label="ความถี่"><Input value={edit.frequency} onChange={(e) => setEdit({ ...edit, frequency: e.target.value })} placeholder="วันละ 3 ครั้ง" className={EDIT_INPUT} /></EditField>
+                            <EditField label="ประเภทฉลาก"><Input value={edit.label_type} onChange={(e) => setEdit({ ...edit, label_type: e.target.value })} className={EDIT_INPUT} /></EditField>
+                            <EditField label="วิธีใช้ Default (Sig)" colSpan={2}><Input value={edit.sig_text_default} onChange={(e) => setEdit({ ...edit, sig_text_default: e.target.value })} placeholder="รับประทานครั้งละ 1 เม็ด วันละ 3 ครั้ง หลังอาหาร" className={EDIT_INPUT} /></EditField>
+                            <EditField label="การเก็บรักษา" colSpan={2}><Input value={edit.storage_info} onChange={(e) => setEdit({ ...edit, storage_info: e.target.value })} className={EDIT_INPUT} /></EditField>
+                            <EditField label="คำเตือน" colSpan={2}><Input value={edit.warning_label} onChange={(e) => setEdit({ ...edit, warning_label: e.target.value })} placeholder="ห้ามใช้เกินขนาด / ง่วงนอน" className={EDIT_INPUT} /></EditField>
+
+                            {/* ── ค่าตอบแทน (DF) ── */}
+                            <div className="md:col-span-2 mt-1 pt-2 border-t border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">ค่าตอบแทน (DF) ต่อหน่วย</div>
+                            <EditField label="DF แพทย์ (฿)"><Input type="number" value={edit.df_doctor} onChange={(e) => setEdit({ ...edit, df_doctor: e.target.value })} className={EDIT_INPUT} /></EditField>
+                            <EditField label="DF พยาบาล (฿)"><Input type="number" value={edit.df_nurse} onChange={(e) => setEdit({ ...edit, df_nurse: e.target.value })} className={EDIT_INPUT} /></EditField>
+                            <EditField label="DF ผู้ช่วย (฿)"><Input type="number" value={edit.df_assistant} onChange={(e) => setEdit({ ...edit, df_assistant: e.target.value })} className={EDIT_INPUT} /></EditField>
                         </div>
                         <div className="flex items-center justify-between gap-2 p-4 border-t border-slate-200 bg-slate-50/50">
                             <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Clock className="h-3 w-3" /> การแก้ไขจะถูกบันทึก audit (ใคร/อะไร/เมื่อไหร่)</span>

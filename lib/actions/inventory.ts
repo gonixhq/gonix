@@ -16,8 +16,13 @@ const EDITABLE_FIELDS = [
     "item_name", "generic_name", "trade_name", "strength", "dosage_form",
     "category", "segment", "unit", "sell_price", "cost_price", "min_stock",
     "location", "supplier", "note", "expiry_date",
+    // ── ข้อมูลฉลากยา ──
+    "item_name_th", "indication", "storage_info", "dose_qty", "use_type",
+    "frequency", "sig_text_default", "label_type", "warning_label",
+    // ── ค่าตอบแทน (DF) ──
+    "df_doctor", "df_nurse", "df_assistant",
 ] as const;
-const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock"]);
+const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock", "df_doctor", "df_nurse", "df_assistant"]);
 
 /** แก้ไขรายละเอียดสินค้า + บันทึก audit (ใครแก้อะไรเมื่อไหร่) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,7 +37,7 @@ export async function updateInventoryItem(input: { id: string } & Record<string,
 
         const { data: cur } = await supabase
             .from("inventory")
-            .select("item_name, generic_name, trade_name, strength, dosage_form, category, segment, unit, sell_price, cost_price, min_stock, location, supplier, note, expiry_date")
+            .select("item_name, generic_name, trade_name, strength, dosage_form, category, segment, unit, sell_price, cost_price, min_stock, location, supplier, note, expiry_date, item_name_th, indication, storage_info, dose_qty, use_type, frequency, sig_text_default, label_type, warning_label, df_doctor, df_nurse, df_assistant")
             .eq("id", input.id).eq("clinic_id", profile.clinic_id).maybeSingle();
         if (!cur) return { success: false, error: "ไม่พบรายการในคลัง" };
 
