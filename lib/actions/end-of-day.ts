@@ -4,7 +4,48 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "./anonymous";
+import { getPettyCashTotal } from "./expenses";
 import type { EODSummary, PendingVisit, CloseDayHistory } from "@/lib/eod-types";
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+type SB = Awaited<ReturnType<typeof createClient>>;
+
+/** สรุปยอดตามช่องทาง (เงินสด/โอน/บัตร) + รายจ่ายย่อย ของวันที่กำหนด */
+async function computePaymentBreakdown(
+    supabase: SB, clinicId: string, date: string,
+    anonByMethod: { method: string; amount: number; count: number }[],
+) {
+    const startISO = new Date(`${date}T00:00:00+07:00`).toISOString();
+    const next = new Date(`${date}T00:00:00+07:00`); next.setDate(next.getDate() + 1);
+    const endISO = next.toISOString();
+    const { data: payLogs } = await supabase
+        .from("payment_logs").select("payment_method, amount")
+        .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO);
+
+    const agg: Record<string, { amount: number; count: number }> = {};
+    for (const p of payLogs || []) {
+        const m = (p.payment_method as string) || "other";
+        if (!agg[m]) agg[m] = { amount: 0, count: 0 };
+        agg[m].amount += Number(p.amount || 0); agg[m].count += 1;
+    }
+    for (const m of anonByMethod) {
+        const k = m.method || "other";
+        if (!agg[k]) agg[k] = { amount: 0, count: 0 };
+        agg[k].amount += m.amount; agg[k].count += m.count;
+    }
+    const grp = (keys: string[]) => keys.reduce(
+        (a, k) => ({ amount: a.amount + (agg[k]?.amount || 0), count: a.count + (agg[k]?.count || 0) }),
+        { amount: 0, count: 0 });
+    const cash = grp(["cash"]);
+    const transfer = grp(["transfer", "qr_promptpay"]);
+    const credit = grp(["credit_card"]);
+    const petty = await getPettyCashTotal(date);
+    return {
+        cash_received: r2(cash.amount), petty_total: r2(petty),
+        transfer_total: r2(transfer.amount), transfer_count: transfer.count,
+        credit_total: r2(credit.amount), credit_count: credit.count,
+    };
+}
 
 /** Get summary of visits/revenue for a given date (default today) */
 export async function getEODSummary(date?: string): Promise<EODSummary | { error: string }> {
@@ -22,7 +63,7 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
         // ── Check ว่าวันนี้ปิดไปแล้วยัง + snapshot stats ──
         const { data: closedRecord } = await supabase
             .from("clinic_day_closes")
-            .select("id, closed_at, closed_by, total_visits, total_visits_completed, total_visits_cancelled, total_revenue, vn_last_number, queue_last_number, profiles!clinic_day_closes_closed_by_fkey(full_name)")
+            .select("id, closed_at, closed_by, total_visits, total_visits_completed, total_visits_cancelled, total_revenue, vn_last_number, queue_last_number, starting_float, expected_cash, actual_cash, over_short, recon_note, profiles!clinic_day_closes_closed_by_fkey(full_name)")
             .eq("clinic_id", profile.clinic_id)
             .eq("close_date", targetDate)
             .maybeSingle();
@@ -73,6 +114,16 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
             .reduce((sum, i) => sum + Number(i.paid_amount || 0), 0);
         const totalRevenue = regRevenue + anonRev.total;
 
+        // ── สรุปช่องทางชำระเงิน (cash/transfer/credit) + รายจ่ายย่อย ──
+        const breakdown = await computePaymentBreakdown(supabase, profile.clinic_id, targetDate, anonRev.byMethod);
+
+        // เงินทอนตั้งต้นครั้งล่าสุด (pre-fill ช่องกรอก)
+        const { data: lastClose } = await supabase
+            .from("clinic_day_closes").select("starting_float")
+            .eq("clinic_id", profile.clinic_id).not("starting_float", "is", null)
+            .order("close_date", { ascending: false }).limit(1).maybeSingle();
+        const lastStartingFloat = Number(lastClose?.starting_float || 0);
+
         // ── Counters ──
         const { data: counters } = await supabase
             .from("running_numbers")
@@ -111,6 +162,20 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
             total_revenue: finalStats.total_revenue,
             anon_count: anonCount,
             anon_revenue: anonRev.total,
+            cash_received: breakdown.cash_received,
+            petty_total: breakdown.petty_total,
+            transfer_total: breakdown.transfer_total,
+            transfer_count: breakdown.transfer_count,
+            credit_total: breakdown.credit_total,
+            credit_count: breakdown.credit_count,
+            last_starting_float: lastStartingFloat,
+            closed_recon: isClosed && closedRecordTyped ? {
+                starting_float: Number(closedRecordTyped.starting_float || 0),
+                expected_cash: Number(closedRecordTyped.expected_cash || 0),
+                actual_cash: closedRecordTyped.actual_cash != null ? Number(closedRecordTyped.actual_cash) : null,
+                over_short: Number(closedRecordTyped.over_short || 0),
+                recon_note: closedRecordTyped.recon_note || null,
+            } : undefined,
             pending_visits: pendingVisits,
             queue_last_number: counterMap["QUEUE"] || 0,
             vn_last_number: counterMap["VN"] || 0,
@@ -130,8 +195,11 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
     }
 }
 
-/** Close the clinic day — resets counters and snapshots summary */
-export async function closeClinicDay(input: { date?: string; notes?: string }) {
+/** Close the clinic day — resets counters and snapshots summary + cash reconciliation */
+export async function closeClinicDay(input: {
+    date?: string; notes?: string;
+    startingFloat?: number; actualCash?: number | null; reconNote?: string;
+}) {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -162,6 +230,29 @@ export async function closeClinicDay(input: { date?: string; notes?: string }) {
             }
             return { success: false, error: error.message };
         }
+
+        // ── Snapshot การกระทบเงินสด/ช่องทาง ลงใน close record ──
+        try {
+            const anon = await getAnonRevenue(targetDate, targetDate);
+            const bd = await computePaymentBreakdown(supabase, profile.clinic_id, targetDate, anon.byMethod);
+            const startingFloat = Number(input.startingFloat || 0);
+            const expectedCash = r2(startingFloat + bd.cash_received - bd.petty_total);
+            const actualCash = input.actualCash != null && input.actualCash !== undefined ? Number(input.actualCash) : null;
+            const overShort = actualCash != null ? r2(actualCash - expectedCash) : 0;
+            await supabase.from("clinic_day_closes").update({
+                starting_float: startingFloat,
+                cash_received: bd.cash_received,
+                petty_total: bd.petty_total,
+                expected_cash: expectedCash,
+                actual_cash: actualCash,
+                over_short: overShort,
+                transfer_total: bd.transfer_total,
+                transfer_count: bd.transfer_count,
+                credit_total: bd.credit_total,
+                credit_count: bd.credit_count,
+                recon_note: input.reconNote?.trim() || null,
+            }).eq("clinic_id", profile.clinic_id).eq("close_date", targetDate);
+        } catch { /* recon เป็นข้อมูลเสริม — ปิดยอดสำเร็จแล้วถึงจะ snapshot ไม่ได้ก็ไม่ rollback */ }
 
         revalidatePath("/dashboard/eod");
         revalidatePath("/dashboard/overview");

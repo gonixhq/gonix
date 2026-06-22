@@ -10,6 +10,21 @@ export interface EODSummary {
     total_revenue: number;
     anon_count: number;       // จำนวนเคสนิรนามที่จ่ายเงินวันนั้น
     anon_revenue: number;     // ยอดรายรับจากคลินิกนิรนามวันนั้น
+    // ── กระทบเงินสด / สรุปช่องทาง (live) ──
+    cash_received: number;    // รับเงินสดระหว่างวัน (รวมนิรนาม)
+    petty_total: number;      // รายจ่ายย่อย (เงินสด)
+    transfer_total: number;   // ยอดโอนรวม
+    transfer_count: number;   // จำนวนรายการโอน
+    credit_total: number;     // ยอดบัตรเครดิตรวม
+    credit_count: number;     // จำนวนรายการบัตร
+    last_starting_float: number;  // เงินทอนตั้งต้นครั้งล่าสุด (pre-fill)
+    closed_recon?: {          // ค่าที่บันทึกไว้ (เมื่อปิดยอดแล้ว)
+        starting_float: number;
+        expected_cash: number;
+        actual_cash: number | null;
+        over_short: number;
+        recon_note: string | null;
+    };
     pending_visits: PendingVisit[];
     queue_last_number: number;
     vn_last_number: number;

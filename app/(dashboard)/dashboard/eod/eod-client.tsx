@@ -9,9 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import {
     DoorClosed, AlertCircle, CheckCircle, Wallet, Users, FileText,
     Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar, ShieldCheck,
+    Calculator, Coins, CreditCard, ArrowLeftRight,
 } from "lucide-react";
 import { closeClinicDay, reopenClinicDay } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
+import { cn } from "@/lib/utils";
+
+const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
 interface Props {
     summary: EODSummary;
@@ -26,15 +30,31 @@ export default function EODClient({ summary, history }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
+    // ── กระทบเงินสด ──
+    const [startingFloat, setStartingFloat] = useState(summary.last_starting_float ? String(summary.last_starting_float) : "");
+    const [actualCash, setActualCash] = useState("");
+    const [reconNote, setReconNote] = useState("");
+
     const hasPending = summary.pending_visits.length > 0;
     const canClose = !summary.already_closed && !hasPending;
+
+    const floatNum = Number(startingFloat) || 0;
+    const expectedCash = floatNum + summary.cash_received - summary.petty_total;
+    const actualNum = actualCash.trim() === "" ? null : (Number(actualCash) || 0);
+    const overShort = actualNum != null ? actualNum - expectedCash : null;
 
     function handleClose() {
         setError(null);
         setSuccess(null);
         startTransition(async () => {
             // ส่ง date ตามที่ user เลือก (default = today via bangkokDate)
-            const res = await closeClinicDay({ date: summary.close_date, notes: notes.trim() || undefined });
+            const res = await closeClinicDay({
+                date: summary.close_date,
+                notes: notes.trim() || undefined,
+                startingFloat: floatNum,
+                actualCash: actualNum,
+                reconNote: reconNote.trim() || undefined,
+            });
             if (!res.success) {
                 setError(res.error || "เกิดข้อผิดพลาด");
                 return;
@@ -228,6 +248,112 @@ export default function EODClient({ summary, history }: Props) {
                 </div>
             )}
 
+            {/* Cash Reconciliation */}
+            <div className="gonix-card-premium p-5">
+                <div className="flex items-center gap-2 mb-4">
+                    <Calculator className="h-4 w-4 text-emerald-700" />
+                    <h2 className="text-base font-bold text-slate-800">กระทบยอดเงิน (Reconciliation)</h2>
+                    <span className="text-xs text-slate-400">— ตรวจนับก่อนปิดยอด</span>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                    {/* Cash column */}
+                    <div className="rounded-2xl border border-slate-200/70 p-4 space-y-2">
+                        <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-1">
+                            <Coins className="h-4 w-4 text-amber-600" /> เงินสด (Cash)
+                        </div>
+
+                        {/* เงินทอนตั้งต้น */}
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-slate-500">เงินทอนตั้งต้น</span>
+                            {summary.already_closed ? (
+                                <span className="text-sm font-bold tabular-nums">{money(summary.closed_recon?.starting_float || 0)}</span>
+                            ) : (
+                                <div className="relative w-32">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+                                    <input value={startingFloat} onChange={(e) => setStartingFloat(e.target.value.replace(/[^\d.]/g, ""))}
+                                        inputMode="decimal" placeholder="0"
+                                        className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-between text-sm"><span className="text-slate-500">+ รับเงินสดวันนี้</span><span className="font-semibold tabular-nums text-emerald-700">{money(summary.cash_received)}</span></div>
+                        <div className="flex items-center justify-between text-sm"><span className="text-slate-500">− รายจ่ายย่อย</span><span className="font-semibold tabular-nums text-rose-600">{money(summary.petty_total)}</span></div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                            <span className="text-sm font-bold text-slate-700">เงินที่ควรมี (Expected)</span>
+                            <span className="text-base font-black tabular-nums text-slate-800">{money(summary.already_closed ? (summary.closed_recon?.expected_cash || 0) : expectedCash)}</span>
+                        </div>
+
+                        {/* เงินนับจริง */}
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                            <span className="text-sm text-slate-500">เงินนับจริง (Actual)</span>
+                            {summary.already_closed ? (
+                                <span className="text-sm font-bold tabular-nums">{summary.closed_recon?.actual_cash != null ? money(summary.closed_recon.actual_cash) : "—"}</span>
+                            ) : (
+                                <div className="relative w-32">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+                                    <input value={actualCash} onChange={(e) => setActualCash(e.target.value.replace(/[^\d.]/g, ""))}
+                                        inputMode="decimal" placeholder="นับจากลิ้นชัก"
+                                        className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Over / Short */}
+                        {(() => {
+                            const os = summary.already_closed ? (summary.closed_recon?.actual_cash != null ? (summary.closed_recon?.over_short ?? null) : null) : overShort;
+                            if (os == null) return null;
+                            const isOk = Math.abs(os) < 0.01;
+                            return (
+                                <div className={cn("flex items-center justify-between rounded-lg px-3 py-2 mt-1",
+                                    isOk ? "bg-emerald-50" : os > 0 ? "bg-amber-50" : "bg-rose-50")}>
+                                    <span className={cn("text-sm font-bold", isOk ? "text-emerald-700" : os > 0 ? "text-amber-700" : "text-rose-700")}>
+                                        {isOk ? "✓ ตรงพอดี" : os > 0 ? "เงินเกิน" : "เงินขาด"}
+                                    </span>
+                                    <span className={cn("text-base font-black tabular-nums", isOk ? "text-emerald-700" : os > 0 ? "text-amber-700" : "text-rose-700")}>
+                                        {os > 0 ? "+" : ""}{money(os)}
+                                    </span>
+                                </div>
+                            );
+                        })()}
+
+                        {/* recon note */}
+                        {summary.already_closed ? (
+                            summary.closed_recon?.recon_note && <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">📝 {summary.closed_recon.recon_note}</p>
+                        ) : (overShort != null && Math.abs(overShort) >= 0.01 && (
+                            <input value={reconNote} onChange={(e) => setReconNote(e.target.value)}
+                                placeholder="หมายเหตุ (อธิบายเงินขาด/เกิน)"
+                                className="w-full h-9 rounded-lg border border-slate-300 px-3 text-sm focus:border-emerald-500 focus:outline-none mt-1" />
+                        ))}
+                    </div>
+
+                    {/* Transfer + Credit column */}
+                    <div className="space-y-3">
+                        <div className="rounded-2xl border border-slate-200/70 p-4">
+                            <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+                                <ArrowLeftRight className="h-4 w-4 text-blue-600" /> เงินโอน (K Shop)
+                            </div>
+                            <div className="flex items-baseline justify-between">
+                                <span className="text-2xl font-black tabular-nums text-slate-800">{money(summary.transfer_total)}</span>
+                                <span className="text-sm font-semibold text-slate-500">{summary.transfer_count} รายการ</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1.5">เทียบยอดรวม + จำนวนรายการกับแอป K Shop ให้ตรงก่อนปิดยอด</p>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200/70 p-4">
+                            <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+                                <CreditCard className="h-4 w-4 text-violet-600" /> บัตรเครดิต
+                            </div>
+                            <div className="flex items-baseline justify-between">
+                                <span className="text-2xl font-black tabular-nums text-slate-800">{money(summary.credit_total)}</span>
+                                <span className="text-sm font-semibold text-slate-500">{summary.credit_count} รายการ</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1.5">เทียบกับยอดสรุปเครื่องรูดบัตร (EDC)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Counter info */}
             <div className="gonix-card-premium p-5">
                 <div className="flex items-center gap-2 mb-3">
@@ -360,6 +486,20 @@ export default function EODClient({ summary, history }: Props) {
                             <div className="flex justify-between">
                                 <span className="text-slate-600">รายได้</span>
                                 <span className="font-bold tabular-nums text-amber-700">฿{summary.total_revenue.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">เงินสด ควรมี / นับจริง</span>
+                                <span className="font-bold tabular-nums">{money(expectedCash)} / {actualNum != null ? money(actualNum) : "—"}</span>
+                            </div>
+                            {overShort != null && Math.abs(overShort) >= 0.01 && (
+                                <div className="flex justify-between">
+                                    <span className="text-slate-600">{overShort > 0 ? "เงินเกิน" : "เงินขาด"}</span>
+                                    <span className={cn("font-black tabular-nums", overShort > 0 ? "text-amber-700" : "text-rose-600")}>{overShort > 0 ? "+" : ""}{money(overShort)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">โอน / บัตร</span>
+                                <span className="font-bold tabular-nums">{money(summary.transfer_total)} ({summary.transfer_count}) / {money(summary.credit_total)} ({summary.credit_count})</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-600">Counter QUEUE/VN ปัจจุบัน</span>
