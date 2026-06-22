@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { notFound } from "next/navigation";
-import { getInventoryAuditLogs } from "@/lib/actions/inventory";
+import { getInventoryAuditLogs, getItemLots } from "@/lib/actions/inventory";
 import InventoryDetailClient from "./inventory-detail-client";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function InventoryDetailPage({
         .order("recorded_at", { ascending: false })
         .limit(50);
 
-    const editLogs = await getInventoryAuditLogs(id);
+    const [editLogs, lots] = await Promise.all([getInventoryAuditLogs(id), getItemLots(id)]);
 
-    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} />;
+    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} lots={lots} />;
 }

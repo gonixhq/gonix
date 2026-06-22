@@ -9,6 +9,7 @@ export interface ReceiveStockInput {
     cost_per_unit?: number;
     note?: string;
     lot_no?: string;
+    expiry_date?: string;   // วันหมดอายุของล็อตนี้
 }
 
 // ฟิลด์ที่แก้ไขได้ผ่านฟอร์ม "แก้ไขรายละเอียด" (ไม่รวม stock_qty — ใช้ปรับสต๊อกแทน)
@@ -121,6 +122,89 @@ export async function getInventoryAuditLogs(itemId: string) {
     }
 }
 
+/** รายการล็อตของสินค้า (เรียง FEFO: หมดอายุก่อน=บนสุด) */
+export async function getItemLots(itemId: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+        const { data } = await supabase
+            .from("inventory_lots")
+            .select("id, lot_no, expiry_date, qty_received, qty_remaining, cost_per_unit, received_at, note")
+            .eq("clinic_id", profile.clinic_id).eq("item_id", itemId)
+            .order("expiry_date", { ascending: true, nullsFirst: false })
+            .order("received_at", { ascending: true });
+        return data || [];
+    } catch {
+        return [];
+    }
+}
+
+/** แก้ไขล็อต (เลขล็อต/วันหมดอายุ/คงเหลือ) — สำหรับแก้ที่กรอกผิด */
+export async function updateLot(input: { id: string; lot_no?: string; expiry_date?: string | null; qty_remaining?: number }) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { data: lot } = await supabase.from("inventory_lots")
+            .select("id, item_id, qty_remaining").eq("id", input.id).eq("clinic_id", profile.clinic_id).maybeSingle();
+        if (!lot) return { success: false, error: "ไม่พบล็อต" };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const patch: any = {};
+        if (input.lot_no !== undefined) patch.lot_no = input.lot_no?.trim() || null;
+        if (input.expiry_date !== undefined) patch.expiry_date = input.expiry_date || null;
+        // ปรับจำนวนคงเหลือ → sync stock ของรายการตามส่วนต่าง
+        let stockDelta = 0;
+        if (input.qty_remaining !== undefined) {
+            const newRem = Math.max(0, Number(input.qty_remaining) || 0);
+            stockDelta = newRem - Number(lot.qty_remaining || 0);
+            patch.qty_remaining = newRem;
+        }
+        const { error } = await supabase.from("inventory_lots").update(patch).eq("id", input.id).eq("clinic_id", profile.clinic_id);
+        if (error) return { success: false, error: error.message };
+
+        if (stockDelta !== 0) {
+            const { data: it } = await supabase.from("inventory").select("stock_qty").eq("id", lot.item_id).maybeSingle();
+            await supabase.from("inventory").update({ stock_qty: Math.max(0, Number(it?.stock_qty || 0) + stockDelta) }).eq("id", lot.item_id);
+        }
+        await supabase.rpc("fn_sync_item_expiry", { p_item_id: lot.item_id });
+        revalidatePath(`/dashboard/inventory/${lot.item_id}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ลบล็อต (เช่นกรอกซ้ำ) — ลดสต๊อกตามคงเหลือของล็อต */
+export async function deleteLot(id: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { data: lot } = await supabase.from("inventory_lots")
+            .select("id, item_id, qty_remaining").eq("id", id).eq("clinic_id", profile.clinic_id).maybeSingle();
+        if (!lot) return { success: false, error: "ไม่พบล็อต" };
+
+        await supabase.from("inventory_lots").delete().eq("id", id).eq("clinic_id", profile.clinic_id);
+        const { data: it } = await supabase.from("inventory").select("stock_qty").eq("id", lot.item_id).maybeSingle();
+        await supabase.from("inventory").update({ stock_qty: Math.max(0, Number(it?.stock_qty || 0) - Number(lot.qty_remaining || 0)) }).eq("id", lot.item_id);
+        await supabase.rpc("fn_sync_item_expiry", { p_item_id: lot.item_id });
+        revalidatePath(`/dashboard/inventory/${lot.item_id}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** รับยา/วัสดุเข้าสต๊อก (PO_RECEIVE) */
 export async function receiveStock(input: ReceiveStockInput) {
     try {
@@ -159,10 +243,24 @@ export async function receiveStock(input: ReceiveStockInput) {
         const { data: staffRow } = await supabase
             .from("staff").select("id").eq("profile_id", user.id).maybeSingle();
 
-        // Insert stock_card
+        // สร้างล็อตใหม่ (lot tracking)
+        const { data: lot } = await supabase.from("inventory_lots").insert({
+            clinic_id: item.clinic_id,
+            item_id: input.item_id,
+            lot_no: input.lot_no?.trim() || null,
+            expiry_date: input.expiry_date || null,
+            qty_received: input.qty,
+            qty_remaining: input.qty,
+            cost_per_unit: input.cost_per_unit || 0,
+            note: input.note?.trim() || null,
+            created_by: staffRow?.id || null,
+        }).select("id").maybeSingle();
+
+        // Insert stock_card (ผูก lot_id)
         await supabase.from("stock_card").insert({
             item_id: input.item_id,
             clinic_id: item.clinic_id,
+            lot_id: lot?.id || null,
             tx_type: "PO_RECEIVE",
             qty_delta: input.qty,
             balance_after: newStock,
@@ -171,6 +269,9 @@ export async function receiveStock(input: ReceiveStockInput) {
             note: [input.lot_no && `Lot: ${input.lot_no}`, input.note].filter(Boolean).join(" · ") || null,
             recorded_by: staffRow?.id || null,
         });
+
+        // sync วันหมดอายุของรายการ = ล็อตใกล้หมดสุด
+        await supabase.rpc("fn_sync_item_expiry", { p_item_id: input.item_id });
 
         revalidatePath("/dashboard/inventory");
         revalidatePath(`/dashboard/inventory/${input.item_id}`);

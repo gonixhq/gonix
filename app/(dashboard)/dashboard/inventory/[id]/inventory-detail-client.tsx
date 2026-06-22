@@ -11,11 +11,20 @@ import {
     ArrowLeft, Plus, Minus, Edit3, Package, AlertTriangle, History, X,
     TrendingUp, TrendingDown, CheckCircle, AlertCircle, Pencil, Clock,
 } from "lucide-react";
-import { receiveStock, adjustStock, updateInventoryItem } from "@/lib/actions/inventory";
+import { receiveStock, adjustStock, updateInventoryItem, updateLot, deleteLot } from "@/lib/actions/inventory";
 import { SEGMENT_LABEL } from "@/lib/segments";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface Props { item: any; history: any[]; editLogs: any[] }
+interface Props { item: any; history: any[]; editLogs: any[]; lots: any[] }
+
+function lotExpiryStatus(expiry: string | null): { label: string; cls: string } | null {
+    if (!expiry) return null;
+    const days = Math.ceil((new Date(expiry + "T00:00:00").getTime() - Date.now()) / 86400000);
+    if (days < 0) return { label: "หมดอายุแล้ว", cls: "bg-rose-100 text-rose-700" };
+    if (days <= 30) return { label: `อีก ${days} วัน`, cls: "bg-amber-100 text-amber-700" };
+    if (days <= 90) return { label: `อีก ${days} วัน`, cls: "bg-yellow-50 text-yellow-700" };
+    return { label: `อีก ${days} วัน`, cls: "bg-emerald-50 text-emerald-700" };
+}
 
 // ป้ายชื่อฟิลด์ (ภาษาไทย) สำหรับแสดงใน audit log
 const FIELD_LABEL: Record<string, string> = {
@@ -79,7 +88,7 @@ function fmtVal(field: string, v: unknown): string {
     return String(v);
 }
 
-export default function InventoryDetailClient({ item, history, editLogs }: Props) {
+export default function InventoryDetailClient({ item, history, editLogs, lots }: Props) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showReceive, setShowReceive] = useState(false);
@@ -117,6 +126,29 @@ export default function InventoryDetailClient({ item, history, editLogs }: Props
             setShowEdit(false);
             setSuccess(res.changed === 0 ? "ไม่มีการเปลี่ยนแปลง" : `✓ บันทึกการแก้ไข ${res.changed} ช่องแล้ว`);
             setTimeout(() => router.refresh(), 800);
+        });
+    }
+
+    // ── แก้ไข/ลบ ล็อต ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [lotEdit, setLotEdit] = useState<any | null>(null);
+    function saveLot() {
+        if (!lotEdit) return;
+        setError(null);
+        startTransition(async () => {
+            const res = await updateLot({ id: lotEdit.id, lot_no: lotEdit.lot_no, expiry_date: lotEdit.expiry_date || null, qty_remaining: Number(lotEdit.qty_remaining) || 0 });
+            if (!res.success) { setError(res.error || "บันทึกล็อตไม่สำเร็จ"); return; }
+            setLotEdit(null); setSuccess("✓ บันทึกล็อตแล้ว");
+            setTimeout(() => router.refresh(), 600);
+        });
+    }
+    function removeLot(id: string) {
+        if (!confirm("ลบล็อตนี้? (สต๊อกจะถูกลดตามจำนวนคงเหลือของล็อต)")) return;
+        startTransition(async () => {
+            const res = await deleteLot(id);
+            if (!res.success) { setError(res.error || "ลบล็อตไม่สำเร็จ"); return; }
+            setSuccess("✓ ลบล็อตแล้ว");
+            setTimeout(() => router.refresh(), 600);
         });
     }
 
@@ -340,6 +372,62 @@ export default function InventoryDetailClient({ item, history, editLogs }: Props
                 </div>
             </div>
 
+            {/* ล็อตสินค้า (FEFO — หมดอายุก่อนอยู่บน) */}
+            <div className="gonix-card-premium overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2">
+                    <Package className="h-4 w-4 text-blue-700" />
+                    <h2 className="text-sm font-bold text-slate-800">ล็อตสินค้า (Lot / วันหมดอายุ)</h2>
+                    <span className="text-xs text-slate-400">({lots.length})</span>
+                    <span className="ml-auto text-[11px] text-slate-400">รับล็อตใหม่ด้วยปุ่ม &quot;รับยาเข้า&quot;</span>
+                </div>
+                {lots.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-slate-400">ยังไม่มีล็อต — กด &quot;รับยาเข้า&quot; แล้วกรอกเลขล็อต + วันหมดอายุ</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50/60">
+                                <tr className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                    <th className="text-left px-4 py-2">Lot No.</th>
+                                    <th className="text-left px-4 py-2">วันหมดอายุ</th>
+                                    <th className="text-right px-4 py-2">คงเหลือ</th>
+                                    <th className="text-right px-4 py-2 hidden sm:table-cell">รับเข้า</th>
+                                    <th className="text-right px-4 py-2 hidden md:table-cell">ทุน/หน่วย</th>
+                                    <th className="px-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {lots.map((l) => {
+                                    const st = lotExpiryStatus(l.expiry_date);
+                                    const out = Number(l.qty_remaining) <= 0;
+                                    return (
+                                        <tr key={l.id} className={`border-t border-slate-100 ${out ? "opacity-50" : ""}`}>
+                                            <td className="px-4 py-2.5 font-mono text-slate-700">{l.lot_no || "—"}</td>
+                                            <td className="px-4 py-2.5">
+                                                {l.expiry_date ? (
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        <span className="tabular-nums">{new Date(l.expiry_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}</span>
+                                                        {st && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>}
+                                                    </span>
+                                                ) : <span className="text-slate-400">—</span>}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-bold tabular-nums">{Number(l.qty_remaining).toLocaleString()} {item.unit}</td>
+                                            <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums hidden sm:table-cell">{Number(l.qty_received).toLocaleString()}</td>
+                                            <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums hidden md:table-cell">{Number(l.cost_per_unit) > 0 ? `฿${Number(l.cost_per_unit).toLocaleString()}` : "—"}</td>
+                                            <td className="px-2 py-2.5">
+                                                <div className="flex items-center gap-1 justify-end">
+                                                    <button onClick={() => setLotEdit({ id: l.id, lot_no: l.lot_no || "", expiry_date: l.expiry_date || "", qty_remaining: Number(l.qty_remaining) })} className="text-slate-300 hover:text-blue-600 p-1" title="แก้ไข"><Pencil className="h-3.5 w-3.5" /></button>
+                                                    <button onClick={() => removeLot(l.id)} disabled={pending} className="text-slate-300 hover:text-rose-600 p-1 disabled:opacity-40" title="ลบ"><X className="h-3.5 w-3.5" /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             {/* ประวัติการแก้ไขข้อมูล (audit) */}
             {editLogs.length > 0 && (
                 <div className="gonix-card-premium overflow-hidden">
@@ -403,6 +491,31 @@ export default function InventoryDetailClient({ item, history, editLogs }: Props
                     }}
                     onError={setError}
                 />
+            )}
+
+            {/* Edit lot Modal */}
+            {lotEdit && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-slate-900 inline-flex items-center gap-2"><Package className="h-5 w-5 text-blue-600" /> แก้ไขล็อต</h3>
+                            <button onClick={() => setLotEdit(null)} className="rounded-lg p-1.5 hover:bg-slate-100"><X className="h-5 w-5 text-slate-500" /></button>
+                        </div>
+                        <div className="space-y-3">
+                            <div><label className="text-xs font-bold text-slate-600 mb-1 block">Lot No.</label>
+                                <Input value={lotEdit.lot_no} onChange={(e) => setLotEdit({ ...lotEdit, lot_no: e.target.value })} className={`${EDIT_INPUT} font-mono`} /></div>
+                            <div><label className="text-xs font-bold text-slate-600 mb-1 block">วันหมดอายุ</label>
+                                <Input type="date" value={lotEdit.expiry_date ? String(lotEdit.expiry_date).slice(0, 10) : ""} onChange={(e) => setLotEdit({ ...lotEdit, expiry_date: e.target.value })} className={EDIT_INPUT} /></div>
+                            <div><label className="text-xs font-bold text-slate-600 mb-1 block">คงเหลือ ({item.unit})</label>
+                                <Input type="number" value={lotEdit.qty_remaining} onChange={(e) => setLotEdit({ ...lotEdit, qty_remaining: e.target.value })} className={`${EDIT_INPUT} text-right tabular-nums`} />
+                                <p className="text-[10px] text-slate-400 mt-1">แก้คงเหลือ → สต๊อกรวมของรายการจะปรับตามส่วนต่าง</p></div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                            <Button variant="outline" onClick={() => setLotEdit(null)} disabled={pending} className="rounded-xl">ยกเลิก</Button>
+                            <Button onClick={saveLot} disabled={pending} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">{pending ? "กำลังบันทึก..." : "บันทึก"}</Button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Edit details Modal */}
@@ -490,6 +603,7 @@ function ReceiveModal({
     const [qty, setQty] = useState("");
     const [cost, setCost] = useState("");
     const [lot, setLot] = useState("");
+    const [expiry, setExpiry] = useState("");
     const [note, setNote] = useState("");
     const [pending, startTransition] = useTransition();
 
@@ -506,6 +620,7 @@ function ReceiveModal({
                 cost_per_unit: cost ? parseFloat(cost) : undefined,
                 note: note || undefined,
                 lot_no: lot || undefined,
+                expiry_date: expiry || undefined,
             });
             if (!res.success) {
                 onError(res.error || "Error");
@@ -577,6 +692,12 @@ function ReceiveModal({
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">Lot No.</Label>
                         <Input value={lot} onChange={e => setLot(e.target.value)} placeholder="—" className="mt-1 font-mono" />
                     </div>
+                </div>
+
+                <div>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">วันหมดอายุ (ล็อตนี้)</Label>
+                    <Input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} className="mt-1" />
+                    <p className="text-[11px] text-slate-400 mt-1">ระบบจะแท็กวันหมดอายุของรายการจากล็อตที่ใกล้หมดสุด</p>
                 </div>
 
                 <div>
