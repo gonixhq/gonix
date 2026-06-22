@@ -67,15 +67,6 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const EDIT_INPUT = "w-full h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200";
 
-function EditField({ label, required, colSpan, children }: { label: string; required?: boolean; colSpan?: number; children: React.ReactNode }) {
-    return (
-        <div className={colSpan === 2 ? "md:col-span-2" : ""}>
-            <label className="text-xs font-bold text-slate-600 mb-1 block">{label}{required && <span className="text-rose-500"> *</span>}</label>
-            {children}
-        </div>
-    );
-}
-
 function fmtDateTime(d: string): string {
     try { return new Date(d).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }); }
     catch { return d; }
@@ -93,41 +84,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
     const [pending, startTransition] = useTransition();
     const [showReceive, setShowReceive] = useState(false);
     const [showAdjust, setShowAdjust] = useState(false);
-    const [showEdit, setShowEdit] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-
-    // ── ฟอร์มแก้ไขรายละเอียด ──
-    const [edit, setEdit] = useState({
-        item_name: item.item_name || "", generic_name: item.generic_name || "",
-        trade_name: item.trade_name || "", strength: item.strength || "",
-        dosage_form: item.dosage_form || "", category: item.category || "drug",
-        segment: item.segment || "product", unit: item.unit || "",
-        sell_price: (item.sell_price ?? "").toString(), cost_price: (item.cost_price ?? "").toString(),
-        min_stock: (item.min_stock ?? "").toString(), location: item.location || "",
-        supplier: item.supplier || "", note: item.note || "", expiry_date: item.expiry_date || "",
-        // ฉลากยา
-        item_name_th: item.item_name_th || "", indication: item.indication || "",
-        storage_info: item.storage_info || "", dose_qty: item.dose_qty || "",
-        use_type: item.use_type || "", frequency: item.frequency || "",
-        sig_text_default: item.sig_text_default || "", label_type: item.label_type || "",
-        warning_label: item.warning_label || "",
-        // DF
-        df_doctor: (item.df_doctor ?? "").toString(), df_nurse: (item.df_nurse ?? "").toString(),
-        df_assistant: (item.df_assistant ?? "").toString(),
-    });
-
-    function saveEdit() {
-        setError(null); setSuccess(null);
-        if (!edit.item_name.trim()) { setError("ชื่อสินค้าห้ามว่าง"); return; }
-        startTransition(async () => {
-            const res = await updateInventoryItem({ id: item.id, ...edit });
-            if (!res.success) { setError(res.error || "บันทึกไม่สำเร็จ"); return; }
-            setShowEdit(false);
-            setSuccess(res.changed === 0 ? "ไม่มีการเปลี่ยนแปลง" : `✓ บันทึกการแก้ไข ${res.changed} ช่องแล้ว`);
-            setTimeout(() => router.refresh(), 800);
-        });
-    }
 
     // ── แก้ไข/ลบ ล็อต ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,13 +166,11 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
                     >
                         <Edit3 className="h-4 w-4" /> ปรับสต๊อก
                     </Button>
-                    <Button
-                        onClick={() => setShowEdit(true)}
-                        variant="outline"
-                        className="rounded-xl gap-1.5 h-9 border-blue-300 text-blue-700 hover:bg-blue-50"
-                    >
-                        <Pencil className="h-4 w-4" /> แก้ไขรายละเอียด
-                    </Button>
+                    <Link href={`/dashboard/inventory/${item.id}/edit`}>
+                        <Button variant="outline" className="rounded-xl gap-1.5 h-9 border-blue-300 text-blue-700 hover:bg-blue-50">
+                            <Pencil className="h-4 w-4" /> แก้ไขรายละเอียด
+                        </Button>
+                    </Link>
                 </div>
             </div>
 
@@ -565,74 +521,6 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
                         <div className="flex items-center justify-end gap-2 pt-1">
                             <Button variant="outline" onClick={() => setLotEdit(null)} disabled={pending} className="rounded-xl">ยกเลิก</Button>
                             <Button onClick={saveLot} disabled={pending} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white">{pending ? "กำลังบันทึก..." : "บันทึก"}</Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit details Modal */}
-            {showEdit && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-                            <h3 className="text-lg font-bold text-slate-900 inline-flex items-center gap-2"><Pencil className="h-5 w-5 text-blue-600" /> แก้ไขรายละเอียด: {item.item_name}</h3>
-                            <button onClick={() => setShowEdit(false)} className="rounded-lg p-1.5 hover:bg-slate-100"><X className="h-5 w-5 text-slate-500" /></button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3">
-                            <EditField label="ชื่อสินค้า" required colSpan={2}>
-                                <Input value={edit.item_name} onChange={(e) => setEdit({ ...edit, item_name: e.target.value })} className={EDIT_INPUT} />
-                            </EditField>
-                            <EditField label="ชื่อสามัญ"><Input value={edit.generic_name} onChange={(e) => setEdit({ ...edit, generic_name: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="ชื่อการค้า"><Input value={edit.trade_name} onChange={(e) => setEdit({ ...edit, trade_name: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="ความแรง"><Input value={edit.strength} onChange={(e) => setEdit({ ...edit, strength: e.target.value })} placeholder="เช่น 500 mg" className={EDIT_INPUT} /></EditField>
-                            <EditField label="รูปแบบ"><Input value={edit.dosage_form} onChange={(e) => setEdit({ ...edit, dosage_form: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="หมวดหมู่">
-                                <select value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value })} className={EDIT_INPUT}>
-                                    <option value="drug">ยา (Drug)</option><option value="supply">เวชภัณฑ์ (Supply)</option><option value="service">บริการ (Service)</option>
-                                </select>
-                            </EditField>
-                            <EditField label="แผนก (รายได้)">
-                                <select value={edit.segment} onChange={(e) => setEdit({ ...edit, segment: e.target.value })} className={EDIT_INPUT}>
-                                    <option value="product">ขายของ (Product)</option><option value="medical">การแพทย์ (Medical)</option><option value="aesthetic">ความงาม (Aesthetic)</option>
-                                </select>
-                            </EditField>
-                            <EditField label="หน่วย"><Input value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })} placeholder="เม็ด / ขวد" className={EDIT_INPUT} /></EditField>
-                            <EditField label="ราคาขาย (฿)"><Input type="number" value={edit.sell_price} onChange={(e) => setEdit({ ...edit, sell_price: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="ราคาทุน (฿)"><Input type="number" value={edit.cost_price} onChange={(e) => setEdit({ ...edit, cost_price: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="สต๊อกขั้นต่ำ"><Input type="number" value={edit.min_stock} onChange={(e) => setEdit({ ...edit, min_stock: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="วันหมดอายุ"><Input type="date" value={edit.expiry_date ? String(edit.expiry_date).slice(0, 10) : ""} onChange={(e) => setEdit({ ...edit, expiry_date: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="ที่เก็บ"><Input value={edit.location} onChange={(e) => setEdit({ ...edit, location: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="ผู้ขาย"><Input value={edit.supplier} onChange={(e) => setEdit({ ...edit, supplier: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="หมายเหตุ" colSpan={2}>
-                                <textarea value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} rows={2} className={`${EDIT_INPUT} resize-none`} />
-                            </EditField>
-
-                            {/* ── ข้อมูลฉลากยา ── */}
-                            <div className="md:col-span-2 mt-1 pt-2 border-t border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">ข้อมูลฉลากยา</div>
-                            <EditField label="ชื่อภาษาไทย"><Input value={edit.item_name_th} onChange={(e) => setEdit({ ...edit, item_name_th: e.target.value })} placeholder="ชื่อบนฉลาก" className={EDIT_INPUT} /></EditField>
-                            <EditField label="สรรพคุณ"><Input value={edit.indication} onChange={(e) => setEdit({ ...edit, indication: e.target.value })} placeholder="ยาบรรเทาปวด ลดไข้" className={EDIT_INPUT} /></EditField>
-                            <EditField label="ขนาด/ครั้ง"><Input value={edit.dose_qty} onChange={(e) => setEdit({ ...edit, dose_qty: e.target.value })} placeholder="1 เม็ด" className={EDIT_INPUT} /></EditField>
-                            <EditField label="วิธีรับประทาน"><Input value={edit.use_type} onChange={(e) => setEdit({ ...edit, use_type: e.target.value })} placeholder="หลังอาหาร" className={EDIT_INPUT} /></EditField>
-                            <EditField label="ความถี่"><Input value={edit.frequency} onChange={(e) => setEdit({ ...edit, frequency: e.target.value })} placeholder="วันละ 3 ครั้ง" className={EDIT_INPUT} /></EditField>
-                            <EditField label="ประเภทฉลาก"><Input value={edit.label_type} onChange={(e) => setEdit({ ...edit, label_type: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="วิธีใช้ Default (Sig)" colSpan={2}><Input value={edit.sig_text_default} onChange={(e) => setEdit({ ...edit, sig_text_default: e.target.value })} placeholder="รับประทานครั้งละ 1 เม็ด วันละ 3 ครั้ง หลังอาหาร" className={EDIT_INPUT} /></EditField>
-                            <EditField label="การเก็บรักษา" colSpan={2}><Input value={edit.storage_info} onChange={(e) => setEdit({ ...edit, storage_info: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="คำเตือน" colSpan={2}><Input value={edit.warning_label} onChange={(e) => setEdit({ ...edit, warning_label: e.target.value })} placeholder="ห้ามใช้เกินขนาด / ง่วงนอน" className={EDIT_INPUT} /></EditField>
-
-                            {/* ── ค่าตอบแทน (DF) ── */}
-                            <div className="md:col-span-2 mt-1 pt-2 border-t border-slate-200 text-xs font-black text-slate-500 uppercase tracking-wider">ค่าตอบแทน (DF) ต่อหน่วย</div>
-                            <EditField label="DF แพทย์ (฿)"><Input type="number" value={edit.df_doctor} onChange={(e) => setEdit({ ...edit, df_doctor: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="DF พยาบาล (฿)"><Input type="number" value={edit.df_nurse} onChange={(e) => setEdit({ ...edit, df_nurse: e.target.value })} className={EDIT_INPUT} /></EditField>
-                            <EditField label="DF ผู้ช่วย (฿)"><Input type="number" value={edit.df_assistant} onChange={(e) => setEdit({ ...edit, df_assistant: e.target.value })} className={EDIT_INPUT} /></EditField>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 p-4 border-t border-slate-200 bg-slate-50/50">
-                            <span className="text-[11px] text-slate-400 inline-flex items-center gap-1"><Clock className="h-3 w-3" /> การแก้ไขจะถูกบันทึก audit (ใคร/อะไร/เมื่อไหร่)</span>
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => setShowEdit(false)} disabled={pending} className="rounded-xl">ยกเลิก</Button>
-                                <Button onClick={saveEdit} disabled={pending} className="rounded-xl gap-1.5 bg-blue-600 hover:bg-blue-700 text-white">
-                                    {pending ? "กำลังบันทึก..." : "บันทึก"}
-                                </Button>
-                            </div>
                         </div>
                     </div>
                 </div>

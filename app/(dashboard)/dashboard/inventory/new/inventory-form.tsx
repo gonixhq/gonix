@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { updateInventoryItem } from "@/lib/actions/inventory";
 import { FileText, Tag, CircleDollarSign, Save, Loader2, CheckCircle, X, Sparkles, Sun, Sunrise, Sunset, Moon } from "lucide-react";
 
 // ─── Dropdown options ────────────────────────────────────
@@ -138,25 +139,28 @@ function SubHeader({ label }: { label: string }) {
     );
 }
 
-export default function InventoryForm() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function InventoryForm({ item }: { item?: any } = {}) {
     const router = useRouter();
     const supabase = createClient();
+    const isEdit = !!item?.id;
     const [loading, setLoading] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState("");
-    const [codePreview, setCodePreview] = useState("Auto");
+    const [codePreview, setCodePreview] = useState(item?.item_code || "Auto");
 
     // --- Section 1: Basic Info ---
-    const [itemName, setItemName] = useState("");
-    const [category, setCategory] = useState("drug");
-    const [segment, setSegment] = useState("product");
-    const [unit, setUnit] = useState("");
-    const [genericName, setGenericName] = useState("");
-    const [tradeName, setTradeName] = useState("");
-    const [strengthValue, setStrengthValue] = useState("");
-    const [strengthUnit, setStrengthUnit] = useState("mg");
-    const [dosageForm, setDosageForm] = useState("");
-    const [dosageCustom, setDosageCustom] = useState(false);
+    const [itemName, setItemName] = useState(item?.item_name || "");
+    const [category, setCategory] = useState(item?.category || "drug");
+    const [segment, setSegment] = useState(item?.segment || "product");
+    const [unit, setUnit] = useState(item?.unit || "");
+    const [genericName, setGenericName] = useState(item?.generic_name || "");
+    const [tradeName, setTradeName] = useState(item?.trade_name || "");
+    const [strengthValue, setStrengthValue] = useState(item?.strength || "");
+    const [strengthUnit, setStrengthUnit] = useState(item?.strength ? "(none)" : "mg");
+    const [dosageForm, setDosageForm] = useState(item?.dosage_form || "");
+    const [dosageCustom, setDosageCustom] = useState(
+        !!item?.dosage_form && !DOSAGE_FORM_OPTIONS.some(o => o.value === item.dosage_form));
 
     // Computed strength (e.g. "500mg")
     const strength = strengthValue
@@ -164,31 +168,32 @@ export default function InventoryForm() {
         : "";
 
     // --- Section 2: Label Info ---
-    const [itemNameTh, setItemNameTh] = useState("");
-    const [indication, setIndication] = useState("");
-    const [storageInfo, setStorageInfo] = useState("");
-    const [doseQty, setDoseQty] = useState("");
-    const [frequency, setFrequency] = useState("");
-    const [useType, setUseType] = useState("");
-    const [labelType, setLabelType] = useState("");
-    const [labelCustom, setLabelCustom] = useState(false);
-    const [warningLabel, setWarningLabel] = useState("");
-    const [sigTextDefault, setSigTextDefault] = useState("");
+    const [itemNameTh, setItemNameTh] = useState(item?.item_name_th || "");
+    const [indication, setIndication] = useState(item?.indication || "");
+    const [storageInfo, setStorageInfo] = useState(item?.storage_info || "");
+    const [doseQty, setDoseQty] = useState(item?.dose_qty || "");
+    const [frequency, setFrequency] = useState(item?.frequency || "");
+    const [useType, setUseType] = useState(item?.use_type || "");
+    const [labelType, setLabelType] = useState(item?.label_type || "");
+    const [labelCustom, setLabelCustom] = useState(
+        !!item?.label_type && !LABEL_TYPE_OPTIONS.some(o => o.value === item.label_type));
+    const [warningLabel, setWarningLabel] = useState(item?.warning_label || "");
+    const [sigTextDefault, setSigTextDefault] = useState(item?.sig_text_default || "");
 
     // --- Section 3: Price, Stock & Fees ---
-    const [sellPrice, setSellPrice] = useState("");
-    const [costPrice, setCostPrice] = useState("0");
-    const [stockQty, setStockQty] = useState("0");
-    const [minStock, setMinStock] = useState("0");
-    const [autoCutStock, setAutoCutStock] = useState("true");
-    const [expiryDate, setExpiryDate] = useState("");
+    const [sellPrice, setSellPrice] = useState(item?.sell_price != null ? String(item.sell_price) : "");
+    const [costPrice, setCostPrice] = useState(item?.cost_price != null ? String(item.cost_price) : "0");
+    const [stockQty, setStockQty] = useState(item?.stock_qty != null ? String(item.stock_qty) : "0");
+    const [minStock, setMinStock] = useState(item?.min_stock != null ? String(item.min_stock) : "0");
+    const [autoCutStock, setAutoCutStock] = useState(item ? (item.auto_cut_stock ? "true" : "false") : "true");
+    const [expiryDate, setExpiryDate] = useState(item?.expiry_date ? String(item.expiry_date).slice(0, 10) : "");
     const [lotNo, setLotNo] = useState("");
-    const [dfDoctor, setDfDoctor] = useState("0");
-    const [dfNurse, setDfNurse] = useState("0");
-    const [dfAssistant, setDfAssistant] = useState("0");
-    const [location, setLocation] = useState("");
-    const [supplier, setSupplier] = useState("");
-    const [note, setNote] = useState("");
+    const [dfDoctor, setDfDoctor] = useState(item?.df_doctor != null ? String(item.df_doctor) : "0");
+    const [dfNurse, setDfNurse] = useState(item?.df_nurse != null ? String(item.df_nurse) : "0");
+    const [dfAssistant, setDfAssistant] = useState(item?.df_assistant != null ? String(item.df_assistant) : "0");
+    const [location, setLocation] = useState(item?.location || "");
+    const [supplier, setSupplier] = useState(item?.supplier || "");
+    const [note, setNote] = useState(item?.note || "");
 
     // สร้างรหัสสินค้าอัตโนมัติ: PREFIX-NNNN ตามหมวดหมู่
     async function genItemCode(clinicId: string): Promise<string> {
@@ -199,8 +204,9 @@ export default function InventoryForm() {
         return `${prefix}-${String((count || 0) + 1).padStart(4, "0")}`;
     }
 
-    // preview รหัสในช่อง — อัปเดตเมื่อเปลี่ยนหมวดหมู่
+    // preview รหัสในช่อง — อัปเดตเมื่อเปลี่ยนหมวดหมู่ (เฉพาะตอนสร้างใหม่)
     useEffect(() => {
+        if (isEdit) return;   // โหมดแก้ไข: ใช้ item_code เดิม
         let alive = true;
         (async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -229,6 +235,27 @@ export default function InventoryForm() {
 
             const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
             if (!profile?.clinic_id) throw new Error("Clinic ID not found");
+
+            // ── โหมดแก้ไข — ใช้ updateInventoryItem (มี audit + ไม่แตะ stock_qty) ──
+            if (isEdit) {
+                const res = await updateInventoryItem({
+                    id: item.id,
+                    item_name: itemName, category, segment, unit,
+                    generic_name: genericName, trade_name: tradeName, strength,
+                    dosage_form: dosageForm.trim(),
+                    item_name_th: itemNameTh, indication, storage_info: storageInfo,
+                    dose_qty: doseQty, frequency, use_type: useType,
+                    label_type: labelType.trim(), warning_label: warningLabel, sig_text_default: sigTextDefault,
+                    sell_price: parseFloat(sellPrice) || 0, cost_price: parseFloat(costPrice) || 0,
+                    min_stock: parseFloat(minStock) || 0, expiry_date: expiryDate || null,
+                    df_doctor: parseFloat(dfDoctor) || 0, df_nurse: parseFloat(dfNurse) || 0, df_assistant: parseFloat(dfAssistant) || 0,
+                    location, supplier, note,
+                });
+                if (!res.success) throw new Error(res.error || "บันทึกไม่สำเร็จ");
+                setSaved(true);
+                setTimeout(() => { setSaved(false); router.push(`/dashboard/inventory/${item.id}`); router.refresh(); }, 1200);
+                return;
+            }
 
             const payload = {
                 clinic_id: profile.clinic_id,
@@ -484,7 +511,14 @@ export default function InventoryForm() {
                         <Input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} className={`${inputCls} tabular-nums`} />
                     </FieldRow>
                     <FieldRow label="คงเหลือ">
-                        <Input type="number" value={stockQty} onChange={e => setStockQty(e.target.value)} className={`${inputCls} text-blue-600 font-bold tabular-nums`} />
+                        {isEdit ? (
+                            <div className="flex items-center gap-2">
+                                <Input type="number" value={stockQty} disabled className={`${inputCls} text-slate-500 font-bold tabular-nums bg-slate-100 max-w-[120px]`} />
+                                <span className="text-[11px] text-slate-400">แก้สต๊อกที่ปุ่ม &quot;รับยาเข้า / ปรับสต๊อก&quot; (มี audit แยก)</span>
+                            </div>
+                        ) : (
+                            <Input type="number" value={stockQty} onChange={e => setStockQty(e.target.value)} className={`${inputCls} text-blue-600 font-bold tabular-nums`} />
+                        )}
                     </FieldRow>
                     <FieldRow label="แจ้งเตือนต่ำสุด">
                         <Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} className={`${inputCls} tabular-nums`} />
@@ -495,13 +529,13 @@ export default function InventoryForm() {
                             <option value="false">ปิด (No)</option>
                         </select>
                     </FieldRow>
-                    <FieldRow label="เลขล็อต (Lot)">
+                    <FieldRow label="เลขล็อต (Lot)" hidden={isEdit}>
                         <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="ล็อตของยอดตั้งต้น" className={`${inputCls} font-mono`} />
                     </FieldRow>
-                    <FieldRow label="วันหมดอายุ (ล็อต)">
+                    <FieldRow label="วันหมดอายุ (ล็อต)" hidden={isEdit}>
                         <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className={inputCls} />
                     </FieldRow>
-                    <FieldRow label="" colSpan={2}>
+                    <FieldRow label="" colSpan={2} hidden={isEdit}>
                         <p className="text-[11px] text-slate-400">เลขล็อต + วันหมดอายุนี้จะถูกบันทึกเป็น &quot;ล็อตตั้งต้น&quot; ของยอดคงเหลือ — รับเข้าล็อตใหม่ภายหลังได้ที่หน้าสินค้า</p>
                     </FieldRow>
 
@@ -534,7 +568,7 @@ export default function InventoryForm() {
                 <Button
                     variant="outline"
                     className="rounded-xl px-7 h-12 text-[16px] font-bold border-2"
-                    onClick={() => router.push("/dashboard/inventory")}
+                    onClick={() => router.push(isEdit ? `/dashboard/inventory/${item.id}` : "/dashboard/inventory")}
                     disabled={loading}
                 >
                     ยกเลิก
@@ -547,7 +581,7 @@ export default function InventoryForm() {
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> :
                         saved ? <CheckCircle className="h-5 w-5" /> :
                             <Save className="h-5 w-5" />}
-                    {saved ? "บันทึกสำเร็จ" : "บันทึกข้อมูลคลัง"}
+                    {saved ? "บันทึกสำเร็จ" : isEdit ? "บันทึกการแก้ไข" : "บันทึกข้อมูลคลัง"}
                 </Button>
             </div>
         </div>
