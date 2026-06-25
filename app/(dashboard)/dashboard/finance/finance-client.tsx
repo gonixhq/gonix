@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
-    Trash2, X, Loader2, ArrowDownCircle, Package, Download, Search, Eye, ArrowLeftRight,
+    Trash2, X, Loader2, ArrowDownCircle, Package, Download, Search, Eye, ArrowLeftRight, AlertCircle,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -52,6 +52,8 @@ export default function FinanceClient({
     deferredValue,
     deferredCount,
     segments,
+    trend,
+    forecast,
 }: {
     invoices: Invoice[];
     range: RangeInfo;
@@ -65,6 +67,8 @@ export default function FinanceClient({
     deferredValue: number;
     deferredCount: number;
     segments: { segment: string; amount: number }[];
+    trend: { prevRevenue: number; growthPct: number | null };
+    forecast: number | null;
 }) {
     const { language } = useLanguage();
     const router = useRouter();
@@ -171,6 +175,15 @@ export default function FinanceClient({
         return { total, count, avg: count ? total / count : 0 };
     }, [filteredInvoices]);
 
+    // Anomaly: ใบยอดสูงผิดปกติ (>4 เท่าค่าเฉลี่ย, ขั้นต่ำ 5,000) + จำนวนยกเลิก/คืน
+    const anomalyThreshold = useMemo(() => {
+        const vals = invoices.filter(i => !i.is_anon && i.status !== "voided" && i.status !== "refunded").map(i => Number(i.total_amount || 0)).filter(v => v > 0);
+        if (vals.length < 4) return Infinity;
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        return Math.max(avg * 4, 5000);
+    }, [invoices]);
+    const voidCount = useMemo(() => invoices.filter(i => i.status === "voided" || i.status === "refunded").length, [invoices]);
+
     const statusLabel: Record<string, string> = {
         draft: language === "en" ? "Draft" : "ร่าง",
         issued: language === "en" ? "Issued" : "รอชำระ",
@@ -243,6 +256,11 @@ export default function FinanceClient({
                         <p className="text-sm font-semibold text-slate-600 mt-1">
                             {language === "en" ? "Revenue" : "รายรับ"} ({rangeLabel})
                         </p>
+                        {trend.growthPct != null && (
+                            <p className={`text-[11px] font-bold mt-0.5 inline-flex items-center gap-0.5 ${trend.growthPct >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                                {trend.growthPct >= 0 ? "▲" : "▼"} {Math.abs(trend.growthPct)}% <span className="text-slate-400 font-normal">เทียบช่วงก่อน (฿{trend.prevRevenue.toLocaleString()})</span>
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -347,6 +365,12 @@ export default function FinanceClient({
                         <div><div className="text-lg font-black text-slate-800 tabular-nums">{summary.count}</div><div className="text-[11px] text-slate-400">จำนวนใบ</div></div>
                         <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div className="text-[11px] text-slate-400">เฉลี่ย/ใบ</div></div>
                     </div>
+                    {forecast != null && (
+                        <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-slate-500 inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5 text-violet-500" /> คาดการณ์สิ้นเดือน</span>
+                            <span className="font-black tabular-nums text-violet-700">~฿{forecast.toLocaleString()}</span>
+                        </div>
+                    )}
                 </div>
                 <div className="gonix-card-premium p-4">
                     <div className="text-xs font-bold text-slate-500 mb-2.5 inline-flex items-center gap-1"><ArrowLeftRight className="h-3.5 w-3.5" /> รายรับตามช่องทาง ({rangeLabel})</div>
@@ -422,6 +446,11 @@ export default function FinanceClient({
                         {language === "en" ? "Recent Receipts" : "ใบเสร็จล่าสุด"}
                     </h2>
                     <span className="text-xs text-slate-400">({filteredInvoices.length}{filter !== "all" ? ` / ${invoices.length}` : ""})</span>
+                    {voidCount > 0 && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-600 inline-flex items-center gap-1" title="ใบเสร็จที่ยกเลิก/คืนเงินในช่วงนี้ — ตรวจสอบความถี่">
+                            <AlertCircle className="h-3 w-3" /> ยกเลิก/คืน {voidCount}
+                        </span>
+                    )}
                     <div className="ml-auto flex items-center gap-1.5">
                         <Button onClick={exportCSV} variant="outline" size="sm" className="rounded-lg h-7 text-xs gap-1 border-slate-300 text-slate-600 hover:bg-slate-50">
                             <Download className="h-3.5 w-3.5" /> Export CSV
@@ -492,7 +521,10 @@ export default function FinanceClient({
                                                 {new Date(inv.invoice_date).toLocaleDateString(language === "en" ? "en-US" : "th-TH", { day: "numeric", month: "short", year: "2-digit" })}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <span className="font-bold text-slate-800 tabular-nums">
+                                                <span className="font-bold text-slate-800 tabular-nums inline-flex items-center gap-1 justify-end">
+                                                    {!inv.is_anon && Number(inv.total_amount || 0) >= anomalyThreshold && (
+                                                        <span title="ยอดสูงผิดปกติ — ตรวจสอบ" className="text-amber-500"><AlertCircle className="h-3.5 w-3.5" /></span>
+                                                    )}
                                                     ฿{Number(inv.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                             </td>

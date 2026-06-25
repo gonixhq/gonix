@@ -97,6 +97,27 @@ export default async function FinancePage({
     const deferred = await getDeferredRevenue();
     const segments = await getSegmentRevenue(from, to);
 
+    // ── Trend: เทียบกับช่วงก่อนหน้า (ยาวเท่ากัน) ──
+    const lenDays = Math.round((new Date(`${to}T00:00:00+07:00`).getTime() - new Date(`${from}T00:00:00+07:00`).getTime()) / 86400000) + 1;
+    const prevTo = new Date(`${from}T00:00:00+07:00`); prevTo.setDate(prevTo.getDate() - 1);
+    const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - (lenDays - 1));
+    const prevFromStr = prevFrom.toISOString().slice(0, 10), prevToStr = prevTo.toISOString().slice(0, 10);
+    const { data: prevInv } = await supabase.from("invoice_headers")
+        .select("paid_amount, status").eq("clinic_id", clinicId)
+        .gte("invoice_date", prevFromStr).lte("invoice_date", prevToStr);
+    const prevAnon = await getAnonRevenue(prevFromStr, prevToStr);
+    const prevRevenue = (prevInv || []).filter(r => r.status !== "voided" && r.status !== "refunded")
+        .reduce((s, r) => s + Number(r.paid_amount || 0), 0) + prevAnon.total;
+    const growthPct = prevRevenue > 0 ? Math.round((rangeRevenue - prevRevenue) / prevRevenue * 1000) / 10 : null;
+
+    // ── Forecast: คาดการณ์รายรับสิ้นเดือน (เฉพาะ view เดือนนี้) ──
+    let forecast: number | null = null;
+    if (preset === "month") {
+        const day = Number(today.slice(8, 10));
+        const daysInMonth = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate();
+        forecast = day > 0 ? Math.round(rangeRevenue / day * daysInMonth) : null;
+    }
+
     // ── รวมเคสนิรนามเข้ารายการ ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
@@ -131,6 +152,8 @@ export default async function FinancePage({
             deferredValue={deferred.outstanding}
             deferredCount={deferred.count}
             segments={segments}
+            trend={{ prevRevenue, growthPct }}
+            forecast={forecast}
         />
     );
 }
