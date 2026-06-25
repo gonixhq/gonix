@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,11 @@ import {
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { addPettyCash, deletePettyCash, type PettyCashItem } from "@/lib/actions/expenses";
+import { getPatientLifetime } from "@/lib/actions/finance-insight";
 import { SEGMENTS, SEGMENT_STYLE, type Segment } from "@/lib/segments";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Lifetime = any;
 
 const PETTY_CATEGORIES = ["ค่าส่งไปรษณีย์", "ค่าเดินทาง/น้ำมัน", "ค่าอุปกรณ์/ของใช้", "ค่าอาหาร/เครื่องดื่ม", "ค่าแม่บ้าน/ทำความสะอาด", "อื่นๆ"];
 
@@ -183,6 +187,17 @@ export default function FinanceClient({
         return Math.max(avg * 4, 5000);
     }, [invoices]);
     const voidCount = useMemo(() => invoices.filter(i => i.status === "voided" || i.status === "refunded").length, [invoices]);
+
+    // Customer LTV — ถ้าค้นหาแล้วเหลือผู้ป่วยคนเดียว → ดึงยอดสะสมทั้งชีวิต
+    const [ltv, setLtv] = useState<Lifetime | null>(null);
+    useEffect(() => {
+        if (!search.trim()) { setLtv(null); return; }
+        const hns = [...new Set(filteredInvoices.filter(i => !i.is_anon && i.hn).map(i => i.hn))];
+        if (hns.length !== 1) { setLtv(null); return; }
+        let alive = true;
+        getPatientLifetime(hns[0] as string).then(r => { if (alive) setLtv(r); });
+        return () => { alive = false; };
+    }, [search, filteredInvoices]);
 
     const statusLabel: Record<string, string> = {
         draft: language === "en" ? "Draft" : "ร่าง",
@@ -437,6 +452,24 @@ export default function FinanceClient({
                     </div>
                 )}
             </div>
+
+            {/* Customer LTV (เมื่อค้นเหลือคนเดียว) */}
+            {ltv && (
+                <div className="gonix-card-premium p-4 border-l-4 border-l-blue-500">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">ลูกค้ารายนี้ · มูลค่าตลอดอายุ (LTV)</div>
+                            <div className="text-lg font-black text-slate-800">{ltv.name} <span className="text-xs font-mono text-slate-400">{ltv.hn}</span></div>
+                        </div>
+                        <div className="flex items-center gap-5 flex-wrap">
+                            <div className="text-center"><div className="text-xl font-black text-blue-700 tabular-nums">฿{Number(ltv.total).toLocaleString()}</div><div className="text-[11px] text-slate-400">ใช้จ่ายสะสม</div></div>
+                            <div className="text-center"><div className="text-xl font-black text-slate-800 tabular-nums">{ltv.visitCount}</div><div className="text-[11px] text-slate-400">ครั้งที่มา</div></div>
+                            {ltv.points != null && <div className="text-center"><div className="text-xl font-black text-amber-600 tabular-nums">{Number(ltv.points).toLocaleString()}</div><div className="text-[11px] text-slate-400">แต้ม{ltv.tierName ? ` · ${ltv.tierName}` : ""}</div></div>}
+                            {ltv.firstDate && <div className="text-xs text-slate-400 self-end pb-1">ลูกค้าตั้งแต่ {new Date(ltv.firstDate + "T00:00:00").toLocaleDateString("th-TH", { month: "short", year: "2-digit" })}</div>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Invoice list */}
             <div className="gonix-card-premium overflow-hidden">

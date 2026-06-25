@@ -18,12 +18,14 @@ import { cn } from "@/lib/utils";
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 const DENOMS = [1000, 500, 100, 50, 20, 10, 5, 1];
 
+interface StaffReconRow { name: string; closes: number; shortCount: number; netOverShort: number; shortRate: number }
 interface Props {
     summary: EODSummary;
     history: CloseDayHistory[];
+    staffPattern: StaffReconRow[];
 }
 
-export default function EODClient({ summary, history }: Props) {
+export default function EODClient({ summary, history, staffPattern }: Props) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
@@ -489,6 +491,40 @@ export default function EODClient({ summary, history }: Props) {
                     </div>
                 )}
             </div>
+
+            {/* รูปแบบเงินขาด/เกิน รายพนักงาน */}
+            {staffPattern.length > 0 && (
+                <div className="gonix-card-premium overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-200/60 flex items-center gap-2">
+                        <Users className="h-4 w-4 text-slate-600" />
+                        <h2 className="text-base font-bold text-slate-800">รูปแบบเงินขาด/เกิน รายพนักงาน</h2>
+                        <span className="text-xs text-slate-400">(จากการปิดยอดที่นับเงินจริง)</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {staffPattern.map((s, i) => {
+                            const alert = s.closes >= 3 && (s.shortRate >= 0.5 || s.netOverShort <= -100);
+                            return (
+                                <div key={i} className="px-5 py-3 flex items-center gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                            {s.name}
+                                            {alert && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 inline-flex items-center gap-1"><AlertCircle className="h-3 w-3" /> เฝ้าระวัง</span>}
+                                        </div>
+                                        <div className="text-xs text-slate-500">ปิดยอด {s.closes} ครั้ง · เงินขาด {s.shortCount} ครั้ง ({Math.round(s.shortRate * 100)}%)</div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <div className={cn("text-base font-black tabular-nums", s.netOverShort < 0 ? "text-rose-600" : s.netOverShort > 0 ? "text-amber-600" : "text-slate-400")}>
+                                            {s.netOverShort > 0 ? "+" : ""}{money(s.netOverShort)}
+                                        </div>
+                                        <div className="text-[11px] text-slate-400">สะสมขาด/เกิน</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <p className="px-5 py-2 text-[11px] text-slate-400 bg-slate-50/50">ป้าย &quot;เฝ้าระวัง&quot; = ปิดยอด ≥3 ครั้ง และเงินขาดเกินครึ่ง หรือยอดสะสมขาด ≥ ฿100</p>
+                </div>
+            )}
 
             {/* Denomination counter modal */}
             {showDenom && (
