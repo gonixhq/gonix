@@ -26,6 +26,8 @@ export interface EODSummary {
         actual_cash: number | null;
         over_short: number;
         recon_note: string | null;
+        transfer_actual: number | null;
+        credit_actual: number | null;
     };
     pending_visits: PendingVisit[];
     queue_last_number: number;

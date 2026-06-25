@@ -63,7 +63,7 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
         // ── Check ว่าวันนี้ปิดไปแล้วยัง + snapshot stats ──
         const { data: closedRecord } = await supabase
             .from("clinic_day_closes")
-            .select("id, closed_at, closed_by, total_visits, total_visits_completed, total_visits_cancelled, total_revenue, vn_last_number, queue_last_number, starting_float, expected_cash, actual_cash, over_short, recon_note, profiles!clinic_day_closes_closed_by_fkey(full_name)")
+            .select("id, closed_at, closed_by, total_visits, total_visits_completed, total_visits_cancelled, total_revenue, vn_last_number, queue_last_number, starting_float, expected_cash, actual_cash, over_short, recon_note, transfer_actual, credit_actual, profiles!clinic_day_closes_closed_by_fkey(full_name)")
             .eq("clinic_id", profile.clinic_id)
             .eq("close_date", targetDate)
             .maybeSingle();
@@ -192,6 +192,8 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
                 actual_cash: closedRecordTyped.actual_cash != null ? Number(closedRecordTyped.actual_cash) : null,
                 over_short: Number(closedRecordTyped.over_short || 0),
                 recon_note: closedRecordTyped.recon_note || null,
+                transfer_actual: closedRecordTyped.transfer_actual != null ? Number(closedRecordTyped.transfer_actual) : null,
+                credit_actual: closedRecordTyped.credit_actual != null ? Number(closedRecordTyped.credit_actual) : null,
             } : undefined,
             pending_visits: pendingVisits,
             queue_last_number: counterMap["QUEUE"] || 0,
@@ -216,6 +218,7 @@ export async function getEODSummary(date?: string): Promise<EODSummary | { error
 export async function closeClinicDay(input: {
     date?: string; notes?: string;
     startingFloat?: number; actualCash?: number | null; reconNote?: string;
+    transferActual?: number | null; creditActual?: number | null;
 }) {
     try {
         const supabase = await createClient();
@@ -268,6 +271,8 @@ export async function closeClinicDay(input: {
                 credit_total: bd.credit_total,
                 credit_count: bd.credit_count,
                 recon_note: input.reconNote?.trim() || null,
+                transfer_actual: input.transferActual != null ? Number(input.transferActual) : null,
+                credit_actual: input.creditActual != null ? Number(input.creditActual) : null,
             }).eq("clinic_id", profile.clinic_id).eq("close_date", targetDate);
         } catch { /* recon เป็นข้อมูลเสริม — ปิดยอดสำเร็จแล้วถึงจะ snapshot ไม่ได้ก็ไม่ rollback */ }
 

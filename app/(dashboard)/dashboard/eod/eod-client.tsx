@@ -16,6 +16,7 @@ import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-t
 import { cn } from "@/lib/utils";
 
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+const DENOMS = [1000, 500, 100, 50, 20, 10, 5, 1];
 
 interface Props {
     summary: EODSummary;
@@ -30,13 +31,27 @@ export default function EODClient({ summary, history }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    // ── กระทบเงินสด ──
+    // ── กระทบเงินสด/ช่องทาง ──
     const [startingFloat, setStartingFloat] = useState(
         summary.opening_float != null ? String(summary.opening_float)
             : summary.last_starting_float ? String(summary.last_starting_float) : "");
     const [actualCash, setActualCash] = useState("");
+    const [transferActual, setTransferActual] = useState("");
+    const [creditActual, setCreditActual] = useState("");
     const [reconNote, setReconNote] = useState("");
     const [floatSaved, setFloatSaved] = useState(false);
+    const [showDenom, setShowDenom] = useState(false);
+    const [denom, setDenom] = useState<Record<number, string>>({});
+
+    const floatNum = Number(startingFloat) || 0;
+    const expectedCash = floatNum + summary.cash_received - summary.petty_total;
+    const actualNum = actualCash.trim() === "" ? null : (Number(actualCash) || 0);
+    const overShort = actualNum != null ? actualNum - expectedCash : null;
+    const transferActualNum = transferActual.trim() === "" ? null : (Number(transferActual) || 0);
+    const creditActualNum = creditActual.trim() === "" ? null : (Number(creditActual) || 0);
+    const transferOverShort = transferActualNum != null ? transferActualNum - summary.transfer_total : null;
+    const creditOverShort = creditActualNum != null ? creditActualNum - summary.credit_total : null;
+    const denomTotal = DENOMS.reduce((s, d) => s + (Number(denom[d]) || 0) * d, 0);
 
     function saveOpeningFloat() {
         startTransition(async () => {
@@ -46,12 +61,11 @@ export default function EODClient({ summary, history }: Props) {
     }
 
     const hasPending = summary.pending_visits.length > 0;
-    const canClose = !summary.already_closed && !hasPending;
-
-    const floatNum = Number(startingFloat) || 0;
-    const expectedCash = floatNum + summary.cash_received - summary.petty_total;
-    const actualNum = actualCash.trim() === "" ? null : (Number(actualCash) || 0);
-    const overShort = actualNum != null ? actualNum - expectedCash : null;
+    // ต้องนับจริงครบทุกช่องทางที่มียอด ก่อนปิดได้
+    const reconReady = actualNum != null
+        && (summary.transfer_total <= 0 || transferActualNum != null)
+        && (summary.credit_total <= 0 || creditActualNum != null);
+    const canClose = !summary.already_closed && !hasPending && reconReady;
 
     function handleClose() {
         setError(null);
@@ -63,6 +77,8 @@ export default function EODClient({ summary, history }: Props) {
                 notes: notes.trim() || undefined,
                 startingFloat: floatNum,
                 actualCash: actualNum,
+                transferActual: transferActualNum,
+                creditActual: creditActualNum,
                 reconNote: reconNote.trim() || undefined,
             });
             if (!res.success) {
@@ -302,11 +318,17 @@ export default function EODClient({ summary, history }: Props) {
                             {summary.already_closed ? (
                                 <span className="text-sm font-bold tabular-nums">{summary.closed_recon?.actual_cash != null ? money(summary.closed_recon.actual_cash) : "—"}</span>
                             ) : (
-                                <div className="relative w-32">
-                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
-                                    <input value={actualCash} onChange={(e) => setActualCash(e.target.value.replace(/[^\d.]/g, ""))}
-                                        inputMode="decimal" placeholder="นับจากลิ้นชัก"
-                                        className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                <div className="flex items-center gap-1.5">
+                                    <button onClick={() => setShowDenom(true)} type="button"
+                                        className="h-9 px-2 rounded-lg border border-slate-300 text-xs text-slate-600 hover:bg-slate-50 inline-flex items-center gap-1 shrink-0">
+                                        <Calculator className="h-3.5 w-3.5" /> นับแบงก์
+                                    </button>
+                                    <div className="relative w-28">
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">฿</span>
+                                        <input value={actualCash} onChange={(e) => setActualCash(e.target.value.replace(/[^\d.]/g, ""))}
+                                            inputMode="decimal" placeholder="นับเอง"
+                                            className="w-full h-9 rounded-lg border border-slate-300 pl-6 pr-2 text-right text-sm font-bold tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -341,27 +363,14 @@ export default function EODClient({ summary, history }: Props) {
 
                     {/* Transfer + Credit column */}
                     <div className="space-y-3">
-                        <div className="rounded-2xl border border-slate-200/70 p-4">
-                            <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-                                <ArrowLeftRight className="h-4 w-4 text-blue-600" /> เงินโอน (K Shop)
-                            </div>
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-2xl font-black tabular-nums text-slate-800">{money(summary.transfer_total)}</span>
-                                <span className="text-sm font-semibold text-slate-500">{summary.transfer_count} รายการ</span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-1.5">เทียบยอดรวม + จำนวนรายการกับแอป K Shop ให้ตรงก่อนปิดยอด</p>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200/70 p-4">
-                            <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-                                <CreditCard className="h-4 w-4 text-violet-600" /> บัตรเครดิต
-                            </div>
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-2xl font-black tabular-nums text-slate-800">{money(summary.credit_total)}</span>
-                                <span className="text-sm font-semibold text-slate-500">{summary.credit_count} รายการ</span>
-                            </div>
-                            <p className="text-[11px] text-slate-400 mt-1.5">เทียบกับยอดสรุปเครื่องรูดบัตร (EDC)</p>
-                        </div>
+                        <ChannelReconCard icon={ArrowLeftRight} iconColor="text-blue-600" title="เงินโอน (K Shop)"
+                            total={summary.transfer_total} count={summary.transfer_count} hint="เทียบยอด+จำนวนรายการกับแอป K Shop"
+                            closed={summary.already_closed} closedActual={summary.closed_recon?.transfer_actual ?? null}
+                            actualValue={transferActual} onActual={setTransferActual} overShort={transferOverShort} />
+                        <ChannelReconCard icon={CreditCard} iconColor="text-violet-600" title="บัตรเครดิต"
+                            total={summary.credit_total} count={summary.credit_count} hint="เทียบกับยอดสรุปเครื่องรูดบัตร (EDC)"
+                            closed={summary.already_closed} closedActual={summary.closed_recon?.credit_actual ?? null}
+                            actualValue={creditActual} onActual={setCreditActual} overShort={creditOverShort} />
                     </div>
                 </div>
             </div>
@@ -421,7 +430,12 @@ export default function EODClient({ summary, history }: Props) {
                         </div>
                     )}
 
-                    <div className="mt-4 flex items-center justify-end gap-2">
+                    <div className="mt-4 flex items-center justify-end gap-3">
+                        {!hasPending && !reconReady && (
+                            <span className="text-xs text-amber-600 font-medium inline-flex items-center gap-1.5">
+                                <AlertCircle className="h-3.5 w-3.5" /> กรอก &quot;เงินนับจริง&quot; ให้ครบทุกช่องทาง ก่อนปิดยอด
+                            </span>
+                        )}
                         <Button
                             onClick={() => setShowConfirm(true)}
                             disabled={!canClose || pending}
@@ -475,6 +489,42 @@ export default function EODClient({ summary, history }: Props) {
                     </div>
                 )}
             </div>
+
+            {/* Denomination counter modal */}
+            {showDenom && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-slate-900 inline-flex items-center gap-2"><Calculator className="h-5 w-5 text-emerald-600" /> นับเงินจากลิ้นชัก</h3>
+                            <button onClick={() => setShowDenom(false)} className="rounded-lg p-1.5 hover:bg-slate-100"><X className="h-5 w-5 text-slate-500" /></button>
+                        </div>
+                        <div className="space-y-1.5">
+                            {DENOMS.map((d) => {
+                                const c = Number(denom[d]) || 0;
+                                return (
+                                    <div key={d} className="flex items-center gap-2">
+                                        <span className="w-14 text-sm font-bold text-slate-600 text-right">฿{d.toLocaleString()}</span>
+                                        <span className="text-slate-300">×</span>
+                                        <input value={denom[d] || ""} onChange={(e) => setDenom({ ...denom, [d]: e.target.value.replace(/[^\d]/g, "") })}
+                                            inputMode="numeric" placeholder="0"
+                                            className="w-20 h-9 rounded-lg border border-slate-300 px-2 text-right text-sm tabular-nums focus:border-emerald-500 focus:outline-none" />
+                                        <span className="text-slate-400 text-sm">=</span>
+                                        <span className="flex-1 text-right text-sm font-bold tabular-nums text-slate-700">{money(c * d)}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
+                            <span className="text-sm font-bold text-slate-700">รวมนับได้</span>
+                            <span className="text-xl font-black tabular-nums text-emerald-700">{money(denomTotal)}</span>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                            <Button variant="outline" onClick={() => setDenom({})} className="rounded-xl">ล้าง</Button>
+                            <Button onClick={() => { setActualCash(String(denomTotal)); setShowDenom(false); }} className="rounded-xl flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">ใช้ยอดนี้เป็นเงินนับจริง</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Confirm modal */}
             {showConfirm && (
@@ -549,6 +599,45 @@ export default function EODClient({ summary, history }: Props) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function ChannelReconCard({
+    icon: Icon, iconColor, title, total, count, hint, closed, closedActual, actualValue, onActual, overShort,
+}: {
+    icon: React.ElementType; iconColor: string; title: string; total: number; count: number; hint: string;
+    closed: boolean; closedActual: number | null; actualValue: string; onActual: (v: string) => void; overShort: number | null;
+}) {
+    return (
+        <div className="rounded-2xl border border-slate-200/70 p-4">
+            <div className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
+                <Icon className={`h-4 w-4 ${iconColor}`} /> {title}
+            </div>
+            <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-black tabular-nums text-slate-800">{money(total)}</span>
+                <span className="text-sm font-semibold text-slate-500">{count} รายการ</span>
+            </div>
+            {closed ? (
+                closedActual != null && (
+                    <div className="mt-2 flex justify-between text-xs"><span className="text-slate-500">นับจริง</span><span className="font-bold tabular-nums">{money(closedActual)}</span></div>
+                )
+            ) : total > 0 ? (
+                <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-slate-500 shrink-0">นับจริง</span>
+                    <div className="relative flex-1">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">฿</span>
+                        <input value={actualValue} onChange={(e) => onActual(e.target.value.replace(/[^\d.]/g, ""))} inputMode="decimal" placeholder="เทียบกับสรุป"
+                            className="w-full h-8 rounded-lg border border-slate-300 pl-5 pr-2 text-right text-sm font-bold tabular-nums focus:border-blue-500 focus:outline-none" />
+                    </div>
+                </div>
+            ) : null}
+            {overShort != null && Math.abs(overShort) >= 0.01 && (
+                <p className={`text-[11px] font-bold mt-1.5 ${overShort > 0 ? "text-amber-600" : "text-rose-600"}`}>
+                    {overShort > 0 ? "เกิน" : "ขาด"} {money(overShort)} — เช็คกับ {title.includes("โอน") ? "K Shop" : "EDC"}
+                </p>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1.5">{hint}</p>
         </div>
     );
 }
