@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
-    Trash2, X, Loader2, ArrowDownCircle, Package, Download,
+    Trash2, X, Loader2, ArrowDownCircle, Package, Download, Search, Eye, ArrowLeftRight,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -37,11 +37,15 @@ interface Invoice {
     route?: string;
 }
 
+interface RangeInfo { preset: string; from: string; to: string; isToday: boolean }
+
 export default function FinanceClient({
     invoices,
-    todayRevenue,
+    range,
+    rangeRevenue,
+    rangeCount,
+    channels,
     pendingAmount,
-    todayInvoiceCount,
     pettyTotal,
     pettyItems,
     netCashFlow,
@@ -50,9 +54,11 @@ export default function FinanceClient({
     segments,
 }: {
     invoices: Invoice[];
-    todayRevenue: number;
+    range: RangeInfo;
+    rangeRevenue: number;
+    rangeCount: number;
+    channels: { cash: number; transfer: number; credit: number };
     pendingAmount: number;
-    todayInvoiceCount: number;
     pettyTotal: number;
     pettyItems: PettyCashItem[];
     netCashFlow: number;
@@ -63,6 +69,16 @@ export default function FinanceClient({
     const { language } = useLanguage();
     const router = useRouter();
     const [filter, setFilter] = useState<"all" | "outstanding" | "paid" | "voided">("all");
+    const [search, setSearch] = useState("");
+
+    const rangeLabel = range.preset === "today" ? "วันนี้" : range.preset === "week" ? "สัปดาห์นี้" : range.preset === "month" ? "เดือนนี้" : `${range.from} – ${range.to}`;
+    function setPreset(preset: string) {
+        const url = preset === "today" ? "/dashboard/finance" : `/dashboard/finance?preset=${preset}`;
+        router.push(url);
+    }
+    function setCustom(from: string, to: string) {
+        if (from && to) router.push(`/dashboard/finance?preset=custom&from=${from}&to=${to}`);
+    }
 
     // ── Petty cash (รายจ่ายย่อย) ──
     const [showPetty, setShowPetty] = useState(false);
@@ -103,7 +119,7 @@ export default function FinanceClient({
         const lines: string[] = [];
         lines.push("รายรับ (ใบเสร็จล่าสุด)");
         lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "ชำระแล้ว", "คงเหลือ", "สถานะ"].map(cell).join(","));
-        for (const inv of invoices) {
+        for (const inv of filteredInvoices) {
             const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
             const name = inv.is_anon ? "นิรนาม" : `${pt?.prefix || ""}${pt?.first_name || ""} ${pt?.last_name || ""}`.trim();
             lines.push([inv.id, inv.invoice_date, name, inv.is_anon ? "นิรนาม" : "ปกติ",
@@ -131,12 +147,29 @@ export default function FinanceClient({
         [invoices]
     );
     const filteredInvoices = useMemo(() => {
-        if (filter === "all") return invoices;
-        if (filter === "outstanding") return invoices.filter(i => i.status === "issued" || i.status === "partial");
-        if (filter === "paid") return invoices.filter(i => i.status === "paid");
-        if (filter === "voided") return invoices.filter(i => i.status === "voided" || i.status === "refunded");
-        return invoices;
-    }, [invoices, filter]);
+        let list = invoices;
+        if (filter === "outstanding") list = list.filter(i => i.status === "issued" || i.status === "partial");
+        else if (filter === "paid") list = list.filter(i => i.status === "paid");
+        else if (filter === "voided") list = list.filter(i => i.status === "voided" || i.status === "refunded");
+        const q = search.trim().toLowerCase();
+        if (q) {
+            list = list.filter(i => {
+                const pt = Array.isArray(i.patients) ? i.patients[0] : i.patients;
+                const name = `${pt?.prefix || ""}${pt?.first_name || ""} ${pt?.last_name || ""}`.toLowerCase();
+                return name.includes(q) || String(i.id).toLowerCase().includes(q)
+                    || String(i.vn || "").toLowerCase().includes(q) || String(i.hn || "").toLowerCase().includes(q);
+            });
+        }
+        return list;
+    }, [invoices, filter, search]);
+
+    // สรุปตามผลที่กรอง (Report Summary)
+    const summary = useMemo(() => {
+        const valid = filteredInvoices.filter(i => i.status !== "voided" && i.status !== "refunded");
+        const total = valid.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+        const count = filteredInvoices.length;
+        return { total, count, avg: count ? total / count : 0 };
+    }, [filteredInvoices]);
 
     const statusLabel: Record<string, string> = {
         draft: language === "en" ? "Draft" : "ร่าง",
@@ -174,6 +207,26 @@ export default function FinanceClient({
                 </Link>
             </div>
 
+            {/* Date range + search */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+                    {([["today", "วันนี้"], ["week", "สัปดาห์นี้"], ["month", "เดือนนี้"]] as const).map(([k, l]) => (
+                        <button key={k} onClick={() => setPreset(k)}
+                            className={cn("px-3 h-8 rounded-lg text-xs font-bold transition-all", range.preset === k ? "bg-white shadow text-blue-700" : "text-slate-500 hover:text-slate-700")}>{l}</button>
+                    ))}
+                </div>
+                <div className="inline-flex items-center gap-1">
+                    <input type="date" value={range.from} max={range.to} onChange={(e) => setCustom(e.target.value, range.to)} className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono focus:outline-none focus:border-blue-400" />
+                    <span className="text-slate-400 text-xs">–</span>
+                    <input type="date" value={range.to} onChange={(e) => setCustom(range.from, e.target.value)} className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono focus:outline-none focus:border-blue-400" />
+                </div>
+                <div className="relative ml-auto">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา ชื่อ / INV / VN"
+                        className="h-8 w-44 rounded-lg border border-slate-300 pl-8 pr-2 text-xs focus:outline-none focus:border-blue-400" />
+                </div>
+            </div>
+
             {/* Stats — 4 cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Today Revenue */}
@@ -185,10 +238,10 @@ export default function FinanceClient({
                         </div>
                         <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">
                             <span className="text-lg mr-0.5 text-slate-400">฿</span>
-                            {todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {rangeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </h3>
                         <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? "Today's Revenue" : "รายรับวันนี้"}
+                            {language === "en" ? "Revenue" : "รายรับ"} ({rangeLabel})
                         </p>
                     </div>
                 </div>
@@ -217,9 +270,9 @@ export default function FinanceClient({
                         <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-[#0EA5A0]/10">
                             <Receipt className="h-5 w-5 text-[#0EA5A0]" strokeWidth={2.5} />
                         </div>
-                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">{todayInvoiceCount}</h3>
+                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">{rangeCount}</h3>
                         <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? "Today's Invoices" : "ใบเสร็จวันนี้"}
+                            {language === "en" ? "Receipts" : "ใบเสร็จ"} ({rangeLabel})
                         </p>
                     </div>
                 </div>
@@ -253,7 +306,7 @@ export default function FinanceClient({
                         <div className="flex items-center gap-2 mb-3">
                             <TrendingUp className="h-4 w-4 text-blue-700" />
                             <h2 className="text-sm font-bold text-slate-800">
-                                {language === "en" ? "Revenue by Department (Today)" : "สัดส่วนรายได้ตามแผนก (วันนี้)"}
+                                {language === "en" ? "Revenue by Department" : "สัดส่วนรายได้ตามแผนก"} ({rangeLabel})
                             </h2>
                         </div>
                         {/* stacked bar */}
@@ -285,12 +338,32 @@ export default function FinanceClient({
                 );
             })()}
 
+            {/* Report summary + channels */}
+            <div className="grid md:grid-cols-2 gap-3">
+                <div className="gonix-card-premium p-4">
+                    <div className="text-xs font-bold text-slate-500 mb-2.5">สรุปยอด ({rangeLabel}{(search || filter !== "all") ? " · ตามที่กรอง" : ""})</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">รับจริงรวม</div></div>
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">{summary.count}</div><div className="text-[11px] text-slate-400">จำนวนใบ</div></div>
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div className="text-[11px] text-slate-400">เฉลี่ย/ใบ</div></div>
+                    </div>
+                </div>
+                <div className="gonix-card-premium p-4">
+                    <div className="text-xs font-bold text-slate-500 mb-2.5 inline-flex items-center gap-1"><ArrowLeftRight className="h-3.5 w-3.5" /> รายรับตามช่องทาง ({rangeLabel})</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                        <div><div className="text-base font-black text-emerald-700 tabular-nums">฿{channels.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">เงินสด</div></div>
+                        <div><div className="text-base font-black text-cyan-700 tabular-nums">฿{channels.transfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">โอน</div></div>
+                        <div><div className="text-base font-black text-violet-700 tabular-nums">฿{channels.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">บัตร</div></div>
+                    </div>
+                </div>
+            </div>
+
             {/* Petty Cash + Net Cash Flow */}
             <div className="gonix-card-premium overflow-hidden">
                 <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
                     <ArrowDownCircle className="h-4 w-4 text-rose-600" />
                     <h2 className="text-sm font-bold text-slate-800">
-                        {language === "en" ? "Petty Cash (Today)" : "รายจ่ายย่อยวันนี้"}
+                        {language === "en" ? "Petty Cash" : "รายจ่ายย่อย"} ({rangeLabel})
                     </h2>
                     <span className="text-xs text-slate-400">({pettyItems.length})</span>
                     <div className="ml-auto flex items-center gap-3">
@@ -312,7 +385,7 @@ export default function FinanceClient({
 
                 {/* Net cash breakdown (mobile + summary line) */}
                 <div className="px-5 py-2.5 bg-slate-50/60 border-b border-slate-200/40 flex items-center gap-4 text-xs flex-wrap">
-                    <span className="text-slate-500">รายรับวันนี้ <span className="font-bold text-emerald-700 tabular-nums">฿{todayRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                    <span className="text-slate-500">รายรับ ({rangeLabel}) <span className="font-bold text-emerald-700 tabular-nums">฿{rangeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
                     <span className="text-slate-300">−</span>
                     <span className="text-slate-500">รายจ่ายย่อย <span className="font-bold text-rose-600 tabular-nums">฿{pettyTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
                     <span className="text-slate-300">=</span>
@@ -424,8 +497,8 @@ export default function FinanceClient({
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-right hidden lg:table-cell">
-                                                <span className={`font-bold tabular-nums ${balance > 0 ? "text-amber-700" : "text-slate-400"}`}>
-                                                    {balance > 0 ? `฿${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
+                                                <span className={`font-bold tabular-nums ${balance > 0 ? "text-amber-700" : "text-slate-300"}`}>
+                                                    ฿{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -438,11 +511,20 @@ export default function FinanceClient({
                                                 </div>
                                             </td>
                                             <td className="px-2 py-3">
-                                                <Link href={inv.route || `/dashboard/finance/${inv.id}`} onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="outline" size="sm" className="rounded-lg text-xs h-7 hover:border-blue-300 hover:text-blue-700">
-                                                        {language === "en" ? "View" : "ดู"}
-                                                    </Button>
-                                                </Link>
+                                                <div className="flex items-center gap-1 justify-end">
+                                                    <Link href={inv.route || `/dashboard/finance/${inv.id}`} onClick={(e) => e.stopPropagation()} title="ดูรายละเอียด">
+                                                        <Button variant="outline" size="sm" className="rounded-lg h-7 w-7 p-0 hover:border-blue-300 hover:text-blue-700">
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </Link>
+                                                    {!inv.is_anon && (
+                                                        <Link href={`/print/invoice/${inv.id}`} target="_blank" onClick={(e) => e.stopPropagation()} title="พิมพ์ใบเสร็จ">
+                                                            <Button variant="outline" size="sm" className="rounded-lg h-7 w-7 p-0 hover:border-emerald-300 hover:text-emerald-700">
+                                                                <Receipt className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

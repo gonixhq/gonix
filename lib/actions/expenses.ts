@@ -54,16 +54,17 @@ export async function addPettyCash(input: { amount: number; category: string; de
     }
 }
 
-/** รายจ่ายย่อย (เงินสด) ของวันที่กำหนด (default วันนี้) + ยอดรวม */
-export async function getPettyCash(date?: string): Promise<{ items: PettyCashItem[]; total: number }> {
+/** รายจ่ายย่อย (เงินสด) ของวัน/ช่วงวัน (default วันนี้) + ยอดรวม */
+export async function getPettyCash(from?: string, to?: string): Promise<{ items: PettyCashItem[]; total: number }> {
     try {
         const { supabase, clinicId } = await ctx();
-        const targetDate = date || bangkokDate();
+        const start = from || bangkokDate();
+        const end = to || start;
         const { data } = await supabase
             .from("expenses")
             .select("id, expense_date, category, description, amount, created_at, recorded_by:staff!expenses_recorded_by_fkey(profiles(full_name))")
             .eq("clinic_id", clinicId)
-            .eq("expense_date", targetDate)
+            .gte("expense_date", start).lte("expense_date", end)
             .eq("payment_method", "cash")
             .order("created_at", { ascending: false });
 

@@ -9,83 +9,95 @@ import FinanceClient from "./finance-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function FinancePage() {
+// ── ตัวช่วยช่วงวันที่ (เวลาไทย) ──
+function startOfWeek(d: string): string {
+    const dt = new Date(`${d}T00:00:00+07:00`);
+    const dow = (dt.getUTCDay() + 6) % 7; // จันทร์=0
+    dt.setUTCDate(dt.getUTCDate() - dow);
+    return dt.toISOString().slice(0, 10);
+}
+function startOfMonth(d: string): string {
+    return d.slice(0, 7) + "-01";
+}
+
+export default async function FinancePage({
+    searchParams,
+}: {
+    searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
+}) {
     await gatePermission("finance.view");
+    const sp = await searchParams;
     const supabase = await createClient();
     const today = bangkokDate();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user?.id || "").maybeSingle();
+    const clinicId = (profile?.clinic_id as string) || "";
 
-    // Calculate Asia/Bangkok day window — start..end ของวันนี้
-    const dayStartISO = new Date(`${today}T00:00:00+07:00`).toISOString();
-    const nextDate = new Date(`${today}T00:00:00+07:00`);
-    nextDate.setDate(nextDate.getDate() + 1);
-    const dayEndISO = nextDate.toISOString();
+    // ── resolve range ──
+    const preset = sp.preset || "today";
+    let from = today, to = today;
+    if (preset === "week") { from = startOfWeek(today); to = today; }
+    else if (preset === "month") { from = startOfMonth(today); to = today; }
+    else if (preset === "custom") { from = sp.from || today; to = sp.to || today; if (from > to) [from, to] = [to, from]; }
 
-    // Fetch recent invoice headers
+    const rangeStartISO = new Date(`${from}T00:00:00+07:00`).toISOString();
+    const rangeNext = new Date(`${to}T00:00:00+07:00`); rangeNext.setDate(rangeNext.getDate() + 1);
+    const rangeEndISO = rangeNext.toISOString();
+
+    // ── invoices ในช่วง (ตาม invoice_date) ──
     const { data: invoices } = await supabase
         .from("invoice_headers")
-        .select(`
-            id, vn, hn, invoice_date, subtotal, discount_amount, total_amount, paid_amount, balance_due, status, created_at,
-            patients(prefix, first_name, last_name)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .select(`id, vn, hn, invoice_date, subtotal, discount_amount, total_amount, paid_amount, balance_due, status, created_at,
+            patients(prefix, first_name, last_name)`)
+        .eq("clinic_id", clinicId)
+        .gte("invoice_date", from).lte("invoice_date", to)
+        .order("invoice_date", { ascending: false }).order("created_at", { ascending: false })
+        .limit(1000);
 
-    // เคสนิรนามที่ชำระแล้ว (เอามารวมในรายการใบเสร็จล่าสุด)
+    // ── เคสนิรนามที่จ่ายในช่วง ──
     const { data: anonPaid } = await supabase
         .from("anon_cases")
-        .select("id, verify_code, case_code, case_date, total_amount, paid_at")
-        .eq("paid", true)
-        .order("paid_at", { ascending: false })
-        .limit(50);
+        .select("id, verify_code, case_code, case_date, total_amount, payment_method, paid_at")
+        .eq("clinic_id", clinicId)
+        .eq("paid", true).gte("paid_at", rangeStartISO).lt("paid_at", rangeEndISO)
+        .order("paid_at", { ascending: false }).limit(1000);
 
-    // Today's revenue: ยอดที่ชำระจริง (paid_amount) รวมมัดจำ/partial ยกเว้น voided/refunded
-    const { data: todayPaid } = await supabase
-        .from("invoice_headers")
-        .select("paid_amount, status")
-        .gte("created_at", dayStartISO)
-        .lt("created_at", dayEndISO);
-
-    // Pending (issued or partial) — ทั้งระบบ ไม่ใช่แค่วันนี้
-    const { data: pending } = await supabase
-        .from("invoice_headers")
-        .select("balance_due")
-        .in("status", ["issued", "partial"]);
-
-    // Today's invoice count (Asia/Bangkok window)
-    const { count: todayInvoiceCount } = await supabase
-        .from("invoice_headers")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", dayStartISO)
-        .lt("created_at", dayEndISO);
-
-    const anonRev = await getAnonRevenue(today, today); // + รายรับคลินิกนิรนามวันนี้
-    const todayRevenue = (todayPaid || [])
+    // ── รายรับช่วงนี้ (paid_amount ยกเว้น voided/refunded) + นิรนาม ──
+    const anonRev = await getAnonRevenue(from, to);
+    const rangeRevenue = (invoices || [])
         .filter((r) => r.status !== "voided" && r.status !== "refunded")
         .reduce((s, r) => s + Number(r.paid_amount || 0), 0) + anonRev.total;
+    const rangeCount = (invoices || []).length + (anonPaid || []).length;
+
+    // ── สรุปช่องทางชำระ (cash/transfer/credit) ในช่วง ──
+    const { data: payLogs } = await supabase
+        .from("payment_logs").select("payment_method, amount")
+        .eq("clinic_id", clinicId)
+        .gte("paid_at", rangeStartISO).lt("paid_at", rangeEndISO);
+    const chanAgg: Record<string, number> = { cash: 0, transfer: 0, credit: 0 };
+    for (const p of payLogs || []) {
+        const m = p.payment_method as string;
+        const k = m === "cash" ? "cash" : (m === "transfer" || m === "qr_promptpay") ? "transfer" : m === "credit_card" ? "credit" : "transfer";
+        chanAgg[k] = (chanAgg[k] || 0) + Number(p.amount || 0);
+    }
+    for (const m of anonRev.byMethod) {
+        const k = m.method === "cash" ? "cash" : (m.method === "transfer" || m.method === "qr_promptpay") ? "transfer" : m.method === "credit_card" ? "credit" : "transfer";
+        chanAgg[k] = (chanAgg[k] || 0) + m.amount;
+    }
+
+    // ── Pending (issued/partial) ทั้งระบบ ──
+    const { data: pending } = await supabase
+        .from("invoice_headers").select("balance_due").eq("clinic_id", clinicId).in("status", ["issued", "partial"]);
     const pendingAmount = (pending || []).reduce((s, r) => s + Number(r.balance_due || 0), 0);
 
-    // นับใบเสร็จนิรนามที่จ่ายวันนี้รวมเข้าตัวนับด้วย (เดิมนับเฉพาะ invoice_headers)
-    const startMs = new Date(dayStartISO).getTime();
-    const endMs = new Date(dayEndISO).getTime();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const todayAnonCount = (anonPaid || []).filter((a: any) => {
-        if (!a.paid_at) return false;
-        const ms = new Date(a.paid_at as string).getTime();
-        return ms >= startMs && ms < endMs;
-    }).length;
-    const totalTodayCount = (todayInvoiceCount || 0) + todayAnonCount;
+    // ── รายจ่ายย่อย (ช่วง) + กระแสเงินสดสุทธิ ──
+    const petty = await getPettyCash(from, to);
+    const netCashFlow = rangeRevenue - petty.total;
 
-    // รายจ่ายย่อย (เงินสด) ของวันนี้ + กระแสเงินสดสุทธิ
-    const petty = await getPettyCash(today);
-    const netCashFlow = todayRevenue - petty.total;
-
-    // Deferred Revenue (มูลค่าคอร์สค้างใช้)
     const deferred = await getDeferredRevenue();
+    const segments = await getSegmentRevenue(from, to);
 
-    // รายได้แยกแผนกวันนี้ (medical/aesthetic/product)
-    const segments = await getSegmentRevenue(today, today);
-
-    // รวมเคสนิรนามเข้ารายการ (เรียงตามเวลาล่าสุด)
+    // ── รวมเคสนิรนามเข้ารายการ ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,15 +115,16 @@ export default async function FinancePage() {
         _ts: (a.paid_at as string) || a.case_date,
     }));
     const mergedInvoices = [...normalRows, ...anonRows]
-        .sort((x, y) => String(y._ts).localeCompare(String(x._ts)))
-        .slice(0, 50);
+        .sort((x, y) => String(y._ts).localeCompare(String(x._ts)));
 
     return (
         <FinanceClient
             invoices={mergedInvoices}
-            todayRevenue={todayRevenue}
+            range={{ preset, from, to, isToday: preset === "today" }}
+            rangeRevenue={rangeRevenue}
+            rangeCount={rangeCount}
+            channels={{ cash: Math.round(chanAgg.cash * 100) / 100, transfer: Math.round(chanAgg.transfer * 100) / 100, credit: Math.round(chanAgg.credit * 100) / 100 }}
             pendingAmount={pendingAmount}
-            todayInvoiceCount={totalTodayCount}
             pettyTotal={petty.total}
             pettyItems={petty.items}
             netCashFlow={netCashFlow}
