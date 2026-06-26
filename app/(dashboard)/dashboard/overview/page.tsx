@@ -15,7 +15,14 @@ import { getActiveAnnouncements } from "@/lib/actions/announcements";
 import { AutoRefresh, WaitBadge } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
 import { AnnouncementBoard } from "./announcement-board";
+import { SegmentToggle, type Seg } from "./segment-toggle";
 import { Activity, Target, Receipt } from "lucide-react";
+
+// service_category → segment (ความงาม = aesthetic, ที่เหลือ = medical)
+const AESTHETIC_CATS = new Set(["aesthetic"]);
+function visitSeg(cat: string | null | undefined): "medical" | "aesthetic" {
+    return cat && AESTHETIC_CATS.has(cat) ? "aesthetic" : "medical";
+}
 
 const STATUS_LABEL: Record<string, string> = {
     waiting: "รอซักประวัติ",
@@ -39,7 +46,14 @@ const STATUS_COLOR: Record<string, string> = {
     cancelled: "bg-slate-100 text-slate-500",
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ seg?: string }>;
+}) {
+    const sp = await searchParams;
+    const seg: Seg = sp.seg === "medical" || sp.seg === "aesthetic" ? sp.seg : "all";
+
     const supabase = await createClient();
     const { permissions } = await getEffectivePermissionsForUser();
 
@@ -68,7 +82,7 @@ export default async function DashboardPage() {
             .eq("approval_status", "approved").eq("is_active", true),
         // 5) Today's queue (ทั้งหมดที่ active — ใช้ทำ funnel + list)
         supabase.from("visits")
-            .select("vn, visit_time, created_at, status, chief_complaint, hn, patients!inner(first_name, last_name)")
+            .select("vn, visit_time, created_at, status, chief_complaint, service_category, hn, patients!inner(first_name, last_name)")
             .eq("visit_date", today)
             .neq("status", "completed")
             .neq("status", "cancelled")
@@ -130,6 +144,8 @@ export default async function DashboardPage() {
     // ── Queue Funnel: นับตามสถานะ + หาคนรอเกิน 15 นาที (จาก created_at) ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allActiveVisits = (todayQueueRes.data || []) as any[];
+    // กรองตาม global segment filter (ทั้งหมด/เวชกรรม/ความงาม)
+    const segVisits = seg === "all" ? allActiveVisits : allActiveVisits.filter((v) => visitSeg(v.service_category) === seg);
     const OVERDUE_MS = 15 * 60 * 1000;
     const nowMs = Date.now();
     const isOverdue = (createdAt: string | null) =>
@@ -138,9 +154,9 @@ export default async function DashboardPage() {
     // กลุ่มสถานะที่ "กำลังรอ" (นับ overdue เฉพาะกลุ่มนี้ — with_doctor ถือว่ากำลังให้บริการ)
     const WAITING_STATUSES = new Set(["waiting", "triaged", "waiting_medicine", "waiting_payment"]);
     const countBy = (statuses: string[]) =>
-        allActiveVisits.filter((v) => statuses.includes(v.status)).length;
+        segVisits.filter((v) => statuses.includes(v.status)).length;
     const overdueBy = (statuses: string[]) =>
-        allActiveVisits.filter(
+        segVisits.filter(
             (v) => statuses.includes(v.status) && WAITING_STATUSES.has(v.status) && isOverdue(v.created_at),
         ).length;
 
@@ -152,9 +168,15 @@ export default async function DashboardPage() {
         { key: "waiting_payment", label: "รอชำระเงิน", count: countBy(["waiting_payment"]), overdue: overdueBy(["waiting_payment"]), tile: "bg-orange-100", text: "text-orange-700", href: "/dashboard/pharmacy" },
     ];
 
-    // ── ไฟจราจรห้องตรวจ ──
+    // ── ไฟจราจรห้องตรวจ (กรองตาม segment — ห้องที่ไม่ระบุหมวด = ใช้ได้ทุกแผนก) ──
+    const roomMatchesSeg = (cats: string[] | null | undefined) => {
+        if (seg === "all" || !cats || cats.length === 0) return true;
+        return seg === "aesthetic"
+            ? cats.includes("aesthetic")
+            : cats.some((c) => c !== "aesthetic");
+    };
     const roomLights: RoomLight[] = (roomStatuses || [])
-        .filter((r) => r.is_active || r.active_session_id)
+        .filter((r) => (r.is_active || r.active_session_id) && roomMatchesSeg(r.service_categories))
         .map((r) => ({
             room_id: r.room_id,
             room_name: r.room_name,
@@ -162,8 +184,29 @@ export default async function DashboardPage() {
             detail: r.assigned_doctors?.[0]?.name ?? null,
         }));
 
-    // top 6 สำหรับ list คิว
-    const queueList = allActiveVisits.slice(0, 6);
+    // top 6 สำหรับ list คิว (ตาม filter)
+    const queueList = segVisits.slice(0, 6);
+
+    // ── No-show flag: นับประวัติไม่มาตามนัดของคนไข้ในรายการนัดวันนี้ ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const todayApptRows = (todayAppointmentsRes.data || []) as any[];
+    const apptHns = [...new Set(todayApptRows.map((a) => a.hn).filter(Boolean))];
+    const noShowByHn = new Map<string, number>();
+    if (apptHns.length > 0) {
+        // นัดในอดีต (ก่อนวันนี้) ที่ยกเลิก หรือ ยังค้างไม่ปิด = ถือว่าไม่มาตามนัด
+        const { data: pastAppts } = await supabase
+            .from("appointments")
+            .select("hn, status")
+            .in("hn", apptHns)
+            .lt("appt_date", today);
+        for (const r of pastAppts || []) {
+            const st = (r as { status: string }).status;
+            if (st === "cancelled" || st === "confirmed" || st === "no_show") {
+                const hn = (r as { hn: string }).hn;
+                noShowByHn.set(hn, (noShowByHn.get(hn) || 0) + 1);
+            }
+        }
+    }
 
     // ── Hero: ทักทายตามเวลา + ชื่อผู้ใช้ + วันที่ (เวลาไทย) ──
     const { data: { user } } = await supabase.auth.getUser();
@@ -232,6 +275,14 @@ export default async function DashboardPage() {
                         <AutoRefresh seconds={30} />
                     </div>
                 </div>
+            </div>
+
+            {/* Global segment filter — สลับมุมมองคิว/ห้องตามแผนก */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <SegmentToggle current={seg} />
+                {seg !== "all" && (
+                    <span className="text-xs text-slate-400">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
+                )}
             </div>
 
             {/* Announcement board */}
@@ -456,7 +507,7 @@ export default async function DashboardPage() {
                         <div className="flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-slate-600" />
                             <h2 className="text-sm font-bold text-slate-800">คิววันนี้</h2>
-                            <span className="text-xs text-slate-400">({allActiveVisits.length} รายการ)</span>
+                            <span className="text-xs text-slate-400">({segVisits.length} รายการ)</span>
                         </div>
                         <Link href="/dashboard/screening" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
                             ซักประวัติ <ArrowRight className="h-3 w-3" />
@@ -518,6 +569,9 @@ export default async function DashboardPage() {
                                 const start = (a as any).appt_start as string;
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const id = (a as any).id as string;
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const hn = (a as any).hn as string;
+                                const noShows = noShowByHn.get(hn) || 0;
                                 return (
                                     <div key={id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
                                         <div className="text-xs font-mono text-slate-500 w-12 flex items-center gap-1">
@@ -525,7 +579,14 @@ export default async function DashboardPage() {
                                             {start?.slice(0, 5) || "—"}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-semibold text-slate-800 truncate">{name}</div>
+                                            <div className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                                                {name}
+                                                {noShows >= 2 && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-700 shrink-0" title="เคยไม่มาตามนัดหลายครั้ง — ควรโทรย้ำ">
+                                                        ⚠ เสี่ยงไม่มา ×{noShows}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="text-xs text-slate-500 capitalize">{status}</div>
                                         </div>
                                     </div>
