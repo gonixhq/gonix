@@ -48,6 +48,9 @@ export default async function CommissionDetailPage({
             entries={detail.entries}
             total={detail.total}
             payout={payout}
+            isApproved={detail.is_approved}
+            approvedAmount={detail.approved_amount}
+            approvedAt={detail.approved_at}
         />
     );
 }

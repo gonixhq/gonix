@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
     ChevronLeft, ChevronRight, Printer, Calendar, FileText,
-    CheckCircle, Wallet, Stethoscope, Heart, User,
+    CheckCircle, Wallet, Stethoscope, Heart, User, Lock, Unlock,
 } from "lucide-react";
 import type { CommissionEntry } from "@/lib/actions/commissions";
+import { approveCommission, unapproveCommission } from "@/lib/actions/commissions";
 
 const ROLE_LABEL: Record<string, string> = {
     doctor: "แพทย์",
@@ -54,6 +57,7 @@ interface Payout {
 
 export default function StaffDetailClient({
     staffId, role, month, staffName, entries, total, payout,
+    isApproved, approvedAmount, approvedAt,
 }: {
     staffId: string;
     role: string;
@@ -62,9 +66,31 @@ export default function StaffDetailClient({
     entries: CommissionEntry[];
     total: number;
     payout: Payout | null;
+    isApproved: boolean;
+    approvedAmount: number | null;
+    approvedAt: string | null;
 }) {
     const Icon = ROLE_ICON[role] || User;
     const isPaid = !!payout;
+    const router = useRouter();
+    const [pending, start] = useTransition();
+
+    function doApprove() {
+        if (!confirm(`อนุมัติ + ล็อกยอด DF ของ ${staffName} เดือนนี้?\nยอดจะถูกล็อกที่ ฿${total.toLocaleString()} แม้บิลถูกแก้ภายหลัง`)) return;
+        start(async () => {
+            const r = await approveCommission({ staff_id: staffId, role, period_month: month });
+            if (!r.success) alert(r.error || "อนุมัติไม่สำเร็จ");
+            router.refresh();
+        });
+    }
+    function doUnapprove() {
+        if (!confirm("ปลดล็อกการอนุมัติ?")) return;
+        start(async () => {
+            const r = await unapproveCommission(staffId, role, month);
+            if (!r.success) alert(r.error || "ปลดล็อกไม่สำเร็จ");
+            router.refresh();
+        });
+    }
 
     // Group by date
     const byDate: Record<string, CommissionEntry[]> = {};
@@ -131,6 +157,34 @@ export default function StaffDetailClient({
                 </div>
             </div>
 
+            {/* Approval workflow — ล็อก/อนุมัติยอด */}
+            <div className={`rounded-2xl border-2 p-4 flex items-center justify-between gap-3 ${isApproved ? "border-violet-200 bg-violet-50/50" : "border-slate-200 bg-slate-50/50"}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                    {isApproved ? <Lock className="h-5 w-5 text-violet-600 shrink-0" /> : <Unlock className="h-5 w-5 text-slate-400 shrink-0" />}
+                    <div className="min-w-0">
+                        <div className={`text-sm font-bold ${isApproved ? "text-violet-800" : "text-slate-700"}`}>
+                            {isApproved ? `อนุมัติแล้ว — ล็อกยอดที่ ฿${Number(approvedAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "ยังไม่อนุมัติ (ยอดยังเปลี่ยนได้ตามบิล)"}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                            {isApproved
+                                ? `อนุมัติเมื่อ ${approvedAt ? new Date(approvedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : "—"}${approvedAmount != null && Math.abs((approvedAmount || 0) - total) > 0.01 ? ` · ⚠ ยอด live ตอนนี้ ฿${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} (ต่างจากที่ล็อก)` : ""}`
+                                : "อนุมัติเพื่อล็อกยอดก่อนจ่าย — Payroll จะดึงเฉพาะยอดที่อนุมัติ"}
+                        </div>
+                    </div>
+                </div>
+                {isApproved ? (
+                    <Button variant="outline" size="sm" disabled={pending || isPaid} onClick={doUnapprove}
+                        className="rounded-lg h-9 gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 shrink-0">
+                        <Unlock className="h-4 w-4" /> ปลดล็อก
+                    </Button>
+                ) : (
+                    <Button size="sm" disabled={pending || entries.length === 0} onClick={doApprove}
+                        className="rounded-lg h-9 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white shrink-0">
+                        <Lock className="h-4 w-4" /> อนุมัติ + ล็อกยอด
+                    </Button>
+                )}
+            </div>
+
             {/* Payout info */}
             {payout && (
                 <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 p-4">
@@ -188,10 +242,12 @@ export default function StaffDetailClient({
                                     <thead className="bg-slate-50/40">
                                         <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2">เลขใบเสร็จ</th>
+                                            <th className="text-left px-4 py-2">ลูกค้า</th>
                                             <th className="text-left px-4 py-2">รายการ</th>
                                             <th className="text-center px-4 py-2">จำนวน</th>
-                                            <th className="text-right px-4 py-2">DF/หน่วย</th>
-                                            <th className="text-right px-4 py-2">รวม</th>
+                                            <th className="text-right px-4 py-2">ยอดขาย</th>
+                                            <th className="text-right px-4 py-2">{role === "sales" ? "%" : "DF/หน่วย"}</th>
+                                            <th className="text-right px-4 py-2">รวมสุทธิ</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -206,8 +262,12 @@ export default function StaffDetailClient({
                                                         <span className="font-mono text-[11px] text-slate-400">—</span>
                                                     )}
                                                 </td>
+                                                <td className="px-4 py-2 text-slate-600 text-xs">{e.patient_name || "—"}</td>
                                                 <td className="px-4 py-2 text-slate-700">{e.item_name}</td>
                                                 <td className="px-4 py-2 text-center tabular-nums">{e.qty}</td>
+                                                <td className="px-4 py-2 text-right tabular-nums text-slate-500">
+                                                    {e.sale_amount != null ? `฿${Number(e.sale_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
+                                                </td>
                                                 <td className="px-4 py-2 text-right tabular-nums text-slate-600">
                                                     {role === "sales" ? `${Number(e.df_rate).toFixed(1)}%` : `฿${Number(e.df_rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                                                 </td>

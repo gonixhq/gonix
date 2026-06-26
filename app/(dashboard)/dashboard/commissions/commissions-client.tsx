@@ -183,9 +183,13 @@ export default function CommissionsClient({
                                                     <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase">
                                                         <CheckCircle className="h-3 w-3 mr-1" /> จ่ายแล้ว
                                                     </Badge>
+                                                ) : c.is_approved ? (
+                                                    <Badge className="border-0 bg-violet-100 text-violet-700 text-[10px] font-bold uppercase">
+                                                        🔒 อนุมัติแล้ว
+                                                    </Badge>
                                                 ) : (
                                                     <Badge className="border-0 bg-amber-100 text-amber-700 text-[10px] font-bold uppercase">
-                                                        รอจ่าย
+                                                        รออนุมัติ
                                                     </Badge>
                                                 )}
                                             </td>
