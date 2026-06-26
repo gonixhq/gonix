@@ -310,8 +310,8 @@ export default function FinanceClient({
                     </div>
                 </div>
 
-                {/* Deferred Revenue — มูลค่าคอร์สค้างใช้ */}
-                <div className="gonix-card-premium p-5 relative overflow-hidden">
+                {/* Deferred Revenue — มูลค่าคอร์สค้างใช้ (กดดูหน้าสรุปคอส) */}
+                <Link href="/dashboard/packages" className="gonix-card-premium p-5 relative overflow-hidden block hover:ring-2 hover:ring-violet-300 transition-all">
                     <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-violet-300/25 to-fuchsia-200/5 blur-2xl pointer-events-none" />
                     <div className="relative">
                         <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-violet-100">
@@ -322,10 +322,10 @@ export default function FinanceClient({
                             {deferredValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </h3>
                         <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? `Deferred (${deferredCount} pkg)` : `คอร์สค้างใช้ (${deferredCount} คอส)`}
+                            {language === "en" ? `Deferred (${deferredCount} pkg)` : `คอร์สค้างใช้ (${deferredCount} คอส)`} <span className="text-[11px] text-violet-500 font-normal">ดูทั้งหมด →</span>
                         </p>
                     </div>
-                </div>
+                </Link>
             </div>
 
             {/* Revenue by Segment (แยกแผนก) */}

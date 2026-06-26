@@ -29,7 +29,7 @@ import type {
     PackageUsage,
     PackageStatus,
 } from "@/lib/package-types";
-import { PACKAGE_STATUS_LABEL, PACKAGE_STATUS_COLOR } from "@/lib/package-types";
+import { PACKAGE_STATUS_LABEL, PACKAGE_STATUS_COLOR, pkgCode } from "@/lib/package-types";
 
 interface Props {
     hn: string;
@@ -176,6 +176,7 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
                         </Badge>
                     </div>
                     <h4 className="font-bold text-slate-800 line-clamp-2">{pp.package_name}</h4>
+                    <span className="font-mono text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mt-1 inline-block">{pkgCode(pp.id)}</span>
                 </div>
             </div>
 

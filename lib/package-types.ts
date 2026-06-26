@@ -4,6 +4,27 @@
 
 export type PackageStatus = "active" | "completed" | "expired" | "refunded" | "cancelled";
 
+/** รหัสคอสแบบอ่านง่าย (อ้างอิงด้วยวาจา/กระดาษ) — derive จาก id (ไม่ต้องเก็บคอลัมน์) */
+export const pkgCode = (id: string) => "PKG-" + String(id || "").slice(0, 8).toUpperCase();
+
+export interface SoldPackageRow {
+    id: string;
+    hn: string;
+    patientName: string;
+    package_name: string;
+    category: string | null;
+    total_sessions: number;
+    used_sessions: number;
+    remaining_sessions: number;
+    paid_amount: number;
+    purchased_at: string;
+    expires_at: string;
+    status: string;
+    invoice_id: string | null;
+    is_expired: boolean;
+    days_remaining: number;
+}
+
 export interface ServicePackage {
     id: string;
     code: string;

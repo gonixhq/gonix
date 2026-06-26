@@ -13,6 +13,45 @@ import type {
 // Catalog (service_packages)
 // ════════════════════════════════════════════════════════════
 
+/** คอสที่ขายแล้วทั้งคลินิก (สำหรับหน้าสรุปคอส) — รวมชื่อผู้ป่วย */
+export async function getAllSoldPackages(): Promise<import("@/lib/package-types").SoldPackageRow[]> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+
+        const { data } = await supabase
+            .from("v_patient_packages_active")
+            .select("id, hn, package_name, category, total_sessions, used_sessions, remaining_sessions, paid_amount, purchased_at, expires_at, status, invoice_id, is_expired, days_remaining")
+            .eq("clinic_id", profile.clinic_id)
+            .in("status", ["active", "completed", "expired"])
+            .order("expires_at", { ascending: true });
+        const rows = data || [];
+
+        // ชื่อผู้ป่วยจาก hn
+        const hns = [...new Set(rows.map((r) => r.hn as string).filter(Boolean))];
+        const nameMap: Record<string, string> = {};
+        if (hns.length > 0) {
+            const { data: pts } = await supabase.from("patients").select("hn, prefix, first_name, last_name").in("hn", hns);
+            for (const p of pts || []) nameMap[p.hn as string] = `${p.prefix || ""}${p.first_name || ""} ${p.last_name || ""}`.trim();
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return rows.map((r: any) => ({
+            id: r.id, hn: r.hn, patientName: nameMap[r.hn] || r.hn,
+            package_name: r.package_name, category: r.category ?? null,
+            total_sessions: Number(r.total_sessions || 0), used_sessions: Number(r.used_sessions || 0),
+            remaining_sessions: Number(r.remaining_sessions || 0), paid_amount: Number(r.paid_amount || 0),
+            purchased_at: r.purchased_at, expires_at: r.expires_at, status: r.status,
+            invoice_id: r.invoice_id ?? null, is_expired: !!r.is_expired, days_remaining: Number(r.days_remaining || 0),
+        }));
+    } catch {
+        return [];
+    }
+}
+
 /** Deferred Revenue — มูลค่าคอร์ส/แพ็กเกจที่ขายแล้วแต่ยังไม่ได้ใช้ (Outstanding Value) */
 export async function getDeferredRevenue(): Promise<{ outstanding: number; count: number }> {
     try {
