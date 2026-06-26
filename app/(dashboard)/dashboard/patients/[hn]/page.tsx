@@ -141,6 +141,11 @@ export default async function PatientDetailPage({
         .limit(30);
     const vitals = vitalsData || [];
 
+    // ชื่อคลินิก — ใช้ทำลายน้ำรูปก่อน-หลัง
+    const { data: clinicRow } = await supabase
+        .from("tenants").select("clinic_name").eq("id", patient.clinic_id).maybeSingle();
+    const clinicName = clinicRow?.clinic_name || "";
+
     function calculateAge(dob: string | null): string {
         if (!dob) return "—";
         const birth = new Date(dob);
@@ -267,6 +272,11 @@ export default async function PatientDetailPage({
                             <Link href={`/print/patient-card/${patient.hn}?noauto=1`} target="_blank" className="w-full mt-4">
                                 <Button className="w-full rounded-xl bg-gradient-to-r from-[#2B54F0] to-[#00A6C0] hover:opacity-90 shadow-md text-white gap-2 h-10">
                                     <Printer className="h-4 w-4" /> เปิด OPD Card
+                                </Button>
+                            </Link>
+                            <Link href={`/print/patient-summary/${patient.hn}?noauto=1`} target="_blank" className="w-full mt-2">
+                                <Button variant="outline" className="w-full rounded-xl gap-2 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-50">
+                                    <Printer className="h-3.5 w-3.5" /> สรุปข้อมูล (PDF)
                                 </Button>
                             </Link>
 
@@ -459,7 +469,7 @@ export default async function PatientDetailPage({
 
                 {/* ── Photos Tab (Before/After across all aesthetic visits) ── */}
                 <TabsContent value="photos" className="mt-5">
-                    <PatientPhotosTab hn={patient.hn} visits={aestheticPhotoVisits} />
+                    <PatientPhotosTab hn={patient.hn} visits={aestheticPhotoVisits} clinicName={clinicName} />
                 </TabsContent>
 
                 {/* ── Attachments Tab (All visits combined) ── */}

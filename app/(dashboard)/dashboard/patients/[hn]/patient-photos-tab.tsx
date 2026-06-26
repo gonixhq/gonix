@@ -9,6 +9,7 @@ import {
     Loader2, Sparkles, ExternalLink, X,
 } from "lucide-react";
 import { uploadAestheticPhoto, deleteAestheticPhoto } from "@/lib/actions/aesthetic";
+import { watermarkImage } from "@/lib/watermark";
 import type { AestheticPhoto } from "@/lib/aesthetic-types";
 
 interface VisitWithPhotos {
@@ -21,9 +22,10 @@ interface VisitWithPhotos {
 interface Props {
     hn: string;
     visits: VisitWithPhotos[];
+    clinicName?: string;
 }
 
-export default function PatientPhotosTab({ hn, visits }: Props) {
+export default function PatientPhotosTab({ hn, visits, clinicName }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [lightbox, setLightbox] = useState<AestheticPhoto | null>(null);
@@ -48,11 +50,14 @@ export default function PatientPhotosTab({ hn, visits }: Props) {
         const vn = ref?.getAttribute("data-vn");
         if (!file || !vn) return;
         setError(null);
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("vn", vn);
-        formData.append("type", type);
         startTransition(async () => {
+            // ใส่ลายน้ำก่อนอัปโหลด (clinic · HN · วันที่)
+            const wmText = `${clinicName ? clinicName + " · " : ""}${hn} · ${new Date().toLocaleDateString("th-TH")}`;
+            const wmFile = await watermarkImage(file, wmText);
+            const formData = new FormData();
+            formData.append("file", wmFile);
+            formData.append("vn", vn);
+            formData.append("type", type);
             const result = await uploadAestheticPhoto(formData);
             setUploadingVn(null);
             if (!result.success) {
