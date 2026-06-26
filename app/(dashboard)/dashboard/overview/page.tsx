@@ -11,8 +11,11 @@ import { getOnDutyDoctors, getDoctorsNotCheckedIn } from "@/lib/actions/doctor-s
 import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
 import { listRoomStatuses } from "@/lib/actions/rooms";
+import { getActiveAnnouncements } from "@/lib/actions/announcements";
 import { AutoRefresh, WaitBadge } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
+import { AnnouncementBoard } from "./announcement-board";
+import { Activity, Target, Receipt } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
     waiting: "รอซักประวัติ",
@@ -93,6 +96,16 @@ export default async function DashboardPage() {
         .reduce((sum: number, inv: { total_amount: number | null }) => sum + (inv.total_amount || 0), 0)
         + anonMonthRev.total;
 
+    // รายได้ "วันนี้" — สำหรับการ์ด performance ตาม role
+    const [todayInvRes, anonTodayRev] = await Promise.all([
+        supabase.from("invoice_headers").select("total_amount, status").eq("invoice_date", today),
+        getAnonRevenue(today, today),
+    ]);
+    const todayRevenue = (todayInvRes.data || [])
+        .filter((inv: { status: string | null }) => inv.status !== "voided" && inv.status !== "refunded")
+        .reduce((sum: number, inv: { total_amount: number | null }) => sum + (inv.total_amount || 0), 0)
+        + anonTodayRev.total;
+
     // Low stock = items where stock_qty <= min_stock
     const lowStock = (lowStockRes.data || []).filter(
         (i: { stock_qty: number | null; min_stock: number | null }) =>
@@ -106,11 +119,12 @@ export default async function DashboardPage() {
     // Unified alerts (expiry + outstanding) — สต๊อกต่ำใช้ของเดิม (lowStock) อยู่แล้ว
     const alerts = await getAlerts();
 
-    // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง + สถานะห้อง
-    const [onDuty, notCheckedIn, roomStatuses] = await Promise.all([
+    // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง + สถานะห้อง + ประกาศ
+    const [onDuty, notCheckedIn, roomStatuses, announcements] = await Promise.all([
         getOnDutyDoctors(today),
         getDoctorsNotCheckedIn(),
         listRoomStatuses().catch(() => []),
+        getActiveAnnouncements().catch(() => []),
     ]);
 
     // ── Queue Funnel: นับตามสถานะ + หาคนรอเกิน 15 นาที (จาก created_at) ──
@@ -220,6 +234,9 @@ export default async function DashboardPage() {
                 </div>
             </div>
 
+            {/* Announcement board */}
+            <AnnouncementBoard announcements={announcements} canManage={showStaff} />
+
             {/* Stat cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {statCards.map((s, i) => {
@@ -238,6 +255,50 @@ export default async function DashboardPage() {
                         </div>
                     );
                 })}
+            </div>
+
+            {/* Role-based performance — owner เห็นรายได้, พนักงานเห็นเฉพาะเคส/คิว */}
+            <div className="gonix-card-premium p-5">
+                <div className="flex items-center gap-2 mb-4">
+                    <Activity className="h-4 w-4 text-[#2B54F0]" />
+                    <h2 className="text-base font-bold text-slate-800">ผลงานวันนี้</h2>
+                    <span className="text-xs text-slate-400">{showFinance ? "(มุมมองผู้บริหาร)" : "(มุมมองพนักงาน)"}</span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="rounded-2xl bg-[#2B54F0]/5 border border-[#2B54F0]/15 p-4">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Users className="h-3.5 w-3.5" /> เคสวันนี้</div>
+                        <div className="text-2xl font-extrabold text-slate-800">{visitsRes.count?.toLocaleString() || "0"}</div>
+                    </div>
+                    <div className="rounded-2xl bg-amber-50/70 border border-amber-200/60 p-4">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Clock className="h-3.5 w-3.5" /> กำลังรอในคิว</div>
+                        <div className="text-2xl font-extrabold text-slate-800">{allActiveVisits.length}</div>
+                    </div>
+                    {showFinance ? (
+                        <>
+                            <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/60 p-4">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><TrendingUp className="h-3.5 w-3.5" /> รายได้วันนี้</div>
+                                <div className="text-2xl font-extrabold text-emerald-700">฿{todayRevenue.toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-2xl bg-violet-50/70 border border-violet-200/60 p-4">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Receipt className="h-3.5 w-3.5" /> เฉลี่ย/เคส</div>
+                                <div className="text-2xl font-extrabold text-slate-800">
+                                    ฿{((visitsRes.count || 0) > 0 ? Math.round(todayRevenue / (visitsRes.count || 1)) : 0).toLocaleString()}
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="rounded-2xl bg-blue-50/70 border border-blue-200/60 p-4">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><CalendarDays className="h-3.5 w-3.5" /> นัดหมายวันนี้</div>
+                                <div className="text-2xl font-extrabold text-slate-800">{(todayAppointmentsRes.data || []).length}</div>
+                            </div>
+                            <div className="rounded-2xl bg-indigo-50/70 border border-indigo-200/60 p-4">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Target className="h-3.5 w-3.5" /> หมอเข้าเวร</div>
+                                <div className="text-2xl font-extrabold text-slate-800">{onDuty.length}</div>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Queue funnel — สถานะคิววันนี้ + เตือนรอเกิน 15 นาที */}
