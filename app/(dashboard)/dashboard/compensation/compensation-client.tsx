@@ -131,6 +131,11 @@ export default function CompensationClient({
         }
     }
 
+    async function handleToggleDeduction(staffId: string, field: "wht_enabled" | "sso_enabled", value: boolean) {
+        try { await setStaffPay(staffId, { [field]: value }); await reload(month); }
+        catch (e) { setError(e instanceof Error ? e.message : "บันทึกการตั้งค่าหักเงินไม่สำเร็จ"); }
+    }
+
     async function handleManualAdd(e: React.FormEvent) {
         e.preventDefault();
         if (!mStaff) { setError("เลือกพนักงานก่อน"); return; }
@@ -198,7 +203,10 @@ export default function CompensationClient({
         URL.revokeObjectURL(url);
     }
 
-    const totals = rows.reduce((acc, r) => ({ time: acc.time + r.time_pay, df: acc.df + r.df, total: acc.total + r.total }), { time: 0, df: 0, total: 0 });
+    const totals = rows.reduce((acc, r) => ({
+        time: acc.time + r.time_pay, df: acc.df + r.df, total: acc.total + r.total,
+        net: acc.net + (r.is_paid ? r.net : Math.round((r.total - r.wht - r.sso - r.other_deduction) * 100) / 100),
+    }), { time: 0, df: 0, total: 0, net: 0 });
 
     return (
         <div className="space-y-5 animate-fade-in max-w-6xl mx-auto pb-10">
@@ -264,8 +272,8 @@ export default function CompensationClient({
                                     <th className="text-right px-3 py-2.5 hidden sm:table-cell">ชม.แผน</th>
                                     <th className="text-right px-3 py-2.5">ชม.จริง</th>
                                     <th className="text-right px-3 py-2.5">ค่าจ้าง</th>
-                                    <th className="text-right px-3 py-2.5 hidden sm:table-cell">DF</th>
-                                    <th className="text-right px-4 py-2.5">รวม</th>
+                                    <th className="text-right px-3 py-2.5 hidden sm:table-cell">DF (อนุมัติ)</th>
+                                    <th className="text-right px-4 py-2.5">สุทธิ (หลังหัก)</th>
                                     <th className="text-center px-3 py-2.5">สถานะ</th>
                                 </tr>
                             </thead>
@@ -305,15 +313,47 @@ export default function CompensationClient({
                                                     className="w-24 h-8 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20"
                                                 />
                                             </div>
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                                <label className="inline-flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer" title="หักภาษี ณ ที่จ่าย 3%">
+                                                    <input type="checkbox" checked={r.wht_enabled} disabled={r.is_paid}
+                                                        onChange={(e) => handleToggleDeduction(r.staff_id, "wht_enabled", e.target.checked)} className="accent-blue-600" />
+                                                    หัก 3%
+                                                </label>
+                                                <label className="inline-flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer" title="ประกันสังคม 5% เพดาน 750">
+                                                    <input type="checkbox" checked={r.sso_enabled} disabled={r.is_paid}
+                                                        onChange={(e) => handleToggleDeduction(r.staff_id, "sso_enabled", e.target.checked)} className="accent-blue-600" />
+                                                    ปกส.
+                                                </label>
+                                            </div>
                                         </td>
                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 hidden sm:table-cell">{r.planned_hours}</td>
                                         <td className="px-3 py-2.5 text-right tabular-nums">
                                             <span className={r.has_actual ? "text-slate-800 font-semibold" : "text-slate-300"}>{r.has_actual ? r.actual_hours : "—"}</span>
                                         </td>
                                         <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-700">{baht(r.time_pay)}</td>
-                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 hidden sm:table-cell">{baht(r.df)}</td>
-                                        <td className="px-4 py-2.5 text-right tabular-nums font-black text-[#10B981]">
-                                            {baht(r.total + (r.is_paid ? 0 : Number(adjustMap[r.staff_id] || 0)))}
+                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 hidden sm:table-cell">
+                                            {baht(r.df)}
+                                            {r.df_pending > 0 && (
+                                                <div className="text-[10px] text-amber-600 font-semibold" title="DF ที่ยังไม่อนุมัติ ยังไม่ถูกนำมาคิด">+{baht(r.df_pending)} รออนุมัติ</div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-2.5 text-right tabular-nums">
+                                            {(() => {
+                                                const adj = r.is_paid ? 0 : Number(adjustMap[r.staff_id] || 0);
+                                                const gross = r.total + adj;
+                                                const deduction = r.wht + r.sso + r.other_deduction;
+                                                const net = r.is_paid ? r.net : Math.round((gross - deduction) * 100) / 100;
+                                                return (
+                                                    <>
+                                                        <div className="font-black text-[#10B981]">{baht(net)}</div>
+                                                        {deduction > 0 && (
+                                                            <div className="text-[10px] text-slate-400" title={`ยอดก่อนหัก ${baht(gross)} · หัก ${baht(deduction)}`}>
+                                                                จาก {baht(gross)} − {baht(deduction)}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-3 py-2.5 text-center">
                                             {r.is_paid ? (
@@ -348,7 +388,10 @@ export default function CompensationClient({
                                         <td className="px-4 py-2.5 text-slate-700" colSpan={4}>รวมทั้งหมด</td>
                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{baht(totals.time)}</td>
                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 hidden sm:table-cell">{baht(totals.df)}</td>
-                                        <td className="px-4 py-2.5 text-right tabular-nums text-[#10B981] font-black">{baht(totals.total)}</td>
+                                        <td className="px-4 py-2.5 text-right tabular-nums text-[#10B981] font-black">
+                                            {baht(totals.net)}
+                                            {totals.net !== totals.total && <div className="text-[10px] text-slate-400 font-normal">ก่อนหัก {baht(totals.total)}</div>}
+                                        </td>
                                         <td className="px-3 py-2.5" />
                                     </tr>
                                 </tfoot>

@@ -18,6 +18,11 @@ async function getCtx() {
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+// อัตราหักมาตรฐาน (ไทย)
+const WHT_RATE = 0.03;       // หัก ณ ที่จ่าย 3%
+const SSO_RATE = 0.05;       // ประกันสังคม 5%
+const SSO_CAP = 750;         // เพดานหัก ปกส. ต่อเดือน
+
 export interface CompRow {
     staff_id: string;
     name: string;
@@ -31,8 +36,15 @@ export interface CompRow {
     absent_days: number;    // วันที่ลงเวรแต่ไม่มีตอกบัตร (ไว้ให้แอดมินดูก่อนปรับยอด)
     pay_hours: number;      // ชั่วโมงที่ใช้คิดเงิน (จริงถ้ามี ไม่งั้นใช้แผน)
     time_pay: number;       // ค่าจ้างฐาน: รายชม. = pay_hours × rate ; เงินเดือน = monthly_salary
-    df: number;             // ค่า DF/commission เดือนนั้น
-    total: number;          // time_pay + df
+    df: number;             // ค่า DF/commission เดือนนั้น (เฉพาะที่อนุมัติแล้ว)
+    df_pending: number;     // DF ที่ยังไม่อนุมัติ (ไม่นับเข้ายอดจ่าย)
+    total: number;          // time_pay + df (ก่อนหัก)
+    wht_enabled: boolean;
+    sso_enabled: boolean;
+    wht: number;            // หัก ณ ที่จ่าย
+    sso: number;            // ประกันสังคม
+    other_deduction: number; // หักอื่นๆ (มาสาย/ลา/ขาด) — จาก snapshot ถ้าจ่ายแล้ว
+    net: number;            // ยอดสุทธิที่ต้องโอนจริง
     is_paid: boolean;       // ปิดยอด/จ่ายแล้วหรือยัง
     paid_at: string | null;
 }
@@ -48,7 +60,7 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
     // staff + เรท/เงินเดือน + ชื่อ
     const { data: staffRows } = await supabase
         .from("staff")
-        .select("id, hourly_rate, pay_type, monthly_salary, profiles!inner(full_name, role)")
+        .select("id, hourly_rate, pay_type, monthly_salary, wht_enabled, sso_enabled, profiles!inner(full_name, role)")
         .eq("is_active", true);
 
     // ชั่วโมงตามแผน (doctor_shifts)
@@ -84,18 +96,26 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         set.add(l.work_date as string);
     });
 
-    // DF/commission เดือนนั้น (reuse commissions)
+    // DF/commission เดือนนั้น (reuse commissions) — ดึงเฉพาะ "ที่อนุมัติแล้ว" เข้ายอดจ่าย
     const dfSummary = await getCommissionsByPeriod(first);
-    const dfMap = new Map<string, number>();
-    dfSummary.forEach((d) => dfMap.set(d.staff_id, (dfMap.get(d.staff_id) || 0) + d.total_amount));
+    const dfMap = new Map<string, number>();        // อนุมัติแล้ว
+    const dfPendingMap = new Map<string, number>(); // ยังไม่อนุมัติ
+    dfSummary.forEach((d) => {
+        if (d.is_approved) dfMap.set(d.staff_id, (dfMap.get(d.staff_id) || 0) + d.total_amount);
+        else dfPendingMap.set(d.staff_id, (dfPendingMap.get(d.staff_id) || 0) + d.total_amount);
+    });
 
-    // สถานะปิดยอด/จ่ายแล้ว
+    // สถานะปิดยอด/จ่ายแล้ว + snapshot รายการหัก
     const { data: payouts } = await supabase
         .from("compensation_payouts")
-        .select("staff_id, paid_at")
+        .select("staff_id, paid_at, wht_amount, sso_amount, other_deduction, net_amount")
         .eq("period_month", first);
-    const paidMap = new Map<string, string>();
-    (payouts || []).forEach((p) => paidMap.set(p.staff_id as string, p.paid_at as string));
+    const paidMap = new Map<string, { paid_at: string; wht: number; sso: number; other: number; net: number }>();
+    (payouts || []).forEach((p) => paidMap.set(p.staff_id as string, {
+        paid_at: p.paid_at as string,
+        wht: Number(p.wht_amount || 0), sso: Number(p.sso_amount || 0),
+        other: Number(p.other_deduction || 0), net: Number(p.net_amount || 0),
+    }));
 
     const rows: CompRow[] = (staffRows || []).map((s) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,10 +130,22 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         const payHours = hasActual ? actual : planned;
         const timePay = payType === "monthly" ? round2(salary) : round2(payHours * rate);
         const df = round2(dfMap.get(id) || 0);
+        const dfPending = round2(dfPendingMap.get(id) || 0);
         const pDates = plannedDates.get(id);
         const wDates = workedDates.get(id);
         let absentDays = 0;
         if (pDates) pDates.forEach((d) => { if (!wDates || !wDates.has(d)) absentDays++; });
+
+        const total = round2(timePay + df);
+        const whtEnabled = !!(s as { wht_enabled?: boolean }).wht_enabled;
+        const ssoEnabled = !!(s as { sso_enabled?: boolean }).sso_enabled;
+        const paid = paidMap.get(id);
+        // จ่ายแล้ว → ใช้ snapshot ; ยังไม่จ่าย → คำนวณสด
+        const wht = paid ? paid.wht : (whtEnabled ? round2(total * WHT_RATE) : 0);
+        const sso = paid ? paid.sso : (ssoEnabled ? Math.min(round2(timePay * SSO_RATE), SSO_CAP) : 0);
+        const other = paid ? paid.other : 0;
+        const net = paid ? paid.net : round2(total - wht - sso - other);
+
         return {
             staff_id: id,
             name: (prof?.full_name as string) || "—",
@@ -128,9 +160,16 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
             pay_hours: payHours,
             time_pay: timePay,
             df,
-            total: round2(timePay + df),
+            df_pending: dfPending,
+            total,
+            wht_enabled: whtEnabled,
+            sso_enabled: ssoEnabled,
+            wht,
+            sso,
+            other_deduction: other,
+            net,
             is_paid: paidMap.has(id),
-            paid_at: paidMap.get(id) || null,
+            paid_at: paid?.paid_at || null,
         };
     });
 
@@ -139,12 +178,14 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
 }
 
 /** ตั้งค่าจ้างพนักงาน — ประเภท (รายชม./เงินเดือน) + อัตรา */
-export async function setStaffPay(staffId: string, patch: { pay_type?: string; hourly_rate?: number; monthly_salary?: number }) {
+export async function setStaffPay(staffId: string, patch: { pay_type?: string; hourly_rate?: number; monthly_salary?: number; wht_enabled?: boolean; sso_enabled?: boolean }) {
     const { supabase } = await getCtx();
     const update: Record<string, unknown> = {};
     if (patch.pay_type !== undefined) update.pay_type = patch.pay_type;
     if (patch.hourly_rate !== undefined) update.hourly_rate = patch.hourly_rate;
     if (patch.monthly_salary !== undefined) update.monthly_salary = patch.monthly_salary;
+    if (patch.wht_enabled !== undefined) update.wht_enabled = patch.wht_enabled;
+    if (patch.sso_enabled !== undefined) update.sso_enabled = patch.sso_enabled;
     if (Object.keys(update).length === 0) return { success: true };
     const { error } = await supabase.from("staff").update(update).eq("id", staffId);
     if (error) throw error;
@@ -455,7 +496,7 @@ export interface PayslipData {
     staff: CompRow | null;
     attendance: MonthlyAttendanceRow | null;
     clinic: PayslipClinic | null;
-    payout: { adjustment: number; total_amount: number; paid_at: string } | null;
+    payout: { adjustment: number; total_amount: number; net_amount: number; paid_at: string } | null;
 }
 
 /** ข้อมูลใบจ่ายค่าตอบแทนรายคน/เดือน (สำหรับพิมพ์) */
@@ -468,25 +509,30 @@ export async function getPayslip(staffId: string, month: string): Promise<Paysli
         .limit(1).maybeSingle();
     const { data: payout } = await supabase
         .from("compensation_payouts")
-        .select("adjustment, total_amount, paid_at")
+        .select("adjustment, total_amount, net_amount, paid_at")
         .eq("staff_id", staffId).eq("period_month", `${month}-01`).maybeSingle();
     return {
         month,
         staff: comp.find((r) => r.staff_id === staffId) || null,
         attendance: att.find((r) => r.staff_id === staffId) || null,
         clinic: (clinic as PayslipClinic) ?? null,
-        payout: payout ? { adjustment: Number(payout.adjustment || 0), total_amount: Number(payout.total_amount || 0), paid_at: payout.paid_at as string } : null,
+        payout: payout ? { adjustment: Number(payout.adjustment || 0), total_amount: Number(payout.total_amount || 0), net_amount: Number(payout.net_amount || 0), paid_at: payout.paid_at as string } : null,
     };
 }
 
 /** ปิดยอด/บันทึกจ่ายค่าตอบแทนของพนักงานคนเดียว (snapshot ยอดปัจจุบัน) */
-export async function recordCompensationPayout(staffId: string, month: string, opts?: { payment_method?: string; note?: string; adjustment?: number }) {
+export async function recordCompensationPayout(staffId: string, month: string, opts?: { payment_method?: string; note?: string; adjustment?: number; other_deduction?: number }) {
     const { supabase, userId, clinicId } = await getCtx();
     const comp = await getStaffCompensation(month);
     const row = comp.find((r) => r.staff_id === staffId);
     if (!row) throw new Error("ไม่พบข้อมูลค่าตอบแทนของพนักงาน");
 
     const adjustment = Number(opts?.adjustment || 0);
+    const gross = round2(row.total + adjustment);
+    const wht = row.wht;
+    const sso = row.sso;
+    const other = round2(Number(opts?.other_deduction || 0));
+    const net = round2(gross - wht - sso - other);
     const { error } = await supabase.from("compensation_payouts").upsert({
         clinic_id: clinicId,
         staff_id: staffId,
@@ -494,7 +540,11 @@ export async function recordCompensationPayout(staffId: string, month: string, o
         time_pay: row.time_pay,
         df_amount: row.df,
         adjustment,
-        total_amount: round2(row.total + adjustment),
+        total_amount: gross,
+        wht_amount: wht,
+        sso_amount: sso,
+        other_deduction: other,
+        net_amount: net,
         payment_method: opts?.payment_method || "transfer",
         note: opts?.note || null,
         paid_at: new Date().toISOString(),
@@ -521,6 +571,10 @@ export async function payAllForMonth(month: string) {
         time_pay: r.time_pay,
         df_amount: r.df,
         total_amount: r.total,
+        wht_amount: r.wht,
+        sso_amount: r.sso,
+        other_deduction: 0,
+        net_amount: round2(r.total - r.wht - r.sso),
         payment_method: "transfer",
         paid_at: now,
         paid_by: userId,

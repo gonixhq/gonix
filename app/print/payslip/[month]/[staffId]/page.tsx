@@ -120,11 +120,33 @@ export default async function PayslipPrintPage({
                                     <td className="py-2 px-2 text-right font-bold tabular-nums">{payout.adjustment > 0 ? "+" : ""}{baht(payout.adjustment)}</td>
                                 </tr>
                             )}
+                            {/* รายการหัก */}
+                            {staff.wht > 0 && (
+                                <tr style={{ borderBottom: "1px dotted #cbd5e1" }}>
+                                    <td className="py-2 px-2">หัก ณ ที่จ่าย 3%</td>
+                                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">—</td>
+                                    <td className="py-2 px-2 text-right font-bold tabular-nums text-red-600">−{baht(staff.wht)}</td>
+                                </tr>
+                            )}
+                            {staff.sso > 0 && (
+                                <tr style={{ borderBottom: "1px dotted #cbd5e1" }}>
+                                    <td className="py-2 px-2">ประกันสังคม 5%</td>
+                                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">เพดาน 750</td>
+                                    <td className="py-2 px-2 text-right font-bold tabular-nums text-red-600">−{baht(staff.sso)}</td>
+                                </tr>
+                            )}
+                            {staff.other_deduction > 0 && (
+                                <tr style={{ borderBottom: "1px dotted #cbd5e1" }}>
+                                    <td className="py-2 px-2">หักอื่นๆ (มาสาย/ลา/ขาด)</td>
+                                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">—</td>
+                                    <td className="py-2 px-2 text-right font-bold tabular-nums text-red-600">−{baht(staff.other_deduction)}</td>
+                                </tr>
+                            )}
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: "2px solid #000" }}>
-                                <td colSpan={2} className="py-2.5 px-2 text-right font-black uppercase tracking-wider">รวมสุทธิ</td>
-                                <td className="py-2.5 px-2 text-right font-black text-[16px] tabular-nums">{baht(payout ? payout.total_amount : staff.total)}</td>
+                                <td colSpan={2} className="py-2.5 px-2 text-right font-black uppercase tracking-wider">ยอดสุทธิที่จ่าย</td>
+                                <td className="py-2.5 px-2 text-right font-black text-[16px] tabular-nums">{baht(payout ? payout.net_amount : staff.net)}</td>
                             </tr>
                         </tfoot>
                     </table>
