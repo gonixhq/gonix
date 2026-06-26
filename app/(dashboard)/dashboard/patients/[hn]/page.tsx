@@ -371,7 +371,7 @@ export default async function PatientDetailPage({
                 {/* ── Medical Tab ── */}
                 <TabsContent value="medical" className="space-y-5 mt-5">
                     {/* Quick summary from registration (free-text) */}
-                    {(patient.allergy_summary || patient.disease_summary) && (
+                    {(patient.allergy_summary || patient.disease_summary || patient.past_history) && (
                         <div className="gonix-card-premium overflow-hidden">
                             <SectionBanner icon={Heart} title="สรุปจากการลงทะเบียน" description="ข้อความที่กรอกครั้งแรกตอนสมัคร" />
                             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -385,6 +385,12 @@ export default async function PatientDetailPage({
                                     <div>
                                         <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">โรคประจำตัว</div>
                                         <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{patient.disease_summary}</p>
+                                    </div>
+                                )}
+                                {patient.past_history && (
+                                    <div className="md:col-span-2">
+                                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">ประวัติเจ็บป่วยในอดีต (PH)</div>
+                                        <p className="text-slate-800 leading-relaxed whitespace-pre-wrap">{patient.past_history}</p>
                                     </div>
                                 )}
                             </div>

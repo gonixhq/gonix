@@ -59,6 +59,7 @@ export default function EditPatientForm({ patient }: { patient: any }) {
         address_detail: patient.address_detail || "",
         subdistrict_code: patient.subdistrict_code || "",
         allergy_summary: patient.allergy_summary || "",
+        past_history: patient.past_history || "",
         emergency_contact_name: patient.emergency_contact_name || "",
         emergency_contact_phone: patient.emergency_contact_phone || "",
         emergency_contact_relation: patient.emergency_contact_relation || "",
@@ -273,6 +274,9 @@ export default function EditPatientForm({ patient }: { patient: any }) {
                     </FieldRow>
                     <FieldRow label="สรุปการแพ้ยา">
                         <Input value={form.allergy_summary} onChange={set("allergy_summary")} placeholder="เช่น แพ้ Penicillin" className={FORM_INPUT_CLS} />
+                    </FieldRow>
+                    <FieldRow label="ประวัติเจ็บป่วยในอดีต (PH)" align="start">
+                        <textarea value={form.past_history} onChange={set("past_history")} rows={2} placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา" className={`${FORM_INPUT_CLS} resize-y`} />
                     </FieldRow>
                 </Section>
 

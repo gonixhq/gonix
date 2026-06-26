@@ -125,6 +125,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     const [painScore, setPainScore] = useState<number | "">("");
     const [triageLevel, setTriageLevel] = useState<TriageLevel>("normal");
     const [nurseNote, setNurseNote] = useState("");
+    const [pastHistory, setPastHistory] = useState("");
     const [doctorId, setDoctorId] = useState<string | "">("");
     const [assistantId, setAssistantId] = useState<string | "">("");
     const [rooms, setRooms] = useState<RoomStatus[]>([]);
@@ -172,7 +173,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 chief_complaint, pain_score, triage_level, nurse_note,
                 bp_systolic, bp_diastolic, pulse_rate, temperature, weight_kg, height_cm,
                 doctor_id, assistant_id, room_id,
-                patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status)
+                patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, past_history, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status)
             `).eq("vn", vn).maybeSingle(),
             supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
                 .in("role", ["doctor", "owner"]).eq("is_active", true),
@@ -192,6 +193,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setVisit(v);
         const pt = Array.isArray(v.patients) ? v.patients[0] : v.patients;
         setPatient(pt);
+        setPastHistory(pt?.past_history || "");
         setServiceCategory(v.service_category || "general_med");
         setChiefComplaint(v.chief_complaint || "");
         setPainScore(v.pain_score ?? "");
@@ -342,6 +344,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         }).eq("vn", vn);
 
         if (updErr) { setError(updErr.message); setSaving(false); return; }
+
+        // อัปเดต Past History (PH) ระดับผู้ป่วย ถ้ามีการแก้
+        if ((pastHistory || "") !== (patient?.past_history || "")) {
+            await supabase.from("patients").update({ past_history: pastHistory || null }).eq("hn", visit.hn);
+        }
 
         if (vitals.bp_systolic || vitals.pulse_rate || vitals.temperature || vitals.weight_kg || vitals.dtx) {
             await supabase.from("vital_signs").insert({
@@ -681,6 +688,19 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* ════ Past History (PH) — แก้ไขได้ตอนซักประวัติ ════ */}
+            <div className="gonix-card-premium p-4">
+                <label className="text-sm font-bold text-slate-700 mb-2 block">ประวัติเจ็บป่วยในอดีต (PH)</label>
+                <textarea
+                    value={pastHistory}
+                    onChange={e => setPastHistory(e.target.value)}
+                    rows={2}
+                    placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา — บันทึกพร้อมตอนส่งตรวจ"
+                    className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">บันทึกลงประวัติผู้ป่วย (ใช้ร่วมกับทะเบียน/เวชระเบียน)</p>
             </div>
 
             {/* ════ Action button — ส่งตรวจ ════ */}

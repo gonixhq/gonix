@@ -121,6 +121,14 @@ export default async function PatientSummaryPrintPage({ params }: { params: Prom
                     </div>
                 </div>
 
+                {/* Past History */}
+                {patient.past_history && (
+                    <div className="sec mb-3">
+                        <div className="text-[14px] font-bold bg-slate-100 px-2 py-1 rounded">ประวัติเจ็บป่วยในอดีต (PH)</div>
+                        <div className="text-[13px] mt-1 px-2 whitespace-pre-wrap">{patient.past_history}</div>
+                    </div>
+                )}
+
                 {/* Active packages */}
                 {packages.length > 0 && (
                     <div className="sec mb-3">

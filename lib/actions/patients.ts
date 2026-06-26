@@ -111,7 +111,8 @@ export async function updatePatient(hn: string, updates: Record<string, unknown>
         occupation: "อาชีพ", marital_status: "สถานภาพ",
         race: "เชื้อชาติ", nationality: "สัญชาติ",
         nhso_rights: "สิทธิ์การรักษา", blood_group: "กรุ๊ปเลือด",
-        allergy_summary: "สรุปแพ้ยา", emergency_contact_name: "ผู้ติดต่อฉุกเฉิน",
+        allergy_summary: "สรุปแพ้ยา", past_history: "ประวัติเจ็บป่วยในอดีต (PH)",
+        disease_summary: "โรคประจำตัว", emergency_contact_name: "ผู้ติดต่อฉุกเฉิน",
         emergency_contact_phone: "เบอร์ผู้ติดต่อฉุกเฉิน",
         emergency_contact_relation: "ความสัมพันธ์ผู้ติดต่อฉุกเฉิน",
     };

@@ -310,6 +310,7 @@ export default function NewPatientPage() {
                 marital_status: getField("marital_status"),
                 allergy_summary: getField("allergy_summary"),
                 disease_summary: getField("disease_summary"),
+                past_history: getField("past_history"),
                 nhso_rights: getField("nhso_rights") || "self_pay",
                 nhso_main_hospital: getField("nhso_main_hospital"),
                 line_user_id: getField("line_user_id"),
@@ -661,6 +662,14 @@ export default function NewPatientPage() {
                                 rows={2}
                                 className="w-full text-[16px] rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 placeholder="ระบุโรคประจำตัว"
+                            />
+                        </FieldRow>
+                        <FieldRow label="ประวัติเจ็บป่วยในอดีต (PH)" colSpan={2} align="start">
+                            <textarea
+                                name="past_history"
+                                rows={2}
+                                className="w-full text-[16px] rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา (ถ้ามี)"
                             />
                         </FieldRow>
                     </Section>
