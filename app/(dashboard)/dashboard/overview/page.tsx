@@ -18,7 +18,7 @@ import { QueueAdvance } from "./queue-advance";
 import { DashboardCustomize } from "./dashboard-customize";
 import { AutoRefresh, WaitBadge, RealtimeRefresh } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
-import { AnnouncementBoard } from "./announcement-board";
+import { AnnouncementBoard, AddAnnouncementButton } from "./announcement-board";
 import { SegmentToggle, type Seg } from "./segment-toggle";
 import { Activity, Target, Receipt } from "lucide-react";
 
@@ -319,7 +319,10 @@ export default async function DashboardPage({
                         <span className="text-xs text-slate-400">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
                     )}
                 </div>
-                <DashboardCustomize />
+                <div className="flex items-center gap-2">
+                    {showStaff && <AddAnnouncementButton />}
+                    <DashboardCustomize />
+                </div>
             </div>
 
             {/* Announcement board */}

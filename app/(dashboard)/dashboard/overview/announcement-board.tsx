@@ -1,9 +1,23 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Megaphone, Plus, X, AlertTriangle, Info, Bell } from "lucide-react";
+import { Megaphone, X, AlertTriangle, Info, Bell } from "lucide-react";
 import { createAnnouncement, dismissAnnouncement, type Announcement } from "@/lib/actions/announcements";
+
+const OPEN_EVENT = "gonix:open-announcement";
+
+/** ปุ่มเปิดฟอร์มเพิ่มประกาศ — วางบน toolbar (ส่ง event ให้ AnnouncementBoard เปิดฟอร์ม) */
+export function AddAnnouncementButton() {
+    return (
+        <button
+            onClick={() => window.dispatchEvent(new CustomEvent(OPEN_EVENT))}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-[#2B54F0] transition-colors backdrop-blur"
+        >
+            <Megaphone className="h-3.5 w-3.5" /> เพิ่มประกาศ
+        </button>
+    );
+}
 
 const LEVEL_CFG = {
     info: { bg: "bg-blue-50/70 border-blue-200/70", ic: "text-blue-600", Icon: Info, label: "ทั่วไป" },
@@ -26,22 +40,18 @@ export function AnnouncementBoard({
     const [pending, start] = useTransition();
     const [err, setErr] = useState<string | null>(null);
 
+    // ฟังปุ่ม "เพิ่มประกาศ" จาก toolbar → เปิดฟอร์ม
+    useEffect(() => {
+        if (!canManage) return;
+        const onOpen = () => setOpen(true);
+        window.addEventListener(OPEN_EVENT, onOpen);
+        return () => window.removeEventListener(OPEN_EVENT, onOpen);
+    }, [canManage]);
+
     const isEmpty = announcements.length === 0;
 
-    // ไม่มีประกาศ + ไม่มีสิทธิ์โพสต์ → ซ่อนทั้งหมด
-    if (isEmpty && !canManage) return null;
-
-    // ไม่มีประกาศ + เป็นผู้จัดการ + ยังไม่เปิดฟอร์ม → เหลือแค่ปุ่มเล็ก ไม่รก dashboard
-    if (isEmpty && !open) {
-        return (
-            <button
-                onClick={() => setOpen(true)}
-                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-[#2B54F0] transition-colors backdrop-blur"
-            >
-                <Megaphone className="h-3.5 w-3.5" /> เพิ่มประกาศ
-            </button>
-        );
-    }
+    // ไม่มีประกาศ + (ไม่มีสิทธิ์ หรือ ยังไม่เปิดฟอร์ม) → ซ่อนทั้งกล่อง (ปุ่มเพิ่มอยู่บน toolbar)
+    if (isEmpty && (!canManage || !open)) return null;
 
     function submit() {
         setErr(null);
@@ -74,12 +84,12 @@ export function AnnouncementBoard({
                     <h2 className="text-base font-bold text-slate-800">ประกาศจากผู้จัดการ</h2>
                     {announcements.length > 0 && <span className="text-xs text-slate-400">({announcements.length})</span>}
                 </div>
-                {canManage && (
+                {canManage && open && (
                     <button
-                        onClick={() => setOpen((o) => !o)}
-                        className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1"
+                        onClick={() => setOpen(false)}
+                        className="text-xs font-semibold text-slate-400 hover:text-slate-600 inline-flex items-center gap-1"
                     >
-                        {open ? <><X className="h-3.5 w-3.5" /> ยกเลิก</> : <><Plus className="h-3.5 w-3.5" /> เพิ่มประกาศ</>}
+                        <X className="h-3.5 w-3.5" /> ยกเลิก
                     </button>
                 )}
             </div>
