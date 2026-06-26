@@ -130,30 +130,6 @@ export default function PatientsClient({ patients, search, isOwner }: { patients
                 </div>
             </div>
 
-            {/* ── Stat cards ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                    { label: "ผู้ป่วยทั้งหมด", value: stats.total, icon: Users, tile: "bg-[#2B54F0]/10", iconColor: "text-[#2B54F0]", glow: "from-[#2B54F0]/20 to-[#5F85FF]/5" },
-                    { label: "เพศชาย", value: stats.male, icon: UserCircle2, tile: "bg-[#0EA5A0]/10", iconColor: "text-[#0EA5A0]", glow: "from-[#00FFCC]/25 to-[#0EA5A0]/5" },
-                    { label: "เพศหญิง", value: stats.female, icon: UserCircle2, tile: "bg-[#6366F1]/10", iconColor: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" },
-                    { label: "เคยมารักษา", value: stats.withVisits, icon: Activity, tile: "bg-[#10B981]/10", iconColor: "text-[#10B981]", glow: "from-[#15FF83]/25 to-[#10B981]/5" },
-                ].map((s, i) => {
-                    const Icon = s.icon;
-                    return (
-                        <div key={i} className="gonix-card-premium p-4 relative overflow-hidden">
-                            <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${s.glow} blur-2xl pointer-events-none`} />
-                            <div className="relative">
-                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-2.5 ${s.tile}`}>
-                                    <Icon className={`h-5 w-5 ${s.iconColor}`} strokeWidth={2.5} />
-                                </div>
-                                <div className="text-2xl font-extrabold text-slate-800 tabular-nums tracking-tight">{s.value.toLocaleString()}</div>
-                                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mt-0.5">{s.label}</div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
             {/* ── Search + Filter chips ── */}
             <div className="gonix-card-premium p-4 space-y-3">
                 <form action="/dashboard/patients" className="relative" method="get">
