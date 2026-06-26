@@ -14,6 +14,7 @@ import {
     User, Stethoscope, Heart, ChevronLeft, ChevronRight, Trash2,
 } from "lucide-react";
 import { recordCommissionPayout, deleteCommissionPayout, type StaffCommissionSummary } from "@/lib/actions/commissions";
+import RewardsTabs from "@/components/layout/rewards-tabs";
 
 const ROLE_LABEL: Record<string, string> = {
     doctor: "แพทย์",
@@ -70,6 +71,7 @@ export default function CommissionsClient({
 
     return (
         <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
+            <RewardsTabs />
             {/* Sub-header */}
             <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">

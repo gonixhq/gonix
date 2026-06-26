@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, UserPlus, Wallet, BadgeCheck, Loader2, X, Calendar, ArrowRight } from "lucide-react";
 import { createAffiliate, recordAffiliatePayout, deleteAffiliatePayout, type AffiliateSummary } from "@/lib/actions/affiliates";
+import RewardsTabs from "@/components/layout/rewards-tabs";
 
 const baht = (n: number) => `฿${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 function monthLabel(m: string) { const [y, mo] = m.split("-").map(Number); return new Date(y, mo - 1, 1).toLocaleDateString("th-TH", { year: "numeric", month: "long" }); }
@@ -48,6 +49,8 @@ export default function AffiliatesClient({ month, summary }: { month: string; su
                     <button onClick={() => setShowAdd(true)} className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5"><Plus className="h-4 w-4" /> เพิ่ม</button>
                 </div>
             </div>
+
+            <RewardsTabs />
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="gonix-card-premium p-4"><div className="text-xs text-slate-500">ยอดค่าคอมเดือนนี้</div><div className="text-2xl font-black text-slate-800">{baht(totalGross)}</div></div>

@@ -108,6 +108,48 @@ export async function getReferralsByReferrer(hn: string): Promise<ReferredItem[]
     }
 }
 
+export interface ClinicReferral extends ReferredItem {
+    referrer_hn: string;
+    referrer_name: string;
+}
+
+/** ภาพรวม referral ทั้งคลินิก (สำหรับ dashboard) */
+export async function getClinicReferrals(): Promise<ClinicReferral[]> {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { data } = await supabase.from("patient_referrals")
+            .select("id, referrer_hn, referred_hn, reward_status, reward_amount, reward_points, created_at, claimed_at")
+            .eq("clinic_id", clinicId).order("created_at", { ascending: false }).limit(300);
+        const rows = data || [];
+        if (rows.length === 0) return [];
+
+        const allHns = [...new Set(rows.flatMap(r => [r.referrer_hn as string, r.referred_hn as string]))];
+        const { data: pats } = await supabase.from("patients").select("hn, first_name, last_name").in("hn", allHns);
+        const nameByHn: Record<string, string> = {};
+        (pats || []).forEach(p => { nameByHn[p.hn as string] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || (p.hn as string); });
+
+        const referredHns = rows.map(r => r.referred_hn as string);
+        const { data: invs } = await supabase.from("invoice_headers").select("hn").in("hn", referredHns).eq("status", "paid");
+        const hasSales = new Set((invs || []).map(i => i.hn as string));
+
+        return rows.map(r => ({
+            id: r.id as string,
+            referrer_hn: r.referrer_hn as string,
+            referrer_name: nameByHn[r.referrer_hn as string] || (r.referrer_hn as string),
+            referred_hn: r.referred_hn as string,
+            referred_name: nameByHn[r.referred_hn as string] || (r.referred_hn as string),
+            has_sales: hasSales.has(r.referred_hn as string),
+            reward_status: r.reward_status as string,
+            reward_amount: Number(r.reward_amount || 0),
+            reward_points: Number(r.reward_points || 0),
+            created_at: r.created_at as string,
+            claimed_at: (r.claimed_at as string) || null,
+        }));
+    } catch {
+        return [];
+    }
+}
+
 /** เลือกรับรางวัล — เงิน/ส่วนลด/แต้ม (แต้มจะบวกเข้า loyalty ของผู้แนะนำ) */
 export async function claimReferralReward(
     referralId: string,
