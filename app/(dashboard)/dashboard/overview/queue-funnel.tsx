@@ -58,6 +58,7 @@ export interface RoomLight {
     room_name: string;
     state: "free" | "busy" | "off";
     detail?: string | null;
+    serves?: string | null; // แผนกที่ห้องนี้รองรับ (แสดงตอนว่าง — ช่วยจ่ายคิว)
 }
 
 /** ไฟจราจรห้องตรวจ — เขียว=ว่าง / แดง=ใช้งาน / เทา=ปิด */
@@ -95,6 +96,9 @@ export function RoomStatusBoard({ rooms }: { rooms: RoomLight[] }) {
                                 <div className="min-w-0">
                                     <div className="text-sm font-bold text-slate-800 truncate">{r.room_name}</div>
                                     <div className="text-[11px] text-slate-500 truncate">{c.label}{r.detail ? ` · ${r.detail}` : ""}</div>
+                                    {r.state === "free" && r.serves && (
+                                        <div className="text-[10px] text-emerald-600 truncate mt-0.5">รับ: {r.serves}</div>
+                                    )}
                                 </div>
                             </div>
                         );

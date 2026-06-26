@@ -12,7 +12,11 @@ import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
 import { listRoomStatuses } from "@/lib/actions/rooms";
 import { getActiveAnnouncements } from "@/lib/actions/announcements";
-import { AutoRefresh, WaitBadge } from "./overview-live";
+import { getBusyForecast } from "@/lib/actions/dashboard-forecast";
+import { BusyForecastCard } from "./busy-forecast-card";
+import { QueueAdvance } from "./queue-advance";
+import { DashboardCustomize } from "./dashboard-customize";
+import { AutoRefresh, WaitBadge, RealtimeRefresh } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
 import { AnnouncementBoard } from "./announcement-board";
 import { SegmentToggle, type Seg } from "./segment-toggle";
@@ -23,6 +27,18 @@ const AESTHETIC_CATS = new Set(["aesthetic"]);
 function visitSeg(cat: string | null | undefined): "medical" | "aesthetic" {
     return cat && AESTHETIC_CATS.has(cat) ? "aesthetic" : "medical";
 }
+
+// service_category → ป้ายภาษาไทย (ใช้แนะนำห้องที่เหมาะกับเคส)
+const CAT_TH: Record<string, string> = {
+    general_med: "เวชกรรม",
+    aesthetic: "ความงาม",
+    wound_care: "ทำแผล",
+    med_cert: "ใบรับรอง",
+    checkup: "ตรวจสุขภาพ",
+    std_test: "STD",
+};
+const catsToTh = (cats: string[] | null | undefined) =>
+    cats && cats.length > 0 ? cats.map((c) => CAT_TH[c] || c).join(", ") : null;
 
 const STATUS_LABEL: Record<string, string> = {
     waiting: "รอซักประวัติ",
@@ -55,7 +71,7 @@ export default async function DashboardPage({
     const seg: Seg = sp.seg === "medical" || sp.seg === "aesthetic" ? sp.seg : "all";
 
     const supabase = await createClient();
-    const { permissions } = await getEffectivePermissionsForUser();
+    const { permissions, clinicId } = await getEffectivePermissionsForUser();
 
     const today = bangkokDate();
     const monthStart = today.slice(0, 7) + "-01";
@@ -82,7 +98,7 @@ export default async function DashboardPage({
             .eq("approval_status", "approved").eq("is_active", true),
         // 5) Today's queue (ทั้งหมดที่ active — ใช้ทำ funnel + list)
         supabase.from("visits")
-            .select("vn, visit_time, created_at, status, chief_complaint, service_category, hn, patients!inner(first_name, last_name)")
+            .select("vn, visit_time, created_at, status, chief_complaint, service_category, room_id, hn, patients!inner(first_name, last_name)")
             .eq("visit_date", today)
             .neq("status", "completed")
             .neq("status", "cancelled")
@@ -129,16 +145,18 @@ export default async function DashboardPage({
     const showFinance = permissions["finance.view"] === true;
     const showStaff = permissions["staff.manage"] === true;
     const showInventory = permissions["inventory.view"] === true;
+    const canQueueAction = permissions["visits.edit"] === true;
 
     // Unified alerts (expiry + outstanding) — สต๊อกต่ำใช้ของเดิม (lowStock) อยู่แล้ว
     const alerts = await getAlerts();
 
     // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง + สถานะห้อง + ประกาศ
-    const [onDuty, notCheckedIn, roomStatuses, announcements] = await Promise.all([
+    const [onDuty, notCheckedIn, roomStatuses, announcements, busyForecast] = await Promise.all([
         getOnDutyDoctors(today),
         getDoctorsNotCheckedIn(),
         listRoomStatuses().catch(() => []),
         getActiveAnnouncements().catch(() => []),
+        getBusyForecast().catch(() => ({ weeks: 0, hours: [], peakHours: [] })),
     ]);
 
     // ── Queue Funnel: นับตามสถานะ + หาคนรอเกิน 15 นาที (จาก created_at) ──
@@ -175,14 +193,28 @@ export default async function DashboardPage({
             ? cats.includes("aesthetic")
             : cats.some((c) => c !== "aesthetic");
     };
+    // auto room sync: ห้องที่มีคนไข้กำลังตรวจอยู่ (visit status=with_doctor + room_id) → busy
+    // (พอ visit เปลี่ยนสถานะ/จบ ห้องจะว่างเองอัตโนมัติ — ไม่ต้องกดเปลี่ยนมือ)
+    const roomOccupant = new Map<string, string>();
+    for (const v of allActiveVisits) {
+        if (v.status === "with_doctor" && v.room_id) {
+            const p = v.patients;
+            roomOccupant.set(v.room_id, p ? `${p.first_name} ${p.last_name}` : "กำลังตรวจ");
+        }
+    }
     const roomLights: RoomLight[] = (roomStatuses || [])
-        .filter((r) => (r.is_active || r.active_session_id) && roomMatchesSeg(r.service_categories))
-        .map((r) => ({
-            room_id: r.room_id,
-            room_name: r.room_name,
-            state: !r.is_active ? "off" : r.active_session_id ? "busy" : "free",
-            detail: r.assigned_doctors?.[0]?.name ?? null,
-        }));
+        .filter((r) => (r.is_active || r.active_session_id || roomOccupant.has(r.room_id)) && roomMatchesSeg(r.service_categories))
+        .map((r) => {
+            const occupant = roomOccupant.get(r.room_id);
+            const busy = !!r.active_session_id || !!occupant;
+            return {
+                room_id: r.room_id,
+                room_name: r.room_name,
+                state: !r.is_active && !occupant ? "off" : busy ? "busy" : "free",
+                detail: occupant ?? r.assigned_doctors?.[0]?.name ?? null,
+                serves: catsToTh(r.service_categories),
+            };
+        });
 
     // top 6 สำหรับ list คิว (ตาม filter)
     const queueList = segVisits.slice(0, 6);
@@ -272,21 +304,27 @@ export default async function DashboardPage({
                         <p className="text-slate-500 text-sm inline-flex items-center gap-2" suppressHydrationWarning>
                             <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate}
                         </p>
-                        <AutoRefresh seconds={30} />
+                        {clinicId && <RealtimeRefresh clinicId={clinicId} />}
+                        <AutoRefresh seconds={60} />
                     </div>
                 </div>
             </div>
 
-            {/* Global segment filter — สลับมุมมองคิว/ห้องตามแผนก */}
+            {/* Toolbar: segment filter + customize */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
-                <SegmentToggle current={seg} />
-                {seg !== "all" && (
-                    <span className="text-xs text-slate-400">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
-                )}
+                <div className="flex items-center gap-3 flex-wrap">
+                    <SegmentToggle current={seg} />
+                    {seg !== "all" && (
+                        <span className="text-xs text-slate-400">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
+                    )}
+                </div>
+                <DashboardCustomize />
             </div>
 
             {/* Announcement board */}
-            <AnnouncementBoard announcements={announcements} canManage={showStaff} />
+            <div data-widget="announce">
+                <AnnouncementBoard announcements={announcements} canManage={showStaff} />
+            </div>
 
             {/* Stat cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -309,7 +347,7 @@ export default async function DashboardPage({
             </div>
 
             {/* Role-based performance — owner เห็นรายได้, พนักงานเห็นเฉพาะเคส/คิว */}
-            <div className="gonix-card-premium p-5">
+            <div className="gonix-card-premium p-5" data-widget="perf">
                 <div className="flex items-center gap-2 mb-4">
                     <Activity className="h-4 w-4 text-[#2B54F0]" />
                     <h2 className="text-base font-bold text-slate-800">ผลงานวันนี้</h2>
@@ -353,13 +391,22 @@ export default async function DashboardPage({
             </div>
 
             {/* Queue funnel — สถานะคิววันนี้ + เตือนรอเกิน 15 นาที */}
-            <QueueFunnel buckets={funnelBuckets} />
+            <div data-widget="funnel">
+                <QueueFunnel buckets={funnelBuckets} />
+            </div>
 
             {/* Room traffic light */}
-            <RoomStatusBoard rooms={roomLights} />
+            <div data-widget="rooms">
+                <RoomStatusBoard rooms={roomLights} />
+            </div>
+
+            {/* Busy-period forecast */}
+            <div data-widget="forecast">
+                <BusyForecastCard forecast={busyForecast} nowHour={bkkHour} />
+            </div>
 
             {/* Row: On-duty + Alerts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start" data-widget="onduty">
                 {/* On-duty doctors today */}
                 <div className="gonix-card-premium p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -500,7 +547,7 @@ export default async function DashboardPage({
             </div>
 
             {/* Row: Today's queue + appointments */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" data-widget="queues">
                 {/* Today's queue */}
                 <div className="gonix-card-premium overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-slate-50/40">
@@ -526,17 +573,18 @@ export default async function DashboardPage({
                                 const vn = v.vn as string;
                                 const waiting = WAITING_STATUSES.has(status);
                                 return (
-                                    <Link key={vn} href={`/dashboard/visits/${vn}`} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
+                                    <div key={vn} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
                                         <div className="text-xs font-mono text-slate-500 w-12">{visitTime?.slice(0, 5) || "—"}</div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-semibold text-slate-800 truncate">{name}</div>
+                                        <Link href={`/dashboard/visits/${vn}`} className="flex-1 min-w-0">
+                                            <div className="text-sm font-semibold text-slate-800 truncate hover:text-[#2B54F0]">{name}</div>
                                             {chiefComplaint && <div className="text-xs text-slate-500 truncate">{chiefComplaint}</div>}
-                                        </div>
+                                        </Link>
                                         {waiting && <WaitBadge since={v.created_at} />}
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}>
                                             {STATUS_LABEL[status] || status}
                                         </span>
-                                    </Link>
+                                        {canQueueAction && <QueueAdvance vn={vn} status={status} />}
+                                    </div>
                                 );
                             })
                         )}

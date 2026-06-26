@@ -2,7 +2,45 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Wifi } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+
+/**
+ * RealtimeRefresh — subscribe การเปลี่ยนแปลง visits/appointments/room sessions ของคลินิก
+ * แล้ว refresh แบบ debounce (event-driven real-time — ต้องรัน mig 066)
+ */
+export function RealtimeRefresh({ clinicId }: { clinicId: string }) {
+    const router = useRouter();
+    const [live, setLive] = useState(false);
+
+    useEffect(() => {
+        if (!clinicId) return;
+        const supabase = createClient();
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const bump = () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => router.refresh(), 800);
+        };
+        const filter = `clinic_id=eq.${clinicId}`;
+        const channel = supabase
+            .channel("overview-rt")
+            .on("postgres_changes", { event: "*", schema: "public", table: "visits", filter }, bump)
+            .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter }, bump)
+            .on("postgres_changes", { event: "*", schema: "public", table: "room_doctor_sessions", filter }, bump)
+            .subscribe((status) => setLive(status === "SUBSCRIBED"));
+        return () => {
+            clearTimeout(timer);
+            supabase.removeChannel(channel);
+        };
+    }, [clinicId, router]);
+
+    if (!live) return null;
+    return (
+        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-500 font-semibold">
+            <Wifi className="h-3 w-3" /> เชื่อมต่อสด
+        </span>
+    );
+}
 
 /**
  * Auto-refresh — รีเฟรช server component ทุก N วินาที (ได้ฟีล real-time โดยไม่ต้องลง websocket)
