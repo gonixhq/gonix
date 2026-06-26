@@ -18,6 +18,18 @@ import {
 } from "lucide-react";
 import type { AestheticPhoto, AestheticRecords } from "@/lib/aesthetic-types";
 
+// สี + ลำดับความรุนแรงของการแพ้ (ใช้ในแบนเนอร์ patient safety)
+const ALLERGY_SEVERITY_CLS: Record<string, string> = {
+    mild: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    moderate: "bg-orange-100 text-orange-800 border-orange-300",
+    severe: "bg-red-100 text-red-800 border-red-300",
+    life_threatening: "bg-red-200 text-red-900 border-red-400 ring-1 ring-red-400",
+};
+const ALLERGY_SEVERITY_LABEL: Record<string, string> = {
+    mild: "เล็กน้อย", moderate: "ปานกลาง", severe: "รุนแรง", life_threatening: "อันตรายถึงชีวิต",
+};
+const SEVERITY_RANK: Record<string, number> = { life_threatening: 0, severe: 1, moderate: 2, mild: 3 };
+
 export default async function PatientDetailPage({
     params,
 }: {
@@ -144,6 +156,37 @@ export default async function PatientDetailPage({
                 <ArrowLeft className="h-4 w-4" /> กลับไปทะเบียนผู้ป่วย
             </Link>
 
+            {/* ⚠️ Allergy banner — sticky บนสุด (patient safety) */}
+            {(allergies.length > 0 || patient.allergy_summary) && (
+                <div className="sticky top-2 z-30 rounded-2xl bg-red-50/95 backdrop-blur border-2 border-red-300 p-3.5 shadow-lg shadow-red-500/10 flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-red-200 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="h-5 w-5 text-red-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="text-sm font-extrabold text-red-900 mb-1.5">⚠️ ประวัติแพ้ยา / สารก่อภูมิแพ้</div>
+                        {allergies.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                                {[...allergies]
+                                    .sort((a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9))
+                                    .map((a) => (
+                                        <span
+                                            key={a.id}
+                                            className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg border ${ALLERGY_SEVERITY_CLS[a.severity] || "bg-red-100 text-red-800 border-red-300"}`}
+                                            title={a.reaction ? `อาการ: ${a.reaction}` : undefined}
+                                        >
+                                            {a.allergen_name}
+                                            {a.severity && <span className="opacity-70">· {ALLERGY_SEVERITY_LABEL[a.severity] || a.severity}</span>}
+                                        </span>
+                                    ))}
+                            </div>
+                        )}
+                        {patient.allergy_summary && (
+                            <p className="text-xs text-red-800 mt-1.5 whitespace-pre-wrap break-words">{patient.allergy_summary}</p>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Hero header — Sidebar Layout */}
             <div className="gonix-card-premium relative overflow-hidden">
                 {/* Background gradient orb */}
@@ -157,6 +200,23 @@ export default async function PatientDetailPage({
                             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight leading-tight">
                                 {patient.prefix} {patient.first_name} {patient.last_name}
                             </h1>
+
+                            {/* โรคประจำตัว — chips เห็นตลอด (risk factor) */}
+                            {chronic.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 justify-center mt-2">
+                                    {chronic.map((c) => (
+                                        <span
+                                            key={c.id}
+                                            className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300"
+                                            title={c.is_controlled ? "ควบคุมได้" : "เฝ้าระวัง"}
+                                        >
+                                            <Activity className="h-3 w-3" />
+                                            {c.disease_name}
+                                            {c.is_controlled && <span className="text-emerald-600">✓</span>}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* HN — large prominent (brand) */}
                             <div className="mt-3 px-4 py-2 rounded-xl border" style={{ background: "rgba(43,84,240,0.06)", borderColor: "rgba(43,84,240,0.18)" }}>
