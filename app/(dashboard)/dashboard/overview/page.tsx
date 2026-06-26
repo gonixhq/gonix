@@ -10,6 +10,9 @@ import { getAlerts } from "@/lib/actions/alerts";
 import { getOnDutyDoctors, getDoctorsNotCheckedIn } from "@/lib/actions/doctor-shifts";
 import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
+import { listRoomStatuses } from "@/lib/actions/rooms";
+import { AutoRefresh, WaitBadge } from "./overview-live";
+import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
 
 const STATUS_LABEL: Record<string, string> = {
     waiting: "รอซักประวัติ",
@@ -60,14 +63,13 @@ export default async function DashboardPage() {
         // 4) Active staff count
         supabase.from("profiles").select("id", { count: "exact", head: true })
             .eq("approval_status", "approved").eq("is_active", true),
-        // 5) Today's queue (top 6 active)
+        // 5) Today's queue (ทั้งหมดที่ active — ใช้ทำ funnel + list)
         supabase.from("visits")
-            .select("vn, visit_time, status, chief_complaint, hn, patients!inner(first_name, last_name)")
+            .select("vn, visit_time, created_at, status, chief_complaint, hn, patients!inner(first_name, last_name)")
             .eq("visit_date", today)
             .neq("status", "completed")
             .neq("status", "cancelled")
-            .order("created_at", { ascending: true })
-            .limit(6),
+            .order("created_at", { ascending: true }),
         // 7) Today's appointments (top 6)
         supabase.from("appointments")
             .select("id, appt_start, status, hn, patients!inner(first_name, last_name)")
@@ -104,8 +106,50 @@ export default async function DashboardPage() {
     // Unified alerts (expiry + outstanding) — สต๊อกต่ำใช้ของเดิม (lowStock) อยู่แล้ว
     const alerts = await getAlerts();
 
-    // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง
-    const [onDuty, notCheckedIn] = await Promise.all([getOnDutyDoctors(today), getDoctorsNotCheckedIn()]);
+    // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง + สถานะห้อง
+    const [onDuty, notCheckedIn, roomStatuses] = await Promise.all([
+        getOnDutyDoctors(today),
+        getDoctorsNotCheckedIn(),
+        listRoomStatuses().catch(() => []),
+    ]);
+
+    // ── Queue Funnel: นับตามสถานะ + หาคนรอเกิน 15 นาที (จาก created_at) ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allActiveVisits = (todayQueueRes.data || []) as any[];
+    const OVERDUE_MS = 15 * 60 * 1000;
+    const nowMs = Date.now();
+    const isOverdue = (createdAt: string | null) =>
+        !!createdAt && nowMs - new Date(createdAt).getTime() >= OVERDUE_MS;
+
+    // กลุ่มสถานะที่ "กำลังรอ" (นับ overdue เฉพาะกลุ่มนี้ — with_doctor ถือว่ากำลังให้บริการ)
+    const WAITING_STATUSES = new Set(["waiting", "triaged", "waiting_medicine", "waiting_payment"]);
+    const countBy = (statuses: string[]) =>
+        allActiveVisits.filter((v) => statuses.includes(v.status)).length;
+    const overdueBy = (statuses: string[]) =>
+        allActiveVisits.filter(
+            (v) => statuses.includes(v.status) && WAITING_STATUSES.has(v.status) && isOverdue(v.created_at),
+        ).length;
+
+    const funnelBuckets: FunnelBucket[] = [
+        { key: "waiting", label: "รอซักประวัติ", count: countBy(["waiting"]), overdue: overdueBy(["waiting"]), tile: "bg-amber-100", text: "text-amber-700", href: "/dashboard/screening" },
+        { key: "triaged", label: "คัดกรอง/รอตรวจ", count: countBy(["triaged"]), overdue: overdueBy(["triaged"]), tile: "bg-blue-100", text: "text-blue-700", href: "/dashboard/screening" },
+        { key: "with_doctor", label: "กำลังพบแพทย์", count: countBy(["with_doctor", "with_nurse"]), overdue: 0, tile: "bg-indigo-100", text: "text-indigo-700", href: "/dashboard/screening" },
+        { key: "waiting_medicine", label: "รอรับยา", count: countBy(["waiting_medicine"]), overdue: overdueBy(["waiting_medicine"]), tile: "bg-purple-100", text: "text-purple-700", href: "/dashboard/pharmacy" },
+        { key: "waiting_payment", label: "รอชำระเงิน", count: countBy(["waiting_payment"]), overdue: overdueBy(["waiting_payment"]), tile: "bg-orange-100", text: "text-orange-700", href: "/dashboard/pharmacy" },
+    ];
+
+    // ── ไฟจราจรห้องตรวจ ──
+    const roomLights: RoomLight[] = (roomStatuses || [])
+        .filter((r) => r.is_active || r.active_session_id)
+        .map((r) => ({
+            room_id: r.room_id,
+            room_name: r.room_name,
+            state: !r.is_active ? "off" : r.active_session_id ? "busy" : "free",
+            detail: r.assigned_doctors?.[0]?.name ?? null,
+        }));
+
+    // top 6 สำหรับ list คิว
+    const queueList = allActiveVisits.slice(0, 6);
 
     // ── Hero: ทักทายตามเวลา + ชื่อผู้ใช้ + วันที่ (เวลาไทย) ──
     const { data: { user } } = await supabase.auth.getUser();
@@ -167,9 +211,12 @@ export default async function DashboardPage() {
                     <h1 className="text-2xl sm:text-[32px] font-black text-slate-800 tracking-tight mt-1 leading-tight truncate">
                         {displayName}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-2 inline-flex items-center gap-2" suppressHydrationWarning>
-                        <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                        <p className="text-slate-500 text-sm inline-flex items-center gap-2" suppressHydrationWarning>
+                            <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate}
+                        </p>
+                        <AutoRefresh seconds={30} />
+                    </div>
                 </div>
             </div>
 
@@ -192,6 +239,12 @@ export default async function DashboardPage() {
                     );
                 })}
             </div>
+
+            {/* Queue funnel — สถานะคิววันนี้ + เตือนรอเกิน 15 นาที */}
+            <QueueFunnel buckets={funnelBuckets} />
+
+            {/* Room traffic light */}
+            <RoomStatusBoard rooms={roomLights} />
 
             {/* Row: On-duty + Alerts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
@@ -342,28 +395,24 @@ export default async function DashboardPage() {
                         <div className="flex items-center gap-2">
                             <ClipboardList className="h-4 w-4 text-slate-600" />
                             <h2 className="text-sm font-bold text-slate-800">คิววันนี้</h2>
-                            <span className="text-xs text-slate-400">({(todayQueueRes.data || []).length} รายการ)</span>
+                            <span className="text-xs text-slate-400">({allActiveVisits.length} รายการ)</span>
                         </div>
                         <Link href="/dashboard/screening" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
                             ซักประวัติ <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>
                     <div className="divide-y divide-slate-100">
-                        {(todayQueueRes.data || []).length === 0 ? (
+                        {queueList.length === 0 ? (
                             <div className="p-8 text-center text-sm text-slate-400">ยังไม่มีคนไข้ในคิววันนี้</div>
                         ) : (
-                            (todayQueueRes.data || []).map((v) => {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const p = (v as any).patients;
+                            queueList.map((v) => {
+                                const p = v.patients;
                                 const name = p ? `${p.first_name} ${p.last_name}` : "—";
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const status = (v as any).status as string;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const visitTime = (v as any).visit_time as string;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const chiefComplaint = (v as any).chief_complaint;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const vn = (v as any).vn as string;
+                                const status = v.status as string;
+                                const visitTime = v.visit_time as string;
+                                const chiefComplaint = v.chief_complaint;
+                                const vn = v.vn as string;
+                                const waiting = WAITING_STATUSES.has(status);
                                 return (
                                     <Link key={vn} href={`/dashboard/visits/${vn}`} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
                                         <div className="text-xs font-mono text-slate-500 w-12">{visitTime?.slice(0, 5) || "—"}</div>
@@ -371,6 +420,7 @@ export default async function DashboardPage() {
                                             <div className="text-sm font-semibold text-slate-800 truncate">{name}</div>
                                             {chiefComplaint && <div className="text-xs text-slate-500 truncate">{chiefComplaint}</div>}
                                         </div>
+                                        {waiting && <WaitBadge since={v.created_at} />}
                                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}>
                                             {STATUS_LABEL[status] || status}
                                         </span>
