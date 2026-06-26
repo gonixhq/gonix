@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { bangkokDate } from "@/lib/utils/date";
 import type {
     ServicePackage,
     PatientPackage,
@@ -289,8 +290,9 @@ export async function deletePackage(id: string) {
 export interface PurchasePackageInput {
     hn: string;
     package_id: string;
-    invoice_id?: string;       // link กับใบเสร็จ
+    invoice_id?: string;       // link กับใบเสร็จ (ถ้ามาจาก checkout); ถ้าไม่ส่ง → สร้างใบเสร็จให้
     paid_amount?: number;      // ถ้าไม่ส่ง ใช้ราคา catalog
+    payment_method?: "cash" | "transfer" | "credit";  // สำหรับขายตรง (สร้างใบเสร็จ)
     note?: string;
 }
 
@@ -319,13 +321,37 @@ export async function purchasePackage(input: PurchasePackageInput) {
         const { data: staffRow } = await supabase
             .from("staff").select("id").eq("profile_id", user.id).maybeSingle();
 
+        const amount = input.paid_amount ?? Number(pkg.price);
+
+        // ── ขายตรง (ไม่มี invoice_id) → สร้างใบเสร็จ + payment เข้าระบบการเงิน ──
+        let invoiceId = input.invoice_id || null;
+        if (!invoiceId) {
+            const newInvId = `INV-${Date.now().toString().slice(-6)}-${input.hn.slice(-4)}`;
+            const { error: invErr } = await supabase.from("invoice_headers").insert({
+                id: newInvId, clinic_id: profile.clinic_id, hn: input.hn,
+                invoice_date: bangkokDate(), subtotal: amount, total_amount: amount,
+                paid_amount: amount, status: "paid", issued_by: staffRow?.id || null,
+            });
+            if (invErr) return { success: false, error: `สร้างใบเสร็จไม่สำเร็จ: ${invErr.message}` };
+            await supabase.from("invoice_items").insert({
+                inv_id: newInvId, clinic_id: profile.clinic_id, item_type: "package",
+                item_ref_id: input.package_id, item_name: pkg.name, qty: 1,
+                unit_price: amount, line_total: amount, segment: "aesthetic",
+            });
+            const dbMethod = input.payment_method === "credit" ? "credit_card" : (input.payment_method || "cash");
+            await supabase.from("payment_logs").insert({
+                inv_id: newInvId, clinic_id: profile.clinic_id, payment_method: dbMethod, amount,
+            });
+            invoiceId = newInvId;
+        }
+
         const { data, error } = await supabase
             .from("patient_packages")
             .insert({
                 clinic_id: profile.clinic_id,
                 hn: input.hn,
                 package_id: input.package_id,
-                invoice_id: input.invoice_id || null,
+                invoice_id: invoiceId,
                 package_name: pkg.name,
                 total_sessions: pkg.total_sessions,
                 paid_amount: input.paid_amount ?? pkg.price,

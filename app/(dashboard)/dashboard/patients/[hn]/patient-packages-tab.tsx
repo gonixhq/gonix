@@ -531,6 +531,7 @@ function SellPackageModal({
     const [search, setSearch] = useState("");
     const [selected, setSelected] = useState<ServicePackage | null>(null);
     const [paidAmount, setPaidAmount] = useState<number>(0);
+    const [payMethod, setPayMethod] = useState<"cash" | "transfer" | "credit">("cash");
     const [note, setNote] = useState("");
     const [error, setError] = useState<string | null>(null);
 
@@ -555,6 +556,7 @@ function SellPackageModal({
                 hn,
                 package_id: selected.id,
                 paid_amount: paidAmount,
+                payment_method: payMethod,
                 note: note || undefined,
             });
             if (result.success) {
@@ -657,6 +659,15 @@ function SellPackageModal({
                                 </div>
                             </div>
                             <div className="space-y-1.5">
+                                <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">ช่องทางชำระ</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {([["cash", "เงินสด"], ["transfer", "QR / โอน"], ["credit", "บัตรเครดิต"]] as const).map(([k, l]) => (
+                                        <button key={k} type="button" onClick={() => setPayMethod(k)}
+                                            className={`h-10 rounded-xl text-xs font-bold transition-all ${payMethod === k ? "bg-blue-600 text-white shadow-md" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{l}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>
                                 <Textarea
                                     value={note}
@@ -675,9 +686,9 @@ function SellPackageModal({
                 </div>
 
                 <div className="p-5 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <p className="text-xs text-slate-500">
-                        ⚠ การขายนี้ยังไม่ผ่านใบเสร็จ <br />
-                        <span className="text-[10px]">ต้องลงรายการชำระแยกที่ห้องการเงิน</span>
+                    <p className="text-xs text-emerald-600 font-medium">
+                        ✓ ออกใบเสร็จอัตโนมัติ <br />
+                        <span className="text-[10px] text-slate-500">+ เข้าระบบการเงิน/รายรับ/ปิดยอด</span>
                     </p>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" onClick={onClose} className="rounded-xl">ยกเลิก</Button>
