@@ -16,6 +16,7 @@ import { HorizontalForm, Section, FieldRow, SubHeader, FORM_INPUT_CLS, FORM_SELE
 import { PDPAModal } from "@/components/ui/pdpa-modal";
 import PreRegisterPicker, { type PendingFull } from "./pre-register-picker";
 import { markPendingAsUsed, countPendingRegistrations } from "@/lib/actions/pending-registrations";
+import { lookupAffiliateByCode } from "@/lib/actions/affiliates";
 
 /* ─── Age Calculator (precise: year, month, day) ─── */
 function calcAge(dobStr: string) {
@@ -327,6 +328,18 @@ export default function NewPatientPage() {
                 registered_by: registrarId,
                 first_visit_date: bangkokDate(),
             };
+
+            // ผูก affiliate จากรหัสแนะนำ (ถ้ามี)
+            const refCode = (getField("affiliate_code") || "").trim().toUpperCase();
+            if (refCode) {
+                const aff = await lookupAffiliateByCode(refCode);
+                if (aff) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (patient as any).affiliate_id = aff.id;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    (patient as any).affiliate_attributed_at = bangkokDate();
+                }
+            }
 
             const { error: insertError } = await supabase.from("patients").insert(patient);
             if (insertError) throw insertError;
@@ -671,6 +684,9 @@ export default function NewPatientPage() {
                                 className="w-full text-[16px] rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา (ถ้ามี)"
                             />
+                        </FieldRow>
+                        <FieldRow label="รหัสแนะนำ (เซลล์/Affiliate)">
+                            <Input name="affiliate_code" placeholder="ถ้ามีเซลล์แนะนำมา ใส่รหัส" className={`${FORM_INPUT_CLS} font-mono uppercase`} />
                         </FieldRow>
                     </Section>
 
