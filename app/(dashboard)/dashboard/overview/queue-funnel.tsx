@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users2, ArrowRight, DoorClosed, DoorOpen, Wrench } from "lucide-react";
+import { Users2, DoorClosed, DoorOpen, Wrench } from "lucide-react";
 
 export interface FunnelBucket {
     key: string;
@@ -26,9 +26,6 @@ export function QueueFunnel({ buckets }: { buckets: FunnelBucket[] }) {
                         </span>
                     )}
                 </div>
-                <Link href="/dashboard/screening" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
-                    ไปจัดการคิว <ArrowRight className="h-3 w-3" />
-                </Link>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {buckets.map((b) => (
@@ -76,9 +73,6 @@ export function RoomStatusBoard({ rooms }: { rooms: RoomLight[] }) {
                     <DoorOpen className="h-4 w-4 text-[#2B54F0]" />
                     <h2 className="text-base font-bold text-slate-800">สถานะห้องตรวจ</h2>
                 </div>
-                <Link href="/dashboard/rooms" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
-                    จัดการห้อง <ArrowRight className="h-3 w-3" />
-                </Link>
             </div>
             {rooms.length === 0 ? (
                 <p className="text-sm text-slate-400 py-2">ยังไม่ได้ตั้งค่าห้องตรวจ</p>
