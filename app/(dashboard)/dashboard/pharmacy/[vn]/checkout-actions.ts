@@ -141,6 +141,30 @@ export async function completeCheckout(input: CheckoutInput) {
             }
         }
 
+        // 5b. Soft approval gate — ถ้ามีส่วนลด → สร้างคำขออนุมัติ (ไม่บล็อกการชำระ)
+        if (discount > 0) {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const [profRes, patRes] = await Promise.all([
+                    user ? supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+                    supabase.from("patients").select("first_name, last_name, phone").eq("hn", hn).maybeSingle(),
+                ]);
+                const requesterName = (profRes.data?.full_name as string) || "";
+                const patientName = patRes.data ? `${patRes.data.first_name || ""} ${patRes.data.last_name || ""}`.trim() : "";
+                // self-transaction: ชื่อลูกค้าตรงกับพนักงานที่เปิดบิล
+                const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+                const isSelf = !!requesterName && !!patientName && norm(requesterName) === norm(patientName);
+                await supabase.from("price_approvals").insert({
+                    clinic_id: clinicId, inv_id: invId, vn, hn, patient_name: patientName,
+                    requested_by: user?.id || null, requester_name: requesterName,
+                    discount_amount: discount, subtotal, total,
+                    is_self_transaction: isSelf, status: "pending",
+                });
+            } catch (e) {
+                console.warn("[checkout] price approval log failed:", e);
+            }
+        }
+
         // 6. Create payment log (เฉพาะถ้ามีการชำระจริง)
         if (paid > 0) {
             const dbPaymentMethod = paymentMethod === "credit" ? "credit_card" : paymentMethod;
