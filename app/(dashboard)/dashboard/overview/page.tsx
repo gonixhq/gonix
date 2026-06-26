@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
-    Users, Calendar, TrendingUp, Stethoscope,
+    Users, TrendingUp, Stethoscope,
     LayoutDashboard, Clock, CalendarDays, ArrowRight,
     Pill, UserCog, ClipboardList, CalendarClock, Wallet,
 } from "lucide-react";
@@ -251,11 +251,12 @@ export default async function DashboardPage({
     const greeting = bkkHour < 12 ? "สวัสดีตอนเช้า" : bkkHour < 17 ? "สวัสดีตอนบ่าย" : bkkHour < 20 ? "สวัสดีตอนเย็น" : "สวัสดีตอนค่ำ";
     const fullDate = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+    // การ์ดภาพรวมธุรกิจ — เฉพาะผู้จัดการ/เจ้าของ (พนักงานทั่วไปเห็นแค่ "ผลงานวันนี้")
+    // "คิววันนี้" ตัดออก เพราะซ้ำกับ "เคสวันนี้" ใน ผลงานวันนี้
     const statCards = [
-        { label: "ผู้ป่วยทั้งหมด", value: patientsRes.count?.toLocaleString() || "0", sub: "Active records", icon: Users, tile: "bg-[#2B54F0]/10", iconColor: "text-[#2B54F0]", glow: "from-[#2B54F0]/20 to-[#5F85FF]/5" },
-        { label: "คิววันนี้", value: visitsRes.count?.toLocaleString() || "0", sub: today, icon: Calendar, tile: "bg-[#0EA5A0]/10", iconColor: "text-[#0EA5A0]", glow: "from-[#00FFCC]/25 to-[#0EA5A0]/5" },
+        ...(showStaff ? [{ label: "ผู้ป่วยทั้งหมด", value: patientsRes.count?.toLocaleString() || "0", sub: "Active records", icon: Users, tile: "bg-[#2B54F0]/10", iconColor: "text-[#2B54F0]", glow: "from-[#2B54F0]/20 to-[#5F85FF]/5" }] : []),
         ...(showFinance ? [{ label: "รายได้เดือนนี้", value: `฿${monthlyRevenue.toLocaleString()}`, sub: "This month", icon: TrendingUp, tile: "bg-[#10B981]/10", iconColor: "text-[#10B981]", glow: "from-[#15FF83]/25 to-[#10B981]/5" }] : []),
-        { label: "พนักงาน", value: staffRes.count?.toString() || "0", sub: "Active staff", icon: Stethoscope, tile: "bg-[#6366F1]/10", iconColor: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" },
+        ...(showStaff ? [{ label: "พนักงาน", value: staffRes.count?.toString() || "0", sub: "Active staff", icon: Stethoscope, tile: "bg-[#6366F1]/10", iconColor: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" }] : []),
     ];
 
     return (
@@ -326,25 +327,27 @@ export default async function DashboardPage({
                 <AnnouncementBoard announcements={announcements} canManage={showStaff} />
             </div>
 
-            {/* Stat cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {statCards.map((s, i) => {
-                    const Icon = s.icon;
-                    return (
-                        <div key={i} className="gonix-card-premium p-5 relative overflow-hidden">
-                            <div className={`absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br ${s.glow} blur-2xl pointer-events-none`} />
-                            <div className="relative">
-                                <div className={`h-11 w-11 rounded-2xl flex items-center justify-center mb-3 ${s.tile}`}>
-                                    <Icon className={`h-5 w-5 ${s.iconColor}`} />
+            {/* Stat cards (ภาพรวมธุรกิจ — แสดงเฉพาะเมื่อมีการ์ด) */}
+            {statCards.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {statCards.map((s, i) => {
+                        const Icon = s.icon;
+                        return (
+                            <div key={i} className="gonix-card-premium p-5 relative overflow-hidden">
+                                <div className={`absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br ${s.glow} blur-2xl pointer-events-none`} />
+                                <div className="relative">
+                                    <div className={`h-11 w-11 rounded-2xl flex items-center justify-center mb-3 ${s.tile}`}>
+                                        <Icon className={`h-5 w-5 ${s.iconColor}`} />
+                                    </div>
+                                    <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">{s.value}</h3>
+                                    <p className="text-sm font-semibold text-slate-600 mt-1">{s.label}</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">{s.sub}</p>
                                 </div>
-                                <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">{s.value}</h3>
-                                <p className="text-sm font-semibold text-slate-600 mt-1">{s.label}</p>
-                                <p className="text-xs text-slate-400 mt-0.5">{s.sub}</p>
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Role-based performance — owner เห็นรายได้, พนักงานเห็นเฉพาะเคส/คิว */}
             <div className="gonix-card-premium p-5" data-widget="perf">
