@@ -14,6 +14,7 @@ import PatientAttachmentsTab from "./patient-attachments-tab";
 import AuditLogList from "./audit-log-list";
 import { VitalsTrend } from "./vitals-trend";
 import { VisitTimeline } from "./visit-timeline";
+import ReferralTab from "./referral-tab";
 import {
     ArrowLeft, User, Phone, Mail, Calendar, Heart, Stethoscope,
     AlertTriangle, Activity, Clock, Pencil, MapPin, ShieldCheck,
@@ -313,6 +314,9 @@ export default async function PatientDetailPage({
                     <TabsTrigger value="edit" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
                         <Pencil className="h-3.5 w-3.5" /> แก้ไข
                     </TabsTrigger>
+                    <TabsTrigger value="referral" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
+                        <Heart className="h-3.5 w-3.5" /> แนะนำเพื่อน
+                    </TabsTrigger>
                     <TabsTrigger value="audit" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
                         <Clock className="h-3.5 w-3.5" /> Log
                         {auditLogs.length > 0 && (
@@ -444,6 +448,11 @@ export default async function PatientDetailPage({
                 {/* ── Edit Tab ── */}
                 <TabsContent value="edit" className="mt-5">
                     <EditPatientForm patient={patient} />
+                </TabsContent>
+
+                {/* ── Referral Tab ── */}
+                <TabsContent value="referral" className="mt-5">
+                    <ReferralTab hn={patient.hn} />
                 </TabsContent>
 
                 {/* ── Audit Tab ── */}

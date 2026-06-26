@@ -17,6 +17,7 @@ import { PDPAModal } from "@/components/ui/pdpa-modal";
 import PreRegisterPicker, { type PendingFull } from "./pre-register-picker";
 import { markPendingAsUsed, countPendingRegistrations } from "@/lib/actions/pending-registrations";
 import { lookupAffiliateByCode } from "@/lib/actions/affiliates";
+import { recordReferral } from "@/lib/actions/patient-referrals";
 
 /* ─── Age Calculator (precise: year, month, day) ─── */
 function calcAge(dobStr: string) {
@@ -343,6 +344,12 @@ export default function NewPatientPage() {
 
             const { error: insertError } = await supabase.from("patients").insert(patient);
             if (insertError) throw insertError;
+
+            // เพื่อนแนะนำ (referral) — บันทึกความสัมพันธ์ + กันโกง
+            const friendCode = (getField("referrer_code") || "").trim().toUpperCase();
+            if (friendCode && hn) {
+                await recordReferral(friendCode, hn);
+            }
 
             if (pulledId && hn) {
                 await markPendingAsUsed(pulledId, hn);
@@ -687,6 +694,9 @@ export default function NewPatientPage() {
                         </FieldRow>
                         <FieldRow label="รหัสแนะนำ (เซลล์/Affiliate)">
                             <Input name="affiliate_code" placeholder="ถ้ามีเซลล์แนะนำมา ใส่รหัส" className={`${FORM_INPUT_CLS} font-mono uppercase`} />
+                        </FieldRow>
+                        <FieldRow label="รหัสเพื่อนแนะนำ (Referral)">
+                            <Input name="referrer_code" placeholder="ถ้าเพื่อนแนะนำมา ใส่รหัสเพื่อน (RFxxxxx)" className={`${FORM_INPUT_CLS} font-mono uppercase`} />
                         </FieldRow>
                     </Section>
 
