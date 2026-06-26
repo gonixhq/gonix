@@ -19,6 +19,24 @@ async function getCtx() {
     return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
 }
 
+/** บันทึกลิงก์ Google Drive (รูปก่อน-หลังเพิ่มเติม) ของ visit */
+export async function setVisitDriveUrl(vn: string, url: string) {
+    try {
+        const { supabase } = await getCtx();
+        const trimmed = url.trim();
+        // อนุญาตเฉพาะลิงก์ว่าง หรือ http(s) เท่านั้น
+        if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+            return { success: false, error: "ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://" };
+        }
+        const { error } = await supabase
+            .from("visits").update({ photo_drive_url: trimmed || null }).eq("vn", vn);
+        if (error) return { success: false, error: error.message };
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
+    }
+}
+
 /**
  * บันทึกความยินยอมให้ใช้ภาพ (review_consent) ของผู้ป่วย + ลง audit log ไว้ตรวจสอบ (PDPA)
  * ใช้เป็น gate การนำภาพก่อน-หลังออกจากระบบ

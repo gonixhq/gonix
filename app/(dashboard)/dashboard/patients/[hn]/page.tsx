@@ -43,7 +43,7 @@ export default async function PatientDetailPage({
         supabase.from("patient_packages").select("id", { count: "exact", head: true })
             .eq("hn", hn).eq("status", "active"),
         supabase.from("visits")
-            .select("vn, visit_date, aesthetic_records")
+            .select("vn, visit_date, aesthetic_records, photo_drive_url")
             .eq("hn", hn)
             .eq("service_category", "aesthetic")
             .order("visit_date", { ascending: false })
@@ -74,6 +74,7 @@ export default async function PatientDetailPage({
             visit_date: v.visit_date,
             before: (records.photos?.before || []) as AestheticPhoto[],
             after: (records.photos?.after || []) as AestheticPhoto[],
+            photo_drive_url: (v.photo_drive_url || "") as string,
         };
     });
     const totalAestheticPhotos = aestheticPhotoVisits.reduce(

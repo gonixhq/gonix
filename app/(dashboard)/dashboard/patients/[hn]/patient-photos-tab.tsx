@@ -6,9 +6,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
     Camera, Trash2, Image as ImageIcon, ArrowLeftRight, Calendar,
-    Loader2, Sparkles, ExternalLink, X, ShieldCheck, Lock, Download,
+    Loader2, Sparkles, ExternalLink, X, ShieldCheck, Lock, Download, Link2, Check,
 } from "lucide-react";
-import { uploadAestheticPhoto, deleteAestheticPhoto, setReviewConsent } from "@/lib/actions/aesthetic";
+import { uploadAestheticPhoto, deleteAestheticPhoto, setReviewConsent, setVisitDriveUrl } from "@/lib/actions/aesthetic";
 import { watermarkImage } from "@/lib/watermark";
 import type { AestheticPhoto } from "@/lib/aesthetic-types";
 
@@ -17,6 +17,7 @@ interface VisitWithPhotos {
     visit_date: string;
     before: AestheticPhoto[];
     after: AestheticPhoto[];
+    photo_drive_url?: string;
 }
 
 interface Props {
@@ -325,6 +326,73 @@ function VisitPhotoCard({
                     onDelete={path => onDelete("after", path)}
                 />
             </div>
+
+            {/* Google Drive link — เก็บรูป/วิดีโอเพิ่มเติมของครั้งนี้ */}
+            <div className="px-4 pb-4">
+                <DriveLinkEditor vn={visit.vn} initialUrl={visit.photo_drive_url || ""} />
+            </div>
+        </div>
+    );
+}
+
+function DriveLinkEditor({ vn, initialUrl }: { vn: string; initialUrl: string }) {
+    const router = useRouter();
+    const [editing, setEditing] = useState(false);
+    const [url, setUrl] = useState(initialUrl);
+    const [pending, start] = useTransition();
+    const [err, setErr] = useState<string | null>(null);
+
+    function save() {
+        setErr(null);
+        start(async () => {
+            const res = await setVisitDriveUrl(vn, url);
+            if (!res.success) { setErr(res.error || "บันทึกไม่สำเร็จ"); return; }
+            setEditing(false);
+            router.refresh();
+        });
+    }
+
+    if (!editing) {
+        return (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2">
+                <Link2 className="h-4 w-4 text-slate-500 shrink-0" />
+                {initialUrl ? (
+                    <a href={initialUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline truncate flex-1 inline-flex items-center gap-1">
+                        เปิด Google Drive (รูปเพิ่มเติม) <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                ) : (
+                    <span className="text-xs text-slate-400 flex-1">ยังไม่มีลิงก์ Google Drive</span>
+                )}
+                <button onClick={() => setEditing(true)}
+                    className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] shrink-0">
+                    {initialUrl ? "แก้ไข" : "เพิ่มลิงก์"}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <div className="flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-slate-500 shrink-0" />
+                <input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="วางลิงก์ Google Drive (https://...)"
+                    className="flex-1 h-8 text-xs rounded-lg border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30"
+                    autoFocus
+                />
+                <button onClick={save} disabled={pending}
+                    className="h-8 px-2.5 rounded-lg bg-[#2B54F0] text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                    {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} บันทึก
+                </button>
+                <button onClick={() => { setUrl(initialUrl); setEditing(false); setErr(null); }}
+                    className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400">
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+            {err && <p className="text-[11px] text-red-600 mt-1">{err}</p>}
         </div>
     );
 }
