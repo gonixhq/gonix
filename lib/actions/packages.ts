@@ -23,9 +23,10 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
             .from("profiles").select("clinic_id").eq("id", user.id).single();
         if (!profile?.clinic_id) return { outstanding: 0, count: 0 };
 
+        // ใช้ view v_patient_packages_active (มี remaining_sessions + paid_amount ตาม schema 038)
         const { data } = await supabase
-            .from("patient_packages")
-            .select("selling_price, total_sessions, remaining_sessions")
+            .from("v_patient_packages_active")
+            .select("paid_amount, total_sessions, remaining_sessions")
             .eq("clinic_id", profile.clinic_id)
             .eq("status", "active");
 
@@ -33,8 +34,8 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
         for (const p of data || []) {
             const ts = Number(p.total_sessions || 0);
             const rem = Number(p.remaining_sessions || 0);
-            const price = Number(p.selling_price || 0);
-            if (ts > 0 && rem > 0) { outstanding += price * rem / ts; count++; }
+            const paid = Number(p.paid_amount || 0);
+            if (ts > 0 && rem > 0) { outstanding += paid * rem / ts; count++; }
         }
         return { outstanding: Math.round(outstanding * 100) / 100, count };
     } catch {
