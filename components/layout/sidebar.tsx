@@ -62,6 +62,7 @@ const NAV_ITEMS: NavGroup[] = [
             { href: "/dashboard/commissions", tKey: "commissions", icon: HandCoins, permKey: "finance.view" },
             { href: "/dashboard/doctor-schedule", tKey: "doctorSchedule", icon: CalendarClock, adminOnly: true, permKey: "staff.manage" },
             { href: "/dashboard/compensation", tKey: "compensation", icon: Wallet, adminOnly: true, permKey: "staff.manage" },
+            { href: "/dashboard/checkin", tKey: "checkin", icon: CalendarClock },
             { href: "/dashboard/eod", tKey: "eod", icon: DoorClosed, permKey: "finance.eod" },
             { href: "/dashboard/reports", tKey: "reports", icon: BarChart3, permKey: "reports.view" },
             { href: "/dashboard/branches", tKey: "branches", icon: Building2, adminOnly: true, permKey: "branches.manage" },

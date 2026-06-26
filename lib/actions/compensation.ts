@@ -212,16 +212,67 @@ export async function getMyTimeStatus(): Promise<MyTimeStatus> {
 }
 
 /** ตอกบัตรเข้างาน (ผู้ใช้ปัจจุบัน) */
-export async function clockIn() {
+// ── GPS helpers ──
+const EARTH_M = 6371000;
+function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return EARTH_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export interface ClinicLocation { lat: number | null; lng: number | null; radius: number }
+
+/** พิกัดคลินิก + รัศมีที่อนุญาตให้ตอกบัตร */
+export async function getClinicLocation(): Promise<ClinicLocation> {
+    const { supabase, clinicId } = await getCtx();
+    const { data } = await supabase.from("tenants").select("gps_lat, gps_lng, gps_radius_m").eq("id", clinicId).maybeSingle();
+    return {
+        lat: data?.gps_lat != null ? Number(data.gps_lat) : null,
+        lng: data?.gps_lng != null ? Number(data.gps_lng) : null,
+        radius: Number(data?.gps_radius_m ?? 200),
+    };
+}
+
+/** ตั้งพิกัดคลินิก (แอดมิน) */
+export async function setClinicLocation(lat: number, lng: number, radius: number) {
+    const { supabase, clinicId } = await getCtx();
+    if (isNaN(lat) || isNaN(lng)) return { success: false, error: "พิกัดไม่ถูกต้อง" };
+    const { error } = await supabase.from("tenants")
+        .update({ gps_lat: lat, gps_lng: lng, gps_radius_m: Math.max(20, Math.round(radius || 200)) })
+        .eq("id", clinicId);
+    if (error) return { success: false, error: error.message };
+    revalidatePath("/dashboard/checkin");
+    return { success: true };
+}
+
+/** ตรวจว่าพิกัดอยู่ในรัศมีคลินิกไหม (ถ้าคลินิกยังไม่ตั้งพิกัด = อนุญาตทุกที่) */
+async function checkGps(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any, clinicId: string, coords?: { lat: number; lng: number },
+): Promise<{ ok: boolean; error?: string; distance?: number }> {
+    const { data } = await supabase.from("tenants").select("gps_lat, gps_lng, gps_radius_m").eq("id", clinicId).maybeSingle();
+    if (data?.gps_lat == null || data?.gps_lng == null) return { ok: true }; // ยังไม่ตั้งพิกัด → ไม่บังคับ
+    if (!coords) return { ok: false, error: "ต้องเปิดสิทธิ์ตำแหน่ง (GPS) เพื่อตอกบัตร" };
+    const dist = distanceM(coords.lat, coords.lng, Number(data.gps_lat), Number(data.gps_lng));
+    const radius = Number(data.gps_radius_m ?? 200);
+    if (dist > radius) return { ok: false, error: `อยู่นอกระยะคลินิก (ห่าง ${Math.round(dist)} ม. · อนุญาต ${radius} ม.)`, distance: dist };
+    return { ok: true, distance: dist };
+}
+
+export async function clockIn(coords?: { lat: number; lng: number }) {
     const { supabase, userId, clinicId } = await getCtx();
     const { data: st } = await supabase.from("staff").select("id").eq("profile_id", userId).maybeSingle();
     if (!st) throw new Error("บัญชีนี้ไม่ผูกกับข้อมูลพนักงาน");
+    const gps = await checkGps(supabase, clinicId, coords);
+    if (!gps.ok) return { success: false, error: gps.error };
     const { data: open } = await supabase.from("staff_time_logs").select("id").eq("staff_id", st.id).is("clock_out", null).maybeSingle();
     if (open) return { success: true, alreadyOpen: true };
     const now = new Date();
     const { error } = await supabase.from("staff_time_logs").insert({
         clinic_id: clinicId, staff_id: st.id, work_date: bangkokDate(now),
         clock_in: now.toISOString(), source: "clock", created_by: userId,
+        clock_in_lat: coords?.lat ?? null, clock_in_lng: coords?.lng ?? null,
     });
     if (error) throw error;
     revalidatePath("/dashboard/compensation");
@@ -229,12 +280,14 @@ export async function clockIn() {
 }
 
 /** ตอกบัตรออกงาน (ผู้ใช้ปัจจุบัน) */
-export async function clockOut() {
-    const { supabase, userId } = await getCtx();
+export async function clockOut(coords?: { lat: number; lng: number }) {
+    const { supabase, userId, clinicId } = await getCtx();
     const { data: st } = await supabase.from("staff").select("id").eq("profile_id", userId).maybeSingle();
     if (!st) throw new Error("บัญชีนี้ไม่ผูกกับข้อมูลพนักงาน");
+    const gps = await checkGps(supabase, clinicId, coords);
+    if (!gps.ok) return { success: false, error: gps.error };
     const { error } = await supabase.from("staff_time_logs")
-        .update({ clock_out: new Date().toISOString() })
+        .update({ clock_out: new Date().toISOString(), clock_out_lat: coords?.lat ?? null, clock_out_lng: coords?.lng ?? null })
         .eq("staff_id", st.id).is("clock_out", null);
     if (error) throw error;
     revalidatePath("/dashboard/compensation");
