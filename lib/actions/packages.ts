@@ -83,6 +83,39 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
     }
 }
 
+/** นับคอสที่ active + ใกล้หมดอายุภายใน N วัน (ยังมีครั้งเหลือ) — สำหรับแจ้งเตือน */
+export async function getExpiringPackagesCount(days = 30): Promise<{ count: number; soonestDays: number | null }> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { count: 0, soonestDays: null };
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { count: 0, soonestDays: null };
+
+        const { data } = await supabase
+            .from("v_patient_packages_active")
+            .select("remaining_sessions, days_remaining, is_expired")
+            .eq("clinic_id", profile.clinic_id)
+            .eq("status", "active");
+
+        let count = 0;
+        let soonestDays: number | null = null;
+        for (const p of data || []) {
+            const rem = Number(p.remaining_sessions || 0);
+            const dleft = Number(p.days_remaining ?? 9999);
+            if (p.is_expired || rem <= 0) continue;
+            if (dleft <= days) {
+                count++;
+                if (soonestDays === null || dleft < soonestDays) soonestDays = dleft;
+            }
+        }
+        return { count, soonestDays };
+    } catch {
+        return { count: 0, soonestDays: null };
+    }
+}
+
 export async function listActivePackages(): Promise<ServicePackage[]> {
     try {
         const supabase = await createClient();

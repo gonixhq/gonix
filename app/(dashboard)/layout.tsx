@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/layout/sidebar";
 import TopNavbar from "@/components/layout/top-navbar";
+import QuickActionFab from "@/components/layout/quick-action-fab";
 import { LanguageProvider } from "@/lib/i18n";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { PermissionProvider } from "@/lib/auth/permission-context";
@@ -94,6 +95,7 @@ export default async function DashboardLayout({
                     <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 animate-fade-in scroll-smooth">
                         {children}
                     </main>
+                    {permissions["visits.edit"] === true && <QuickActionFab />}
                 </div>
             </div>
           </PermissionProvider>

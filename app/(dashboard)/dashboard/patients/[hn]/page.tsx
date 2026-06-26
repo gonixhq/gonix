@@ -11,6 +11,7 @@ import LoyaltyCard from "./loyalty-card";
 import PatientPackagesTab from "./patient-packages-tab";
 import PatientPhotosTab from "./patient-photos-tab";
 import PatientAttachmentsTab from "./patient-attachments-tab";
+import AuditLogList from "./audit-log-list";
 import {
     ArrowLeft, User, Phone, Mail, Calendar, Heart, Stethoscope,
     AlertTriangle, Activity, Clock, Pencil, MapPin, ShieldCheck,
@@ -120,6 +121,14 @@ export default async function PatientDetailPage({
             (icdRows || []).map(r => [r.code, r.description_th || r.description_en || ""])
         );
     }
+
+    // สรุป ICD-10 ที่พบบ่อย (การวินิจฉัยซ้ำๆ ของผู้ป่วยรายนี้)
+    const icdFreq = new Map<string, number>();
+    for (const v of visits) {
+        const code = v.icd10_primary as string | null;
+        if (code) icdFreq.set(code, (icdFreq.get(code) || 0) + 1);
+    }
+    const topIcd = [...icdFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
 
     function calculateAge(dob: string | null): string {
         if (!dob) return "—";
@@ -408,7 +417,25 @@ export default async function PatientDetailPage({
                 </TabsContent>
 
                 {/* ── Visits Tab ── */}
-                <TabsContent value="visits" className="mt-5">
+                <TabsContent value="visits" className="mt-5 space-y-5">
+                    {topIcd.length > 0 && (
+                        <div className="gonix-card-premium p-5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Activity className="h-4 w-4 text-[#2B54F0]" />
+                                <h3 className="text-sm font-bold text-slate-800">การวินิจฉัยที่พบบ่อย</h3>
+                                <span className="text-xs text-slate-400">(จาก {visits.length} visit)</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {topIcd.map(([code, count]) => (
+                                    <span key={code} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-slate-700">
+                                        <span className="font-mono font-bold text-blue-700">{code}</span>
+                                        {visitIcdMap[code] && <span className="text-slate-600 max-w-[200px] truncate">{visitIcdMap[code]}</span>}
+                                        <span className="font-bold text-blue-700">×{count}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <VisitsGrid visits={visits} icdMap={visitIcdMap} />
                 </TabsContent>
 
@@ -439,35 +466,7 @@ export default async function PatientDetailPage({
                         {auditLogs.length === 0 ? (
                             <div className="text-center py-12 text-sm text-slate-400">ยังไม่มีประวัติการแก้ไข</div>
                         ) : (
-                            <div className="divide-y divide-slate-100">
-                                {auditLogs.map((log) => {
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const changer = Array.isArray((log as any).changer) ? (log as any).changer[0] : (log as any).changer;
-                                    return (
-                                        <div key={log.id} className="px-5 py-3 flex items-start gap-3 hover:bg-slate-50/50 transition-colors">
-                                            <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
-                                                <Pencil className="h-3.5 w-3.5" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap text-sm">
-                                                    <span className="font-bold text-slate-800">{log.field_name}</span>
-                                                    <span className="text-xs text-slate-400">เปลี่ยนจาก</span>
-                                                    <span className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded font-mono max-w-[150px] truncate">{log.old_value || "—"}</span>
-                                                    <span className="text-xs text-slate-400">→</span>
-                                                    <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-mono max-w-[150px] truncate">{log.new_value || "—"}</span>
-                                                </div>
-                                                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                                                    <User className="h-3 w-3" />
-                                                    {changer?.full_name || "Unknown"}
-                                                    <span>·</span>
-                                                    <Clock className="h-3 w-3" />
-                                                    {new Date(log.changed_at).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <AuditLogList logs={auditLogs} />
                         )}
                     </div>
                 </TabsContent>

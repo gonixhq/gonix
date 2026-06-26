@@ -12,6 +12,7 @@ import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "@/lib/actions/anonymous";
 import { listRoomStatuses } from "@/lib/actions/rooms";
 import { getActiveAnnouncements } from "@/lib/actions/announcements";
+import { getExpiringPackagesCount } from "@/lib/actions/packages";
 import { getBusyForecast } from "@/lib/actions/dashboard-forecast";
 import { BusyForecastCard } from "./busy-forecast-card";
 import { QueueAdvance } from "./queue-advance";
@@ -20,7 +21,7 @@ import { AutoRefresh, WaitBadge, RealtimeRefresh } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
 import { AnnouncementBoard, AddAnnouncementButton } from "./announcement-board";
 import { SegmentToggle, type Seg } from "./segment-toggle";
-import { Activity, Target, Receipt } from "lucide-react";
+import { Activity, Target, Receipt, Sparkles } from "lucide-react";
 
 // service_category → segment (ความงาม = aesthetic, ที่เหลือ = medical)
 const AESTHETIC_CATS = new Set(["aesthetic"]);
@@ -149,6 +150,8 @@ export default async function DashboardPage({
 
     // Unified alerts (expiry + outstanding) — สต๊อกต่ำใช้ของเดิม (lowStock) อยู่แล้ว
     const alerts = await getAlerts();
+    // คอสใกล้หมดอายุ (≤30 วัน, ยังมีครั้งเหลือ) — แจ้งเตือนเพื่อ cross-sell/ดูแลต่อ
+    const expiringPackages = showFinance ? await getExpiringPackagesCount(30) : { count: 0, soonestDays: null };
 
     // หมอเข้าเวรวันนี้ + ใครเข้าเวรอยู่แต่ยังไม่ check-in ห้อง + สถานะห้อง + ประกาศ
     const [onDuty, notCheckedIn, roomStatuses, announcements, busyForecast] = await Promise.all([
@@ -532,12 +535,31 @@ export default async function DashboardPage({
                             </Link>
                         )}
 
+                        {/* Expiring courses (คอสใกล้หมดอายุ) */}
+                        {showFinance && expiringPackages.count > 0 && (
+                            <Link href="/dashboard/packages" className="block group">
+                                <div className="rounded-xl bg-violet-50/70 border border-violet-200/60 p-3 hover:bg-violet-100/60 transition-colors flex items-center gap-3">
+                                    <div className="h-9 w-9 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center">
+                                        <Sparkles className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-violet-900">คอสใกล้หมดอายุ</div>
+                                        <div className="text-xs text-violet-700">
+                                            {expiringPackages.count} คอส (≤30 วัน){expiringPackages.soonestDays !== null ? ` · ใกล้สุด ${expiringPackages.soonestDays} วัน` : ""} — ตามลูกค้าต่อ
+                                        </div>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-violet-500 group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </Link>
+                        )}
+
                         {/* No alerts */}
                         {(!showStaff || (pendingStaffRes.count || 0) === 0)
                             && (!showInventory || lowStock.length === 0)
                             && (!showInventory || alerts.expired === 0)
                             && (!showInventory || alerts.expiringSoon === 0)
-                            && (!showFinance || alerts.outstanding === 0) && (
+                            && (!showFinance || alerts.outstanding === 0)
+                            && (!showFinance || expiringPackages.count === 0) && (
                             <div className="rounded-xl bg-emerald-50/70 border border-emerald-200/60 p-4 text-center">
                                 <div className="text-sm font-bold text-emerald-800 mb-1">✓ ไม่มีรายการเร่งด่วน</div>
                                 <div className="text-xs text-emerald-700">ระบบทำงานปกติ</div>
