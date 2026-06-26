@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import type { CommissionEntry } from "@/lib/actions/commissions";
 import { approveCommission, unapproveCommission } from "@/lib/actions/commissions";
+import { useState } from "react";
+import { Split } from "lucide-react";
+import SplitModal from "./split-modal";
 
 const ROLE_LABEL: Record<string, string> = {
     doctor: "แพทย์",
@@ -74,6 +77,8 @@ export default function StaffDetailClient({
     const isPaid = !!payout;
     const router = useRouter();
     const [pending, start] = useTransition();
+    const [splitTarget, setSplitTarget] = useState<{ item_id: string; item_name: string } | null>(null);
+    const canEditSplit = !isApproved && !isPaid;
 
     function doApprove() {
         if (!confirm(`อนุมัติ + ล็อกยอด DF ของ ${staffName} เดือนนี้?\nยอดจะถูกล็อกที่ ฿${total.toLocaleString()} แม้บิลถูกแก้ภายหลัง`)) return;
@@ -263,7 +268,20 @@ export default function StaffDetailClient({
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-2 text-slate-600 text-xs">{e.patient_name || "—"}</td>
-                                                <td className="px-4 py-2 text-slate-700">{e.item_name}</td>
+                                                <td className="px-4 py-2 text-slate-700">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>{e.item_name}</span>
+                                                        {e.is_split && (
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 shrink-0">แบ่ง {e.split_percent}%</span>
+                                                        )}
+                                                        {canEditSplit && e.item_id && (
+                                                            <button onClick={() => setSplitTarget({ item_id: e.item_id, item_name: e.item_name })}
+                                                                title="แบ่งค่ามือ" className="text-violet-400 hover:text-violet-600 shrink-0">
+                                                                <Split className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-2 text-center tabular-nums">{e.qty}</td>
                                                 <td className="px-4 py-2 text-right tabular-nums text-slate-500">
                                                     {e.sale_amount != null ? `฿${Number(e.sale_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
@@ -282,6 +300,17 @@ export default function StaffDetailClient({
                         );
                     })}
                 </div>
+            )}
+
+            {splitTarget && (
+                <SplitModal
+                    invItemId={splitTarget.item_id}
+                    itemName={splitTarget.item_name}
+                    role={role}
+                    currentStaffId={staffId}
+                    currentStaffName={staffName}
+                    onClose={() => setSplitTarget(null)}
+                />
             )}
         </div>
     );

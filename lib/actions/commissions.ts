@@ -16,6 +16,57 @@ export interface CommissionEntry {
     vn: string;
     patient_name?: string;   // ชื่อลูกค้า (enrich)
     sale_amount?: number;    // ยอดขาย line_total (enrich)
+    is_split?: boolean;      // รายการนี้ถูกแบ่งค่ามือ
+    split_percent?: number;  // % ที่คนนี้ได้รับจากการแบ่ง
+}
+
+/**
+ * ดึง entries จาก view แล้ว apply split (override การ attribute ปกติ)
+ * รายการที่มี split → แตกเป็นหลาย entry ตาม % · รายการปกติ → คงเดิม
+ */
+async function attributeEntries(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any, clinicId: string, periodMonth: string, roleFilter?: string,
+): Promise<CommissionEntry[]> {
+    let q = supabase.from("v_commission_summary").select("*").eq("clinic_id", clinicId).eq("period_month", periodMonth);
+    if (roleFilter) q = q.eq("role", roleFilter);
+    const { data } = await q;
+    const entries = (data || []) as CommissionEntry[];
+    const itemIds = [...new Set(entries.map(e => e.item_id).filter(Boolean))];
+
+    const splitMap = new Map<string, { staff_id: string; percent: number }[]>();
+    if (itemIds.length) {
+        const { data: splitRows } = await supabase
+            .from("commission_splits")
+            .select("inv_item_id, role, staff_id, percent")
+            .eq("clinic_id", clinicId)
+            .in("inv_item_id", itemIds);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (splitRows || []).forEach((s: any) => {
+            const k = `${s.inv_item_id}|${s.role}`;
+            if (!splitMap.has(k)) splitMap.set(k, []);
+            splitMap.get(k)!.push({ staff_id: s.staff_id, percent: Number(s.percent) });
+        });
+    }
+
+    const out: CommissionEntry[] = [];
+    for (const e of entries) {
+        const splits = splitMap.get(`${e.item_id}|${e.role}`);
+        if (splits && splits.length) {
+            for (const sp of splits) {
+                out.push({
+                    ...e,
+                    staff_id: sp.staff_id,
+                    commission_amount: Math.round(Number(e.commission_amount) * sp.percent) / 100,
+                    is_split: true,
+                    split_percent: sp.percent,
+                });
+            }
+        } else {
+            out.push(e);
+        }
+    }
+    return out;
 }
 
 export interface StaffCommissionSummary {
@@ -52,19 +103,12 @@ export async function getCommissionsByPeriod(periodMonth: string): Promise<Staff
     try {
         const { supabase, clinicId } = await getCtx();
 
-        // 1. ดึงข้อมูลจาก view
-        const { data: entries, error } = await supabase
-            .from("v_commission_summary")
-            .select("staff_id, role, commission_amount")
-            .eq("clinic_id", clinicId)
-            .eq("period_month", periodMonth);
-
-        if (error || !entries) return [];
+        // 1. ดึง entries (apply split แล้ว — รายการที่แบ่งค่ามือจะ re-attribute ให้ถูกคน)
+        const entries = await attributeEntries(supabase, clinicId, periodMonth);
 
         // 2. Group + sum
         const grouped: Record<string, { role: string; total: number; count: number }> = {};
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (entries as any[]).forEach(e => {
+        entries.forEach(e => {
             const key = `${e.staff_id}|${e.role}`;
             if (!grouped[key]) grouped[key] = { role: e.role, total: 0, count: 0 };
             grouped[key].total += Number(e.commission_amount || 0);
@@ -152,16 +196,12 @@ export async function getCommissionDetail(
     try {
         const { supabase, clinicId } = await getCtx();
 
-        const { data: entries } = await supabase
-            .from("v_commission_summary")
-            .select("*")
-            .eq("clinic_id", clinicId)
-            .eq("staff_id", staffId)
-            .eq("role", role)
-            .eq("period_month", periodMonth)
-            .order("invoice_date", { ascending: true });
-
-        const list = (entries || []) as unknown as CommissionEntry[];
+        // ดึงทั้ง role แล้ว apply split → กรองเฉพาะ entries ที่ตกเป็นของ staff คนนี้
+        // (รวมทั้งกรณีเป็นผู้รับส่วนแบ่ง แม้ไม่ใช่ผู้ทำเคสหลัก)
+        const attributed = await attributeEntries(supabase, clinicId, periodMonth, role);
+        const list = attributed
+            .filter(e => e.staff_id === staffId)
+            .sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : 1));
         const total = list.reduce((s, e) => s + Number(e.commission_amount || 0), 0);
 
         // Enrich: ยอดขาย (line_total) + ชื่อลูกค้า — โดยไม่แตะ view
@@ -222,14 +262,11 @@ export async function approveCommission(input: {
 }) {
     try {
         const { supabase, userId, clinicId } = await getCtx();
-        // คำนวณยอด live ณ ตอนนี้เพื่อ snapshot
-        const { data: entries } = await supabase
-            .from("v_commission_summary")
-            .select("commission_amount")
-            .eq("clinic_id", clinicId).eq("staff_id", input.staff_id)
-            .eq("role", input.role).eq("period_month", input.period_month);
-        const amount = (entries || []).reduce((s, e) => s + Number((e as { commission_amount: number }).commission_amount || 0), 0);
-        const count = (entries || []).length;
+        // คำนวณยอด live (apply split แล้ว) ณ ตอนนี้เพื่อ snapshot
+        const attributed = await attributeEntries(supabase, clinicId, input.period_month, input.role);
+        const mine = attributed.filter(e => e.staff_id === input.staff_id);
+        const amount = mine.reduce((s, e) => s + Number(e.commission_amount || 0), 0);
+        const count = mine.length;
 
         const { error } = await supabase.from("commission_approvals").upsert({
             clinic_id: clinicId,
@@ -328,5 +365,87 @@ export async function deleteCommissionPayout(staffId: string, periodMonth: strin
         return { success: true };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// Split Commission — แบ่ง DF 1 รายการให้หลายคน
+// ════════════════════════════════════════════════════════════
+
+export interface SplitRow { staff_id: string; staff_name: string; percent: number; }
+export interface StaffOption { id: string; name: string; }
+
+/** รายชื่อ staff สำหรับเลือกผู้รับส่วนแบ่ง */
+export async function listStaffOptions(): Promise<StaffOption[]> {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const { data } = await supabase
+            .from("staff")
+            .select("id, profiles!inner(full_name)")
+            .eq("clinic_id", clinicId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (data || []).map((s: any) => {
+            const p = Array.isArray(s.profiles) ? s.profiles[0] : s.profiles;
+            return { id: s.id, name: p?.full_name || "—" };
+        });
+    } catch {
+        return [];
+    }
+}
+
+/** ดึงการแบ่งปัจจุบันของ (รายการ, role) */
+export async function getItemSplits(invItemId: string, role: string): Promise<SplitRow[]> {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const { data } = await supabase
+            .from("commission_splits")
+            .select("staff_id, percent, staff!inner(profiles!inner(full_name))")
+            .eq("clinic_id", clinicId).eq("inv_item_id", invItemId).eq("role", role);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (data || []).map((r: any) => {
+            const st = Array.isArray(r.staff) ? r.staff[0] : r.staff;
+            const p = Array.isArray(st?.profiles) ? st.profiles[0] : st?.profiles;
+            return { staff_id: r.staff_id, staff_name: p?.full_name || "—", percent: Number(r.percent) };
+        });
+    } catch {
+        return [];
+    }
+}
+
+/** ตั้งค่าการแบ่ง (replace ทั้งหมด) — % รวมต้อง = 100, ลบทิ้งถ้าส่งว่าง */
+export async function setItemSplits(
+    invItemId: string, role: string, splits: { staff_id: string; percent: number }[],
+) {
+    try {
+        const { supabase, userId, clinicId } = await getCtx();
+
+        // ลบของเดิมก่อน
+        await supabase.from("commission_splits").delete()
+            .eq("clinic_id", clinicId).eq("inv_item_id", invItemId).eq("role", role);
+
+        const valid = splits.filter(s => s.staff_id && s.percent > 0);
+        if (valid.length === 0) {
+            revalidatePath("/dashboard/commissions");
+            return { success: true }; // เคลียร์การแบ่ง = กลับไป attribute ปกติ
+        }
+        const sum = valid.reduce((s, r) => s + Number(r.percent), 0);
+        if (Math.abs(sum - 100) > 0.01) {
+            return { success: false, error: `% รวมต้องเท่ากับ 100 (ตอนนี้ ${sum})` };
+        }
+        // กันคนซ้ำ
+        const ids = new Set(valid.map(v => v.staff_id));
+        if (ids.size !== valid.length) return { success: false, error: "มีพนักงานซ้ำ" };
+
+        const { error } = await supabase.from("commission_splits").insert(
+            valid.map(s => ({
+                clinic_id: clinicId, inv_item_id: invItemId, role,
+                staff_id: s.staff_id, percent: s.percent, created_by: userId,
+            })),
+        );
+        if (error) return { success: false, error: error.message };
+        revalidatePath("/dashboard/commissions");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
     }
 }
