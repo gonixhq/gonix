@@ -12,6 +12,8 @@ import PatientPackagesTab from "./patient-packages-tab";
 import PatientPhotosTab from "./patient-photos-tab";
 import PatientAttachmentsTab from "./patient-attachments-tab";
 import AuditLogList from "./audit-log-list";
+import { VitalsTrend } from "./vitals-trend";
+import { VisitTimeline } from "./visit-timeline";
 import {
     ArrowLeft, User, Phone, Mail, Calendar, Heart, Stethoscope,
     AlertTriangle, Activity, Clock, Pencil, MapPin, ShieldCheck,
@@ -129,6 +131,15 @@ export default async function PatientDetailPage({
         if (code) icdFreq.set(code, (icdFreq.get(code) || 0) + 1);
     }
     const topIcd = [...icdFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+    // สัญญาณชีพข้ามเวลา (trend) — เรียงเก่า→ใหม่
+    const { data: vitalsData } = await supabase
+        .from("vital_signs")
+        .select("recorded_at, bp_systolic, bp_diastolic, weight_kg, bmi")
+        .eq("hn", hn)
+        .order("recorded_at", { ascending: true })
+        .limit(30);
+    const vitals = vitalsData || [];
 
     function calculateAge(dob: string | null): string {
         if (!dob) return "—";
@@ -436,6 +447,8 @@ export default async function PatientDetailPage({
                             </div>
                         </div>
                     )}
+                    <VitalsTrend vitals={vitals} />
+                    <VisitTimeline visits={visits} icdMap={visitIcdMap} />
                     <VisitsGrid visits={visits} icdMap={visitIcdMap} />
                 </TabsContent>
 
