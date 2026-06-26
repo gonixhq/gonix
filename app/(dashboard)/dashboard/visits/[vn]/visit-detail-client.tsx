@@ -452,6 +452,12 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 vn={vn}
                                 hn={patient.hn}
                                 defaultIcd10={visit.icd10_primary || ""}
+                                allergens={[
+                                    ...allergies.map((a) => a.allergen_name),
+                                    ...(patient.allergy_summary
+                                        ? String(patient.allergy_summary).split(/[,;/\n\s]+/).filter((w: string) => w.length >= 4)
+                                        : []),
+                                ]}
                             />
 
                             {drugs.length > 0 && (

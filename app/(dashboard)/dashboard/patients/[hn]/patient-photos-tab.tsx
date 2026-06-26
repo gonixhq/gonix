@@ -6,9 +6,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
     Camera, Trash2, Image as ImageIcon, ArrowLeftRight, Calendar,
-    Loader2, Sparkles, ExternalLink, X,
+    Loader2, Sparkles, ExternalLink, X, ShieldCheck, Lock, Download,
 } from "lucide-react";
-import { uploadAestheticPhoto, deleteAestheticPhoto } from "@/lib/actions/aesthetic";
+import { uploadAestheticPhoto, deleteAestheticPhoto, setReviewConsent } from "@/lib/actions/aesthetic";
 import { watermarkImage } from "@/lib/watermark";
 import type { AestheticPhoto } from "@/lib/aesthetic-types";
 
@@ -23,9 +23,10 @@ interface Props {
     hn: string;
     visits: VisitWithPhotos[];
     clinicName?: string;
+    consent?: boolean;
 }
 
-export default function PatientPhotosTab({ hn, visits, clinicName }: Props) {
+export default function PatientPhotosTab({ hn, visits, clinicName, consent = false }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [lightbox, setLightbox] = useState<AestheticPhoto | null>(null);
@@ -70,6 +71,28 @@ export default function PatientPhotosTab({ hn, visits, clinicName }: Props) {
         if (ref) ref.value = "";
     }
 
+    function toggleConsent() {
+        const next = !consent;
+        if (next && !confirm("ยืนยันว่าผู้ป่วยได้ให้ความยินยอมให้ใช้ภาพก่อน-หลังแล้ว?")) return;
+        if (!next && !confirm("ยกเลิกความยินยอม? จะล็อกการนำภาพออกจากระบบ")) return;
+        startTransition(async () => {
+            const result = await setReviewConsent(hn, next);
+            if (!result.success) {
+                setError(result.error || "บันทึกความยินยอมไม่สำเร็จ");
+                return;
+            }
+            router.refresh();
+        });
+    }
+
+    function handleExport(p: AestheticPhoto) {
+        if (!consent) {
+            setError("ยังไม่ได้รับความยินยอมให้ใช้ภาพ — ไม่สามารถดาวน์โหลด/นำออกได้");
+            return;
+        }
+        window.open(p.url, "_blank");
+    }
+
     function handleDelete(vn: string, type: "before" | "after", path: string) {
         if (!confirm("ลบรูปนี้?")) return;
         startTransition(async () => {
@@ -91,6 +114,30 @@ export default function PatientPhotosTab({ hn, visits, clinicName }: Props) {
             {error && (
                 <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">{error}</div>
             )}
+
+            {/* Consent banner (PDPA) — สถานะความยินยอมให้ใช้ภาพ + ปุ่มสลับ */}
+            <div className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${consent ? "bg-emerald-50/70 border-emerald-200" : "bg-amber-50/70 border-amber-200"}`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                    {consent ? <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" /> : <Lock className="h-5 w-5 text-amber-600 shrink-0" />}
+                    <div className="min-w-0">
+                        <div className={`text-sm font-bold ${consent ? "text-emerald-800" : "text-amber-800"}`}>
+                            {consent ? "ได้รับความยินยอมให้ใช้ภาพแล้ว" : "ยังไม่ได้รับความยินยอมให้ใช้ภาพ"}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                            {consent ? "นำภาพออก/ดาวน์โหลดได้ (มีบันทึกใน Log)" : "🔒 การนำภาพออก/ดาวน์โหลดถูกล็อกเพื่อ PDPA"}
+                        </div>
+                    </div>
+                </div>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isPending}
+                    onClick={toggleConsent}
+                    className={`rounded-lg h-8 text-xs shrink-0 ${consent ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"}`}
+                >
+                    {consent ? "ยกเลิกความยินยอม" : "บันทึกว่ายินยอมแล้ว"}
+                </Button>
+            </div>
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3">
@@ -147,10 +194,36 @@ export default function PatientPhotosTab({ hn, visits, clinicName }: Props) {
             {/* Lightbox */}
             {lightbox && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
                     onClick={() => setLightbox(null)}
                 >
-                    <img src={lightbox.url} alt="" className="max-w-full max-h-full rounded-xl shadow-2xl" />
+                    <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+                        <img
+                            src={lightbox.url}
+                            alt=""
+                            className="max-w-full max-h-[88vh] rounded-xl shadow-2xl select-none"
+                            draggable={false}
+                            onContextMenu={(e) => { if (!consent) e.preventDefault(); }}
+                        />
+                        {/* ปุ่มดาวน์โหลด — ทำงานเฉพาะเมื่อได้รับความยินยอม */}
+                        <div className="absolute top-3 right-3 flex gap-2">
+                            {consent ? (
+                                <button
+                                    onClick={() => handleExport(lightbox)}
+                                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white/90 text-slate-700 text-sm font-bold shadow hover:bg-white"
+                                >
+                                    <Download className="h-4 w-4" /> เปิด/ดาวน์โหลด
+                                </button>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-black/60 text-white/90 text-xs font-bold">
+                                    <Lock className="h-3.5 w-3.5" /> ล็อก — รอความยินยอม
+                                </span>
+                            )}
+                            <button onClick={() => setLightbox(null)} className="h-9 w-9 rounded-xl bg-white/90 text-slate-700 flex items-center justify-center shadow hover:bg-white">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

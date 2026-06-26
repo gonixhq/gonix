@@ -53,6 +53,18 @@ interface DrugOrderFormProps {
     vn: string;
     hn: string;
     defaultIcd10?: string;
+    allergens?: string[];   // รายการสารก่อภูมิแพ้ของผู้ป่วย (ชื่อยา/สาร) สำหรับ cross-check
+}
+
+/** เช็คว่าชื่อยาตรงกับสารที่ผู้ป่วยแพ้ไหม (substring match — เวอร์ชันเบา ไม่ใช้ drug DB) */
+function allergyConflict(itemName: string, generic: string, allergens: string[]): string | null {
+    const hay = `${itemName} ${generic}`.toLowerCase();
+    for (const a of allergens) {
+        const t = (a || "").trim().toLowerCase();
+        if (t.length < 3) continue;
+        if (hay.includes(t) || t.includes(hay.trim())) return a;
+    }
+    return null;
 }
 
 const commonSigs = [
@@ -65,7 +77,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "" }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [] }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -443,6 +455,28 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "" }: DrugOrderFo
                     )}
                 </div>
 
+                {/* ⚠️ เตือนยาที่ตรงกับประวัติแพ้ */}
+                {allergens.length > 0 && (() => {
+                    const conflicts = orderLines
+                        .map((l) => ({ line: l, allergen: allergyConflict(l.item_name, l.generic_name, allergens) }))
+                        .filter((c) => c.allergen);
+                    if (conflicts.length === 0) return null;
+                    return (
+                        <div className="rounded-xl bg-red-50 border-2 border-red-300 p-3 mb-2 flex items-start gap-2">
+                            <span className="text-lg leading-none">⚠️</span>
+                            <div className="text-sm text-red-800">
+                                <div className="font-bold">เตือน: มียาที่ตรงกับประวัติแพ้ของผู้ป่วย!</div>
+                                <ul className="mt-1 space-y-0.5">
+                                    {conflicts.map((c, i) => (
+                                        <li key={i}>• <b>{c.line.item_name}</b> — แพ้ <b>{c.allergen}</b></li>
+                                    ))}
+                                </ul>
+                                <div className="text-[11px] text-red-600 mt-1">โปรดทบทวนก่อนสั่งจ่าย (ตรวจชื่อยาเทียบรายการแพ้เท่านั้น ไม่รวมยาตีกัน)</div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
                 {/* Table */}
                 <div className="border rounded-md">
                     <table className="w-full text-sm">
@@ -463,9 +497,14 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "" }: DrugOrderFo
                                     </td>
                                 </tr>
                             ) : orderLines.map((line, idx) => (
-                                <tr key={line.inventoryId} className="border-b last:border-0 hover:bg-slate-50/50">
+                                <tr key={line.inventoryId} className={`border-b last:border-0 hover:bg-slate-50/50 ${allergyConflict(line.item_name, line.generic_name, allergens) ? "bg-red-50/60" : ""}`}>
                                     <td className="px-4 py-2">
-                                        <div className="font-medium">{line.item_name}</div>
+                                        <div className="font-medium flex items-center gap-1.5">
+                                            {line.item_name}
+                                            {allergyConflict(line.item_name, line.generic_name, allergens) && (
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">⚠ แพ้</span>
+                                            )}
+                                        </div>
                                         {line.generic_name && <div className="text-xs text-slate-400">{line.generic_name}</div>}
                                     </td>
                                     <td className="px-3 py-2">

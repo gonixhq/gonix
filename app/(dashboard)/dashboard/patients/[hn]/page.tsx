@@ -469,7 +469,7 @@ export default async function PatientDetailPage({
 
                 {/* ── Photos Tab (Before/After across all aesthetic visits) ── */}
                 <TabsContent value="photos" className="mt-5">
-                    <PatientPhotosTab hn={patient.hn} visits={aestheticPhotoVisits} clinicName={clinicName} />
+                    <PatientPhotosTab hn={patient.hn} visits={aestheticPhotoVisits} clinicName={clinicName} consent={!!patient.review_consent} />
                 </TabsContent>
 
                 {/* ── Attachments Tab (All visits combined) ── */}

@@ -19,6 +19,37 @@ async function getCtx() {
     return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
 }
 
+/**
+ * บันทึกความยินยอมให้ใช้ภาพ (review_consent) ของผู้ป่วย + ลง audit log ไว้ตรวจสอบ (PDPA)
+ * ใช้เป็น gate การนำภาพก่อน-หลังออกจากระบบ
+ */
+export async function setReviewConsent(hn: string, consented: boolean) {
+    try {
+        const { supabase, userId } = await getCtx();
+        const { data: cur } = await supabase
+            .from("patients").select("review_consent").eq("hn", hn).maybeSingle();
+        const oldVal = cur?.review_consent ? "ยินยอม" : "ไม่ยินยอม";
+
+        const { error } = await supabase
+            .from("patients").update({ review_consent: consented }).eq("hn", hn);
+        if (error) return { success: false, error: error.message };
+
+        // ลง audit เพื่อ traceability (ใคร/เมื่อไหร่)
+        await supabase.from("patient_audit_logs").insert({
+            hn,
+            changed_by: userId,
+            field_name: "ความยินยอมใช้ภาพ (review_consent)",
+            old_value: oldVal,
+            new_value: consented ? "ยินยอม" : "ไม่ยินยอม",
+        });
+
+        revalidatePath(`/dashboard/patients/${hn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
+    }
+}
+
 async function getCurrentRecords(vn: string): Promise<AestheticRecords> {
     const { supabase } = await getCtx();
     const { data } = await supabase.from("visits").select("aesthetic_records").eq("vn", vn).maybeSingle();
