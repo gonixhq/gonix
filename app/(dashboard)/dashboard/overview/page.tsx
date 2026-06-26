@@ -400,11 +400,6 @@ export default async function DashboardPage({
                 <RoomStatusBoard rooms={roomLights} />
             </div>
 
-            {/* Busy-period forecast */}
-            <div data-widget="forecast">
-                <BusyForecastCard forecast={busyForecast} nowHour={bkkHour} />
-            </div>
-
             {/* Row: On-duty + Alerts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start" data-widget="onduty">
                 {/* On-duty doctors today */}
@@ -643,6 +638,11 @@ export default async function DashboardPage({
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* Busy-period forecast — ข้อมูลเสริม ไว้ล่างสุด */}
+            <div data-widget="forecast">
+                <BusyForecastCard forecast={busyForecast} nowHour={bkkHour} />
             </div>
 
         </div>
