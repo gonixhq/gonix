@@ -26,6 +26,11 @@ export interface RegisterVisitInput {
     // Routing
     doctor_id?: string | null;        // staff.id
     send_to_doctor?: boolean;         // ถ้า true → status='with_doctor'
+
+    // Attribution — ที่มาของเคส (บังคับ)
+    case_source?: "walk_in" | "line" | "affiliate" | "referral";
+    case_affiliate_id?: string | null;   // เมื่อ case_source = affiliate
+    case_referral_code?: string | null;  // เมื่อ case_source = referral
 }
 
 /**
@@ -52,6 +57,26 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
         if (!patient) return { success: false, error: "ไม่พบผู้ป่วย" };
         if (patient.clinic_id !== profile.clinic_id) {
             return { success: false, error: "ผู้ป่วยไม่อยู่ในคลินิกของคุณ" };
+        }
+
+        // ── Attribution (บังคับ + ยืนยันตัวก่อนบันทึก) ──
+        const caseSource = input.case_source;
+        if (!caseSource) return { success: false, error: "กรุณาเลือก “ที่มาของเคส”" };
+        let caseAffiliateId: string | null = null;
+        let caseReferralCode: string | null = null;
+        if (caseSource === "affiliate") {
+            if (!input.case_affiliate_id) return { success: false, error: "เลือกเซลล์ฟรีแลนซ์ก่อนบันทึก" };
+            const { data: aff } = await supabase.from("affiliates")
+                .select("id").eq("id", input.case_affiliate_id).eq("clinic_id", profile.clinic_id).eq("is_active", true).maybeSingle();
+            if (!aff) return { success: false, error: "ไม่พบเซลล์ที่เลือก" };
+            caseAffiliateId = aff.id as string;
+        } else if (caseSource === "referral") {
+            const code = (input.case_referral_code || "").trim().toUpperCase();
+            if (!code) return { success: false, error: "กรอกรหัสลูกค้าแนะนำก่อนบันทึก" };
+            const { data: ref } = await supabase.from("patients")
+                .select("hn").eq("clinic_id", profile.clinic_id).eq("referral_code", code).maybeSingle();
+            if (!ref) return { success: false, error: "ไม่พบรหัสลูกค้าแนะนำนี้" };
+            caseReferralCode = code;
         }
 
         // 1. Generate VN
@@ -91,6 +116,9 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
             height_cm: input.height_cm ?? null,
             doctor_id: input.doctor_id || null,
             nurse_id,
+            case_source: caseSource,
+            case_affiliate_id: caseAffiliateId,
+            case_referral_code: caseReferralCode,
         });
         if (visitErr) return { success: false, error: `Visit insert: ${visitErr.message}` };
 

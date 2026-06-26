@@ -13,7 +13,10 @@ import {
     Stethoscope, Sparkles, Bandage, FileText, HeartPulse, TestTube,
 } from "lucide-react";
 import { registerVisitWithScreening } from "@/lib/actions/visit-register";
+import { listAffiliates, type Affiliate } from "@/lib/actions/affiliates";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
+
+type CaseSource = "walk_in" | "line" | "affiliate" | "referral";
 
 interface PatientSearchResult {
     hn: string;
@@ -70,6 +73,11 @@ export default function NewVisitPage() {
 
     const [serviceCategory, setServiceCategory] = useState<ServiceCategory>("general_med");
     const [briefNote, setBriefNote] = useState("");
+    // ที่มาของเคส (บังคับ)
+    const [caseSource, setCaseSource] = useState<CaseSource | "">("");
+    const [caseAffiliateId, setCaseAffiliateId] = useState("");
+    const [caseReferralCode, setCaseReferralCode] = useState("");
+    const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
@@ -110,8 +118,17 @@ export default function NewVisitPage() {
         setShowResults(false);
     }
 
+    useEffect(() => {
+        if (caseSource === "affiliate" && affiliates.length === 0) {
+            listAffiliates().then(a => setAffiliates(a.filter(x => x.is_active)));
+        }
+    }, [caseSource, affiliates.length]);
+
     async function handleSubmit() {
         if (!selectedPatient) { setError("กรุณาเลือกผู้ป่วยก่อน"); return; }
+        if (!caseSource) { setError("กรุณาเลือก “ที่มาของเคส” ก่อนบันทึก"); return; }
+        if (caseSource === "affiliate" && !caseAffiliateId) { setError("เลือกเซลล์ฟรีแลนซ์ก่อน"); return; }
+        if (caseSource === "referral" && !caseReferralCode.trim()) { setError("กรอกรหัสลูกค้าแนะนำก่อน"); return; }
         setSubmitting(true);
         setError("");
 
@@ -122,6 +139,9 @@ export default function NewVisitPage() {
                 chief_complaint: briefNote || undefined,
                 triage_level: "normal",
                 send_to_doctor: false,  // ส่งเข้าคิวซักประวัติ (status = triaged)
+                case_source: caseSource,
+                case_affiliate_id: caseSource === "affiliate" ? caseAffiliateId : null,
+                case_referral_code: caseSource === "referral" ? caseReferralCode : null,
             });
 
             if (!res.success) {
@@ -311,6 +331,31 @@ export default function NewVisitPage() {
                     <Label className="text-sm font-bold text-slate-800">ประเภทบริการ</Label>
                 </div>
                 <ServiceCategoryPicker value={serviceCategory} onChange={setServiceCategory} />
+
+                {/* ที่มาของเคส (บังคับ) */}
+                <div className="pt-3 border-t border-slate-100">
+                    <Label className="text-sm font-bold text-slate-800">ที่มาของเคส <span className="text-rose-500">*</span></Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                        {([["walk_in", "Walk-in"], ["line", "จองผ่าน LINE"], ["affiliate", "เซลล์ฟรีแลนซ์"], ["referral", "ลูกค้าแนะนำ"]] as const).map(([k, l]) => (
+                            <button key={k} type="button" onClick={() => setCaseSource(k)}
+                                className={`h-10 rounded-xl text-xs font-bold transition-all ${caseSource === k ? "bg-[#2B54F0] text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                                {l}
+                            </button>
+                        ))}
+                    </div>
+                    {caseSource === "affiliate" && (
+                        <select value={caseAffiliateId} onChange={e => setCaseAffiliateId(e.target.value)}
+                            className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30">
+                            <option value="">— เลือกเซลล์ —</option>
+                            {affiliates.map(a => <option key={a.id} value={a.id}>{a.name} ({a.referral_code})</option>)}
+                        </select>
+                    )}
+                    {caseSource === "referral" && (
+                        <input value={caseReferralCode} onChange={e => setCaseReferralCode(e.target.value.toUpperCase())}
+                            placeholder="รหัสลูกค้าแนะนำ (RFxxxxx)" className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm mt-2 font-mono focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
+                    )}
+                    {!caseSource && <p className="text-[11px] text-rose-500 mt-1.5">⚠ ต้องเลือกที่มาของเคสก่อนเปิด visit</p>}
+                </div>
             </div>
 
             {/* Step 3: Brief Note (optional) */}
@@ -342,7 +387,7 @@ export default function NewVisitPage() {
                             <span className="text-slate-400 italic">เลือกผู้ป่วยก่อน</span>
                         )}
                     </div>
-                    <Button size="lg" disabled={!selectedPatient || submitting} onClick={handleSubmit}
+                    <Button size="lg" disabled={!selectedPatient || !caseSource || submitting} onClick={handleSubmit}
                         className="rounded-xl gap-1.5 h-11 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 shadow-md shadow-blue-500/25 min-w-[140px] text-white">
                         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                         เปิด Visit <ChevronRight className="h-3.5 w-3.5" />
