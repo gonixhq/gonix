@@ -26,8 +26,22 @@ export function AnnouncementBoard({
     const [pending, start] = useTransition();
     const [err, setErr] = useState<string | null>(null);
 
-    // ซ่อนทั้งกล่องถ้าไม่มีประกาศ + ไม่มีสิทธิ์โพสต์ (ไม่รก dashboard)
-    if (announcements.length === 0 && !canManage) return null;
+    const isEmpty = announcements.length === 0;
+
+    // ไม่มีประกาศ + ไม่มีสิทธิ์โพสต์ → ซ่อนทั้งหมด
+    if (isEmpty && !canManage) return null;
+
+    // ไม่มีประกาศ + เป็นผู้จัดการ + ยังไม่เปิดฟอร์ม → เหลือแค่ปุ่มเล็ก ไม่รก dashboard
+    if (isEmpty && !open) {
+        return (
+            <button
+                onClick={() => setOpen(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-white/70 border border-slate-200/70 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-[#2B54F0] transition-colors backdrop-blur"
+            >
+                <Megaphone className="h-3.5 w-3.5" /> เพิ่มประกาศ
+            </button>
+        );
+    }
 
     function submit() {
         setErr(null);
@@ -118,7 +132,7 @@ export function AnnouncementBoard({
 
             {/* รายการประกาศ */}
             {announcements.length === 0 ? (
-                <p className="text-sm text-slate-400 py-1">ยังไม่มีประกาศ</p>
+                !open && <p className="text-sm text-slate-400 py-1">ยังไม่มีประกาศ</p>
             ) : (
                 <div className="space-y-2.5">
                     {announcements.map((a) => {
