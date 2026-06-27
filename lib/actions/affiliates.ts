@@ -410,7 +410,7 @@ export async function closeAffiliateMonth(periodMonth: string, opts?: { payDate?
             toInsert.push({
                 clinic_id: clinicId, affiliate_id: a.id, period_month: periodMonth,
                 gross_amount: gross, wht_amount: wht, net_amount: round2(gross - wht),
-                status: "closed", closed_by: userId, closed_at: new Date().toISOString(),
+                status: "closed", closed_by: userId, closed_at: new Date().toISOString(), paid_at: null,
             });
         }
         if (toInsert.length) {

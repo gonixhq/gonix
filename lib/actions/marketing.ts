@@ -66,10 +66,13 @@ export async function getCacReport(periodMonth: string): Promise<{ rows: CacRow[
             .select("gross_amount").eq("clinic_id", clinicId).eq("period_month", periodMonth);
         const sellerSpend = round2((payouts || []).reduce((s, p) => s + Number(p.gross_amount), 0));
         // ลูกค้าใหม่จากเซลล์ = ผู้ป่วยที่ถูก attribute ในเดือนนี้
+        // (affiliate_attributed_at เป็น date — ใช้ขอบบน = วันแรกของเดือนถัดไป กันบั๊กเดือนไม่มีวันที่ 31)
+        const [yy, mm] = periodMonth.split("-").map(Number);
+        const nextMonthStart = mm === 12 ? `${yy + 1}-01-01` : `${yy}-${String(mm + 1).padStart(2, "0")}-01`;
         const { count: sellerNew } = await supabase.from("patients")
             .select("hn", { count: "exact", head: true })
             .eq("clinic_id", clinicId).not("affiliate_id", "is", null)
-            .gte("affiliate_attributed_at", `${periodMonth}-01`).lte("affiliate_attributed_at", `${periodMonth}-31`);
+            .gte("affiliate_attributed_at", `${periodMonth}-01`).lt("affiliate_attributed_at", nextMonthStart);
         const sellerCount = sellerNew ?? 0;
         rows.push({
             channel: "affiliate", label: CHANNEL_LABEL.affiliate,
