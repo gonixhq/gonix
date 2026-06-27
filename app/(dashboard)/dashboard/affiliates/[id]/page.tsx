@@ -6,6 +6,7 @@ import { ArrowLeft, UserPlus, Phone, Landmark, FileText, Award, TrendingUp, Repe
 import AffiliateDocs from "./affiliate-docs";
 import { AttributionTransfer, InvoiceSplitButton } from "./m14-tools";
 import AffiliateLine from "./affiliate-line";
+import AffiliateStatusToggle from "./affiliate-status";
 
 export const dynamic = "force-dynamic";
 
@@ -45,13 +46,19 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
             <div className="gonix-card-premium p-5 flex items-start gap-4">
                 <div className="h-14 w-14 rounded-2xl bg-[#2B54F0]/10 flex items-center justify-center"><UserPlus className="h-7 w-7 text-[#2B54F0]" /></div>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-xl font-bold text-slate-800">{affiliate.name}</h1>
+                    <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        {affiliate.name}
+                        {!affiliate.is_active && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">ปิดใช้งานอยู่</span>}
+                    </h1>
                     <div className="text-sm text-slate-500 flex flex-wrap gap-x-4 gap-y-1 mt-1">
                         <span className="font-mono">รหัส {affiliate.referral_code}</span>
                         <span>{affiliate.commission_type === "recurring" ? `ต่อเนื่อง ${affiliate.attribution_months} เดือน` : "ครั้งเดียว"} · {affiliate.commission_pct}%</span>
                         {affiliate.phone && <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{affiliate.phone}</span>}
                         {affiliate.bank_account && <span className="inline-flex items-center gap-1"><Landmark className="h-3 w-3" />{affiliate.bank_name} {affiliate.bank_account}</span>}
                         {branchName && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{branchName}</span>}
+                    </div>
+                    <div className="mt-3">
+                        <AffiliateStatusToggle affiliateId={id} isActive={affiliate.is_active} />
                     </div>
                 </div>
                 <div className="text-right">
