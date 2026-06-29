@@ -13,7 +13,7 @@ const baht = (n: number) => `฿${n.toLocaleString(undefined, { minimumFractionD
 function monthLabel(m: string) { const [y, mo] = m.split("-").map(Number); return new Date(y, mo - 1, 1).toLocaleDateString("th-TH", { year: "numeric", month: "long" }); }
 function shiftMonth(m: string, d: number) { const [y, mo] = m.split("-").map(Number); const dt = new Date(y, mo - 1 + d, 1); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`; }
 
-export default function AffiliatesClient({ month, summary, locked, lockedAt, branches }: { month: string; summary: AffiliateSummary[]; locked: boolean; lockedAt: string | null; branches: BranchOption[] }) {
+export default function AffiliatesClient({ month, summary, locked, lockedAt, branches, canManage }: { month: string; summary: AffiliateSummary[]; locked: boolean; lockedAt: string | null; branches: BranchOption[]; canManage: boolean }) {
     const router = useRouter();
     const [showAdd, setShowAdd] = useState(false);
     const [pending, start] = useTransition();
@@ -65,12 +65,12 @@ export default function AffiliatesClient({ month, summary, locked, lockedAt, bra
                     <div className="px-3 h-9 rounded-lg border border-slate-300 bg-white flex items-center gap-2 font-bold text-sm"><Calendar className="h-4 w-4 text-slate-500" />{monthLabel(month)}</div>
                     <Link href={`/dashboard/affiliates?month=${shiftMonth(month, 1)}`}><button className="h-9 w-9 rounded-lg border border-slate-300 bg-white flex items-center justify-center"><ChevronRight className="h-4 w-4" /></button></Link>
                     <Link href={`/dashboard/affiliates/cac?month=${month}`}><button className="h-9 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-bold inline-flex items-center gap-1.5"><Target className="h-4 w-4" /> CAC</button></Link>
-                    <button onClick={() => setShowAdd(true)} className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5"><Plus className="h-4 w-4" /> เพิ่ม</button>
-                    {locked ? (
+                    {canManage && <button onClick={() => setShowAdd(true)} className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5"><Plus className="h-4 w-4" /> เพิ่ม</button>}
+                    {canManage && (locked ? (
                         <button onClick={reopenMonth} disabled={pending} className="h-9 px-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50"><LockOpen className="h-4 w-4" /> เปิดยอด</button>
                     ) : (
                         <button onClick={closeMonth} disabled={pending || payableCount === 0} className="h-9 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-40"><Lock className="h-4 w-4" /> ปิดยอดเดือนนี้</button>
-                    )}
+                    ))}
                 </div>
             </div>
 
@@ -117,13 +117,21 @@ export default function AffiliatesClient({ month, summary, locked, lockedAt, bra
                                     <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{s.affiliate.referral_code}</td>
                                     <td className="px-3 py-2.5 text-center text-xs">{s.affiliate.commission_type === "recurring" ? `ต่อเนื่อง ${s.affiliate.attribution_months}ด.` : "ครั้งเดียว"}</td>
                                     <td className="px-3 py-2.5 text-right">
-                                        <button onClick={() => setRateFor({ id: s.affiliate.id, name: s.affiliate.name })}
-                                            className="inline-flex items-center gap-1 text-xs tabular-nums hover:text-[#2B54F0] group">
-                                            {s.affiliate.rate_basis && s.affiliate.rate_basis !== "flat"
-                                                ? <span className="font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">หลายขั้น</span>
-                                                : <span>{s.affiliate.commission_pct}%</span>}
-                                            <Layers className="h-3 w-3 opacity-30 group-hover:opacity-100" />
-                                        </button>
+                                        {canManage ? (
+                                            <button onClick={() => setRateFor({ id: s.affiliate.id, name: s.affiliate.name })}
+                                                className="inline-flex items-center gap-1 text-xs tabular-nums hover:text-[#2B54F0] group">
+                                                {s.affiliate.rate_basis && s.affiliate.rate_basis !== "flat"
+                                                    ? <span className="font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">หลายขั้น</span>
+                                                    : <span>{s.affiliate.commission_pct}%</span>}
+                                                <Layers className="h-3 w-3 opacity-30 group-hover:opacity-100" />
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs tabular-nums">
+                                                {s.affiliate.rate_basis && s.affiliate.rate_basis !== "flat"
+                                                    ? <span className="font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">หลายขั้น</span>
+                                                    : `${s.affiliate.commission_pct}%`}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{s.patient_count}</td>
                                     <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#10B981]">{baht(s.period_commission)}</td>
@@ -132,15 +140,17 @@ export default function AffiliatesClient({ month, summary, locked, lockedAt, bra
                                             <div className="inline-flex items-center gap-1.5">
                                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">จ่ายแล้ว</span>
                                                 <a href={`/print/wht-cert/${month}/${s.affiliate.id}`} target="_blank" rel="noopener" title="ใบหัก ณ ที่จ่าย 50 ทวิ" className="text-slate-400 hover:text-[#2B54F0]"><FileText className="h-3.5 w-3.5" /></a>
-                                                <button onClick={() => unpay(s.affiliate.id)} className="text-[10px] text-slate-400 hover:text-rose-500">ยกเลิก</button>
+                                                {canManage && <button onClick={() => unpay(s.affiliate.id)} className="text-[10px] text-slate-400 hover:text-rose-500">ยกเลิก</button>}
                                             </div>
                                         ) : s.period_commission > 0 ? (
                                             <div className="inline-flex items-center gap-1.5">
                                                 {s.payout_status === "closed" && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">ปิดยอด</span>}
-                                                <button onClick={() => pay(s.affiliate.id)} disabled={payingId === s.affiliate.id}
-                                                    className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 disabled:opacity-50">
-                                                    {payingId === s.affiliate.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />} จ่าย
-                                                </button>
+                                                {canManage ? (
+                                                    <button onClick={() => pay(s.affiliate.id)} disabled={payingId === s.affiliate.id}
+                                                        className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 disabled:opacity-50">
+                                                        {payingId === s.affiliate.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <BadgeCheck className="h-3 w-3" />} จ่าย
+                                                    </button>
+                                                ) : s.payout_status !== "closed" && <span className="text-[10px] text-slate-400">รอจ่าย</span>}
                                             </div>
                                         ) : <span className="text-slate-300 text-xs">—</span>}
                                     </td>

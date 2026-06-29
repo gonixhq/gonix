@@ -12,7 +12,7 @@ function monthLabel(m: string) { const [y, mo] = m.split("-").map(Number); retur
 function shiftMonth(m: string, d: number) { const [y, mo] = m.split("-").map(Number); const dt = new Date(y, mo - 1 + d, 1); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`; }
 const CH_LABEL: Record<string, string> = { facebook: "Facebook Ads", google: "Google Ads", tiktok: "TikTok Ads", other: "โฆษณาอื่นๆ" };
 
-export default function CacClient({ month, report, spend }: { month: string; report: { rows: CacRow[]; totalSpend: number; totalNew: number }; spend: AdSpendRow[] }) {
+export default function CacClient({ month, report, spend, canManage }: { month: string; report: { rows: CacRow[]; totalSpend: number; totalNew: number }; spend: AdSpendRow[]; canManage: boolean }) {
     const router = useRouter();
     const [pending, start] = useTransition();
     const spendByCh: Record<string, AdSpendRow> = {};
@@ -51,7 +51,8 @@ export default function CacClient({ month, report, spend }: { month: string; rep
                 </div>
             </div>
 
-            {/* กรอกค่าโฆษณา */}
+            {/* กรอกค่าโฆษณา (เฉพาะผู้มีสิทธิ์จัดการ) */}
+            {canManage && (
             <div className="gonix-card-premium p-5">
                 <div className="font-bold text-slate-800 text-sm mb-3">กรอกค่าโฆษณา + ลูกค้าใหม่ต่อช่องทาง</div>
                 <div className="space-y-2">
@@ -72,6 +73,7 @@ export default function CacClient({ month, report, spend }: { month: string; rep
                     ))}
                 </div>
             </div>
+            )}
 
             {/* ตารางเปรียบเทียบ CAC */}
             <div className="gonix-card-premium overflow-hidden">

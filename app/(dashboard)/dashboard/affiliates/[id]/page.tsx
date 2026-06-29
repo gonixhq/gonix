@@ -1,4 +1,5 @@
 import { gatePermission } from "@/lib/auth/guard";
+import { can } from "@/lib/auth/permissions";
 import { getAffiliateLedger, getAffiliatePayoutHistory, listAffiliates, getAffiliateQuality, getBranches } from "@/lib/actions/affiliates";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -20,12 +21,13 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
     const sp = await searchParams;
     const now = new Date();
     const month = sp.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const [{ entries, total, affiliate }, history, affiliates, quality, branches] = await Promise.all([
+    const [{ entries, total, affiliate }, history, affiliates, quality, branches, canManage] = await Promise.all([
         getAffiliateLedger(id, month),
         getAffiliatePayoutHistory({ affiliateId: id }),
         listAffiliates(),
         getAffiliateQuality(id),
         getBranches(),
+        can("finance.commission"),
     ]);
     if (!affiliate) return notFound();
     const affOptions = affiliates.map(a => ({ id: a.id, name: a.name }));
@@ -57,9 +59,11 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
                         {affiliate.bank_account && <span className="inline-flex items-center gap-1"><Landmark className="h-3 w-3" />{affiliate.bank_name} {affiliate.bank_account}</span>}
                         {branchName && <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{branchName}</span>}
                     </div>
-                    <div className="mt-3">
-                        <AffiliateStatusToggle affiliateId={id} isActive={affiliate.is_active} />
-                    </div>
+                    {canManage && (
+                        <div className="mt-3">
+                            <AffiliateStatusToggle affiliateId={id} isActive={affiliate.is_active} />
+                        </div>
+                    )}
                 </div>
                 <div className="text-right">
                     <div className="text-[10px] uppercase font-bold text-slate-500">{monthLabel(month)}</div>
@@ -103,12 +107,14 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
                 </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-                <AffiliateDocs affiliateId={id} idCardPath={affiliate.id_card_path} bankBookPath={affiliate.bank_book_path} />
-                <AffiliateLine affiliateId={id} linked={!!affiliate.line_user_id} month={month} />
-            </div>
+            {canManage && (
+                <div className="grid md:grid-cols-2 gap-4">
+                    <AffiliateDocs affiliateId={id} idCardPath={affiliate.id_card_path} bankBookPath={affiliate.bank_book_path} />
+                    <AffiliateLine affiliateId={id} linked={!!affiliate.line_user_id} month={month} />
+                </div>
+            )}
 
-            <AttributionTransfer affiliates={affOptions} />
+            {canManage && <AttributionTransfer affiliates={affOptions} />}
 
             <div className="gonix-card-premium overflow-hidden">
                 <div className="px-5 py-3 border-b border-slate-100 font-bold text-slate-800 text-sm">รายการค่าคอม (Transaction Ledger)</div>
@@ -125,7 +131,7 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
                                     <th className="text-right px-4 py-2">ยอดขาย</th>
                                     <th className="text-right px-4 py-2">%</th>
                                     <th className="text-right px-4 py-2">ค่าคอม</th>
-                                    <th className="text-center px-3 py-2">แบ่ง</th>
+                                    {canManage && <th className="text-center px-3 py-2">แบ่ง</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -139,7 +145,7 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
                                         <td className="px-4 py-2 text-right tabular-nums text-slate-500">{baht(e.sale_amount)}</td>
                                         <td className="px-4 py-2 text-right tabular-nums text-slate-500">{e.pct}%</td>
                                         <td className="px-4 py-2 text-right tabular-nums font-bold text-[#10B981]">{baht(e.commission)}</td>
-                                        <td className="px-3 py-2 text-center"><InvoiceSplitButton invId={e.inv_id} affiliates={affOptions} /></td>
+                                        {canManage && <td className="px-3 py-2 text-center"><InvoiceSplitButton invId={e.inv_id} affiliates={affOptions} /></td>}
                                     </tr>
                                 ))}
                             </tbody>

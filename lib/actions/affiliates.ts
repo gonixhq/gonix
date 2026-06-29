@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { pushLineText } from "@/lib/line";
+import { can } from "@/lib/auth/permissions";
+
+const MANAGE_KEY = "finance.commission";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const WHT_RATE = 0.03;
@@ -29,6 +32,14 @@ async function ctx() {
     const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
     if (!profile?.clinic_id) throw new Error("Clinic not found");
     return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
+}
+
+/** เหมือน ctx() แต่เช็คสิทธิ์ finance.commission ก่อน — ใช้กับ action ที่เขียนข้อมูล
+ *  (จ่าย/ปิดยอด/โอนสิทธิ์/แก้เรท/แบ่งบิล/สร้าง-แก้เซลล์) · throw ถ้าไม่มีสิทธิ์ → catch คืน error */
+async function ctxManage() {
+    const c = await ctx();
+    if (!(await can(MANAGE_KEY))) throw new Error("คุณไม่มีสิทธิ์จัดการค่าคอม/เซลล์ (ต้องการสิทธิ์ finance.commission)");
+    return c;
 }
 
 export type RateBasis = "flat" | "bill_seq" | "month_seq";
@@ -139,7 +150,7 @@ export async function createAffiliate(input: {
     commission_pct: number; attribution_months?: number; note?: string; branch_id?: string | null;
 }) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const code = input.referral_code.trim().toUpperCase();
         if (!input.name.trim() || !code) return { success: false, error: "กรอกชื่อ + รหัสแนะนำ" };
         if (input.commission_pct < 0 || input.commission_pct > 100) return { success: false, error: "% ต้องอยู่ 0–100" };
@@ -163,7 +174,7 @@ export async function updateAffiliate(id: string, patch: Partial<{
     commission_type: "recurring" | "one_time"; commission_pct: number; attribution_months: number; is_active: boolean; note: string; branch_id: string | null;
 }>) {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const { error } = await supabase.from("affiliates").update(patch).eq("id", id).eq("clinic_id", clinicId);
         if (error) return { success: false, error: error.message };
         revalidatePath("/dashboard/affiliates");
@@ -359,7 +370,7 @@ export async function getAffiliatesSummary(periodMonth: string): Promise<Affilia
 /** บันทึกจ่ายเงิน affiliate (หัก 3% ณ ที่จ่าย) — ถ้าปิดยอดไว้แล้วใช้ยอด snapshot */
 export async function recordAffiliatePayout(affiliateId: string, periodMonth: string, opts?: { note?: string }) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         // ถ้ามีแถวอยู่แล้ว (ปิดยอดไว้) → ใช้ยอด snapshot เดิม แค่เปลี่ยนสถานะเป็นจ่ายแล้ว
         const { data: existing } = await supabase.from("affiliate_payouts")
             .select("status").eq("clinic_id", clinicId).eq("affiliate_id", affiliateId).eq("period_month", periodMonth).maybeSingle();
@@ -394,7 +405,7 @@ export async function recordAffiliatePayout(affiliateId: string, periodMonth: st
 /** ปิดยอดทั้งเดือน — snapshot ทุก affiliate ที่มียอด>0 เป็น 'closed' + ล็อกเดือน + (option) แจ้ง LINE */
 export async function closeAffiliateMonth(periodMonth: string, opts?: { payDate?: string; notify?: boolean }) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const affs = await listAffiliates();
         const { data: existRows } = await supabase.from("affiliate_payouts")
             .select("affiliate_id").eq("clinic_id", clinicId).eq("period_month", periodMonth);
@@ -443,7 +454,7 @@ export async function closeAffiliateMonth(periodMonth: string, opts?: { payDate?
 /** เปิดยอดกลับ (ยกเลิกปิดเดือน) — ลบเฉพาะแถวที่ยัง 'closed' (ยังไม่จ่าย) + ปลดล็อก */
 export async function reopenAffiliateMonth(periodMonth: string) {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         await supabase.from("affiliate_payouts").delete()
             .eq("clinic_id", clinicId).eq("period_month", periodMonth).eq("status", "closed");
         await supabase.from("affiliate_month_locks").delete()
@@ -470,7 +481,7 @@ export async function getMonthLock(periodMonth: string): Promise<{ locked: boole
 /** ยกเลิกการจ่าย — ถ้าเดือนถูกปิดยอดไว้ คืนสถานะเป็น 'closed', ไม่งั้นลบทิ้ง */
 export async function deleteAffiliatePayout(affiliateId: string, periodMonth: string) {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const lock = await getMonthLock(periodMonth);
         if (lock.locked) {
             const { error } = await supabase.from("affiliate_payouts")
@@ -516,7 +527,7 @@ export async function getRateSchedule(affiliateId: string): Promise<RateSchedule
 /** บันทึก rate schedule + เขียน audit (snapshot ก่อน/หลัง) */
 export async function saveRateSchedule(affiliateId: string, schedule: RateSchedule, note?: string) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const basis = schedule.basis;
         if (!["flat", "bill_seq", "month_seq"].includes(basis)) return { success: false, error: "basis ไม่ถูกต้อง" };
 
@@ -577,7 +588,7 @@ const DOC_MAX = 10 * 1024 * 1024;
 /** อัปโหลดเอกสาร affiliate (kind: id_card | bank_book) ลง bucket clinic-assets */
 export async function uploadAffiliateDoc(formData: FormData) {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const file = formData.get("file") as File | null;
         const affiliateId = formData.get("affiliate_id") as string;
         const kind = formData.get("kind") as string;
@@ -620,7 +631,7 @@ export async function getAffiliateDocUrl(filePath: string): Promise<string | nul
 /** ลบเอกสาร affiliate */
 export async function deleteAffiliateDoc(affiliateId: string, kind: "id_card" | "bank_book") {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const col = kind === "id_card" ? "id_card_path" : "bank_book_path";
         const { data: row } = await supabase.from("affiliates").select(col).eq("id", affiliateId).eq("clinic_id", clinicId).maybeSingle();
         const p = (row as Record<string, string> | null)?.[col];
@@ -808,7 +819,7 @@ export interface AttributionLogEntry {
 /** โอนสิทธิ์ดูแลลูกค้า (เปลี่ยนเซลล์คนแรก) + บันทึก log — แก้ข้อพิพาท */
 export async function transferAttribution(hn: string, newAffiliateId: string | null, reason: string) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const { data: pat } = await supabase.from("patients")
             .select("affiliate_id").eq("clinic_id", clinicId).eq("hn", hn).maybeSingle();
         if (!pat) return { success: false, error: "ไม่พบลูกค้า (HN)" };
@@ -916,7 +927,7 @@ function payoutMessage(name: string, periodMonth: string, patientCount: number, 
 /** สร้างรหัสผูก LINE (ใช้ครั้งเดียว) — เซลล์ส่งรหัสนี้เข้า OA เพื่อผูกบัญชี */
 export async function generateAffiliateLinkCode(affiliateId: string): Promise<{ success: boolean; code?: string; error?: string }> {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const code = "AFF-" + Math.random().toString(36).slice(2, 8).toUpperCase();
         const { error } = await supabase.from("affiliates").update({ line_link_code: code })
             .eq("id", affiliateId).eq("clinic_id", clinicId);
@@ -931,7 +942,7 @@ export async function generateAffiliateLinkCode(affiliateId: string): Promise<{ 
 /** ยกเลิกการผูก LINE */
 export async function unlinkAffiliateLine(affiliateId: string) {
     try {
-        const { supabase, clinicId } = await ctx();
+        const { supabase, clinicId } = await ctxManage();
         const { error } = await supabase.from("affiliates")
             .update({ line_user_id: null, line_link_code: null }).eq("id", affiliateId).eq("clinic_id", clinicId);
         if (error) return { success: false, error: error.message };
@@ -945,7 +956,7 @@ export async function unlinkAffiliateLine(affiliateId: string) {
 /** ส่งสรุปยอดให้เซลล์ทาง LINE (manual หรือเรียกตอนปิดยอด) */
 export async function notifyAffiliatePayout(affiliateId: string, periodMonth: string, opts?: { payDate?: string }): Promise<{ success: boolean; error?: string }> {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const { data: aff } = await supabase.from("affiliates")
             .select("name, line_user_id").eq("id", affiliateId).eq("clinic_id", clinicId).maybeSingle();
         if (!aff) return { success: false, error: "ไม่พบเซลล์" };
@@ -978,7 +989,7 @@ export async function notifyAffiliatePayout(affiliateId: string, periodMonth: st
 /** ตั้งส่วนแบ่งบิล (override) — ส่ง [] เพื่อยกเลิกการแบ่ง กลับไป attribution ปกติ */
 export async function setInvoiceSplit(invId: string, splits: { affiliate_id: string; pct: number }[], note?: string) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         const clean = splits
             .filter(s => s.affiliate_id && Number(s.pct) > 0)
             .map(s => ({ affiliate_id: s.affiliate_id, pct: Number(s.pct) }));

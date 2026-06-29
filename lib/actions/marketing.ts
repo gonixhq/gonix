@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { can } from "@/lib/auth/permissions";
 import { AD_CHANNELS, CHANNEL_LABEL, type AdChannel, type AdSpendRow, type CacRow } from "@/lib/marketing-constants";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -13,6 +14,13 @@ async function ctx() {
     const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
     if (!profile?.clinic_id) throw new Error("Clinic not found");
     return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
+}
+
+/** เหมือน ctx() แต่เช็คสิทธิ์ finance.commission ก่อน (กรอกค่าโฆษณา CAC) */
+async function ctxManage() {
+    const c = await ctx();
+    if (!(await can("finance.commission"))) throw new Error("คุณไม่มีสิทธิ์จัดการค่าคอม/เซลล์ (ต้องการสิทธิ์ finance.commission)");
+    return c;
 }
 
 /** อ่านค่าโฆษณาที่กรอกไว้ของเดือน */
@@ -31,7 +39,7 @@ export async function listAdSpend(periodMonth: string): Promise<AdSpendRow[]> {
 /** บันทึก/แก้ค่าโฆษณาต่อช่องทาง (upsert) */
 export async function upsertAdSpend(periodMonth: string, channel: string, amount: number, newCustomers: number, note?: string) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
+        const { supabase, userId, clinicId } = await ctxManage();
         if (!AD_CHANNELS.includes(channel as AdChannel)) return { success: false, error: "ช่องทางไม่ถูกต้อง" };
         if (amount < 0 || newCustomers < 0) return { success: false, error: "ค่าต้องไม่ติดลบ" };
         const { error } = await supabase.from("marketing_ad_spend").upsert({

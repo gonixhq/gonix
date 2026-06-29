@@ -82,6 +82,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
             { key: "finance.collect", label: "รับชำระเงิน" },
             { key: "finance.refund", label: "คืนเงิน" },
             { key: "finance.eod", label: "ปิดยอดประจำวัน" },
+            { key: "finance.commission", label: "จัดการค่าคอม/จ่ายเซลล์ (ปิดยอด/จ่าย/โอนสิทธิ์)" },
         ],
     },
     {
@@ -173,7 +174,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     accountant: [
         "patients.view",
         "visits.view",
-        "finance.view", "finance.collect", "finance.refund", "finance.eod",
+        "finance.view", "finance.collect", "finance.refund", "finance.eod", "finance.commission",
         "reports.view", "reports.export",
     ],
 };
