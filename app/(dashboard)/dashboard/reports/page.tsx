@@ -1,6 +1,7 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { getReportSummary, getOutstandingInvoices } from "@/lib/actions/reports";
 import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/actions/business-insights";
+import { getPeakHours } from "@/lib/actions/operations-report";
 import ReportsClient from "./reports-client";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,13 @@ export default async function ReportsPage({
     const startDate = params.start || defaultStart;
     const endDate = params.end || today;
 
-    const [summary, outstanding, biz, rfm, basket] = await Promise.all([
+    const [summary, outstanding, biz, rfm, basket, peak] = await Promise.all([
         getReportSummary(startDate, endDate),
         getOutstandingInvoices(),
         getBusinessInsights(startDate, endDate),
         getRfmAnalysis(),
         getBasketAnalysis(startDate, endDate),
+        getPeakHours(startDate, endDate),
     ]);
 
     return (
@@ -40,6 +42,7 @@ export default async function ReportsPage({
             biz={biz}
             rfm={rfm}
             basket={basket}
+            peak={peak}
             startDate={startDate}
             endDate={endDate}
             today={today}

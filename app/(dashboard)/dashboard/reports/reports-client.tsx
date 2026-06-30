@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
+import type { PeakHours } from "@/lib/actions/operations-report";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
@@ -55,6 +56,8 @@ const ITEM_TYPE_COLOR: Record<string, string> = {
     other: "bg-slate-100 text-slate-700",
 };
 
+const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
 const CATEGORY_LABEL: Record<string, string> = {
     general_med: "เวชกรรมทั่วไป",
     aesthetic: "ความงาม",
@@ -94,20 +97,21 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, outstanding, biz, rfm, basket, startDate, endDate, today,
+    summary, outstanding, biz, rfm, basket, peak, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
     basket: BasketAnalysis;
+    peak: PeakHours;
     startDate: string;
     endDate: string;
     today: string;
 }) {
     const router = useRouter();
     const [showOutstanding, setShowOutstanding] = useState(false);
-    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior">("overview");
+    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations">("overview");
 
     const newPct = biz.totalRevenue > 0 ? Math.round((biz.newRevenue / biz.totalRevenue) * 100) : 0;
     const retPct = 100 - newPct;
@@ -189,13 +193,13 @@ export default function ReportsClient({
     }
 
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
-    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "all") {
+    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "all") {
         window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}`, "_blank");
     }
 
     const TAB_LABEL: Record<string, string> = {
         overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
-        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ",
+        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ",
     };
 
     const maxDayRevenue = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
@@ -268,6 +272,7 @@ export default function ReportsClient({
                     <TabBtn active={tab === "items"} onClick={() => setTab("items")}>รายการขายดี</TabBtn>
                     <TabBtn active={tab === "customers"} onClick={() => setTab("customers")}>ลูกค้า & ธุรกิจ</TabBtn>
                     <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
+                    <TabBtn active={tab === "operations"} onClick={() => setTab("operations")}>ปฏิบัติการ</TabBtn>
                 </div>
 
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
@@ -635,6 +640,31 @@ export default function ReportsClient({
                 </div>
             )}
 
+            {/* ── แท็บ ปฏิบัติการ (Operations) ── */}
+            {tab === "operations" && (
+                <div className="space-y-4 animate-fade-in">
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2 flex-wrap">
+                            <Activity className="h-4 w-4 text-sky-600" />
+                            <h2 className="text-sm font-bold text-slate-800">ช่วงเวลาที่ลูกค้าแน่น (Peak Hours)</h2>
+                            {peak.busiest && (
+                                <span className="text-xs text-slate-400">
+                                    พีคสุด: {DAYS_TH[peak.busiest.day]} {String(peak.busiest.hour).padStart(2, "0")}:00 น. · {peak.busiest.count} visit
+                                </span>
+                            )}
+                        </div>
+                        <div className="p-4 overflow-x-auto">
+                            {peak.total === 0
+                                ? <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                                : <PeakHeatmap peak={peak} />}
+                        </div>
+                        <div className="px-4 pb-4">
+                            <p className="text-[11px] text-slate-400">นับจากเวลาเปิด Visit (visit_time) · สีเข้ม = ลูกค้าแน่น ใช้จัดเวรแพทย์/พนักงานให้พอในช่วงพีค ลดเวลารอคอย</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Outstanding modal */}
             {showOutstanding && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowOutstanding(false)}>
@@ -738,5 +768,62 @@ function StatCard({ icon: Icon, label, value, color, sub }: {
                 {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
             </div>
         </div>
+    );
+}
+
+function PeakHeatmap({ peak }: { peak: PeakHours }) {
+    // ช่วงชั่วโมงที่จะแสดง = จากชั่วโมงแรกถึงชั่วโมงสุดท้ายที่มีข้อมูล (อย่างน้อย 8–19)
+    let lo = 23, hi = 0;
+    peak.byHour.forEach((c, h) => { if (c > 0) { if (h < lo) lo = h; if (h > hi) hi = h; } });
+    if (lo > hi) { lo = 8; hi = 19; }
+    lo = Math.min(lo, 8); hi = Math.max(hi, 19);
+    const hours: number[] = [];
+    for (let h = lo; h <= hi; h++) hours.push(h);
+
+    const cellBg = (count: number) => {
+        if (count === 0) return undefined;
+        const ratio = peak.maxCell > 0 ? count / peak.maxCell : 0;
+        return `rgba(2, 132, 199, ${(0.12 + 0.78 * ratio).toFixed(3)})`; // sky-600
+    };
+
+    return (
+        <table className="border-separate" style={{ borderSpacing: 3 }}>
+            <thead>
+                <tr>
+                    <th className="text-[10px] font-bold text-slate-400 text-right pr-2 sticky left-0 bg-white">วัน \ ชม.</th>
+                    {hours.map(h => (
+                        <th key={h} className="text-[10px] font-bold text-slate-500 w-8 text-center">{String(h).padStart(2, "0")}</th>
+                    ))}
+                    <th className="text-[10px] font-bold text-slate-400 text-center pl-2">รวม</th>
+                </tr>
+            </thead>
+            <tbody>
+                {peak.grid.map((row, day) => (
+                    <tr key={day}>
+                        <td className="text-[11px] font-bold text-slate-600 text-right pr-2 sticky left-0 bg-white">{DAYS_TH[day]}</td>
+                        {hours.map(h => {
+                            const c = row[h];
+                            return (
+                                <td key={h} title={`${DAYS_TH[day]} ${String(h).padStart(2, "0")}:00 · ${c} visit`}
+                                    className="w-8 h-8 text-center align-middle rounded"
+                                    style={{ background: cellBg(c) }}>
+                                    <span className={`text-[10px] tabular-nums ${c > 0 ? (peak.maxCell > 0 && c / peak.maxCell > 0.55 ? "text-white font-bold" : "text-slate-700") : "text-slate-200"}`}>
+                                        {c > 0 ? c : "·"}
+                                    </span>
+                                </td>
+                            );
+                        })}
+                        <td className="text-[11px] font-bold text-slate-500 text-center pl-2 tabular-nums">{peak.byDay[day]}</td>
+                    </tr>
+                ))}
+                <tr>
+                    <td className="text-[10px] font-bold text-slate-400 text-right pr-2 sticky left-0 bg-white">รวม</td>
+                    {hours.map(h => (
+                        <td key={h} className="text-[10px] font-bold text-slate-500 text-center tabular-nums">{peak.byHour[h] || ""}</td>
+                    ))}
+                    <td className="text-[11px] font-black text-slate-700 text-center pl-2 tabular-nums">{peak.total}</td>
+                </tr>
+            </tbody>
+        </table>
     );
 }
