@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
-import type { PeakHours, StaffPerfRow, OutstandingPackages } from "@/lib/actions/operations-report";
+import type { PeakHours, StaffPerfRow, OutstandingPackages, InventoryRevenue } from "@/lib/actions/operations-report";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
@@ -103,7 +103,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, startDate, endDate, today,
+    summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     outstanding: OutstandingInvoice[];
@@ -113,6 +113,7 @@ export default function ReportsClient({
     peak: PeakHours;
     staffPerf: StaffPerfRow[];
     outstandingPkg: OutstandingPackages;
+    invMargin: InventoryRevenue;
     startDate: string;
     endDate: string;
     today: string;
@@ -189,6 +190,22 @@ export default function ReportsClient({
         lines.push("=== ซื้อแล้วครั้งถัดไปมักซื้ออะไร ===");
         lines.push("ซื้อก่อน,ครั้งถัดไป,จำนวนครั้ง,เฉลี่ยห่าง(วัน)");
         basket.transitions.forEach(t => lines.push(`"${t.from}","${t.to}",${t.count},${t.avgGapDays}`));
+        lines.push("");
+        lines.push("=== ผลงานแพทย์/พนักงาน ===");
+        lines.push("ผู้ดูแล,ตำแหน่ง,เคส,ลูกค้า,ยอดขาย,เฉลี่ย/เคส,ชม.เวร,ขาย/ชม.,Retention%");
+        staffPerf.forEach(s => lines.push(`"${s.name}",${ROLE_TH[s.role] || s.role},${s.cases},${s.patients},${s.sales},${s.avgPerCase},${s.shiftHours},${s.salesPerHour},${s.repeatRate}`));
+        lines.push("");
+        lines.push("=== คอสค้างใช้ (ภาระผูกพัน) ===");
+        lines.push("ลูกค้า,HN,คอส,ใช้,ทั้งหมด,มูลค่าคงเหลือ,หมดอายุ");
+        outstandingPkg.items.forEach(p => lines.push(`"${p.patient_name}",${p.hn},"${p.package_name}",${p.used_sessions},${p.total_sessions},${p.unearned},${p.expires_at?.slice(0, 10) || ""}`));
+        lines.push("");
+        lines.push("=== กำไรขั้นต้นตามประเภท ===");
+        lines.push("ประเภท,รายได้,ต้นทุน,กำไรขั้นต้น,Margin%");
+        invMargin.byType.forEach(r => lines.push(`${ITEM_TYPE_LABEL[r.type] || r.type},${r.revenue},${r.cogs},${r.margin},${r.marginPct}`));
+        lines.push("");
+        lines.push("=== กำไรขั้นต้นรายตัว (Margin Analysis) ===");
+        lines.push("ชื่อ,ประเภท,จำนวน,รายได้,ต้นทุน,กำไรขั้นต้น");
+        invMargin.items.forEach(it => lines.push(`"${it.name}",${ITEM_TYPE_LABEL[it.type] || it.type},${it.qty},${it.revenue},${it.cogs},${it.margin}`));
 
         const csv = "﻿" + lines.join("\n");  // BOM for Excel Thai
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -774,6 +791,56 @@ export default function ReportsClient({
                         )}
                         <div className="px-4 py-3">
                             <p className="text-[11px] text-slate-400">มูลค่าคงเหลือ = ยอดที่จ่าย × (ครั้งคงเหลือ ÷ ครั้งทั้งหมด) — เงินที่รับมาแล้วแต่ยังต้องให้บริการในอนาคต อย่าหมุนจนลืมเผื่อต้นทุน</p>
+                        </div>
+                    </div>
+
+                    {/* Inventory-Revenue margin */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-indigo-600" />
+                            <h2 className="text-sm font-bold text-slate-800">กำไรขั้นต้นตามประเภท (Revenue − ต้นทุน)</h2>
+                        </div>
+                        {invMargin.byType.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีรายการขายในช่วงนี้</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60">
+                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            <th className="text-left px-4 py-2.5">ประเภท</th>
+                                            <th className="text-right px-3 py-2.5">รายได้</th>
+                                            <th className="text-right px-3 py-2.5">ต้นทุน</th>
+                                            <th className="text-right px-3 py-2.5">กำไรขั้นต้น</th>
+                                            <th className="text-right px-4 py-2.5">Margin %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {invMargin.byType.map(r => (
+                                            <tr key={r.type} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2.5">
+                                                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${ITEM_TYPE_COLOR[r.type] || ITEM_TYPE_COLOR.other}`}>{ITEM_TYPE_LABEL[r.type] || r.type}</span>
+                                                </td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">฿{fmt(r.revenue)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-rose-500">฿{fmt(r.cogs)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#10B981]">฿{fmt(r.margin)}</td>
+                                                <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{r.marginPct}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="border-t-2 border-slate-200 font-black bg-slate-50/40">
+                                            <td className="px-4 py-2.5">รวม</td>
+                                            <td className="px-3 py-2.5 text-right tabular-nums">฿{fmt(invMargin.totals.revenue)}</td>
+                                            <td className="px-3 py-2.5 text-right tabular-nums text-rose-600">฿{fmt(invMargin.totals.cogs)}</td>
+                                            <td className="px-3 py-2.5 text-right tabular-nums text-[#10B981]">฿{fmt(invMargin.totals.margin)}</td>
+                                            <td className="px-4 py-2.5 text-right tabular-nums">{invMargin.totals.marginPct}%</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3">
+                            <p className="text-[11px] text-slate-400">ต้นทุน = cogs_amount (ต้นทุนยา/เวชภัณฑ์ ณ ตอนขาย) · ค่าบริการ/หัตถการ ต้นทุน=0 → กำไรเกือบเต็ม · กดปุ่ม Excel ด้านบนเพื่อ export รายตัวละเอียด</p>
                         </div>
                     </div>
                 </div>

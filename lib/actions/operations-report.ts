@@ -73,6 +73,71 @@ export async function getOutstandingPackages(): Promise<OutstandingPackages> {
     }
 }
 
+export interface MarginRow {
+    type: string;
+    revenue: number;
+    cogs: number;          // ต้นทุน (cogs_amount snapshot)
+    margin: number;        // กำไรขั้นต้น = revenue − cogs
+    marginPct: number;
+    count: number;
+}
+export interface MarginItem {
+    name: string; type: string; qty: number; revenue: number; cogs: number; margin: number;
+}
+export interface InventoryRevenue {
+    byType: MarginRow[];
+    items: MarginItem[];   // รายตัว (top ตาม revenue) สำหรับ export ละเอียด
+    totals: { revenue: number; cogs: number; margin: number; marginPct: number };
+}
+
+/** Inventory-Revenue: กำไรขั้นต้นต่อประเภท (แยกต้นทุนยา/เวชภัณฑ์ vs ค่าบริการ) */
+export async function getInventoryRevenue(startDate: string, endDate: string): Promise<InventoryRevenue> {
+    const empty: InventoryRevenue = { byType: [], items: [], totals: { revenue: 0, cogs: 0, margin: 0, marginPct: 0 } };
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const { data: rows } = await supabase
+            .from("invoice_items")
+            .select("item_type, item_name, qty, line_total, cogs_amount, invoice_headers!inner(invoice_date, status)")
+            .eq("clinic_id", clinicId)
+            .gte("invoice_headers.invoice_date", startDate)
+            .lte("invoice_headers.invoice_date", endDate);
+
+        const byType = new Map<string, { revenue: number; cogs: number; count: number }>();
+        const byItem = new Map<string, { type: string; qty: number; revenue: number; cogs: number }>();
+        let tRev = 0, tCogs = 0;
+        for (const it of rows || []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const h = Array.isArray((it as any).invoice_headers) ? (it as any).invoice_headers[0] : (it as any).invoice_headers;
+            if (h && PERF_EXCLUDE.has(h.status)) continue;
+            const type = (it.item_type as string) || "other";
+            const rev = Number(it.line_total || 0);
+            const cogs = Number(it.cogs_amount || 0);
+            const qty = Number(it.qty || 0);
+            const t = byType.get(type) || { revenue: 0, cogs: 0, count: 0 };
+            t.revenue += rev; t.cogs += cogs; t.count += 1; byType.set(type, t);
+            const name = (it.item_name as string) || "—";
+            const ii = byItem.get(name) || { type, qty: 0, revenue: 0, cogs: 0 };
+            ii.qty += qty; ii.revenue += rev; ii.cogs += cogs; byItem.set(name, ii);
+            tRev += rev; tCogs += cogs;
+        }
+        const r2 = (n: number) => Math.round(n * 100) / 100;
+        const byTypeArr: MarginRow[] = [...byType.entries()].map(([type, v]) => ({
+            type, revenue: r2(v.revenue), cogs: r2(v.cogs), margin: r2(v.revenue - v.cogs),
+            marginPct: v.revenue > 0 ? r2(((v.revenue - v.cogs) / v.revenue) * 100) : 0, count: v.count,
+        })).sort((a, b) => b.revenue - a.revenue);
+        const items: MarginItem[] = [...byItem.entries()].map(([name, v]) => ({
+            name, type: v.type, qty: r2(v.qty), revenue: r2(v.revenue), cogs: r2(v.cogs), margin: r2(v.revenue - v.cogs),
+        })).sort((a, b) => b.revenue - a.revenue).slice(0, 100);
+
+        return {
+            byType: byTypeArr, items,
+            totals: { revenue: r2(tRev), cogs: r2(tCogs), margin: r2(tRev - tCogs), marginPct: tRev > 0 ? r2(((tRev - tCogs) / tRev) * 100) : 0 },
+        };
+    } catch {
+        return empty;
+    }
+}
+
 export interface PeakHours {
     grid: number[][];       // [weekday 0=อา..6=ส][hour 0..23] = จำนวน visit
     maxCell: number;        // ค่าสูงสุดในตาราง (สำหรับ normalize สีความเข้ม)
