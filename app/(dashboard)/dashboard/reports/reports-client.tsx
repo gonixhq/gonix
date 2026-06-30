@@ -13,6 +13,8 @@ import {
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
 import type { PeakHours, StaffPerfRow, OutstandingPackages, InventoryRevenue } from "@/lib/actions/operations-report";
+import type { GoalProgress } from "@/lib/actions/targets";
+import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
@@ -103,10 +105,11 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
+    summary, prevSummary, goal, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
+    goal: GoalProgress;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -322,6 +325,7 @@ export default function ReportsClient({
             {/* ── OVERVIEW ── */}
             {tab === "overview" && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="lg:col-span-2"><GoalCard goal={goal} /></div>
                     {/* Revenue by day */}
                     <div className="gonix-card-premium overflow-hidden">
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">

@@ -2,6 +2,7 @@ import { gatePermission } from "@/lib/auth/guard";
 import { getReportSummary, getOutstandingInvoices } from "@/lib/actions/reports";
 import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/actions/business-insights";
 import { getPeakHours, getStaffPerformance, getOutstandingPackages, getInventoryRevenue } from "@/lib/actions/operations-report";
+import { getGoalProgress } from "@/lib/actions/targets";
 import ReportsClient from "./reports-client";
 
 export const dynamic = "force-dynamic";
@@ -47,12 +48,16 @@ export default async function ReportsPage({
         getOutstandingPackages(),
         getInventoryRevenue(startDate, endDate),
     ]);
-    const prevSummary = await getReportSummary(prevStart, prevEnd);
+    const [prevSummary, goal] = await Promise.all([
+        getReportSummary(prevStart, prevEnd),
+        getGoalProgress(),
+    ]);
 
     return (
         <ReportsClient
             summary={summary}
             prevSummary={prevSummary}
+            goal={goal}
             outstanding={outstanding}
             biz={biz}
             rfm={rfm}
