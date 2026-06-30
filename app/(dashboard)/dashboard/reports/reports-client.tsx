@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
-import type { PeakHours, StaffPerfRow } from "@/lib/actions/operations-report";
+import type { PeakHours, StaffPerfRow, OutstandingPackages } from "@/lib/actions/operations-report";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
@@ -103,7 +103,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, outstanding, biz, rfm, basket, peak, staffPerf, startDate, endDate, today,
+    summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     outstanding: OutstandingInvoice[];
@@ -112,6 +112,7 @@ export default function ReportsClient({
     basket: BasketAnalysis;
     peak: PeakHours;
     staffPerf: StaffPerfRow[];
+    outstandingPkg: OutstandingPackages;
     startDate: string;
     endDate: string;
     today: string;
@@ -713,6 +714,62 @@ export default function ReportsClient({
                         )}
                         <div className="px-4 py-3">
                             <p className="text-[11px] text-slate-400">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · Retention = % ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้ในช่วงนี้</p>
+                        </div>
+                    </div>
+
+                    {/* Outstanding Packages (Liabilities) */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Pill className="h-4 w-4 text-pink-600" />
+                            <h2 className="text-sm font-bold text-slate-800">คอสค้างใช้ (ภาระผูกพันล่วงหน้า)</h2>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 p-4">
+                            <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-slate-500">คอสที่ยังใช้ไม่ครบ</div>
+                                <div className="text-xl font-black text-slate-800">{fmt(outstandingPkg.count)}</div>
+                            </div>
+                            <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-slate-500">ครั้งคงเหลือรวม</div>
+                                <div className="text-xl font-black text-slate-800">{fmt(outstandingPkg.totalRemainingSessions)}</div>
+                            </div>
+                            <div className="rounded-xl bg-pink-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-pink-600">มูลค่าภาระผูกพัน</div>
+                                <div className="text-xl font-black text-pink-700">฿{fmt(outstandingPkg.totalLiability)}</div>
+                            </div>
+                        </div>
+                        {outstandingPkg.items.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 pb-8">ไม่มีคอสค้างใช้</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60">
+                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            <th className="text-left px-4 py-2.5">ลูกค้า</th>
+                                            <th className="text-left px-3 py-2.5">คอส</th>
+                                            <th className="text-center px-3 py-2.5">ใช้/ทั้งหมด</th>
+                                            <th className="text-right px-3 py-2.5">มูลค่าคงเหลือ</th>
+                                            <th className="text-right px-4 py-2.5">หมดอายุ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {outstandingPkg.items.slice(0, 50).map((p, i) => (
+                                            <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2.5">
+                                                    <Link href={`/dashboard/patients/${p.hn}`} className="font-bold text-slate-800 hover:text-[#2B54F0]">{p.patient_name}</Link>
+                                                    <span className="ml-1.5 font-mono text-[10px] text-slate-400">{p.hn}</span>
+                                                </td>
+                                                <td className="px-3 py-2.5 text-slate-700">{p.package_name}</td>
+                                                <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{p.used_sessions}/{p.total_sessions}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums font-bold text-pink-700">฿{fmt(p.unearned)}</td>
+                                                <td className="px-4 py-2.5 text-right text-[11px] text-slate-500">{formatDateThai(p.expires_at)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3">
+                            <p className="text-[11px] text-slate-400">มูลค่าคงเหลือ = ยอดที่จ่าย × (ครั้งคงเหลือ ÷ ครั้งทั้งหมด) — เงินที่รับมาแล้วแต่ยังต้องให้บริการในอนาคต อย่าหมุนจนลืมเผื่อต้นทุน</p>
                         </div>
                     </div>
                 </div>

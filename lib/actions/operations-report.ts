@@ -11,6 +11,68 @@ async function getCtx() {
     return { supabase, clinicId: profile.clinic_id as string };
 }
 
+export interface OutstandingPackageItem {
+    hn: string;
+    patient_name: string;
+    package_name: string;
+    total_sessions: number;
+    used_sessions: number;
+    remaining_sessions: number;
+    paid_amount: number;
+    unearned: number;        // ภาระผูกพันคงเหลือ = paid × remaining/total
+    expires_at: string;
+}
+export interface OutstandingPackages {
+    count: number;
+    totalRemainingSessions: number;
+    totalLiability: number;  // มูลค่าที่จ่ายแล้วแต่ยังไม่ได้ให้บริการ (deferred)
+    items: OutstandingPackageItem[];
+}
+
+/** คอสที่จ่ายแล้วแต่ยังใช้ไม่ครบ (Liabilities / ภาระผูกพันล่วงหน้า) — สถานะปัจจุบัน */
+export async function getOutstandingPackages(): Promise<OutstandingPackages> {
+    const empty: OutstandingPackages = { count: 0, totalRemainingSessions: 0, totalLiability: 0, items: [] };
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const { data: pkgs } = await supabase
+            .from("patient_packages")
+            .select("hn, package_name, total_sessions, used_sessions, paid_amount, expires_at, status")
+            .eq("clinic_id", clinicId)
+            .eq("status", "active");
+        const list = (pkgs || []).filter(p => Number(p.used_sessions) < Number(p.total_sessions));
+        if (list.length === 0) return empty;
+
+        const hns = [...new Set(list.map(p => p.hn as string))];
+        const nameByHn: Record<string, string> = {};
+        if (hns.length) {
+            const { data: pats } = await supabase.from("patients").select("hn, first_name, last_name").in("hn", hns).eq("clinic_id", clinicId);
+            (pats || []).forEach(p => { nameByHn[p.hn as string] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || (p.hn as string); });
+        }
+
+        let totalRemainingSessions = 0, totalLiability = 0;
+        const items: OutstandingPackageItem[] = list.map(p => {
+            const total = Number(p.total_sessions) || 0;
+            const used = Number(p.used_sessions) || 0;
+            const remaining = Math.max(0, total - used);
+            const paid = Number(p.paid_amount) || 0;
+            const unearned = total > 0 ? Math.round((paid * remaining / total) * 100) / 100 : 0;
+            totalRemainingSessions += remaining;
+            totalLiability += unearned;
+            return {
+                hn: p.hn as string,
+                patient_name: nameByHn[p.hn as string] || (p.hn as string),
+                package_name: p.package_name as string,
+                total_sessions: total, used_sessions: used, remaining_sessions: remaining,
+                paid_amount: paid, unearned, expires_at: p.expires_at as string,
+            };
+        }).sort((a, b) => b.unearned - a.unearned);
+
+        return { count: items.length, totalRemainingSessions, totalLiability: Math.round(totalLiability * 100) / 100, items };
+    } catch {
+        return empty;
+    }
+}
+
 export interface PeakHours {
     grid: number[][];       // [weekday 0=อา..6=ส][hour 0..23] = จำนวน visit
     maxCell: number;        // ค่าสูงสุดในตาราง (สำหรับ normalize สีความเข้ม)
