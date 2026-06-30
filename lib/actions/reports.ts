@@ -59,7 +59,7 @@ export async function getReportSummary(startDate: string, endDate: string): Prom
     // ── Invoices ในช่วงวันที่ ──
     const { data: invoices } = await supabase
         .from("invoice_headers")
-        .select("id, invoice_date, total_amount, paid_amount, status, vn")
+        .select("id, hn, invoice_date, total_amount, paid_amount, status, vn")
         .eq("clinic_id", clinicId)
         .gte("invoice_date", startDate)
         .lte("invoice_date", endDate);
@@ -200,13 +200,22 @@ export async function getReportSummary(startDate: string, endDate: string): Prom
         .map(([category, v]) => ({ category, ...v }))
         .sort((a, b) => b.count - a.count);
 
-    // ── New patients (first_visit_date ในช่วง) ──
-    const { count: newPatients } = await supabase
-        .from("patients")
-        .select("hn", { count: "exact", head: true })
-        .eq("clinic_id", clinicId)
-        .gte("first_visit_date", startDate)
-        .lte("first_visit_date", endDate);
+    // ── ลูกค้าใหม่ (ซื้อครั้งแรกในช่วงนี้) — invoice-based ให้ตรงกับแท็บ "ลูกค้า & ธุรกิจ" ──
+    // valid = ใบเสร็จในช่วง (ตัด voided/refunded/draft) · ใหม่ = hn ที่ไม่เคยมีใบเสร็จก่อน start
+    const NEW_EXCLUDE = new Set(["voided", "refunded", "draft"]);
+    const validHns = new Set(
+        invList.filter(i => !NEW_EXCLUDE.has(i.status as string)).map(i => i.hn as string).filter(Boolean)
+    );
+    let newPatients = 0;
+    if (validHns.size > 0) {
+        const { data: priorInv } = await supabase
+            .from("invoice_headers")
+            .select("hn")
+            .eq("clinic_id", clinicId)
+            .lt("invoice_date", startDate);
+        const priorHns = new Set((priorInv || []).map(p => p.hn as string));
+        for (const hn of validHns) if (!priorHns.has(hn)) newPatients++;
+    }
 
     return {
         totalRevenue,

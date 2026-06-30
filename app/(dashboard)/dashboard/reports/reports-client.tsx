@@ -143,7 +143,7 @@ export default function ReportsClient({
         lines.push(`ค้างชำระ,${summary.outstanding}`);
         lines.push(`จำนวนใบเสร็จ,${summary.invoiceCount}`);
         lines.push(`Visit ทั้งหมด,${summary.totalVisits}`);
-        lines.push(`ผู้ป่วยใหม่,${summary.newPatients}`);
+        lines.push(`ลูกค้าใหม่ (ซื้อครั้งแรกในช่วง),${summary.newPatients}`);
         lines.push("");
         lines.push("=== รายรับรายวัน ===");
         lines.push("วันที่,ยอดรับ");
@@ -257,7 +257,7 @@ export default function ReportsClient({
                 <StatCard icon={Wallet} label="รายรับ (ชำระจริง)" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" sub={`ออกบิล ฿${fmt(summary.totalBilled)}`} />
                 <StatCard icon={AlertTriangle} label="ค้างชำระ" value={`฿${fmt(summary.outstanding)}`} color="amber" sub={`${summary.partialCount} บางส่วน`} />
                 <StatCard icon={Activity} label="Visit" value={fmt(summary.totalVisits)} color="sky" sub={`เสร็จ ${summary.completedVisits} · ยกเลิก ${summary.cancelledVisits}`} />
-                <StatCard icon={Users} label="ผู้ป่วยใหม่" value={fmt(summary.newPatients)} color="violet" sub={`ใบเสร็จ ${summary.invoiceCount} ใบ`} />
+                <StatCard icon={Users} label="ลูกค้าใหม่" value={fmt(summary.newPatients)} color="violet" sub="ซื้อครั้งแรกในช่วงนี้" />
             </div>
 
             {/* Tabs + Export toolbar */}
@@ -503,6 +503,12 @@ export default function ReportsClient({
                             <span className="text-xs text-slate-400">{rfm.total} ราย (ทั้งหมด)</span>
                         </div>
                         <div className="p-4">
+                            {rfm.total > 0 && rfm.total < 30 && (
+                                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                    <span>ฐานลูกค้ายังน้อย ({rfm.total} ราย) — การแบ่งกลุ่ม RFM อาจยังไม่มีนัยสำคัญทางสถิติ (แนะนำ ≥ 30 ราย) ใช้ดูเป็นแนวโน้มเบื้องต้นได้</span>
+                                </div>
+                            )}
                             {rfm.segments.filter(s => s.customers > 0).length === 0 ? (
                                 <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีข้อมูลลูกค้าเพียงพอ</p>
                             ) : (

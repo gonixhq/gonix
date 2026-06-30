@@ -137,7 +137,7 @@ export default async function ReportPrintPage({
                         { label: "ค้างชำระ", value: baht(summary.outstanding) },
                         { label: "จำนวนใบเสร็จ", value: `${num(summary.invoiceCount)} ใบ` },
                         { label: "Visit ทั้งหมด", value: `${num(summary.totalVisits)} ครั้ง` },
-                        { label: "ผู้ป่วยใหม่", value: `${num(summary.newPatients)} ราย` },
+                        { label: "ลูกค้าใหม่ (ซื้อครั้งแรก)", value: `${num(summary.newPatients)} ราย` },
                     ].map((b) => (
                         <div key={b.label} className="border border-slate-300 rounded p-2.5">
                             <div className="text-[10px] text-slate-500">{b.label}</div>
