@@ -103,9 +103,10 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
+    summary, prevSummary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
 }: {
     summary: ReportSummary;
+    prevSummary: ReportSummary;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -283,10 +284,10 @@ export default function ReportsClient({
 
             {/* Top stat cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard icon={Wallet} label="รายรับ (ชำระจริง)" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" sub={`ออกบิล ฿${fmt(summary.totalBilled)}`} />
+                <StatCard icon={Wallet} label="รายรับ (ชำระจริง)" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" delta={pctChange(summary.totalRevenue, prevSummary.totalRevenue)} />
                 <StatCard icon={AlertTriangle} label="ค้างชำระ" value={`฿${fmt(summary.outstanding)}`} color="amber" sub={`${summary.partialCount} บางส่วน`} />
-                <StatCard icon={Activity} label="Visit" value={fmt(summary.totalVisits)} color="sky" sub={`เสร็จ ${summary.completedVisits} · ยกเลิก ${summary.cancelledVisits}`} />
-                <StatCard icon={Users} label="ลูกค้าใหม่" value={fmt(summary.newPatients)} color="violet" sub="ซื้อครั้งแรกในช่วงนี้" />
+                <StatCard icon={Activity} label="Visit" value={fmt(summary.totalVisits)} color="sky" delta={pctChange(summary.totalVisits, prevSummary.totalVisits)} />
+                <StatCard icon={Users} label="ลูกค้าใหม่" value={fmt(summary.newPatients)} color="violet" delta={pctChange(summary.newPatients, prevSummary.newPatients)} />
             </div>
 
             {/* Tabs + Export toolbar */}
@@ -924,12 +925,28 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     );
 }
 
-function StatCard({ icon: Icon, label, value, color, sub }: {
+function pctChange(cur: number, prev: number): number | null {
+    if (!prev || prev === 0) return null;
+    return Math.round(((cur - prev) / prev) * 1000) / 10;
+}
+
+function DeltaBadge({ delta }: { delta: number | null }) {
+    if (delta === null) return <span className="text-[10px] text-slate-400">— เทียบช่วงก่อน</span>;
+    const up = delta >= 0;
+    return (
+        <span className={`text-[10px] font-bold inline-flex items-center gap-0.5 ${up ? "text-emerald-600" : "text-rose-500"}`}>
+            {up ? "▲" : "▼"} {Math.abs(delta)}% <span className="text-slate-400 font-normal">เทียบช่วงก่อน</span>
+        </span>
+    );
+}
+
+function StatCard({ icon: Icon, label, value, color, sub, delta }: {
     icon: React.ElementType;
     label: string;
     value: string;
     color: "emerald" | "amber" | "sky" | "violet";
     sub?: string;
+    delta?: number | null;
 }) {
     const styles = {
         emerald: { tile: "bg-[#10B981]/10", iconText: "text-[#10B981]", glow: "from-[#15FF83]/25 to-[#10B981]/5" },
@@ -946,7 +963,9 @@ function StatCard({ icon: Icon, label, value, color, sub }: {
                 </div>
                 <div className="text-2xl font-extrabold text-slate-800 tabular-nums tracking-tight">{value}</div>
                 <div className="text-sm font-medium text-slate-700 mt-0.5">{label}</div>
-                {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+                {delta !== undefined
+                    ? <div className="mt-0.5"><DeltaBadge delta={delta} /></div>
+                    : sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
             </div>
         </div>
     );

@@ -26,6 +26,16 @@ export default async function ReportsPage({
     const startDate = params.start || defaultStart;
     const endDate = params.end || today;
 
+    // ── ช่วงก่อนหน้า (ยาวเท่ากัน อยู่ก่อน startDate) สำหรับเทียบ Period-over-Period ──
+    function isoDate(d: Date) { return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" }); }
+    const sDate = new Date(`${startDate}T00:00:00+07:00`);
+    const eDate = new Date(`${endDate}T00:00:00+07:00`);
+    const spanDays = Math.max(0, Math.round((eDate.getTime() - sDate.getTime()) / 86400000));
+    const prevEndD = new Date(sDate); prevEndD.setDate(prevEndD.getDate() - 1);
+    const prevStartD = new Date(prevEndD); prevStartD.setDate(prevStartD.getDate() - spanDays);
+    const prevStart = isoDate(prevStartD);
+    const prevEnd = isoDate(prevEndD);
+
     const [summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin] = await Promise.all([
         getReportSummary(startDate, endDate),
         getOutstandingInvoices(),
@@ -37,10 +47,12 @@ export default async function ReportsPage({
         getOutstandingPackages(),
         getInventoryRevenue(startDate, endDate),
     ]);
+    const prevSummary = await getReportSummary(prevStart, prevEnd);
 
     return (
         <ReportsClient
             summary={summary}
+            prevSummary={prevSummary}
             outstanding={outstanding}
             biz={biz}
             rfm={rfm}
