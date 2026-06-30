@@ -690,6 +690,8 @@ export default function ReportsClient({
                                             <th className="text-right px-3 py-2.5">ลูกค้า</th>
                                             <th className="text-right px-3 py-2.5">ยอดขาย</th>
                                             <th className="text-right px-3 py-2.5">เฉลี่ย/เคส</th>
+                                            <th className="text-right px-3 py-2.5" title="ชั่วโมงเข้าเวรจริง จาก GPS check-in">ชม.เวร</th>
+                                            <th className="text-right px-3 py-2.5" title="ยอดขาย ÷ ชั่วโมงเวร (productivity จริง)">ขาย/ชม.</th>
                                             <th className="text-right px-4 py-2.5" title="ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้">Retention</th>
                                         </tr>
                                     </thead>
@@ -705,6 +707,8 @@ export default function ReportsClient({
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(s.patients)}</td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#10B981]">฿{fmt(s.sales)}</td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">฿{fmt(s.avgPerCase)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{s.shiftHours > 0 ? `${s.shiftHours} ชม.` : "—"}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums font-bold text-sky-600">{s.shiftHours > 0 ? `฿${fmt(s.salesPerHour)}` : "—"}</td>
                                                 <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{s.repeatRate}%</td>
                                             </tr>
                                         ))}
@@ -713,7 +717,7 @@ export default function ReportsClient({
                             </div>
                         )}
                         <div className="px-4 py-3">
-                            <p className="text-[11px] text-slate-400">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · Retention = % ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้ในช่วงนี้</p>
+                            <p className="text-[11px] text-slate-400">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · ชม.เวร/ขาย/ชม. = วัด productivity จริงจาก GPS check-in (คนทำเวรน้อยแต่ขายได้มาก = มีประสิทธิภาพสูง) · Retention = % ลูกค้ากลับมา ≥2 ครั้ง</p>
                         </div>
                     </div>
 

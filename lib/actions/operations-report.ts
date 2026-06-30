@@ -91,6 +91,8 @@ export interface StaffPerfRow {
     sales: number;            // ยอดขาย (paid_amount ของบิลที่ผูกกับ visit ของคนนี้)
     avgPerCase: number;
     repeatRate: number;       // % ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้ (retention)
+    shiftHours: number;       // ชั่วโมงเข้าเวรจริง (จาก GPS check-in / staff_time_logs)
+    salesPerHour: number;     // ยอดขาย ÷ ชั่วโมงเวร (productivity จริง)
 }
 
 const PERF_EXCLUDE = new Set(["voided", "refunded", "draft"]);
@@ -151,11 +153,28 @@ export async function getStaffPerformance(startDate: string, endDate: string): P
             nameById[s.id as string] = { name: p?.full_name || "—", role: p?.role || "staff" };
         });
 
+        // ชั่วโมงเข้าเวรจริง (GPS check-in / staff_time_logs) ในช่วง
+        const startISO = new Date(`${startDate}T00:00:00+07:00`).toISOString();
+        const endNext = new Date(`${endDate}T00:00:00+07:00`); endNext.setDate(endNext.getDate() + 1);
+        const endISO = endNext.toISOString();
+        const hoursByDoc: Record<string, number> = {};
+        const { data: logs } = await supabase
+            .from("staff_time_logs")
+            .select("staff_id, clock_in, clock_out")
+            .in("staff_id", docIds)
+            .gte("clock_in", startISO).lt("clock_in", endISO)
+            .not("clock_out", "is", null);
+        (logs || []).forEach(l => {
+            const ms = new Date(l.clock_out as string).getTime() - new Date(l.clock_in as string).getTime();
+            if (ms > 0) hoursByDoc[l.staff_id as string] = (hoursByDoc[l.staff_id as string] || 0) + ms / 3600000;
+        });
+
         const rows: StaffPerfRow[] = docIds.map(doc => {
             const cases = casesByDoc[doc] || 0;
             const patients = patientsByDoc[doc]?.size || 0;
             const sales = Math.round((salesByDoc[doc] || 0) * 100) / 100;
             const repeatPatients = Object.values(visitsByDocHn[doc] || {}).filter(c => c >= 2).length;
+            const shiftHours = Math.round((hoursByDoc[doc] || 0) * 10) / 10;
             return {
                 staff_id: doc,
                 name: nameById[doc]?.name || "—",
@@ -163,6 +182,8 @@ export async function getStaffPerformance(startDate: string, endDate: string): P
                 cases, patients, sales,
                 avgPerCase: cases > 0 ? Math.round((sales / cases) * 100) / 100 : 0,
                 repeatRate: patients > 0 ? Math.round((repeatPatients / patients) * 1000) / 10 : 0,
+                shiftHours,
+                salesPerHour: shiftHours > 0 ? Math.round((sales / shiftHours) * 100) / 100 : 0,
             };
         }).sort((a, b) => b.sales - a.sales);
 
