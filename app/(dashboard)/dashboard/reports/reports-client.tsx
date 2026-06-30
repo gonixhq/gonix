@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
-import type { PeakHours } from "@/lib/actions/operations-report";
+import type { PeakHours, StaffPerfRow } from "@/lib/actions/operations-report";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
@@ -58,6 +58,12 @@ const ITEM_TYPE_COLOR: Record<string, string> = {
 
 const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
+const ROLE_TH: Record<string, string> = {
+    owner: "เจ้าของ", admin: "แอดมิน", doctor: "แพทย์", dentist: "ทันตแพทย์",
+    nurse: "พยาบาล", pharmacist: "เภสัชกร", physio: "นักกายภาพ", receptionist: "เวชระเบียน",
+    accountant: "บัญชี", staff: "พนักงาน",
+};
+
 const CATEGORY_LABEL: Record<string, string> = {
     general_med: "เวชกรรมทั่วไป",
     aesthetic: "ความงาม",
@@ -97,7 +103,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, outstanding, biz, rfm, basket, peak, startDate, endDate, today,
+    summary, outstanding, biz, rfm, basket, peak, staffPerf, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     outstanding: OutstandingInvoice[];
@@ -105,6 +111,7 @@ export default function ReportsClient({
     rfm: RfmResult;
     basket: BasketAnalysis;
     peak: PeakHours;
+    staffPerf: StaffPerfRow[];
     startDate: string;
     endDate: string;
     today: string;
@@ -660,6 +667,52 @@ export default function ReportsClient({
                         </div>
                         <div className="px-4 pb-4">
                             <p className="text-[11px] text-slate-400">นับจากเวลาเปิด Visit (visit_time) · สีเข้ม = ลูกค้าแน่น ใช้จัดเวรแพทย์/พนักงานให้พอในช่วงพีค ลดเวลารอคอย</p>
+                        </div>
+                    </div>
+
+                    {/* Staff & Doctor Performance */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-emerald-600" />
+                            <h2 className="text-sm font-bold text-slate-800">ผลงานแพทย์/พนักงาน (จัดอันดับตามยอดขาย)</h2>
+                        </div>
+                        {staffPerf.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูลเคสที่ระบุผู้ดูแลในช่วงนี้</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60">
+                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            <th className="text-left px-4 py-2.5">#</th>
+                                            <th className="text-left px-4 py-2.5">ผู้ดูแล</th>
+                                            <th className="text-right px-3 py-2.5">เคส</th>
+                                            <th className="text-right px-3 py-2.5">ลูกค้า</th>
+                                            <th className="text-right px-3 py-2.5">ยอดขาย</th>
+                                            <th className="text-right px-3 py-2.5">เฉลี่ย/เคส</th>
+                                            <th className="text-right px-4 py-2.5" title="ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้">Retention</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {staffPerf.map((s, i) => (
+                                            <tr key={s.staff_id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2.5 text-slate-400 tabular-nums">{i + 1}</td>
+                                                <td className="px-4 py-2.5">
+                                                    <span className="font-bold text-slate-800">{s.name}</span>
+                                                    <span className="ml-1.5 text-[10px] text-slate-400">{ROLE_TH[s.role] || s.role}</span>
+                                                </td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(s.cases)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(s.patients)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#10B981]">฿{fmt(s.sales)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">฿{fmt(s.avgPerCase)}</td>
+                                                <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{s.repeatRate}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3">
+                            <p className="text-[11px] text-slate-400">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · Retention = % ลูกค้าที่กลับมา ≥2 ครั้งกับคนนี้ในช่วงนี้</p>
                         </div>
                     </div>
                 </div>
