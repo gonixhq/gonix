@@ -4,6 +4,7 @@ import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/ac
 import { getPeakHours, getStaffPerformance, getOutstandingPackages, getInventoryRevenue } from "@/lib/actions/operations-report";
 import { getGoalProgress } from "@/lib/actions/targets";
 import { getAcquisitionSources, getConsultationConversion, getDemographics, getCampaignPerformance } from "@/lib/actions/marketing-report";
+import { getSalesForecast } from "@/lib/actions/advanced-report";
 import { isSeg, type Seg } from "@/lib/report-segment";
 import ReportsClient from "./reports-client";
 
@@ -59,6 +60,7 @@ export default async function ReportsPage({
         getDemographics(),
         getCampaignPerformance(startDate, endDate, seg),
     ]);
+    const forecast = await getSalesForecast();
 
     return (
         <ReportsClient
@@ -69,6 +71,7 @@ export default async function ReportsPage({
             conversion={conversion}
             demographics={demographics}
             campaigns={campaigns}
+            forecast={forecast}
             outstanding={outstanding}
             biz={biz}
             rfm={rfm}

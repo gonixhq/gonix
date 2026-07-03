@@ -8,7 +8,7 @@ import {
     BarChart3, Users, Activity, TrendingUp, Calendar, Wallet,
     Download, AlertTriangle, Pill, Sparkles, FileText, ChevronRight,
     Banknote, CreditCard, QrCode, ArrowLeftRight, X, UserPlus, UserCheck,
-    ShoppingBasket, ArrowRight, Link2,
+    ShoppingBasket, ArrowRight, Link2, Loader2,
 } from "lucide-react";
 import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
@@ -17,6 +17,8 @@ import type { GoalProgress } from "@/lib/actions/targets";
 import type { Seg } from "@/lib/report-segment";
 import { SEG_LABEL } from "@/lib/report-segment";
 import type { AcqSource, ConversionResult, Demographics, CampaignRow } from "@/lib/actions/marketing-report";
+import type { SalesForecast } from "@/lib/actions/advanced-report";
+import { sendExecSummaryToMyLine } from "@/lib/actions/advanced-report";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -63,6 +65,12 @@ const ITEM_TYPE_COLOR: Record<string, string> = {
 
 const DAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
+const RFM_LABEL: Record<string, string> = {
+    champion: "ลูกค้าชั้นยอด", loyal: "ลูกค้าประจำ", potential: "มีแววประจำ", new: "ลูกค้าใหม่",
+    promising: "น่าจับตา", attention: "ต้องดูแล", sleepy: "ใกล้หาย", atrisk: "เสี่ยงหาย",
+    cantlose: "ห้ามเสียไป", hibernating: "หลับไหล", lost: "หายไปแล้ว",
+};
+
 const ROLE_TH: Record<string, string> = {
     owner: "เจ้าของ", admin: "แอดมิน", doctor: "แพทย์", dentist: "ทันตแพทย์",
     nurse: "พยาบาล", pharmacist: "เภสัชกร", physio: "นักกายภาพ", receptionist: "เวชระเบียน",
@@ -108,7 +116,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, forecast, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
@@ -117,6 +125,7 @@ export default function ReportsClient({
     conversion: ConversionResult;
     demographics: Demographics;
     campaigns: CampaignRow[];
+    forecast: SalesForecast;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -132,7 +141,9 @@ export default function ReportsClient({
 }) {
     const router = useRouter();
     const [showOutstanding, setShowOutstanding] = useState(false);
-    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing">("overview");
+    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "advanced">("overview");
+    const [execSending, setExecSending] = useState(false);
+    const [execMsg, setExecMsg] = useState<string | null>(null);
 
     const newPct = biz.totalRevenue > 0 ? Math.round((biz.newRevenue / biz.totalRevenue) * 100) : 0;
     const retPct = 100 - newPct;
@@ -244,16 +255,77 @@ export default function ReportsClient({
     }
 
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
-    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "all") {
+    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "advanced" | "all") {
         window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}&seg=${seg}`, "_blank");
     }
 
     const TAB_LABEL: Record<string, string> = {
         overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
-        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด",
+        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด", advanced: "เชิงลึก",
     };
 
     const maxDayRevenue = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
+
+    // ── M4: ลูกค้าเสี่ยงหาย (churn) จาก RFM segments ──
+    const CHURN_KEYS = ["cantlose", "atrisk", "sleepy"];
+    const churnCustomers = rfm.customers.filter(c => CHURN_KEYS.includes(c.segment)).slice(0, 100);
+
+    // ── M4: ตรวจจับวันยอดผิดปกติ (z-score เทียบวันเดียวกันในสัปดาห์) ──
+    const anomalies = (() => {
+        const byDow: Record<number, number[]> = {};
+        summary.revenueByDay.forEach(d => { const dow = new Date(d.date + "T00:00:00").getDay(); (byDow[dow] = byDow[dow] || []).push(d.amount); });
+        const stat: Record<number, { mean: number; std: number }> = {};
+        for (const [dow, arr] of Object.entries(byDow)) {
+            if (arr.length < 3) continue;
+            const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+            const std = Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
+            stat[Number(dow)] = { mean, std };
+        }
+        return summary.revenueByDay.map(d => {
+            const dow = new Date(d.date + "T00:00:00").getDay();
+            const s = stat[dow];
+            if (!s || s.std < 1) return null;
+            const z = (d.amount - s.mean) / s.std;
+            if (Math.abs(z) < 1.5) return null;
+            return { date: d.date, amount: d.amount, expected: Math.round(s.mean), type: z > 0 ? "high" : "low" as "high" | "low", z: Math.round(z * 10) / 10 };
+        }).filter(Boolean).sort((a, b) => (b!.date.localeCompare(a!.date))) as { date: string; amount: number; expected: number; type: "high" | "low"; z: number }[];
+    })();
+
+    // ── M4: ข้อความสรุปผู้บริหาร ──
+    const revDelta = pctChange(summary.totalRevenue, prevSummary.totalRevenue);
+    const topItem = summary.topItems[0];
+    const execText = [
+        `📊 สรุปกิจการ ${formatDateThai(startDate)}–${formatDateThai(endDate)}${seg !== "all" ? ` · ${SEG_LABEL[seg]}` : ""}`,
+        ``,
+        `💰 รายรับ: ฿${fmt(summary.totalRevenue)}${revDelta !== null ? ` (${revDelta >= 0 ? "▲" : "▼"}${Math.abs(revDelta)}% เทียบช่วงก่อน)` : ""}`,
+        `🧾 ใบเสร็จ: ${fmt(summary.invoiceCount)} ใบ · Visit: ${fmt(summary.totalVisits)}`,
+        `🆕 ลูกค้าใหม่: ${fmt(summary.newPatients)} ราย`,
+        `⏳ ค้างชำระ: ฿${fmt(summary.outstanding)}`,
+        topItem ? `🏆 ขายดีสุด: ${topItem.name} (฿${fmt(topItem.amount)})` : ``,
+        goal.monthTarget > 0 ? `🎯 เป้าเดือนนี้: ทำได้ ${goal.monthPct}% (฿${fmt(goal.monthActual)}/฿${fmt(goal.monthTarget)})` : ``,
+        churnCustomers.length > 0 ? `⚠️ ลูกค้าเสี่ยงหายที่ควรติดตาม: ${churnCustomers.length} ราย` : ``,
+        `🔮 คาดการณ์ ${forecast.nextMonthLabel}: ~฿${fmt(forecast.predicted)}`,
+    ].filter(Boolean).join("\n");
+
+    function sendExec() {
+        setExecMsg(null); setExecSending(true);
+        (async () => {
+            const r = await sendExecSummaryToMyLine(execText);
+            setExecSending(false);
+            setExecMsg(r.success ? "ส่งเข้า LINE ของคุณแล้ว ✓" : (r.error || "ส่งไม่สำเร็จ"));
+        })();
+    }
+    function copyExec() { navigator.clipboard.writeText(execText); setExecMsg("คัดลอกข้อความแล้ว ✓"); setTimeout(() => setExecMsg(null), 1500); }
+    function exportChurn() {
+        if (churnCustomers.length === 0) return;
+        const lines = ["ชื่อ,HN,เบอร์โทร,อีเมล,กลุ่ม,ซื้อล่าสุด(วันก่อน),จำนวนครั้ง,ยอดใช้จ่าย"];
+        const segLabel: Record<string, string> = { cantlose: "ห้ามเสียไป", atrisk: "เสี่ยงหาย", sleepy: "ใกล้หาย" };
+        churnCustomers.forEach(c => lines.push(`"${c.name}",${c.hn},${c.phone || ""},${c.email || ""},${segLabel[c.segment] || c.segment},${c.recencyDays},${c.frequency},${c.monetary}`));
+        const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `churn-risk-${today}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    }
 
     return (
         <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
@@ -336,6 +408,7 @@ export default function ReportsClient({
                     <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
                     <TabBtn active={tab === "operations"} onClick={() => setTab("operations")}>ปฏิบัติการ</TabBtn>
                     <TabBtn active={tab === "marketing"} onClick={() => setTab("marketing")}>การตลาด</TabBtn>
+                    <TabBtn active={tab === "advanced"} onClick={() => setTab("advanced")}>เชิงลึก</TabBtn>
                 </div>
 
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
@@ -1025,6 +1098,107 @@ export default function ReportsClient({
                             </div>
                         </div>
                         <div className="px-4 pb-4"><p className="text-[11px] text-slate-400">ใช้ตั้งกลุ่มเป้าหมายยิงแอดออนไลน์ให้แม่นขึ้น · ข้อมูลทั้งคลินิก (ไม่ผูกช่วงวันที่/แผนก)</p></div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── แท็บ เชิงลึก (Predictive/Advanced) ── */}
+            {tab === "advanced" && (
+                <div className="space-y-4 animate-fade-in">
+                    {/* Sales forecast */}
+                    <div className="gonix-card-premium p-5">
+                        <div className="flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4 text-[#2B54F0]" /><h2 className="text-sm font-bold text-slate-800">พยากรณ์ยอดขายเดือนถัดไป</h2></div>
+                        {!forecast.hasData ? <p className="text-center text-sm text-slate-400 py-4">ข้อมูลย้อนหลังไม่พอสำหรับพยากรณ์</p> : (
+                            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                                <div className="shrink-0">
+                                    <div className="text-[11px] text-slate-500">{forecast.nextMonthLabel}</div>
+                                    <div className="text-3xl font-black text-[#2B54F0]">~฿{fmt(forecast.predicted)}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">{forecast.method}</div>
+                                </div>
+                                <div className="flex-1 flex items-end gap-1 h-20">
+                                    {forecast.monthly.slice(-6).map(m => {
+                                        const mx = Math.max(...forecast.monthly.slice(-6).map(x => x.revenue), forecast.predicted, 1);
+                                        return (
+                                            <div key={m.month} className="flex-1 flex flex-col items-center gap-1" title={`${m.month}: ฿${fmt(m.revenue)}`}>
+                                                <div className="w-full rounded-t bg-slate-300" style={{ height: `${Math.max((m.revenue / mx) * 64, 2)}px` }} />
+                                                <span className="text-[9px] text-slate-400">{m.month.slice(5)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                    <div className="flex-1 flex flex-col items-center gap-1" title={`คาดการณ์: ฿${fmt(forecast.predicted)}`}>
+                                        <div className="w-full rounded-t bg-[#2B54F0]/70 border-2 border-dashed border-[#2B54F0]" style={{ height: `${Math.max((forecast.predicted / Math.max(...forecast.monthly.slice(-6).map(x => x.revenue), forecast.predicted, 1)) * 64, 2)}px` }} />
+                                        <span className="text-[9px] font-bold text-[#2B54F0]">{forecast.nextMonth.slice(5)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <p className="text-[11px] text-slate-400 mt-3">heuristic จากยอดย้อนหลัง (ไม่ใช่ ML) — ใช้วางแผนสต๊อก/กำลังคน/แคมเปญล่วงหน้า</p>
+                    </div>
+
+                    {/* Churn risk */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-rose-500" />
+                            <h2 className="text-sm font-bold text-slate-800">ลูกค้าเสี่ยงหาย ควรติดตาม (Churn Risk)</h2>
+                            <span className="text-xs text-slate-400">{churnCustomers.length} ราย</span>
+                            {churnCustomers.length > 0 && <button onClick={exportChurn} className="ml-auto text-xs font-bold text-[#2B54F0] inline-flex items-center gap-1"><Download className="h-3.5 w-3.5" /> Export</button>}
+                        </div>
+                        {churnCustomers.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีลูกค้ากลุ่มเสี่ยงหาย 👍</p> : (
+                            <div className="overflow-x-auto max-h-80">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60 sticky top-0"><tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <th className="text-left px-4 py-2">ลูกค้า</th><th className="text-left px-3 py-2">กลุ่ม</th>
+                                        <th className="text-right px-3 py-2">ไม่มา (วัน)</th><th className="text-right px-4 py-2">ยอดสะสม</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        {churnCustomers.map(c => (
+                                            <tr key={c.hn} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2"><Link href={`/dashboard/patients/${c.hn}`} className="font-bold text-slate-800 hover:text-[#2B54F0]">{c.name}</Link>{c.phone && <span className="ml-1.5 text-[11px] text-slate-400">{c.phone}</span>}</td>
+                                                <td className="px-3 py-2"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">{RFM_LABEL[c.segment] || c.segment}</span></td>
+                                                <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmt(c.recencyDays)}</td>
+                                                <td className="px-4 py-2 text-right tabular-nums font-bold text-slate-700">฿{fmt(c.monetary)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3"><p className="text-[11px] text-slate-400">กลุ่ม ห้ามเสียไป/เสี่ยงหาย/ใกล้หาย — Export ไปบรอดแคสต์ LINE/ยิงแอด retarget ก่อนลูกค้าหายจริง</p></div>
+                    </div>
+
+                    {/* Anomaly detection */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-amber-600" />
+                            <h2 className="text-sm font-bold text-slate-800">วันยอดขายผิดปกติ (Anomaly)</h2>
+                            <span className="text-xs text-slate-400">{anomalies.length} วัน</span>
+                        </div>
+                        {anomalies.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ไม่พบวันที่ยอดผิดปกติในช่วงนี้</p> : (
+                            <div className="p-4 space-y-2">
+                                {anomalies.map(a => (
+                                    <div key={a.date} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${a.type === "high" ? "bg-emerald-50" : "bg-rose-50"}`}>
+                                        <span className="font-bold text-slate-700">{formatDateThai(a.date)}</span>
+                                        <span className="text-xs text-slate-500">คาด ~฿{fmt(a.expected)}</span>
+                                        <span className={`font-bold tabular-nums ${a.type === "high" ? "text-emerald-600" : "text-rose-600"}`}>{a.type === "high" ? "▲ สูงผิดปกติ" : "▼ ต่ำผิดปกติ"} ฿{fmt(a.amount)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="px-4 pb-3"><p className="text-[11px] text-slate-400">เทียบกับค่าเฉลี่ยวันเดียวกันของสัปดาห์ (z-score &gt; 1.5) — ช่วยจับวันที่ยอดพุ่ง/ตกโดยไม่ต้องไล่ดูเอง</p></div>
+                    </div>
+
+                    {/* Executive summary */}
+                    <div className="gonix-card-premium p-5">
+                        <div className="flex items-center gap-2 mb-3"><FileText className="h-4 w-4 text-slate-700" /><h2 className="text-sm font-bold text-slate-800">สรุปผู้บริหาร (Executive Summary)</h2></div>
+                        <pre className="whitespace-pre-wrap text-[13px] text-slate-700 bg-slate-50 rounded-xl p-4 font-sans leading-relaxed">{execText}</pre>
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                            <button onClick={copyExec} className="h-9 px-3 rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700 inline-flex items-center gap-1.5"><Download className="h-4 w-4" /> คัดลอก</button>
+                            <button onClick={sendExec} disabled={execSending} className="h-9 px-3 rounded-lg bg-[#06C755] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                                {execSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} ส่งเข้า LINE ของฉัน
+                            </button>
+                            {execMsg && <span className="text-xs text-slate-600">{execMsg}</span>}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-2">ส่งสรุปเข้า LINE ตัวเองแบบ manual (ต้องผูก LINE ที่โปรไฟล์) · เวอร์ชันส่งอัตโนมัติรายสัปดาห์/เดือนต้องตั้ง cron เพิ่ม</p>
                     </div>
                 </div>
             )}
