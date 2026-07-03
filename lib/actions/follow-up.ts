@@ -209,6 +209,83 @@ export async function escalateFollowUp(taskId: string, note?: string) {
 export interface FollowUpLogEntry { id: string; action: string; status: string | null; severity: string | null; note: string | null; actor_name: string | null; created_at: string; }
 export interface PatientFollowUp extends FollowUpTask { logs: FollowUpLogEntry[]; }
 
+/** ลิงก์ขอรีวิวของคลินิก */
+export async function getClinicReviewUrl(): Promise<string | null> {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { data } = await supabase.from("tenants").select("review_url").eq("id", clinicId).maybeSingle();
+        return (data?.review_url as string) || null;
+    } catch {
+        return null;
+    }
+}
+
+/** ตั้งลิงก์ขอรีวิว (เจ้าของ/แอดมิน) */
+export async function setClinicReviewUrl(url: string) {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { error } = await supabase.from("tenants").update({ review_url: url.trim() || null }).eq("id", clinicId);
+        if (error) return { success: false, error: error.message };
+        revalidatePath("/dashboard/follow-up");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
+    }
+}
+
+/** log จังหวะพึงพอใจ (ขอรีวิว/เสนอ referral) */
+export async function logFollowUpAction(taskId: string, action: "review_sent" | "referral_sent") {
+    try {
+        const { supabase, userId, clinicId } = await ctx();
+        await supabase.from("follow_up_task_log").insert({ clinic_id: clinicId, task_id: taskId, action, actor_id: userId });
+        return { success: true };
+    } catch {
+        return { success: false };
+    }
+}
+
+export interface SafetyMetrics {
+    cases: number;              // เคสที่มีงานติดตาม
+    complicationCases: number;  // เคสที่ flag เหลือง/แดง หรือ escalate
+    complicationPct: number;
+    escalations: number;
+    avgResponseMin: number | null;  // เฉลี่ยเวลาจาก escalate → เสร็จ (นาที)
+}
+
+/** เมตริกความปลอดภัยเชิงคลินิก (สำหรับหน้ารายงาน) */
+export async function getSafetyMetrics(startDate: string, endDate: string): Promise<SafetyMetrics> {
+    const empty: SafetyMetrics = { cases: 0, complicationCases: 0, complicationPct: 0, escalations: 0, avgResponseMin: null };
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { data } = await supabase.from("follow_up_tasks")
+            .select("vn, hn, severity, escalated_at, completed_at").eq("clinic_id", clinicId)
+            .gte("due_date", startDate).lte("due_date", endDate);
+        const rows = data || [];
+        if (rows.length === 0) return empty;
+
+        const caseKey = (r: { vn: string | null; hn: string }) => (r.vn as string) || (r.hn as string);
+        const allCases = new Set(rows.map(r => caseKey(r as { vn: string | null; hn: string })));
+        const compCases = new Set(rows.filter(r => r.severity === "yellow" || r.severity === "red" || r.escalated_at).map(r => caseKey(r as { vn: string | null; hn: string })));
+        const escalated = rows.filter(r => r.escalated_at);
+        const responseMins: number[] = [];
+        escalated.forEach(r => {
+            if (r.escalated_at && r.completed_at) {
+                const mins = (new Date(r.completed_at as string).getTime() - new Date(r.escalated_at as string).getTime()) / 60000;
+                if (mins >= 0) responseMins.push(mins);
+            }
+        });
+        return {
+            cases: allCases.size,
+            complicationCases: compCases.size,
+            complicationPct: allCases.size > 0 ? Math.round((compCases.size / allCases.size) * 1000) / 10 : 0,
+            escalations: escalated.length,
+            avgResponseMin: responseMins.length ? Math.round(responseMins.reduce((s, v) => s + v, 0) / responseMins.length) : null,
+        };
+    } catch {
+        return empty;
+    }
+}
+
 /** งานติดตามของผู้ป่วย (สำหรับ patient profile) + log */
 export async function getPatientFollowUps(hn: string): Promise<PatientFollowUp[]> {
     try {

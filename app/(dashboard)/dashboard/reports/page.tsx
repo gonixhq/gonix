@@ -5,6 +5,7 @@ import { getPeakHours, getStaffPerformance, getOutstandingPackages, getInventory
 import { getGoalProgress } from "@/lib/actions/targets";
 import { getAcquisitionSources, getConsultationConversion, getDemographics, getCampaignPerformance } from "@/lib/actions/marketing-report";
 import { getSalesForecast } from "@/lib/actions/advanced-report";
+import { getSafetyMetrics } from "@/lib/actions/follow-up";
 import { isSeg, type Seg } from "@/lib/report-segment";
 import ReportsClient from "./reports-client";
 
@@ -60,7 +61,7 @@ export default async function ReportsPage({
         getDemographics(),
         getCampaignPerformance(startDate, endDate, seg),
     ]);
-    const forecast = await getSalesForecast();
+    const [forecast, safety] = await Promise.all([getSalesForecast(), getSafetyMetrics(startDate, endDate)]);
 
     return (
         <ReportsClient
@@ -72,6 +73,7 @@ export default async function ReportsPage({
             demographics={demographics}
             campaigns={campaigns}
             forecast={forecast}
+            safety={safety}
             outstanding={outstanding}
             biz={biz}
             rfm={rfm}

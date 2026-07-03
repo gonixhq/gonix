@@ -19,6 +19,7 @@ import { SEG_LABEL } from "@/lib/report-segment";
 import type { AcqSource, ConversionResult, Demographics, CampaignRow } from "@/lib/actions/marketing-report";
 import type { SalesForecast } from "@/lib/actions/advanced-report";
 import { sendExecSummaryToMyLine } from "@/lib/actions/advanced-report";
+import type { SafetyMetrics } from "@/lib/actions/follow-up";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -116,7 +117,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, forecast, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, forecast, safety, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
@@ -126,6 +127,7 @@ export default function ReportsClient({
     demographics: Demographics;
     campaigns: CampaignRow[];
     forecast: SalesForecast;
+    safety: SafetyMetrics;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -1105,6 +1107,31 @@ export default function ReportsClient({
             {/* ── แท็บ เชิงลึก (Predictive/Advanced) ── */}
             {tab === "advanced" && (
                 <div className="space-y-4 animate-fade-in">
+                    {/* Safety metrics */}
+                    <div className="gonix-card-premium p-5">
+                        <div className="flex items-center gap-2 mb-3"><AlertTriangle className="h-4 w-4 text-rose-500" /><h2 className="text-sm font-bold text-slate-800">ความปลอดภัยเชิงคลินิก (Safety)</h2></div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-slate-500">เคสที่ติดตาม</div>
+                                <div className="text-xl font-black text-slate-800">{fmt(safety.cases)}</div>
+                            </div>
+                            <div className="rounded-xl bg-rose-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-rose-600">% มี Complication</div>
+                                <div className="text-xl font-black text-rose-700">{safety.complicationPct}%</div>
+                                <div className="text-[10px] text-slate-400">{fmt(safety.complicationCases)} เคส</div>
+                            </div>
+                            <div className="rounded-xl bg-amber-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-amber-600">แจ้งเตือนแพทย์</div>
+                                <div className="text-xl font-black text-amber-700">{fmt(safety.escalations)}</div>
+                            </div>
+                            <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-[10px] uppercase font-bold text-slate-500">เวลาตอบเฉลี่ย</div>
+                                <div className="text-xl font-black text-slate-800">{safety.avgResponseMin !== null ? `${safety.avgResponseMin} น.` : "—"}</div>
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-3">Complication = เคสที่ flag เหลือง/แดง หรือแจ้งเตือนแพทย์ · เวลาตอบ = escalate → ปิดเคส · ดู pattern ความปลอดภัยภาพรวม</p>
+                    </div>
+
                     {/* Sales forecast */}
                     <div className="gonix-card-premium p-5">
                         <div className="flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4 text-[#2B54F0]" /><h2 className="text-sm font-bold text-slate-800">พยากรณ์ยอดขายเดือนถัดไป</h2></div>

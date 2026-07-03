@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Phone, MessageCircle, ChevronLeft, ChevronRight, Calendar, Loader2, AlertTriangle, Check, PhoneOff, RotateCcw, Circle } from "lucide-react";
-import { updateFollowUpStatus, setFollowUpSeverity, escalateFollowUp, type FollowUpTask, type FollowUpStatus, type Severity } from "@/lib/actions/follow-up";
+import { ClipboardList, Phone, MessageCircle, ChevronLeft, ChevronRight, Calendar, Loader2, AlertTriangle, Check, PhoneOff, RotateCcw, Circle, Star, UserPlus, Copy } from "lucide-react";
+import { updateFollowUpStatus, setFollowUpSeverity, escalateFollowUp, logFollowUpAction, type FollowUpTask, type FollowUpStatus, type Severity } from "@/lib/actions/follow-up";
 
 function shiftDate(d: string, delta: number) { const dt = new Date(d + "T00:00:00"); dt.setDate(dt.getDate() + delta); return dt.toLocaleDateString("sv-SE"); }
 function dateThai(d: string) { return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
@@ -14,7 +14,7 @@ const SEV_RING: Record<Severity, string> = { green: "border-l-emerald-400", yell
 const SEV_LABEL: Record<Severity, string> = { green: "ปกติ", yellow: "เฝ้าระวัง", red: "ด่วน" };
 const STATUS_LABEL: Record<string, string> = { pending: "รอติดตาม", contacted: "ติดต่อแล้ว", unreachable: "ติดต่อไม่ได้", callback: "รอโทรกลับ", done: "เสร็จ", cancelled: "ยกเลิก" };
 
-export default function FollowUpClient({ tasks, date, today }: { tasks: FollowUpTask[]; date: string; today: string }) {
+export default function FollowUpClient({ tasks, date, today, reviewUrl }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null }) {
     const router = useRouter();
     const overdueCount = tasks.filter(t => t.due_date < today).length;
     const redCount = tasks.filter(t => t.severity === "red").length;
@@ -37,18 +37,30 @@ export default function FollowUpClient({ tasks, date, today }: { tasks: FollowUp
                 <div className="gonix-card-premium p-10 text-center text-slate-400">ไม่มีคิวติดตามผล{date === today ? "วันนี้" : "วันนี้"} 🎉</div>
             ) : (
                 <div className="space-y-3">
-                    {tasks.map(t => <TaskCard key={t.id} task={t} today={today} onChanged={() => router.refresh()} />)}
+                    {tasks.map(t => <TaskCard key={t.id} task={t} today={today} reviewUrl={reviewUrl} onChanged={() => router.refresh()} />)}
                 </div>
             )}
         </div>
     );
 }
 
-function TaskCard({ task, today, onChanged }: { task: FollowUpTask; today: string; onChanged: () => void }) {
+function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; today: string; reviewUrl: string | null; onChanged: () => void }) {
     const [pending, start] = useTransition();
     const [note, setNote] = useState(task.symptom_note || "");
     const [showNote, setShowNote] = useState(false);
+    const [showSatisfied, setShowSatisfied] = useState(false);
     const isOverdue = task.due_date < today;
+
+    function markSatisfied() {
+        setShowSatisfied(true);
+        start(async () => { await updateFollowUpStatus(task.id, "done", note.trim() || undefined); onChanged(); });
+    }
+    function copyReview() {
+        const msg = `ขอบคุณที่ไว้วางใจใช้บริการค่ะ 🙏 รบกวนรีวิวให้กำลังใจเราหน่อยนะคะ${reviewUrl ? `\n${reviewUrl}` : ""}`;
+        navigator.clipboard.writeText(msg);
+        logFollowUpAction(task.id, "review_sent");
+        alert("คัดลอกข้อความขอรีวิวแล้ว");
+    }
 
     function act(fn: () => Promise<{ success: boolean; error?: string; lineOk?: boolean; lineErr?: string | null }>, after?: (r: { lineOk?: boolean; lineErr?: string | null }) => void) {
         start(async () => { const r = await fn(); if (!r.success) { alert(r.error || "ทำรายการไม่สำเร็จ"); return; } after?.(r); onChanged(); });
@@ -109,11 +121,22 @@ function TaskCard({ task, today, onChanged }: { task: FollowUpTask; today: strin
                 <button onClick={() => setStatus("contacted")} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> ติดต่อแล้ว</button>
                 <button onClick={() => setStatus("unreachable")} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1"><PhoneOff className="h-3.5 w-3.5" /> ติดต่อไม่ได้</button>
                 <button onClick={() => setStatus("callback")} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1"><RotateCcw className="h-3.5 w-3.5" /> รอโทรกลับ</button>
-                <button onClick={() => setStatus("done")} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-emerald-500 text-white hover:bg-emerald-600 inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> เสร็จสิ้น</button>
+                <button onClick={() => setStatus("done")} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 inline-flex items-center gap-1"><Check className="h-3.5 w-3.5" /> เสร็จสิ้น</button>
+                <button onClick={markSatisfied} disabled={pending} className="h-8 px-2.5 rounded-lg text-[11px] font-bold bg-amber-400 text-white hover:bg-amber-500 inline-flex items-center gap-1"><Star className="h-3.5 w-3.5" /> พึงพอใจ</button>
                 <button onClick={escalate} disabled={pending} className="ml-auto h-8 px-2.5 rounded-lg text-[11px] font-bold bg-rose-500 text-white hover:bg-rose-600 inline-flex items-center gap-1">
                     {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />} เตือนแพทย์
                 </button>
             </div>
+
+            {showSatisfied && (
+                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-center gap-2 flex-wrap">
+                    <Star className="h-4 w-4 text-amber-500 shrink-0" />
+                    <span className="text-xs font-bold text-amber-800">จังหวะพึงพอใจ — ขอรีวิว + ชวนแนะนำเพื่อน</span>
+                    <button onClick={copyReview} className="h-8 px-2.5 rounded-lg bg-white border border-amber-200 text-amber-700 text-[11px] font-bold inline-flex items-center gap-1"><Copy className="h-3.5 w-3.5" /> คัดลอกข้อความรีวิว</button>
+                    <Link href={`/dashboard/patients/${task.hn}`} onClick={() => logFollowUpAction(task.id, "referral_sent")} className="h-8 px-2.5 rounded-lg bg-white border border-amber-200 text-amber-700 text-[11px] font-bold inline-flex items-center gap-1"><UserPlus className="h-3.5 w-3.5" /> แนะนำเพื่อน</Link>
+                    {!reviewUrl && <span className="text-[10px] text-amber-600">* ยังไม่ได้ตั้งลิงก์รีวิว (ตั้งใน tenants.review_url / mig 088)</span>}
+                </div>
+            )}
         </div>
     );
 }

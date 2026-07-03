@@ -1,5 +1,5 @@
 import { gatePermission } from "@/lib/auth/guard";
-import { getFollowUpsForDate } from "@/lib/actions/follow-up";
+import { getFollowUpsForDate, getClinicReviewUrl } from "@/lib/actions/follow-up";
 import FollowUpClient from "./follow-up-client";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,9 @@ export default async function FollowUpPage({ searchParams }: { searchParams: Pro
     await gatePermission("patients.view");
     const sp = await searchParams;
     const date = sp.date || bkkToday();
-    const tasks = await getFollowUpsForDate(date, { includeOverdue: date === bkkToday() });
-    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} />;
+    const [tasks, reviewUrl] = await Promise.all([
+        getFollowUpsForDate(date, { includeOverdue: date === bkkToday() }),
+        getClinicReviewUrl(),
+    ]);
+    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} reviewUrl={reviewUrl} />;
 }
