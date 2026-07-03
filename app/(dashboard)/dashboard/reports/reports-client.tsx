@@ -16,6 +16,7 @@ import type { PeakHours, StaffPerfRow, OutstandingPackages, InventoryRevenue } f
 import type { GoalProgress } from "@/lib/actions/targets";
 import type { Seg } from "@/lib/report-segment";
 import { SEG_LABEL } from "@/lib/report-segment";
+import type { AcqSource, ConversionResult, Demographics } from "@/lib/actions/marketing-report";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -107,11 +108,14 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    summary, prevSummary, goal, acqSources, conversion, demographics, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
     goal: GoalProgress;
+    acqSources: AcqSource[];
+    conversion: ConversionResult;
+    demographics: Demographics;
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -127,7 +131,7 @@ export default function ReportsClient({
 }) {
     const router = useRouter();
     const [showOutstanding, setShowOutstanding] = useState(false);
-    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations">("overview");
+    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing">("overview");
 
     const newPct = biz.totalRevenue > 0 ? Math.round((biz.newRevenue / biz.totalRevenue) * 100) : 0;
     const retPct = 100 - newPct;
@@ -239,13 +243,13 @@ export default function ReportsClient({
     }
 
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
-    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "all") {
+    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "all") {
         window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}&seg=${seg}`, "_blank");
     }
 
     const TAB_LABEL: Record<string, string> = {
         overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
-        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ",
+        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด",
     };
 
     const maxDayRevenue = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
@@ -330,6 +334,7 @@ export default function ReportsClient({
                     <TabBtn active={tab === "customers"} onClick={() => setTab("customers")}>ลูกค้า & ธุรกิจ</TabBtn>
                     <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
                     <TabBtn active={tab === "operations"} onClick={() => setTab("operations")}>ปฏิบัติการ</TabBtn>
+                    <TabBtn active={tab === "marketing"} onClick={() => setTab("marketing")}>การตลาด</TabBtn>
                 </div>
 
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
@@ -879,6 +884,113 @@ export default function ReportsClient({
                         <div className="px-4 py-3">
                             <p className="text-[11px] text-slate-400">ต้นทุน = cogs_amount (ต้นทุนยา/เวชภัณฑ์ ณ ตอนขาย) · ค่าบริการ/หัตถการ ต้นทุน=0 → กำไรเกือบเต็ม · กดปุ่ม Excel ด้านบนเพื่อ export รายตัวละเอียด</p>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── แท็บ การตลาด (Marketing) ── */}
+            {tab === "marketing" && (
+                <div className="space-y-4 animate-fade-in">
+                    {/* Acquisition Source */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-[#2B54F0]" />
+                            <h2 className="text-sm font-bold text-slate-800">ที่มาของลูกค้า (Acquisition Source)</h2>
+                        </div>
+                        <div className="p-4 space-y-2.5">
+                            {acqSources.length === 0 ? (
+                                <p className="text-center text-sm text-slate-400 py-4">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                            ) : acqSources.map(s => (
+                                <div key={s.source} className="flex items-center gap-3">
+                                    <span className="w-40 text-xs font-bold text-slate-600 shrink-0">{s.label}</span>
+                                    <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden">
+                                        <div className="h-full bg-[#2B54F0]/80 rounded-lg flex items-center justify-end px-2" style={{ width: `${Math.max(s.pct, 4)}%` }}>
+                                            <span className="text-[10px] font-bold text-white tabular-nums">{s.pct}%</span>
+                                        </div>
+                                    </div>
+                                    <span className="w-12 text-right text-xs tabular-nums text-slate-500">{fmt(s.count)}</span>
+                                </div>
+                            ))}
+                            <p className="text-[11px] text-slate-400 pt-1">จาก case_source ตอนเปิด Visit — ใช้ดูว่าช่องทางไหนพาลูกค้ามามากสุด เทียบกับงบยิงแอด</p>
+                        </div>
+                    </div>
+
+                    {/* Consultation Conversion */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-emerald-600" />
+                            <h2 className="text-sm font-bold text-slate-800">อัตราปิดการขาย (Conversion)</h2>
+                            <span className="text-xs text-slate-400">รวม {conversion.rate}% ({fmt(conversion.closedVisits)}/{fmt(conversion.totalVisits)} visit)</span>
+                        </div>
+                        {conversion.byDoctor.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60">
+                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            <th className="text-left px-4 py-2.5">แพทย์</th>
+                                            <th className="text-right px-3 py-2.5">Visit</th>
+                                            <th className="text-right px-3 py-2.5">ปิดการขาย</th>
+                                            <th className="text-right px-4 py-2.5">อัตราปิด</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {conversion.byDoctor.map(d => (
+                                            <tr key={d.staff_id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2.5 font-bold text-slate-700">{d.name}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(d.visits)}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(d.closed)}</td>
+                                                <td className={`px-4 py-2.5 text-right tabular-nums font-bold ${d.rate >= 50 ? "text-emerald-600" : d.rate >= 25 ? "text-amber-600" : "text-rose-500"}`}>{d.rate}%</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3">
+                            <p className="text-[11px] text-slate-400">ปิดการขาย = Visit ที่มีบิลชำระ &gt; 0 · ปรึกษาเยอะแต่ปิดน้อย = ทบทวนสคริปต์การขาย (กรองแผนกความงามด้วยปุ่ม BU ด้านบน)</p>
+                        </div>
+                    </div>
+
+                    {/* Demographics */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Users className="h-4 w-4 text-violet-600" />
+                            <h2 className="text-sm font-bold text-slate-800">ข้อมูลประชากรลูกค้า (Demographics)</h2>
+                            <span className="text-xs text-slate-400">{fmt(demographics.total)} ราย</span>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4 p-4">
+                            <div>
+                                <div className="text-xs font-bold text-slate-600 mb-2">เพศ</div>
+                                <div className="space-y-2">
+                                    {demographics.gender.map(g => (
+                                        <div key={g.key} className="flex items-center gap-2">
+                                            <span className="w-14 text-xs text-slate-500 shrink-0">{g.label}</span>
+                                            <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden">
+                                                <div className="h-full bg-violet-400 rounded" style={{ width: `${Math.max(g.pct, 3)}%` }} />
+                                            </div>
+                                            <span className="w-16 text-right text-[11px] tabular-nums text-slate-500">{g.pct}% ({g.count})</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-slate-600 mb-2">ช่วงอายุ {demographics.withDob < demographics.total && <span className="font-normal text-slate-400">(มีวันเกิด {fmt(demographics.withDob)} ราย)</span>}</div>
+                                <div className="space-y-2">
+                                    {demographics.ageBuckets.map(a => (
+                                        <div key={a.label} className="flex items-center gap-2">
+                                            <span className="w-14 text-xs text-slate-500 shrink-0">{a.label} ปี</span>
+                                            <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden">
+                                                <div className="h-full bg-sky-400 rounded" style={{ width: `${Math.max(a.pct, 2)}%` }} />
+                                            </div>
+                                            <span className="w-16 text-right text-[11px] tabular-nums text-slate-500">{a.pct}% ({a.count})</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-4 pb-4"><p className="text-[11px] text-slate-400">ใช้ตั้งกลุ่มเป้าหมายยิงแอดออนไลน์ให้แม่นขึ้น · ข้อมูลทั้งคลินิก (ไม่ผูกช่วงวันที่/แผนก)</p></div>
                     </div>
                 </div>
             )}
