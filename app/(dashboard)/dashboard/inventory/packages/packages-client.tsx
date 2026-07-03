@@ -59,6 +59,12 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
         packages.forEach(p => p.category && set.add(p.category));
         return Array.from(set);
     }, [packages]);
+    const inactiveCount = useMemo(() => packages.filter(p => !p.is_active).length, [packages]);
+    const catCount = useMemo(() => {
+        const m: Record<string, number> = {};
+        packages.forEach(p => { if (p.is_active && p.category) m[p.category] = (m[p.category] || 0) + 1; });
+        return m;
+    }, [packages]);
 
     const filtered = useMemo(() => {
         return packages.filter(p => {
@@ -101,7 +107,7 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
             {/* Stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="คอสทั้งหมด" value={totalActive} icon={Package} color="slate" />
-                <StatCard label="หมวด" value={categories.length} icon={Sparkles} color="rose" />
+                <StatCard label={categories.length <= 1 ? "หมวด" : `หมวด (${categories.length})`} value={categories.length === 0 ? "—" : categories.length === 1 ? categories[0] : categories.length} icon={Sparkles} color="rose" />
                 <StatCard label="สิทธิ์ที่ active" value={totalActivePurchases} icon={Users} color="teal" />
                 <StatCard label="ยอดขายรวม" value={`฿${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} icon={DollarSign} color="emerald" />
             </div>
@@ -122,10 +128,12 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                     <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด ({totalActive})</FilterChip>
                     {categories.map(c => (
                         <FilterChip key={c} active={filter === c} onClick={() => setFilter(c)}>
-                            {c}
+                            {c} ({catCount[c] || 0})
                         </FilterChip>
                     ))}
-                    <FilterChip active={filter === "inactive"} onClick={() => setFilter("inactive")}>ปิดใช้งาน</FilterChip>
+                    {inactiveCount > 0 && (
+                        <FilterChip active={filter === "inactive"} onClick={() => setFilter("inactive")}>ปิดใช้งาน ({inactiveCount})</FilterChip>
+                    )}
                 </div>
             </div>
 
@@ -157,9 +165,12 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                                             {p.code}
                                         </span>
                                         {p.category && (
-                                            <Badge className={`border-0 text-[10px] font-bold uppercase ${CATEGORY_COLOR[p.category] || CATEGORY_COLOR.OTHER}`}>
-                                                {p.category}
-                                            </Badge>
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-400">ประเภท:</span>
+                                                <Badge className={`border-0 text-[10px] font-bold uppercase ${CATEGORY_COLOR[p.category] || CATEGORY_COLOR.OTHER}`}>
+                                                    {p.category}
+                                                </Badge>
+                                            </span>
                                         )}
                                     </div>
                                     <h3 className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors line-clamp-2">
