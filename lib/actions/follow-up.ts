@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { pushLineText } from "@/lib/line";
 
@@ -208,6 +209,35 @@ export async function escalateFollowUp(taskId: string, note?: string) {
 
 export interface FollowUpLogEntry { id: string; action: string; status: string | null; severity: string | null; note: string | null; actor_name: string | null; created_at: string; }
 export interface PatientFollowUp extends FollowUpTask { logs: FollowUpLogEntry[]; }
+
+/** ผู้ป่วยรายงานอาการเองผ่าน LINE (LIFF) — anon context ใช้ service client bypass RLS */
+export async function submitSelfReport(lineUid: string, severity: Severity, note: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+        if (!lineUid) return { ok: false, error: "เปิดผ่าน LINE เท่านั้น" };
+        const supabase = createServiceClient();
+        const { data: pat } = await supabase.from("patients")
+            .select("hn, clinic_id, first_name, last_name").eq("line_user_id", lineUid).limit(1).maybeSingle();
+        if (!pat) return { ok: false, error: "ยังไม่ได้ผูกบัญชี LINE กับคลินิก" };
+        const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+        const { data: task, error } = await supabase.from("follow_up_tasks").insert({
+            clinic_id: pat.clinic_id, hn: pat.hn, service_name: "รายงานอาการเอง (ผ่าน LINE)",
+            due_date: today, severity, symptom_note: note || null, self_reported: true, status: "pending",
+        }).select("id").single();
+        if (error) return { ok: false, error: error.message };
+        await supabase.from("follow_up_task_log").insert({ clinic_id: pat.clinic_id, task_id: task.id, action: "self_report", severity, note: note || null });
+
+        // แจ้ง owner ถ้าอาการด่วน/ผิดปกติ
+        if (severity !== "green") {
+            const { data: owners } = await supabase.from("profiles").select("line_user_id").eq("clinic_id", pat.clinic_id).eq("role", "owner").not("line_user_id", "is", null);
+            const pname = `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || pat.hn;
+            const msg = `📩 คนไข้รายงานอาการเอง (${severity === "red" ? "ด่วน 🔴" : "ผิดปกติ 🟡"})\nคนไข้: ${pname} (HN ${pat.hn})\nอาการ: ${note || "-"}\nกรุณาติดต่อกลับ`;
+            for (const o of owners || []) await pushLineText(o.line_user_id as string, msg);
+        }
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
+    }
+}
 
 /** ลิงก์ขอรีวิวของคลินิก */
 export async function getClinicReviewUrl(): Promise<string | null> {
