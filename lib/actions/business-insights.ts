@@ -27,7 +27,7 @@ function makeKeepVn(seg: Seg, aesByVn: Record<string, boolean>) {
 export interface SalesTypeRow { type: string; amount: number; count: number; pct: number; }
 export interface TopItem { name: string; type: string; qty: number; amount: number; }
 export interface RfmSegment { key: string; label: string; color: string; customers: number; revenue: number; }
-export interface RfmCustomer { hn: string; name: string; recencyDays: number; frequency: number; monetary: number; r: number; f: number; m: number; segment: string; }
+export interface RfmCustomer { hn: string; name: string; phone: string | null; email: string | null; recencyDays: number; frequency: number; monetary: number; r: number; f: number; m: number; segment: string; }
 
 export interface BusinessInsights {
     // overview
@@ -196,9 +196,10 @@ export async function getRfmAnalysis(seg: Seg = "all"): Promise<RfmResult> {
     const freqSorted = [...freqArr].sort((a, b) => a - b);
     const monSorted = [...monArr].sort((a, b) => a - b);
 
-    // ชื่อผู้ป่วย
-    const { data: pts } = await supabase.from("patients").select("hn, first_name, last_name").in("hn", hns);
+    // ชื่อ + ช่องทางติดต่อผู้ป่วย (สำหรับ export retarget)
+    const { data: pts } = await supabase.from("patients").select("hn, first_name, last_name, phone, email").in("hn", hns);
     const nameMap = new Map((pts || []).map((p) => [p.hn as string, `${p.first_name} ${p.last_name}`]));
+    const contactMap = new Map((pts || []).map((p) => [p.hn as string, { phone: (p.phone as string) || null, email: (p.email as string) || null }]));
 
     const segCount = new Map<string, { customers: number; revenue: number }>();
     const customers: RfmCustomer[] = base.map((b) => {
@@ -208,7 +209,8 @@ export async function getRfmAnalysis(seg: Seg = "all"): Promise<RfmResult> {
         const seg = RFM_SEGMENTS.find((s) => s.test(r, f)) || RFM_SEGMENTS[RFM_SEGMENTS.length - 1];
         const sc = segCount.get(seg.key) || { customers: 0, revenue: 0 };
         sc.customers += 1; sc.revenue += b.monetary; segCount.set(seg.key, sc);
-        return { hn: b.hn, name: nameMap.get(b.hn) || b.hn, recencyDays: b.recencyDays, frequency: b.frequency, monetary: b.monetary, r, f, m, segment: seg.key };
+        const ct = contactMap.get(b.hn);
+        return { hn: b.hn, name: nameMap.get(b.hn) || b.hn, phone: ct?.phone || null, email: ct?.email || null, recencyDays: b.recencyDays, frequency: b.frequency, monetary: b.monetary, r, f, m, segment: seg.key };
     });
 
     const segments: RfmSegment[] = RFM_SEGMENTS.map((s) => {

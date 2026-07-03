@@ -224,6 +224,20 @@ export default function ReportsClient({
         URL.revokeObjectURL(url);
     }
 
+    // Export รายชื่อลูกค้าในกลุ่ม RFM (เบอร์/อีเมล) → ไป retarget FB/LINE OA
+    function exportRfmSegment(segKey: string, segLabel: string) {
+        const rows = rfm.customers.filter(c => c.segment === segKey);
+        if (rows.length === 0) { alert("ไม่มีลูกค้าในกลุ่มนี้"); return; }
+        const lines = ["ชื่อ,HN,เบอร์โทร,อีเมล,ซื้อล่าสุด(วันก่อน),จำนวนครั้ง,ยอดใช้จ่าย"];
+        rows.forEach(c => lines.push(`"${c.name}",${c.hn},${c.phone || ""},${c.email || ""},${c.recencyDays},${c.frequency},${c.monetary}`));
+        const csv = "﻿" + lines.join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `rfm-${segKey}-${today}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    }
+
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
     function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "all") {
         window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}&seg=${seg}`, "_blank");
@@ -564,8 +578,12 @@ export default function ReportsClient({
                                 <>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                                         {rfm.segments.filter(s => s.customers > 0).map(s => (
-                                            <div key={s.key} className={`rounded-xl border p-3 ${SEG_TONE[s.color] || SEG_TONE.slate}`}>
-                                                <div className="text-sm font-bold">{s.label}</div>
+                                            <div key={s.key} className={`rounded-xl border p-3 relative group ${SEG_TONE[s.color] || SEG_TONE.slate}`}>
+                                                <button onClick={() => exportRfmSegment(s.key, s.label)} title={`Export รายชื่อ ${s.label} (เบอร์/อีเมล)`}
+                                                    className="absolute top-2 right-2 h-6 w-6 rounded-lg bg-white/70 hover:bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Download className="h-3.5 w-3.5" />
+                                                </button>
+                                                <div className="text-sm font-bold pr-6">{s.label}</div>
                                                 <div className="text-2xl font-black tabular-nums mt-0.5">{s.customers}</div>
                                                 <div className="text-[11px] opacity-80">฿{fmt(s.revenue)}</div>
                                             </div>
