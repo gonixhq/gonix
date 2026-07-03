@@ -37,6 +37,7 @@ const translations = {
         // Sub-menus & Actions
         addPatient: "Add Patient",
         screening: "Open Visit & Screening",
+        followUp: "Follow-up",
         doctorStation: "Doctor Room",
         doctorSchedule: "Work Schedule",
         dispense: "Dispense",
@@ -76,6 +77,7 @@ const translations = {
         // Sub-menus & Actions
         addPatient: "เพิ่มผู้ป่วยใหม่",
         screening: "เปิด Visit & ซักประวัติ",
+        followUp: "ติดตามผล",
         doctorStation: "ห้องแพทย์ (Doctor Room)",
         doctorSchedule: "ตารางเวร",
         dispense: "จ่ายยา",

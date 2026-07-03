@@ -16,6 +16,7 @@ export interface ServiceCatalogItem {
     inventory_item_id: string | null;   // kit ในคลังที่ตัด stock
     consume_qty: number | null;         // จำนวนที่ตัดต่อครั้ง
     segment?: string | null;            // แผนกรายได้ medical/aesthetic/product
+    follow_up_days?: string | null;     // รอบติดตามผล "1,7,14"
 }
 
 export interface InventoryPick {

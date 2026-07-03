@@ -296,6 +296,7 @@ function ServiceFormModal({
     const [itemType, setItemType] = useState<ServiceItemType>(initial?.item_type as ServiceItemType || "service");
     const [sellingPrice, setSellingPrice] = useState(initial?.selling_price?.toString() || "");
     const [durationMin, setDurationMin] = useState(initial?.duration_min?.toString() || "30");
+    const [followUpDays, setFollowUpDays] = useState(initial?.follow_up_days || "");
     const [note, setNote] = useState(initial?.note || "");
     const [kitId, setKitId] = useState(initial?.inventory_item_id || "");
     const [consumeQty, setConsumeQty] = useState(initial?.consume_qty?.toString() || "1");
@@ -310,6 +311,7 @@ function ServiceFormModal({
             item_type: itemType,
             selling_price: parseFloat(sellingPrice) || 0,
             duration_min: parseInt(durationMin) || 30,
+            follow_up_days: followUpDays.replace(/[^0-9,]/g, "").replace(/,+/g, ",").replace(/^,|,$/g, "") || null,
             note,
             is_active: initial?.is_active ?? true,
             inventory_item_id: kitId || null,
@@ -389,6 +391,15 @@ function ServiceFormModal({
                                     onChange={e => setDurationMin(e.target.value)}
                                     placeholder="30"
                                     className={`${FORM_INPUT_CLS} text-right tabular-nums`}
+                                />
+                            </FieldRow>
+
+                            <FieldRow label="รอบติดตามผล (วัน)" hint="เช่น 1,7,14 — ชำระบิลแล้วสร้างงานติดตามอัตโนมัติ · เว้นว่าง=ไม่ติดตาม">
+                                <Input
+                                    value={followUpDays}
+                                    onChange={e => setFollowUpDays(e.target.value)}
+                                    placeholder="1,7,14"
+                                    className={`${FORM_INPUT_CLS} font-mono`}
                                 />
                             </FieldRow>
 

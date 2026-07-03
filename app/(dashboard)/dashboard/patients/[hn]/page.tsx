@@ -15,10 +15,11 @@ import AuditLogList from "./audit-log-list";
 import { VitalsTrend } from "./vitals-trend";
 import { VisitTimeline } from "./visit-timeline";
 import ReferralTab from "./referral-tab";
+import FollowUpTab from "./follow-up-tab";
 import {
     ArrowLeft, User, Phone, Mail, Calendar, Heart, Stethoscope,
     AlertTriangle, Activity, Clock, Pencil, MapPin, ShieldCheck,
-    Droplet, Users, IdCard, Printer, Sparkles, Image as ImageIcon, Paperclip,
+    Droplet, Users, IdCard, Printer, Sparkles, Image as ImageIcon, Paperclip, ClipboardList,
 } from "lucide-react";
 import type { AestheticPhoto, AestheticRecords } from "@/lib/aesthetic-types";
 
@@ -317,6 +318,9 @@ export default async function PatientDetailPage({
                     <TabsTrigger value="referral" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
                         <Heart className="h-3.5 w-3.5" /> แนะนำเพื่อน
                     </TabsTrigger>
+                    <TabsTrigger value="followup" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
+                        <ClipboardList className="h-3.5 w-3.5" /> ติดตามผล
+                    </TabsTrigger>
                     <TabsTrigger value="audit" className="rounded-xl px-4 py-2 gap-1.5 font-bold text-slate-500 hover:text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-blue-500/30 transition-all">
                         <Clock className="h-3.5 w-3.5" /> Log
                         {auditLogs.length > 0 && (
@@ -453,6 +457,10 @@ export default async function PatientDetailPage({
                 {/* ── Referral Tab ── */}
                 <TabsContent value="referral" className="mt-5">
                     <ReferralTab hn={patient.hn} />
+                </TabsContent>
+
+                <TabsContent value="followup" className="mt-5">
+                    <FollowUpTab hn={patient.hn} />
                 </TabsContent>
 
                 {/* ── Audit Tab ── */}

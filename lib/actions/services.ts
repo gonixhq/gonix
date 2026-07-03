@@ -17,7 +17,7 @@ export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("item_type")
@@ -42,7 +42,7 @@ export async function listAllServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days")
             .eq("clinic_id", profile.clinic_id)
             .order("is_active", { ascending: false })
             .order("item_type")
@@ -65,6 +65,7 @@ export interface ServiceInput {
     inventory_item_id?: string | null;
     consume_qty?: number | null;
     segment?: string | null;   // แผนกรายได้ medical/aesthetic/product
+    follow_up_days?: string | null;   // รอบติดตามผล "1,7,14"
 }
 
 /** รายการในคลังสำหรับเลือกผูกเป็น kit (ตัด stock) */
@@ -139,6 +140,7 @@ export async function createService(input: ServiceInput) {
                 item_type: input.item_type,
                 selling_price: input.selling_price ?? 0,
                 duration_min: input.duration_min ?? 30,
+                follow_up_days: input.follow_up_days || null,
                 note: input.note?.trim() || null,
                 is_active: input.is_active ?? true,
                 inventory_item_id: input.inventory_item_id || null,
@@ -227,6 +229,7 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
         if (input.item_type !== undefined) update.item_type = input.item_type;
         if (input.selling_price !== undefined) update.selling_price = input.selling_price;
         if (input.duration_min !== undefined) update.duration_min = input.duration_min;
+        if (input.follow_up_days !== undefined) update.follow_up_days = input.follow_up_days || null;
         if (input.note !== undefined) update.note = input.note?.trim() || null;
         if (input.is_active !== undefined) update.is_active = input.is_active;
         if (input.inventory_item_id !== undefined) update.inventory_item_id = input.inventory_item_id || null;
