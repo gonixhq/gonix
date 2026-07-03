@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ClipboardList, Phone, MessageCircle, ChevronLeft, ChevronRight, Calendar, Loader2, AlertTriangle, Check, PhoneOff, RotateCcw, Circle, Star, UserPlus, Copy } from "lucide-react";
-import { updateFollowUpStatus, setFollowUpSeverity, escalateFollowUp, logFollowUpAction, type FollowUpTask, type FollowUpStatus, type Severity } from "@/lib/actions/follow-up";
+import { ClipboardList, Phone, MessageCircle, ChevronLeft, ChevronRight, Calendar, Loader2, AlertTriangle, Check, PhoneOff, RotateCcw, Circle, Star, UserPlus, Copy, Link2, Pencil } from "lucide-react";
+import { updateFollowUpStatus, setFollowUpSeverity, escalateFollowUp, logFollowUpAction, setClinicReviewUrl, type FollowUpTask, type FollowUpStatus, type Severity } from "@/lib/actions/follow-up";
 
 function shiftDate(d: string, delta: number) { const dt = new Date(d + "T00:00:00"); dt.setDate(dt.getDate() + delta); return dt.toLocaleDateString("sv-SE"); }
 function dateThai(d: string) { return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
@@ -14,7 +14,7 @@ const SEV_RING: Record<Severity, string> = { green: "border-l-emerald-400", yell
 const SEV_LABEL: Record<Severity, string> = { green: "ปกติ", yellow: "เฝ้าระวัง", red: "ด่วน" };
 const STATUS_LABEL: Record<string, string> = { pending: "รอติดตาม", contacted: "ติดต่อแล้ว", unreachable: "ติดต่อไม่ได้", callback: "รอโทรกลับ", done: "เสร็จ", cancelled: "ยกเลิก" };
 
-export default function FollowUpClient({ tasks, date, today, reviewUrl }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null }) {
+export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditReview }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null; canEditReview: boolean }) {
     const router = useRouter();
     const overdueCount = tasks.filter(t => t.due_date < today).length;
     const redCount = tasks.filter(t => t.severity === "red").length;
@@ -32,6 +32,8 @@ export default function FollowUpClient({ tasks, date, today, reviewUrl }: { task
                     <Link href={`/dashboard/follow-up?date=${shiftDate(date, 1)}`}><button className="h-9 w-9 rounded-lg border border-slate-300 bg-white flex items-center justify-center"><ChevronRight className="h-4 w-4" /></button></Link>
                 </div>
             </div>
+
+            {canEditReview && <ReviewUrlSetter initial={reviewUrl} />}
 
             {tasks.length === 0 ? (
                 <div className="gonix-card-premium p-10 text-center text-slate-400">ไม่มีคิวติดตามผล{date === today ? "วันนี้" : "วันนี้"} 🎉</div>
@@ -134,7 +136,42 @@ function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; t
                     <span className="text-xs font-bold text-amber-800">จังหวะพึงพอใจ — ขอรีวิว + ชวนแนะนำเพื่อน</span>
                     <button onClick={copyReview} className="h-8 px-2.5 rounded-lg bg-white border border-amber-200 text-amber-700 text-[11px] font-bold inline-flex items-center gap-1"><Copy className="h-3.5 w-3.5" /> คัดลอกข้อความรีวิว</button>
                     <Link href={`/dashboard/patients/${task.hn}`} onClick={() => logFollowUpAction(task.id, "referral_sent")} className="h-8 px-2.5 rounded-lg bg-white border border-amber-200 text-amber-700 text-[11px] font-bold inline-flex items-center gap-1"><UserPlus className="h-3.5 w-3.5" /> แนะนำเพื่อน</Link>
-                    {!reviewUrl && <span className="text-[10px] text-amber-600">* ยังไม่ได้ตั้งลิงก์รีวิว (ตั้งใน tenants.review_url / mig 088)</span>}
+                    {!reviewUrl && <span className="text-[10px] text-amber-600">* ยังไม่ได้ตั้งลิงก์รีวิว — owner ตั้งได้ที่ปุ่มด้านบน</span>}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ReviewUrlSetter({ initial }: { initial: string | null }) {
+    const router = useRouter();
+    const [open, setOpen] = useState(false);
+    const [url, setUrl] = useState(initial || "");
+    const [pending, start] = useTransition();
+    const [saved, setSaved] = useState(false);
+
+    function save() {
+        start(async () => {
+            const r = await setClinicReviewUrl(url);
+            if (!r.success) { alert(r.error || "บันทึกไม่สำเร็จ"); return; }
+            setSaved(true); setTimeout(() => setSaved(false), 1500); setOpen(false); router.refresh();
+        });
+    }
+    return (
+        <div className="gonix-card-premium p-3">
+            {!open ? (
+                <button onClick={() => setOpen(true)} className="text-xs font-bold text-slate-600 inline-flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-[#2B54F0]" /> ลิงก์ขอรีวิว: <span className="text-slate-400 font-normal">{initial || "ยังไม่ได้ตั้ง"}</span> <Pencil className="h-3 w-3 opacity-40" />
+                </button>
+            ) : (
+                <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-[#2B54F0] shrink-0" />
+                    <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://g.page/r/.../review"
+                        className="flex-1 h-9 rounded-lg border border-slate-200 px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
+                    <button onClick={save} disabled={pending} className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5" /> : "บันทึก"}
+                    </button>
+                    <button onClick={() => setOpen(false)} className="text-xs text-slate-400">ยกเลิก</button>
                 </div>
             )}
         </div>

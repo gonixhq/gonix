@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { pushLineText } from "@/lib/line";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 
 async function ctx() {
     const supabase = await createClient();
@@ -254,6 +255,8 @@ export async function getClinicReviewUrl(): Promise<string | null> {
 export async function setClinicReviewUrl(url: string) {
     try {
         const { supabase, clinicId } = await ctx();
+        const { role } = await getEffectivePermissionsForUser();
+        if (role !== "owner" && role !== "admin") return { success: false, error: "เฉพาะเจ้าของ/แอดมินตั้งได้" };
         const { error } = await supabase.from("tenants").update({ review_url: url.trim() || null }).eq("id", clinicId);
         if (error) return { success: false, error: error.message };
         revalidatePath("/dashboard/follow-up");

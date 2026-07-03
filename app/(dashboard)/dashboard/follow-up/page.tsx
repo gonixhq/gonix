@@ -1,4 +1,5 @@
 import { gatePermission } from "@/lib/auth/guard";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { getFollowUpsForDate, getClinicReviewUrl } from "@/lib/actions/follow-up";
 import FollowUpClient from "./follow-up-client";
 
@@ -10,9 +11,11 @@ export default async function FollowUpPage({ searchParams }: { searchParams: Pro
     await gatePermission("patients.view");
     const sp = await searchParams;
     const date = sp.date || bkkToday();
-    const [tasks, reviewUrl] = await Promise.all([
+    const [tasks, reviewUrl, perms] = await Promise.all([
         getFollowUpsForDate(date, { includeOverdue: date === bkkToday() }),
         getClinicReviewUrl(),
+        getEffectivePermissionsForUser(),
     ]);
-    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} reviewUrl={reviewUrl} />;
+    const canEditReview = perms.role === "owner" || perms.role === "admin";
+    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} reviewUrl={reviewUrl} canEditReview={canEditReview} />;
 }
