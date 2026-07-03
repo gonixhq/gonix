@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
 import type { Seg } from "@/lib/report-segment";
 
 async function getCtx() {
@@ -43,6 +44,58 @@ export async function getAcquisitionSources(startDate: string, endDate: string, 
             .sort((a, b) => b.count - a.count);
     } catch {
         return [];
+    }
+}
+
+// ── M3 #3 Campaign / Promo Performance ─────────────────
+export interface CampaignRow { campaign: string; count: number; sales: number; }
+
+/** ยอดขายแยกตามแคมเปญ/โปรฯ (invoice_headers.campaign) ในช่วง */
+export async function getCampaignPerformance(startDate: string, endDate: string, seg: Seg = "all"): Promise<CampaignRow[]> {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        // vn → aesthetic? สำหรับกรอง BU
+        const aesByVn: Record<string, boolean> = {};
+        if (seg !== "all") {
+            const { data: sv } = await supabase.from("visits").select("vn, service_category")
+                .eq("clinic_id", clinicId).gte("visit_date", startDate).lte("visit_date", endDate);
+            (sv || []).forEach(v => { aesByVn[v.vn as string] = v.service_category === "aesthetic"; });
+        }
+        const keepVn = (vn: string | null | undefined) => {
+            if (seg === "all") return true;
+            const isAes = vn ? aesByVn[vn] : undefined;
+            return seg === "aesthetic" ? isAes === true : isAes === false;
+        };
+        const { data } = await supabase.from("invoice_headers")
+            .select("campaign, paid_amount, status, vn").eq("clinic_id", clinicId)
+            .gte("invoice_date", startDate).lte("invoice_date", endDate)
+            .not("campaign", "is", null);
+        const map: Record<string, { count: number; sales: number }> = {};
+        for (const i of data || []) {
+            if (EXCLUDE.has(i.status as string) || !keepVn(i.vn as string)) continue;
+            const c = ((i.campaign as string) || "").trim();
+            if (!c) continue;
+            const m = (map[c] = map[c] || { count: 0, sales: 0 });
+            m.count++; m.sales += Number(i.paid_amount || 0);
+        }
+        return Object.entries(map).map(([campaign, v]) => ({ campaign, count: v.count, sales: Math.round(v.sales * 100) / 100 }))
+            .sort((a, b) => b.sales - a.sales);
+    } catch {
+        return [];
+    }
+}
+
+/** แท็กแคมเปญให้บิล (จากหน้ารายละเอียดบิล) */
+export async function setInvoiceCampaign(invId: string, campaign: string) {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        const { error } = await supabase.from("invoice_headers")
+            .update({ campaign: campaign.trim() || null }).eq("id", invId).eq("clinic_id", clinicId);
+        if (error) return { success: false, error: error.message };
+        revalidatePath(`/dashboard/finance/${invId}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
     }
 }
 

@@ -14,7 +14,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         .from("invoice_headers")
         .select(`
             id, vn, hn, invoice_date, subtotal, discount_amount, tax_amount,
-            total_amount, paid_amount, balance_due, status,
+            total_amount, paid_amount, balance_due, status, campaign,
             created_at, updated_at,
             patients!inner(prefix, first_name, last_name, phone, thai_id_card, gender, dob)
         `)

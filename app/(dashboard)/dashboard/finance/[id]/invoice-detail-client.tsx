@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import InvoiceCampaign from "./invoice-campaign";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ interface Invoice {
     paid_amount?: number | null;
     balance_due?: number | null;
     status: string;
+    campaign?: string | null;
     created_at: string;
     updated_at?: string | null;
     patients: Patient | Patient[];
@@ -264,6 +266,8 @@ export default function InvoiceDetailClient({
                     </Link>
                 </div>
             </div>
+
+            <InvoiceCampaign invId={invoice.id} initial={invoice.campaign ?? null} />
 
             {error && (
                 <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700 flex items-center gap-2">

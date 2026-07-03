@@ -16,7 +16,7 @@ import type { PeakHours, StaffPerfRow, OutstandingPackages, InventoryRevenue } f
 import type { GoalProgress } from "@/lib/actions/targets";
 import type { Seg } from "@/lib/report-segment";
 import { SEG_LABEL } from "@/lib/report-segment";
-import type { AcqSource, ConversionResult, Demographics } from "@/lib/actions/marketing-report";
+import type { AcqSource, ConversionResult, Demographics, CampaignRow } from "@/lib/actions/marketing-report";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -108,7 +108,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, acqSources, conversion, demographics, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
@@ -116,6 +116,7 @@ export default function ReportsClient({
     acqSources: AcqSource[];
     conversion: ConversionResult;
     demographics: Demographics;
+    campaigns: CampaignRow[];
     outstanding: OutstandingInvoice[];
     biz: BusinessInsights;
     rfm: RfmResult;
@@ -913,6 +914,39 @@ export default function ReportsClient({
                             ))}
                             <p className="text-[11px] text-slate-400 pt-1">จาก case_source ตอนเปิด Visit — ใช้ดูว่าช่องทางไหนพาลูกค้ามามากสุด เทียบกับงบยิงแอด</p>
                         </div>
+                    </div>
+
+                    {/* Campaign / Promo Performance */}
+                    <div className="gonix-card-premium overflow-hidden">
+                        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-pink-600" />
+                            <h2 className="text-sm font-bold text-slate-800">ผลแคมเปญ/โปรโมชัน</h2>
+                        </div>
+                        {campaigns.length === 0 ? (
+                            <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีบิลที่แท็กแคมเปญ — ไปแท็กได้ที่หน้ารายละเอียดบิล (ช่อง &quot;แคมเปญ/โปรฯ&quot;)</p>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50/60">
+                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                            <th className="text-left px-4 py-2.5">แคมเปญ</th>
+                                            <th className="text-right px-3 py-2.5">จำนวนบิล</th>
+                                            <th className="text-right px-4 py-2.5">ยอดขาย</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {campaigns.map(c => (
+                                            <tr key={c.campaign} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                <td className="px-4 py-2.5 font-bold text-slate-700">{c.campaign}</td>
+                                                <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(c.count)}</td>
+                                                <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#10B981]">฿{fmt(c.sales)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <div className="px-4 py-3"><p className="text-[11px] text-slate-400">แท็กแคมเปญ/โค้ดโปรฯ ที่หน้ารายละเอียดบิล → เทียบว่าโปรฯ ไหนสร้างยอดได้ดีกว่ากัน</p></div>
                     </div>
 
                     {/* Consultation Conversion */}

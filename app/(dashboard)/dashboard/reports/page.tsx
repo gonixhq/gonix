@@ -3,7 +3,7 @@ import { getReportSummary, getOutstandingInvoices } from "@/lib/actions/reports"
 import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/actions/business-insights";
 import { getPeakHours, getStaffPerformance, getOutstandingPackages, getInventoryRevenue } from "@/lib/actions/operations-report";
 import { getGoalProgress } from "@/lib/actions/targets";
-import { getAcquisitionSources, getConsultationConversion, getDemographics } from "@/lib/actions/marketing-report";
+import { getAcquisitionSources, getConsultationConversion, getDemographics, getCampaignPerformance } from "@/lib/actions/marketing-report";
 import { isSeg, type Seg } from "@/lib/report-segment";
 import ReportsClient from "./reports-client";
 
@@ -51,12 +51,13 @@ export default async function ReportsPage({
         getOutstandingPackages(),
         getInventoryRevenue(startDate, endDate, seg),
     ]);
-    const [prevSummary, goal, acqSources, conversion, demographics] = await Promise.all([
+    const [prevSummary, goal, acqSources, conversion, demographics, campaigns] = await Promise.all([
         getReportSummary(prevStart, prevEnd, seg),
         getGoalProgress(),
         getAcquisitionSources(startDate, endDate, seg),
         getConsultationConversion(startDate, endDate, seg),
         getDemographics(),
+        getCampaignPerformance(startDate, endDate, seg),
     ]);
 
     return (
@@ -67,6 +68,7 @@ export default async function ReportsPage({
             acqSources={acqSources}
             conversion={conversion}
             demographics={demographics}
+            campaigns={campaigns}
             outstanding={outstanding}
             biz={biz}
             rfm={rfm}
