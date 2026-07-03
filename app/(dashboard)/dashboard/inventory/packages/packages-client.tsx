@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
     Plus, Search, Package, Sparkles, Calendar, Users,
-    CheckCircle, EyeOff, X, Loader2, DollarSign,
+    CheckCircle, EyeOff, X, Loader2, DollarSign, Clock,
 } from "lucide-react";
 import { PermissionGate } from "@/components/ui/permission-button";
 import { createPackage } from "@/lib/actions/packages";
@@ -29,6 +29,10 @@ interface PackageRow {
     is_active: boolean;
     active_purchases: number;
     total_purchases: number;
+    sold_sessions: number;
+    used_sessions: number;
+    utilization_pct: number;
+    expiring_soon: number;
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -199,15 +203,35 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
+                            {/* Utilization bar (ครั้งที่ใช้ vs ขายไป รวมทุก user) */}
+                            {p.sold_sessions > 0 && (
+                                <div className="mt-2">
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                                        <span>การใช้งาน</span>
+                                        <span className="tabular-nums">{p.used_sessions}/{p.sold_sessions} ครั้ง · {p.utilization_pct}%</span>
+                                    </div>
+                                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full rounded-full ${p.utilization_pct >= 80 ? "bg-emerald-500" : p.utilization_pct >= 40 ? "bg-blue-500" : "bg-amber-400"}`} style={{ width: `${Math.min(100, p.utilization_pct)}%` }} />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px] flex-wrap gap-1">
                                 <span className="text-slate-500 inline-flex items-center gap-1">
                                     <Calendar className="h-3 w-3" /> {p.validity_days} วัน
                                 </span>
-                                {p.active_purchases > 0 && (
-                                    <span className="text-blue-700 font-bold inline-flex items-center gap-1">
-                                        <Users className="h-3 w-3" /> {p.active_purchases} active
-                                    </span>
-                                )}
+                                <div className="inline-flex items-center gap-1.5">
+                                    {p.expiring_soon > 0 && (
+                                        <span className="text-amber-700 font-bold inline-flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded" title="ลูกค้าที่คอสใกล้หมดอายุใน 30 วัน ยังใช้ไม่ครบ">
+                                            <Clock className="h-3 w-3" /> {p.expiring_soon} ใกล้หมดอายุ
+                                        </span>
+                                    )}
+                                    {p.active_purchases > 0 && (
+                                        <span className="text-blue-700 font-bold inline-flex items-center gap-1">
+                                            <Users className="h-3 w-3" /> {p.active_purchases} active
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </Link>
                     ))}
