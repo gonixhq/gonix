@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
+import { generateFollowUpTasks } from "./follow-up";
 
 /** Log invoice action to audit_logs */
 async function logInvoiceAction(
@@ -203,6 +204,11 @@ export async function addPayment(input: {
             })
             .eq("id", input.invId);
         if (upErr) return { success: false, error: upErr.message };
+
+        // ชำระครบ → สร้าง task ติดตามผลอัตโนมัติ (non-blocking — ไม่ให้กระทบการจ่ายเงิน)
+        if (newStatus === "paid") {
+            try { await generateFollowUpTasks(input.invId); } catch { /* ignore */ }
+        }
 
         revalidatePath("/dashboard/finance");
         revalidatePath(`/dashboard/finance/${input.invId}`);
