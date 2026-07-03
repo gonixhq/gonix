@@ -1,6 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Seg } from "@/lib/report-segment";
+
+function catKeep(seg: Seg, cat: string | null | undefined): boolean {
+    if (seg === "all") return true;
+    const isAes = cat === "aesthetic";
+    return seg === "aesthetic" ? isAes : !isAes;
+}
 
 async function getCtx() {
     const supabase = await createClient();
@@ -91,13 +98,25 @@ export interface InventoryRevenue {
 }
 
 /** Inventory-Revenue: กำไรขั้นต้นต่อประเภท (แยกต้นทุนยา/เวชภัณฑ์ vs ค่าบริการ) */
-export async function getInventoryRevenue(startDate: string, endDate: string): Promise<InventoryRevenue> {
+export async function getInventoryRevenue(startDate: string, endDate: string, seg: Seg = "all"): Promise<InventoryRevenue> {
     const empty: InventoryRevenue = { byType: [], items: [], totals: { revenue: 0, cogs: 0, margin: 0, marginPct: 0 } };
     try {
         const { supabase, clinicId } = await getCtx();
+        // Business Unit filter: map vn → aesthetic?
+        const aesByVn: Record<string, boolean> = {};
+        if (seg !== "all") {
+            const { data: sv } = await supabase.from("visits").select("vn, service_category")
+                .eq("clinic_id", clinicId).gte("visit_date", startDate).lte("visit_date", endDate);
+            (sv || []).forEach(v => { aesByVn[v.vn as string] = v.service_category === "aesthetic"; });
+        }
+        const keepVn = (vn: string | null | undefined) => {
+            if (seg === "all") return true;
+            const isAes = vn ? aesByVn[vn] : undefined;
+            return seg === "aesthetic" ? isAes === true : isAes === false;
+        };
         const { data: rows } = await supabase
             .from("invoice_items")
-            .select("item_type, item_name, qty, line_total, cogs_amount, invoice_headers!inner(invoice_date, status)")
+            .select("item_type, item_name, qty, line_total, cogs_amount, invoice_headers!inner(invoice_date, status, vn)")
             .eq("clinic_id", clinicId)
             .gte("invoice_headers.invoice_date", startDate)
             .lte("invoice_headers.invoice_date", endDate);
@@ -109,6 +128,7 @@ export async function getInventoryRevenue(startDate: string, endDate: string): P
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const h = Array.isArray((it as any).invoice_headers) ? (it as any).invoice_headers[0] : (it as any).invoice_headers;
             if (h && PERF_EXCLUDE.has(h.status)) continue;
+            if (h && !keepVn(h.vn)) continue;
             const type = (it.item_type as string) || "other";
             const rev = Number(it.line_total || 0);
             const cogs = Number(it.cogs_amount || 0);
@@ -163,18 +183,18 @@ export interface StaffPerfRow {
 const PERF_EXCLUDE = new Set(["voided", "refunded", "draft"]);
 
 /** ตารางผลงานแพทย์/พนักงาน — เคส + ยอดขาย + retention (ในช่วงวันที่) */
-export async function getStaffPerformance(startDate: string, endDate: string): Promise<StaffPerfRow[]> {
+export async function getStaffPerformance(startDate: string, endDate: string, seg: Seg = "all"): Promise<StaffPerfRow[]> {
     try {
         const { supabase, clinicId } = await getCtx();
 
         // visits ในช่วง (ที่มีผู้ดูแล)
         const { data: visits } = await supabase
             .from("visits")
-            .select("vn, hn, doctor_id")
+            .select("vn, hn, doctor_id, service_category")
             .eq("clinic_id", clinicId)
             .gte("visit_date", startDate).lte("visit_date", endDate)
             .not("doctor_id", "is", null);
-        const visitList = visits || [];
+        const visitList = (visits || []).filter(v => catKeep(seg, v.service_category as string));
         if (visitList.length === 0) return [];
 
         // map vn → doctor_id
@@ -259,16 +279,17 @@ export async function getStaffPerformance(startDate: string, endDate: string): P
 }
 
 /** Heatmap จำนวน visit แยกตามวันในสัปดาห์ × ชั่วโมงของวัน (ในช่วงวันที่) */
-export async function getPeakHours(startDate: string, endDate: string): Promise<PeakHours> {
+export async function getPeakHours(startDate: string, endDate: string, seg: Seg = "all"): Promise<PeakHours> {
     const empty: PeakHours = { grid: Array.from({ length: 7 }, () => new Array(24).fill(0)), maxCell: 0, byHour: new Array(24).fill(0), byDay: new Array(7).fill(0), total: 0, busiest: null };
     try {
         const { supabase, clinicId } = await getCtx();
-        const { data: visits } = await supabase
+        const { data: visitsRaw } = await supabase
             .from("visits")
-            .select("visit_date, visit_time")
+            .select("visit_date, visit_time, service_category")
             .eq("clinic_id", clinicId)
             .gte("visit_date", startDate)
             .lte("visit_date", endDate);
+        const visits = (visitsRaw || []).filter(v => catKeep(seg, v.service_category as string));
 
         const grid = Array.from({ length: 7 }, () => new Array(24).fill(0));
         const byHour = new Array(24).fill(0);

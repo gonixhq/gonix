@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAnonRevenue } from "./anonymous";
+import type { Seg } from "@/lib/report-segment";
 
 async function getCtx() {
     const supabase = await createClient();
@@ -52,9 +53,13 @@ export interface OutstandingInvoice {
 }
 
 /** รายงานหลัก — ตามช่วงวันที่ (YYYY-MM-DD) */
-export async function getReportSummary(startDate: string, endDate: string): Promise<ReportSummary> {
+export async function getReportSummary(startDate: string, endDate: string, seg: Seg = "all"): Promise<ReportSummary> {
     const { supabase, clinicId } = await getCtx();
-    const anon = await getAnonRevenue(startDate, endDate); // รายรับคลินิกนิรนาม (รวมเข้ายอด)
+    // นิรนาม = เวชกรรม (STD) → รวมเฉพาะ all/medical ไม่รวมเมื่อกรอง aesthetic
+    const includeAnon = seg !== "aesthetic";
+    const anon = includeAnon
+        ? await getAnonRevenue(startDate, endDate)
+        : { total: 0, byDay: [], byMethod: [], byType: [], topItems: [] };
 
     // ── Invoices ในช่วงวันที่ ──
     const { data: invoices } = await supabase
@@ -64,7 +69,19 @@ export async function getReportSummary(startDate: string, endDate: string): Prom
         .gte("invoice_date", startDate)
         .lte("invoice_date", endDate);
 
-    const invList = invoices || [];
+    let invList = invoices || [];
+    // ── Business Unit filter: กรองบิลตาม segment ของ visit (ผ่าน vn) ──
+    if (seg !== "all") {
+        const { data: segVisits } = await supabase.from("visits")
+            .select("vn, service_category").eq("clinic_id", clinicId)
+            .gte("visit_date", startDate).lte("visit_date", endDate);
+        const aesByVn: Record<string, boolean> = {};
+        (segVisits || []).forEach(v => { aesByVn[v.vn as string] = v.service_category === "aesthetic"; });
+        invList = invList.filter(i => {
+            const isAes = i.vn ? aesByVn[i.vn as string] : undefined;  // ไม่มี vn/ไม่พบ visit = จัดประเภทไม่ได้ → ตัดออกเมื่อกรอง
+            return seg === "aesthetic" ? isAes === true : isAes === false;
+        });
+    }
 
     let totalRevenue = 0, totalBilled = 0, outstanding = 0;
     let paidCount = 0, partialCount = 0, voidedCount = 0, refundedCount = 0;
@@ -185,7 +202,9 @@ export async function getReportSummary(startDate: string, endDate: string): Prom
         .gte("visit_date", startDate)
         .lte("visit_date", endDate);
 
-    const visitList = visits || [];
+    const visitList = (visits || []).filter(v =>
+        seg === "all" ? true : seg === "aesthetic" ? v.service_category === "aesthetic" : v.service_category !== "aesthetic"
+    );
     const totalVisits = visitList.length;
     const completedVisits = visitList.filter(v => v.status === "completed").length;
     const cancelledVisits = visitList.filter(v => v.status === "cancelled").length;

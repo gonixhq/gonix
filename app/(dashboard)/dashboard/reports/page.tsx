@@ -3,6 +3,7 @@ import { getReportSummary, getOutstandingInvoices } from "@/lib/actions/reports"
 import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/actions/business-insights";
 import { getPeakHours, getStaffPerformance, getOutstandingPackages, getInventoryRevenue } from "@/lib/actions/operations-report";
 import { getGoalProgress } from "@/lib/actions/targets";
+import { isSeg, type Seg } from "@/lib/report-segment";
 import ReportsClient from "./reports-client";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,11 @@ function bangkokToday(): string {
 export default async function ReportsPage({
     searchParams,
 }: {
-    searchParams: Promise<{ start?: string; end?: string }>;
+    searchParams: Promise<{ start?: string; end?: string; seg?: string }>;
 }) {
     await gatePermission("reports.view");
     const params = await searchParams;
+    const seg: Seg = isSeg(params.seg) ? params.seg : "all";
 
     const today = bangkokToday();
     // Default = เดือนนี้
@@ -38,18 +40,18 @@ export default async function ReportsPage({
     const prevEnd = isoDate(prevEndD);
 
     const [summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin] = await Promise.all([
-        getReportSummary(startDate, endDate),
+        getReportSummary(startDate, endDate, seg),
         getOutstandingInvoices(),
-        getBusinessInsights(startDate, endDate),
-        getRfmAnalysis(),
-        getBasketAnalysis(startDate, endDate),
-        getPeakHours(startDate, endDate),
-        getStaffPerformance(startDate, endDate),
+        getBusinessInsights(startDate, endDate, seg),
+        getRfmAnalysis(seg),
+        getBasketAnalysis(startDate, endDate, seg),
+        getPeakHours(startDate, endDate, seg),
+        getStaffPerformance(startDate, endDate, seg),
         getOutstandingPackages(),
-        getInventoryRevenue(startDate, endDate),
+        getInventoryRevenue(startDate, endDate, seg),
     ]);
     const [prevSummary, goal] = await Promise.all([
-        getReportSummary(prevStart, prevEnd),
+        getReportSummary(prevStart, prevEnd, seg),
         getGoalProgress(),
     ]);
 
@@ -66,6 +68,7 @@ export default async function ReportsPage({
             staffPerf={staffPerf}
             outstandingPkg={outstandingPkg}
             invMargin={invMargin}
+            seg={seg}
             startDate={startDate}
             endDate={endDate}
             today={today}

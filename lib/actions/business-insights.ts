@@ -1,9 +1,28 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Seg } from "@/lib/report-segment";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const EXCLUDE = new Set(["voided", "refunded", "draft"]);
+
+/** map vn → aesthetic? สำหรับกรอง Business Unit (ทุกช่วงเวลา ถ้าไม่ส่ง start/end) */
+async function vnAesMap(supabase: Awaited<ReturnType<typeof createClient>>, start?: string, end?: string): Promise<Record<string, boolean>> {
+    let q = supabase.from("visits").select("vn, service_category");
+    if (start) q = q.gte("visit_date", start);
+    if (end) q = q.lte("visit_date", end);
+    const { data } = await q;
+    const m: Record<string, boolean> = {};
+    (data || []).forEach(v => { m[v.vn as string] = v.service_category === "aesthetic"; });
+    return m;
+}
+function makeKeepVn(seg: Seg, aesByVn: Record<string, boolean>) {
+    return (vn: string | null | undefined) => {
+        if (seg === "all") return true;
+        const isAes = vn ? aesByVn[vn] : undefined;
+        return seg === "aesthetic" ? isAes === true : isAes === false;
+    };
+}
 
 export interface SalesTypeRow { type: string; amount: number; count: number; pct: number; }
 export interface TopItem { name: string; type: string; qty: number; amount: number; }
@@ -32,15 +51,28 @@ const ITEM_TYPE_LABEL: Record<string, string> = {
 export async function getItemTypeLabel(t: string) { return ITEM_TYPE_LABEL[t] || t; }
 
 /** ภาพรวม + sales by type + top items ในช่วงวันที่ */
-export async function getBusinessInsights(startDate: string, endDate: string): Promise<BusinessInsights> {
+export async function getBusinessInsights(startDate: string, endDate: string, seg: Seg = "all"): Promise<BusinessInsights> {
     const supabase = await createClient();
 
-    // 1) ใบเสร็จในช่วง (ตัด voided/refunded/draft)
+    // Business Unit filter: map vn → aesthetic? (จาก visits.service_category)
+    const aesByVn: Record<string, boolean> = {};
+    if (seg !== "all") {
+        const { data: segVisits } = await supabase.from("visits")
+            .select("vn, service_category").gte("visit_date", startDate).lte("visit_date", endDate);
+        (segVisits || []).forEach(v => { aesByVn[v.vn as string] = v.service_category === "aesthetic"; });
+    }
+    const keepVn = (vn: string | null | undefined) => {
+        if (seg === "all") return true;
+        const isAes = vn ? aesByVn[vn] : undefined;
+        return seg === "aesthetic" ? isAes === true : isAes === false;
+    };
+
+    // 1) ใบเสร็จในช่วง (ตัด voided/refunded/draft + กรองตาม segment)
     const { data: invoices } = await supabase
         .from("invoice_headers")
-        .select("id, hn, invoice_date, total_amount, status")
+        .select("id, hn, invoice_date, total_amount, status, vn")
         .gte("invoice_date", startDate).lte("invoice_date", endDate);
-    const valid = (invoices || []).filter((i) => !EXCLUDE.has(i.status as string));
+    const valid = (invoices || []).filter((i) => !EXCLUDE.has(i.status as string) && keepVn(i.vn as string));
 
     const totalRevenue = round2(valid.reduce((s, i) => s + Number(i.total_amount || 0), 0));
     const invoiceCount = valid.length;
@@ -66,7 +98,7 @@ export async function getBusinessInsights(startDate: string, endDate: string): P
     // 3) รายการในใบเสร็จช่วงนี้ (join เพื่อกรองตามวันที่/สถานะ)
     const { data: items } = await supabase
         .from("invoice_items")
-        .select("item_type, item_name, qty, line_total, invoice_headers!inner(invoice_date, status)")
+        .select("item_type, item_name, qty, line_total, invoice_headers!inner(invoice_date, status, vn)")
         .gte("invoice_headers.invoice_date", startDate)
         .lte("invoice_headers.invoice_date", endDate);
 
@@ -76,6 +108,7 @@ export async function getBusinessInsights(startDate: string, endDate: string): P
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const h = Array.isArray((it as any).invoice_headers) ? (it as any).invoice_headers[0] : (it as any).invoice_headers;
         if (h && EXCLUDE.has(h.status)) return;
+        if (h && !keepVn(h.vn)) return;
         const type = (it.item_type as string) || "other";
         const amt = Number(it.line_total || 0);
         const qty = Number(it.qty || 0);
@@ -130,12 +163,13 @@ function quintile(value: number, sortedAsc: number[]): number {
 
 export interface RfmResult { segments: RfmSegment[]; customers: RfmCustomer[]; total: number; }
 
-export async function getRfmAnalysis(): Promise<RfmResult> {
+export async function getRfmAnalysis(seg: Seg = "all"): Promise<RfmResult> {
     const supabase = await createClient();
     const { data: invoices } = await supabase
         .from("invoice_headers")
-        .select("hn, invoice_date, total_amount, status");
-    const valid = (invoices || []).filter((i) => !EXCLUDE.has(i.status as string));
+        .select("hn, invoice_date, total_amount, status, vn");
+    const keepVn = makeKeepVn(seg, seg === "all" ? {} : await vnAesMap(supabase));
+    const valid = (invoices || []).filter((i) => !EXCLUDE.has(i.status as string) && keepVn(i.vn as string));
 
     // aggregate per hn
     const agg = new Map<string, { last: string; freq: number; monetary: number }>();
@@ -208,11 +242,12 @@ export interface BasketAnalysis {
 
 const SEP = "|~|";
 
-export async function getBasketAnalysis(startDate: string, endDate: string): Promise<BasketAnalysis> {
+export async function getBasketAnalysis(startDate: string, endDate: string, seg: Seg = "all"): Promise<BasketAnalysis> {
     const supabase = await createClient();
+    const keepVn = makeKeepVn(seg, seg === "all" ? {} : await vnAesMap(supabase, startDate, endDate));
     const { data: items } = await supabase
         .from("invoice_items")
-        .select("item_name, invoice_headers!inner(id, hn, invoice_date, status)")
+        .select("item_name, invoice_headers!inner(id, hn, invoice_date, status, vn)")
         .gte("invoice_headers.invoice_date", startDate)
         .lte("invoice_headers.invoice_date", endDate);
 
@@ -222,6 +257,7 @@ export async function getBasketAnalysis(startDate: string, endDate: string): Pro
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const h = Array.isArray((it as any).invoice_headers) ? (it as any).invoice_headers[0] : (it as any).invoice_headers;
         if (!h || EXCLUDE.has(h.status)) return;
+        if (!keepVn(h.vn)) return;
         const name = ((it.item_name as string) || "").trim();
         if (!name) return;
         const id = h.id as string;

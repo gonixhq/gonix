@@ -2,6 +2,7 @@ import { gatePermission } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
 import { getReportSummary } from "@/lib/actions/reports";
 import { getBusinessInsights, getRfmAnalysis, getBasketAnalysis } from "@/lib/actions/business-insights";
+import { isSeg, SEG_LABEL, type Seg } from "@/lib/report-segment";
 import PrintTrigger from "@/app/print/visits/[vn]/print-trigger";
 
 export const dynamic = "force-dynamic";
@@ -58,10 +59,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default async function ReportPrintPage({
     searchParams,
 }: {
-    searchParams: Promise<{ start?: string; end?: string; section?: string }>;
+    searchParams: Promise<{ start?: string; end?: string; section?: string; seg?: string }>;
 }) {
     await gatePermission("reports.view");
     const sp = await searchParams;
+    const seg: Seg = isSeg(sp.seg) ? sp.seg : "all";
 
     const today = bangkokToday();
     const [y, m] = today.split("-");
@@ -88,10 +90,10 @@ export default async function ReportPrintPage({
     }
 
     const [summary, biz, rfm, basket] = await Promise.all([
-        getReportSummary(startDate, endDate),
-        needBiz ? getBusinessInsights(startDate, endDate) : Promise.resolve(null),
-        needBiz ? getRfmAnalysis() : Promise.resolve(null),
-        needBasket ? getBasketAnalysis(startDate, endDate) : Promise.resolve(null),
+        getReportSummary(startDate, endDate, seg),
+        needBiz ? getBusinessInsights(startDate, endDate, seg) : Promise.resolve(null),
+        needBiz ? getRfmAnalysis(seg) : Promise.resolve(null),
+        needBasket ? getBasketAnalysis(startDate, endDate, seg) : Promise.resolve(null),
     ]);
 
     const maxDay = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
@@ -123,7 +125,7 @@ export default async function ReportPrintPage({
                         <div className="text-right shrink-0">
                             <div className="text-[10px] uppercase tracking-[0.3em] font-semibold text-slate-600">Report</div>
                             <h1 className="text-[22px] font-black tracking-tight text-black leading-tight mt-1">รายงานสรุปกิจการ</h1>
-                            <div className="text-[13px] font-semibold text-slate-800">{SECTION_LABEL[section]}</div>
+                            <div className="text-[13px] font-semibold text-slate-800">{SECTION_LABEL[section]}{seg !== "all" ? ` · ${SEG_LABEL[seg]}` : ""}</div>
                             <div className="text-[12px] italic text-slate-700 mt-0.5">{dateThai(startDate)} — {dateThai(endDate)}</div>
                         </div>
                     </div>

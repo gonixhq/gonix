@@ -14,6 +14,8 @@ import type { ReportSummary, OutstandingInvoice } from "@/lib/actions/reports";
 import type { BusinessInsights, RfmResult, BasketAnalysis } from "@/lib/actions/business-insights";
 import type { PeakHours, StaffPerfRow, OutstandingPackages, InventoryRevenue } from "@/lib/actions/operations-report";
 import type { GoalProgress } from "@/lib/actions/targets";
+import type { Seg } from "@/lib/report-segment";
+import { SEG_LABEL } from "@/lib/report-segment";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -105,7 +107,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, startDate, endDate, today,
+    summary, prevSummary, goal, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
@@ -118,6 +120,7 @@ export default function ReportsClient({
     staffPerf: StaffPerfRow[];
     outstandingPkg: OutstandingPackages;
     invMargin: InventoryRevenue;
+    seg: Seg;
     startDate: string;
     endDate: string;
     today: string;
@@ -147,7 +150,7 @@ export default function ReportsClient({
             const lmEnd = new Date(now.getFullYear(), now.getMonth(), 0);
             start = lm.toLocaleDateString("sv-SE"); end = lmEnd.toLocaleDateString("sv-SE");
         }
-        router.push(`/dashboard/reports?start=${start}&end=${end}`);
+        router.push(`/dashboard/reports?start=${start}&end=${end}&seg=${seg}`);
     }
 
     function exportCSV() {
@@ -223,7 +226,7 @@ export default function ReportsClient({
 
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
     function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "all") {
-        window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}`, "_blank");
+        window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}&seg=${seg}`, "_blank");
     }
 
     const TAB_LABEL: Record<string, string> = {
@@ -260,6 +263,7 @@ export default function ReportsClient({
 
                     {/* Custom range */}
                     <form method="get" className="inline-flex items-center gap-1.5">
+                        <input type="hidden" name="seg" value={seg} />
                         <input type="date" name="start" defaultValue={startDate} max={today}
                             className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:border-[#2B54F0] focus:outline-none" />
                         <span className="text-slate-300 text-xs">–</span>
@@ -268,6 +272,16 @@ export default function ReportsClient({
                         <Button type="submit" size="sm" variant="outline" className="rounded-lg h-9 text-xs">ดู</Button>
                     </form>
                 </div>
+            </div>
+
+            {/* Business Unit filter (Medical/Aesthetic) */}
+            <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
+                {(["all", "medical", "aesthetic"] as Seg[]).map(s => (
+                    <button key={s} onClick={() => router.push(`/dashboard/reports?start=${startDate}&end=${endDate}&seg=${s}`)}
+                        className={`h-8 px-3.5 rounded-lg text-xs font-bold transition-all ${seg === s ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600 hover:text-slate-800"}`}>
+                        {SEG_LABEL[s]}
+                    </button>
+                ))}
             </div>
 
             {/* Outstanding alert */}
