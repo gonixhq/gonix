@@ -32,9 +32,13 @@ interface PackageItem {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    is_bundle?: boolean;
 }
 
 interface PriceHistoryRow { id: string; old_price: number | null; new_price: number; changed_by_name: string | null; created_at: string; }
+
+interface CandidatePackage { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; }
+interface BundleComponentRow { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; validity_days: number; }
 
 interface Purchase {
     id: string;
@@ -56,8 +60,8 @@ interface Purchase {
 }
 
 export default function PackageDetailClient({
-    pkg, purchases, priceHistory = [],
-}: { pkg: PackageItem; purchases: Purchase[]; priceHistory?: PriceHistoryRow[] }) {
+    pkg, purchases, priceHistory = [], bundleComponents = [], candidatePackages = [],
+}: { pkg: PackageItem; purchases: Purchase[]; priceHistory?: PriceHistoryRow[]; bundleComponents?: BundleComponentRow[]; candidatePackages?: CandidatePackage[] }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showDelete, setShowDelete] = useState(false);
 
@@ -103,6 +107,9 @@ export default function PackageDetailClient({
                                             {pkg.category}
                                         </Badge>
                                     )}
+                                    {pkg.is_bundle && (
+                                        <Badge className="border-0 bg-violet-100 text-violet-700 text-[10px] font-bold uppercase">BUNDLE</Badge>
+                                    )}
                                     {pkg.is_active ? (
                                         <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase">
                                             <CheckCircle className="h-3 w-3 mr-1" /> เปิดใช้งาน
@@ -143,6 +150,34 @@ export default function PackageDetailClient({
                             <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700" title="ส่วนลดสูงสุดโดยไม่ต้องขออนุมัติ (module 9)">ลดได้ ≤{pkg.max_discount_pct != null ? `${pkg.max_discount_pct}%` : "—"}</span>
                         </div>
                     </div>
+
+                    {/* Bundle components (feature 9) */}
+                    {pkg.is_bundle && (
+                        <div className="gonix-card-premium">
+                            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                                <h2 className="font-bold text-slate-800 flex items-center gap-2"><Sparkles className="h-4 w-4 text-violet-600" /> คอสย่อยใน Bundle <span className="text-sm font-normal text-slate-500">({bundleComponents.length})</span></h2>
+                                {bundleComponents.length > 0 && (
+                                    <span className="text-[11px] text-slate-500 tabular-nums">รวมราคาปกติ ฿{bundleComponents.reduce((s, c) => s + Number(c.price), 0).toLocaleString()}</span>
+                                )}
+                            </div>
+                            {bundleComponents.length === 0 ? (
+                                <div className="p-6 text-center text-sm text-slate-400">ยังไม่ได้เลือกคอสย่อย — กด “แก้ไข” เพื่อเพิ่ม</div>
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {bundleComponents.map(c => (
+                                        <div key={c.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">{c.code}</span>
+                                                <span className="truncate text-slate-700">{c.name}</span>
+                                            </span>
+                                            <span className="text-xs text-slate-500 tabular-nums shrink-0">฿{Number(c.price).toLocaleString()} · {c.total_sessions} ครั้ง</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="px-4 py-2.5"><p className="text-[11px] text-slate-400">ตอนลูกค้าซื้อ bundle นี้ ระบบจะแตกเป็นคอสย่อยแยกกัน + แบ่งราคาตามสัดส่วนอัตโนมัติ</p></div>
+                        </div>
+                    )}
 
                     {/* Price history (feature 10) */}
                     {priceHistory.length > 0 && (
@@ -267,7 +302,7 @@ export default function PackageDetailClient({
                 </div>
             </div>
 
-            {showEdit && <EditPackageModal pkg={pkg} onClose={() => setShowEdit(false)} />}
+            {showEdit && <EditPackageModal pkg={pkg} candidatePackages={candidatePackages} initialComponentIds={bundleComponents.map(c => c.id)} onClose={() => setShowEdit(false)} />}
             {showDelete && <DeletePackageModal pkg={pkg} onClose={() => setShowDelete(false)} />}
         </div>
     );
@@ -315,7 +350,7 @@ function SidebarStat({ icon: Icon, label, value, color = "slate" }: {
     );
 }
 
-function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => void }) {
+function EditPackageModal({ pkg, candidatePackages, initialComponentIds, onClose }: { pkg: PackageItem; candidatePackages: CandidatePackage[]; initialComponentIds: string[]; onClose: () => void }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
@@ -332,7 +367,10 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
         commission_doctor_pct: Number(pkg.commission_doctor_pct || 0),
         commission_nurse_pct: Number(pkg.commission_nurse_pct || 0),
         max_discount_pct: Number(pkg.max_discount_pct ?? 0),
+        is_bundle: !!pkg.is_bundle,
     });
+    const [componentIds, setComponentIds] = useState<string[]>(initialComponentIds);
+    const componentsSum = candidatePackages.filter(c => componentIds.includes(c.id)).reduce((s, c) => s + Number(c.price), 0);
 
     const handleSubmit = () => {
         setError(null);
@@ -350,6 +388,8 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
                 commission_doctor_pct: Number(form.commission_doctor_pct) || null,
                 commission_nurse_pct: Number(form.commission_nurse_pct) || null,
                 max_discount_pct: Number(form.max_discount_pct) || null,
+                is_bundle: form.is_bundle,
+                component_ids: form.is_bundle ? componentIds : [],
             });
             if (result.success) {
                 router.refresh();
@@ -475,6 +515,31 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
                             rows={2}
                             className="rounded-xl"
                         />
+                    </div>
+
+                    {/* Bundle (feature 9) */}
+                    <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3 space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={form.is_bundle} onChange={e => setForm({ ...form, is_bundle: e.target.checked })} className="h-4 w-4 accent-violet-600" />
+                            <span className="text-sm font-bold text-violet-800">เป็น Bundle (คอสรวมหลายบริการ)</span>
+                        </label>
+                        {form.is_bundle && (
+                            <div className="space-y-1.5">
+                                <p className="text-[11px] text-slate-500">เลือกคอสย่อยที่รวมใน bundle นี้ · ตอนซื้อระบบจะแตกเป็นคอสแยก + แบ่งราคาตามสัดส่วน</p>
+                                <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg bg-white border border-violet-100 p-2">
+                                    {candidatePackages.length === 0 ? <p className="text-xs text-slate-400 py-2 text-center">ยังไม่มีคอสย่อย — สร้างคอสเดี่ยวก่อน</p> : candidatePackages.map(c => (
+                                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 rounded px-1.5 py-1">
+                                            <input type="checkbox" checked={componentIds.includes(c.id)} onChange={e => setComponentIds(v => e.target.checked ? [...v, c.id] : v.filter(x => x !== c.id))} className="h-3.5 w-3.5 accent-violet-600" />
+                                            <span className="flex-1 truncate">{c.name}</span>
+                                            <span className="text-xs text-slate-400 tabular-nums">฿{Number(c.price).toLocaleString()} · {c.total_sessions} ครั้ง</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {componentIds.length > 0 && (
+                                    <p className="text-[11px] text-slate-600">รวมราคาปกติ ฿{componentsSum.toLocaleString()} · ตั้งราคา bundle ฿{Number(form.price).toLocaleString()} {form.price > 0 && componentsSum > 0 && form.price < componentsSum && <span className="text-emerald-600 font-bold">(ประหยัด {Math.round((1 - form.price / componentsSum) * 100)}%)</span>}</p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <label className="flex items-center gap-2 cursor-pointer">
