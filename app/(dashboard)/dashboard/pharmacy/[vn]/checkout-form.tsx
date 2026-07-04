@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     Printer, CheckCircle2, ChevronLeft, CreditCard, Banknote, QrCode,
-    Pill, Plus, Trash2, X, AlertCircle, Sparkles,
+    Pill, Plus, Trash2, X, AlertCircle, Sparkles, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { completeCheckout, type InvoiceItemInput } from "./checkout-actions";
@@ -56,6 +56,7 @@ interface LineItem {
     unit_price: number;
     locked?: boolean;       // ลบไม่ได้ (เช่น ค่าตรวจ)
     segment?: string | null;  // แผนกรายได้ (จาก source)
+    max_discount_pct?: number | null;  // เพดานส่วนลด (เฉพาะคอส) — null = ไม่จำกัด
 }
 
 let uidCounter = 0;
@@ -175,6 +176,7 @@ export default function CheckoutForm({
             qty: 1,
             unit_price: Number(pkg.price),
             segment: "aesthetic",   // คอร์ส/แพ็กเกจ → ความงาม (ปรับได้)
+            max_discount_pct: pkg.max_discount_pct ?? null,
         }]);
         setShowPackagePicker(false);
     }
@@ -224,6 +226,18 @@ export default function CheckoutForm({
         [items]
     );
     const grandTotal = Math.max(0, subtotal - discount);
+
+    // เพดานส่วนลด (max_discount ต่อคอส) — คอสที่ตั้งเพดาน → ลดได้ไม่เกิน line × pct% · รายการอื่นไม่จำกัด
+    const hasCappedPackage = useMemo(() => items.some(i => i.item_type === "package" && i.max_discount_pct != null), [items]);
+    const discountCeiling = useMemo(
+        () => items.reduce((s, i) => {
+            const lineTotal = i.qty * i.unit_price;
+            const cap = i.item_type === "package" ? i.max_discount_pct : null;
+            return s + (cap == null ? lineTotal : lineTotal * (cap / 100));
+        }, 0),
+        [items]
+    );
+    const overDiscountLimit = hasCappedPackage && discount > discountCeiling + 0.01;
 
     // Auto-fill received amount = total เมื่อ grandTotal เปลี่ยน (ถ้ายังไม่ได้แก้)
     const receivedTouchedRef = useRef(false);
@@ -654,6 +668,13 @@ export default function CheckoutForm({
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">฿</span>
                                 </div>
                             </div>
+                            {/* เตือนเมื่อส่วนลดเกินเพดาน max_discount ต่อคอส (ไม่บล็อก — flag ขออนุมัติ) */}
+                            {overDiscountLimit && (
+                                <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
+                                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                    <span>ส่วนลดเกินเพดานของคอส (ลดได้สูงสุด ฿{discountCeiling.toLocaleString(undefined, { maximumFractionDigits: 0 })}) — ชำระได้ปกติ แต่จะถูกส่งขออนุมัติเป็นกรณี “เกินเพดาน”</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Grand total */}

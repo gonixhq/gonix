@@ -43,13 +43,16 @@ export default function PriceApprovalsClient({ pending }: { pending: PriceApprov
             ) : (
                 <div className="space-y-3">
                     {pending.map(a => (
-                        <div key={a.id} className={`gonix-card-premium p-4 ${a.is_self_transaction ? "ring-2 ring-rose-300" : ""}`}>
+                        <div key={a.id} className={`gonix-card-premium p-4 ${a.is_self_transaction ? "ring-2 ring-rose-300" : a.over_discount_limit ? "ring-2 ring-amber-300" : ""}`}>
                             <div className="flex items-start justify-between gap-3 flex-wrap">
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         {a.inv_id && <Link href={`/dashboard/finance/${a.inv_id}`} className="font-mono text-xs text-cyan-600 hover:underline inline-flex items-center gap-1"><Receipt className="h-3 w-3" />{a.inv_id}</Link>}
                                         {a.is_self_transaction && (
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> SELF-TRANSACTION</span>
+                                        )}
+                                        {a.over_discount_limit && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 inline-flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> เกินเพดานคอส</span>
                                         )}
                                     </div>
                                     <div className="text-sm font-bold text-slate-800 mt-1">{a.patient_name || a.hn}</div>
@@ -61,6 +64,9 @@ export default function PriceApprovalsClient({ pending }: { pending: PriceApprov
                                     <div className="text-[10px] uppercase font-bold text-slate-400">ส่วนลด</div>
                                     <div className="text-xl font-black text-rose-600">−{baht(a.discount_amount)}</div>
                                     <div className="text-[11px] text-slate-400">ยอดก่อนลด {baht(a.subtotal)} → จ่ายจริง {baht(a.total)}</div>
+                                    {a.over_discount_limit && a.discount_ceiling != null && (
+                                        <div className="text-[11px] text-amber-600 font-semibold mt-0.5">เพดานลดได้ {baht(a.discount_ceiling)} · เกิน {baht(a.discount_amount - a.discount_ceiling)}</div>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">

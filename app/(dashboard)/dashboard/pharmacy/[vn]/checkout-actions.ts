@@ -154,11 +154,29 @@ export async function completeCheckout(input: CheckoutInput) {
                 // self-transaction: ชื่อลูกค้าตรงกับพนักงานที่เปิดบิล
                 const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
                 const isSelf = !!requesterName && !!patientName && norm(requesterName) === norm(patientName);
+
+                // เพดานส่วนลด (max_discount ต่อคอส) — คำนวณฝั่ง server ให้เชื่อถือได้
+                // คอสที่ตั้งเพดานไว้ → ให้ลดได้ไม่เกิน line_total × pct% · รายการอื่น (ยา/บริการ) ไม่จำกัด
+                const pkgIds = [...new Set(items.filter(i => i.item_type === "package" && i.item_ref_id).map(i => i.item_ref_id as string))];
+                const capMap: Record<string, number | null> = {};
+                if (pkgIds.length > 0) {
+                    const { data: caps } = await supabase.from("service_packages").select("id, max_discount_pct").in("id", pkgIds);
+                    for (const c of caps || []) capMap[c.id as string] = c.max_discount_pct == null ? null : Number(c.max_discount_pct);
+                }
+                let ceiling = 0;
+                for (const it of items) {
+                    const lineTotal = Number(it.line_total ?? it.qty * it.unit_price);
+                    const cap = it.item_type === "package" && it.item_ref_id ? capMap[it.item_ref_id] : null;
+                    ceiling += cap == null ? lineTotal : lineTotal * (cap / 100);
+                }
+                const overLimit = pkgIds.length > 0 && discount > ceiling + 0.01;
+
                 await supabase.from("price_approvals").insert({
                     clinic_id: clinicId, inv_id: invId, vn, hn, patient_name: patientName,
                     requested_by: user?.id || null, requester_name: requesterName,
                     discount_amount: discount, subtotal, total,
                     is_self_transaction: isSelf, status: "pending",
+                    discount_ceiling: Math.round(ceiling * 100) / 100, over_discount_limit: overLimit,
                 });
             } catch (e) {
                 console.warn("[checkout] price approval log failed:", e);

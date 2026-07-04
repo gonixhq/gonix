@@ -16,6 +16,8 @@ export interface PriceApproval {
     subtotal: number;
     total: number;
     is_self_transaction: boolean;
+    discount_ceiling: number | null;
+    over_discount_limit: boolean;
     status: string;
     approved_at: string | null;
     created_at: string;
