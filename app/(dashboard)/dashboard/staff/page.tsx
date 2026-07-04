@@ -34,7 +34,7 @@ export default async function StaffPage() {
     // Approved + Rejected
     const { data: staff } = await supabase
         .from("profiles")
-        .select("id, full_name, phone, role, approval_status, is_active, last_seen_at, created_at, rejected_reason, approved_at")
+        .select("id, full_name, phone, role, approval_status, is_active, last_seen_at, created_at, rejected_reason, approved_at, line_user_id")
         .eq("clinic_id", me.clinic_id)
         .neq("approval_status", "pending")
         .order("created_at", { ascending: true });
@@ -65,6 +65,7 @@ export default async function StaffPage() {
         rejected_reason: p.rejected_reason,
         approved_at: p.approved_at,
         is_me: p.id === me.id,
+        line_user_id: p.line_user_id ?? null,
     }));
 
     const permissionOverrides: PermissionOverride[] = (overrides || []).map((o) => ({

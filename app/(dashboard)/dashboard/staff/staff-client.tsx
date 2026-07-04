@@ -11,10 +11,10 @@ import { Label } from "@/components/ui/label";
 import {
     UserCog, Clock, CheckCircle2, XCircle, X, Loader2, Phone, ShieldCheck,
     Users, Settings2, AlertTriangle, PencilLine, Power, RefreshCw,
-    Crown,
+    Crown, MessageCircle,
 } from "lucide-react";
 import {
-    approveStaff, rejectStaff, changeStaffRole, toggleStaffActive, reapproveStaff,
+    approveStaff, rejectStaff, changeStaffRole, toggleStaffActive, reapproveStaff, setStaffLineUserId,
 } from "@/lib/actions/staff";
 import { saveRolePermissions, resetRolePermissions } from "@/lib/actions/permissions";
 import {
@@ -41,6 +41,7 @@ export interface StaffProfile {
     rejected_reason: string | null;
     approved_at: string | null;
     is_me: boolean;
+    line_user_id: string | null;
 }
 
 export interface PermissionOverride {
@@ -81,6 +82,7 @@ type ModalState =
     | { type: "edit_role"; staff: StaffProfile }
     | { type: "toggle_active"; staff: StaffProfile; nextActive: boolean }
     | { type: "reapprove"; staff: StaffProfile }
+    | { type: "line_link"; staff: StaffProfile }
     | null;
 
 export default function StaffClient({
@@ -198,6 +200,7 @@ export default function StaffClient({
                                                 staff={s}
                                                 onEditRole={() => setModal({ type: "edit_role", staff: s })}
                                                 onToggleActive={() => setModal({ type: "toggle_active", staff: s, nextActive: !s.is_active })}
+                                                onLinkLine={() => setModal({ type: "line_link", staff: s })}
                                             />
                                         ))}
                                     </tbody>
@@ -239,6 +242,57 @@ export default function StaffClient({
                 <ToggleActiveModal staff={modal.staff} nextActive={modal.nextActive} onClose={() => setModal(null)} />
             )}
             {modal?.type === "reapprove" && <ReapproveModal staff={modal.staff} onClose={() => setModal(null)} />}
+            {modal?.type === "line_link" && <LineLinkModal staff={modal.staff} onClose={() => setModal(null)} />}
+        </div>
+    );
+}
+
+/* ─── LINE Link Modal (admin กรอก userId ให้พนักงาน) ─── */
+function LineLinkModal({ staff, onClose }: { staff: StaffProfile; onClose: () => void }) {
+    const router = useRouter();
+    const [value, setValue] = useState(staff.line_user_id || "");
+    const [isPending, startTransition] = useTransition();
+    const [error, setError] = useState<string | null>(null);
+
+    function save(clear = false) {
+        setError(null);
+        startTransition(async () => {
+            const res = await setStaffLineUserId(staff.id, clear ? null : value);
+            if (res.success) { router.refresh(); onClose(); }
+            else setError(res.error || "บันทึกไม่สำเร็จ");
+        });
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                    <h2 className="font-bold text-slate-800 flex items-center gap-2"><MessageCircle className="h-5 w-5 text-emerald-600" /> ผูก LINE — {staff.full_name}</h2>
+                    <button onClick={onClose} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500"><X className="h-4 w-4" /></button>
+                </div>
+                <div className="p-4 space-y-3">
+                    <div>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">LINE userId</Label>
+                        <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="U xxxxxxxx… (33 ตัว)"
+                            className="mt-1 w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                        <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                            ให้พนักงานทักแชต LINE OA ของคลินิก แล้วนำ userId มากรอก (ดูได้จาก LINE Official Account Manager → รายชื่อเพื่อน หรือ webhook log) · ระบบจะใช้ส่งแจ้งเตือนเวร/อนุมัติทาง LINE
+                        </p>
+                    </div>
+                    {error && <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm p-2.5">{error}</div>}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                        {staff.line_user_id ? (
+                            <Button variant="ghost" onClick={() => save(true)} disabled={isPending} className="rounded-xl text-rose-600 hover:bg-rose-50 text-sm">ยกเลิกการผูก</Button>
+                        ) : <span />}
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={onClose} className="rounded-xl">ยกเลิก</Button>
+                            <Button onClick={() => save(false)} disabled={isPending || !value.trim()} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
+                                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
@@ -300,16 +354,18 @@ function PendingCard({
 
 /* ─── Staff Row (Tab 2) ─── */
 function StaffRow({
-    staff, onEditRole, onToggleActive,
+    staff, onEditRole, onToggleActive, onLinkLine,
 }: {
     staff: StaffProfile;
     onEditRole: () => void;
     onToggleActive: () => void;
+    onLinkLine: () => void;
 }) {
     const initials = staff.full_name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
     const roleColor = ROLE_COLOR[staff.role] || "bg-slate-100 text-slate-700";
     const roleLabel = ROLE_LABEL[staff.role] || staff.role;
     const isOwnerRole = staff.role === "owner";
+    const lineLinked = !!staff.line_user_id;
 
     return (
         <tr className="border-b last:border-0 border-slate-100/80 hover:bg-slate-50/50 transition-colors">
@@ -361,6 +417,16 @@ function StaffRow({
             </td>
             <td className="px-5 py-3.5 text-right">
                 <div className="flex justify-end gap-1.5">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={onLinkLine}
+                        className={`rounded-lg h-8 px-2 text-xs gap-1.5 ${lineLinked ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" : "text-slate-500 hover:text-slate-700"}`}
+                        title={lineLinked ? "ผูก LINE แล้ว — แก้ไข/ยกเลิก" : "ผูก LINE (สำหรับแจ้งเตือน)"}
+                    >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {lineLinked ? "LINE ✓" : "LINE"}
+                    </Button>
                     <Button
                         size="sm"
                         variant="ghost"

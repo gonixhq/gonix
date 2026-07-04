@@ -18,7 +18,8 @@ type StaffRole =
 type StaffAction =
     | "approve" | "reject" | "reapprove"
     | "change_role"
-    | "disable" | "enable";
+    | "disable" | "enable"
+    | "line_link" | "line_unlink";
 
 /* ─── Guard: must be owner/admin of own clinic ─── */
 async function requireAdmin() {
@@ -184,6 +185,30 @@ export async function toggleStaffActive(profileId: string, isActive: boolean) {
 
     revalidatePath("/dashboard/staff");
     revalidatePath("/dashboard/audit");
+    return { success: true };
+}
+
+/* ─── ผูก/ยกเลิก LINE userId ของพนักงาน (admin กรอกให้) ─── */
+export async function setStaffLineUserId(profileId: string, lineUserId: string | null) {
+    const { supabase, me } = await requireAdmin();
+    const value = (lineUserId || "").trim() || null;
+    // LINE userId ขึ้นต้นด้วย U ตามด้วย hex 32 ตัว — เตือนคร่าวๆ (ไม่บังคับ)
+    if (value && !/^U[0-9a-f]{32}$/i.test(value)) {
+        return { success: false, error: "รูปแบบ LINE userId ไม่ถูกต้อง (ต้องขึ้นต้น U ตามด้วย 32 ตัวอักษร)" };
+    }
+    const { error } = await supabase
+        .from("profiles")
+        .update({ line_user_id: value })
+        .eq("id", profileId)
+        .eq("clinic_id", me.clinic_id);
+    if (error) return { success: false, error: error.message };
+
+    await logActivity(supabase, {
+        clinicId: me.clinic_id, actorId: me.id, targetId: profileId,
+        action: value ? "line_link" : "line_unlink",
+    });
+
+    revalidatePath("/dashboard/staff");
     return { success: true };
 }
 
