@@ -22,6 +22,8 @@ import {
     undoPackageUsage,
     refundPackage,
     usePackageSession,
+    getPackageRecommendations,
+    type PackageRecommendation,
 } from "@/lib/actions/packages";
 import type {
     PatientPackageActive,
@@ -40,6 +42,7 @@ export default function PatientPackagesTab({ hn }: Props) {
     const [loading, setLoading] = useState(true);
     const [showSell, setShowSell] = useState(false);
     const [filter, setFilter] = useState<"all" | "active" | "history">("active");
+    const [recs, setRecs] = useState<PackageRecommendation[]>([]);
 
     const refresh = async () => {
         setLoading(true);
@@ -50,6 +53,7 @@ export default function PatientPackagesTab({ hn }: Props) {
 
     useEffect(() => {
         refresh();
+        getPackageRecommendations(hn).then(setRecs);
     }, [hn]);
 
     const active = packages.filter(p => p.status === "active");
@@ -71,6 +75,28 @@ export default function PatientPackagesTab({ hn }: Props) {
                 <MiniStat label="ครั้งใช้ไป" value={totalUsed} icon={TrendingDown} color="sky" />
                 <MiniStat label="ยอดซื้อรวม" value={`฿${totalSpent.toLocaleString()}`} icon={DollarSign} color="emerald" />
             </div>
+
+            {/* แนะนำคอส (M4 #13) */}
+            {recs.length > 0 && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-3.5">
+                    <div className="flex items-center gap-1.5 mb-2 text-sm font-bold text-violet-800"><Sparkles className="h-4 w-4" /> คอสที่น่าเสนอลูกค้ารายนี้</div>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                        {recs.map(r => (
+                            <Link key={r.id} href={`/dashboard/inventory/packages/${r.id}`} className="flex items-center justify-between gap-2 bg-white rounded-xl border border-violet-100 px-3 py-2 hover:border-violet-300">
+                                <div className="min-w-0">
+                                    <div className="font-bold text-sm text-slate-800 truncate">{r.name}</div>
+                                    <div className="text-[11px] text-violet-600">{r.reason}</div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <div className="font-bold text-sm text-slate-800 tabular-nums">฿{r.price.toLocaleString()}</div>
+                                    <div className="text-[10px] text-slate-400">{r.total_sessions} ครั้ง</div>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2">แนะนำจากประวัติหมวดที่ลูกค้าเคยใช้/ซื้อ — ใช้จังหวะ upsell</p>
+                </div>
+            )}
 
             {/* Header + filter */}
             <div className="flex items-center justify-between gap-3 flex-wrap">

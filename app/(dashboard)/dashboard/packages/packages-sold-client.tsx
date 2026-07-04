@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Sparkles, Search, FileText, Clock, Wallet, CheckCircle2, AlertTriangle } from "lucide-react";
 import { pkgCode, type SoldPackageRow } from "@/lib/package-types";
+import type { DeferredForecast } from "@/lib/actions/packages";
 import { cn } from "@/lib/utils";
 
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
@@ -14,7 +15,7 @@ function outstanding(r: SoldPackageRow): number {
     return r.total_sessions > 0 ? r.paid_amount * r.remaining_sessions / r.total_sessions : 0;
 }
 
-export default function PackagesSoldClient({ rows }: { rows: SoldPackageRow[] }) {
+export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPackageRow[]; forecast?: DeferredForecast }) {
     const [filter, setFilter] = useState<"active" | "expiring" | "done" | "all">("active");
     const [search, setSearch] = useState("");
 
@@ -63,6 +64,26 @@ export default function PackagesSoldClient({ rows }: { rows: SoldPackageRow[] })
                     <div className="text-xs text-slate-500 font-semibold">ใกล้หมดอายุ (≤30 วัน)</div>
                 </div>
             </div>
+
+            {/* Deferred revenue forecast (M4 #14) */}
+            {forecast && forecast.count > 0 && (
+                <div className="gonix-card-premium p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Wallet className="h-4 w-4 text-violet-600" /> คาดการณ์รายได้ค้างส่งมอบ (Deferred Revenue)</h2>
+                        <div className="text-xs text-slate-500">รวม <span className="font-black text-violet-700 tabular-nums">{money(forecast.outstanding)}</span> · คงเหลือ {forecast.remainingSessions} ครั้ง · {forecast.count} คอส</div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {forecast.buckets.map(b => (
+                            <div key={b.label} className="rounded-xl bg-slate-50 p-2.5 text-center">
+                                <div className="text-[10px] font-bold text-slate-500">{b.label}</div>
+                                <div className="text-lg font-black text-slate-800 tabular-nums">{money(b.value)}</div>
+                                <div className="text-[10px] text-slate-400">{b.count} คอส</div>
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">มูลค่าที่รับเงินแล้วแต่ยังต้องให้บริการ · แยกตามช่วงหมดอายุ → รู้ว่าเดือนไหนลูกค้าต้องมาใช้สิทธิ์เท่าไหร่ วางแผนกำลังคน</p>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex items-center gap-2 flex-wrap">

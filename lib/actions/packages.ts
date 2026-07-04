@@ -83,6 +83,94 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
     }
 }
 
+export interface PackageRecommendation { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; reason: string; }
+
+/** แนะนำคอสที่เหมาะกับลูกค้า — heuristic จากหมวดที่เคยใช้/ซื้อ (upsell) */
+export async function getPackageRecommendations(hn: string): Promise<PackageRecommendation[]> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+        const clinicId = profile.clinic_id;
+
+        // คอสที่ลูกค้ามีอยู่แล้ว (กัน recommend ซ้ำ) + หมวดที่เคยซื้อ
+        const { data: owned } = await supabase.from("patient_packages").select("package_id, category").eq("clinic_id", clinicId).eq("hn", hn);
+        const ownedIds = new Set((owned || []).map(o => o.package_id as string));
+        const ownedCats = new Set((owned || []).map(o => o.category as string).filter(Boolean));
+
+        // หมวดจาก service_category ของ visit (ความงาม = สนใจ aesthetic)
+        const { data: visits } = await supabase.from("visits").select("service_category").eq("clinic_id", clinicId).eq("hn", hn);
+        const hasAesthetic = (visits || []).some(v => v.service_category === "aesthetic");
+
+        const { data: pkgs } = await supabase.from("service_packages")
+            .select("id, code, name, category, price, total_sessions").eq("clinic_id", clinicId).eq("is_active", true);
+        const candidates = (pkgs || []).filter(p => !ownedIds.has(p.id as string));
+
+        const recs: PackageRecommendation[] = candidates.map(p => {
+            let score = 0, reason = "คอสแนะนำ";
+            if (p.category && ownedCats.has(p.category as string)) { score += 3; reason = `เคยใช้หมวด ${p.category} — น่าซื้อเพิ่ม`; }
+            else if (hasAesthetic) { score += 1; reason = "ลูกค้ากลุ่มความงาม"; }
+            return { id: p.id as string, code: p.code as string, name: p.name as string, category: (p.category as string) || null, price: Number(p.price), total_sessions: Number(p.total_sessions), reason, _score: score } as PackageRecommendation & { _score: number };
+        }).sort((a, b) => (b as PackageRecommendation & { _score: number })._score - (a as PackageRecommendation & { _score: number })._score)
+          .slice(0, 4)
+          .map(({ ...r }) => { delete (r as Partial<{ _score: number }>)._score; return r as PackageRecommendation; });
+        return recs;
+    } catch {
+        return [];
+    }
+}
+
+export interface DeferredForecast {
+    outstanding: number;          // มูลค่า deferred รวม (จ่ายแล้วแต่ยังไม่ได้ให้บริการ)
+    count: number;                // จำนวนคอส active ที่ยังใช้ไม่ครบ
+    remainingSessions: number;    // ครั้งคงเหลือรวม (workload ที่ต้องรองรับ)
+    buckets: { label: string; count: number; value: number }[];  // แยกตามช่วงหมดอายุ
+}
+
+/** คาดการณ์รายได้ deferred + workload แยกตามช่วงหมดอายุ (วางแผนกระแสเงิน/กำลังคน) */
+export async function getDeferredRevenueForecast(): Promise<DeferredForecast> {
+    const empty: DeferredForecast = { outstanding: 0, count: 0, remainingSessions: 0, buckets: [] };
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return empty;
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return empty;
+
+        const { data } = await supabase.from("v_patient_packages_active")
+            .select("paid_amount, total_sessions, remaining_sessions, days_remaining")
+            .eq("clinic_id", profile.clinic_id).eq("status", "active");
+
+        const BUCKETS = [
+            { label: "ภายใน 30 วัน", max: 30 },
+            { label: "31–60 วัน", max: 60 },
+            { label: "61–90 วัน", max: 90 },
+            { label: "มากกว่า 90 วัน", max: Infinity },
+        ].map(b => ({ ...b, count: 0, value: 0 }));
+
+        let outstanding = 0, count = 0, remainingSessions = 0;
+        for (const p of data || []) {
+            const ts = Number(p.total_sessions || 0);
+            const rem = Number(p.remaining_sessions || 0);
+            const paid = Number(p.paid_amount || 0);
+            if (ts <= 0 || rem <= 0) continue;
+            const unearned = paid * rem / ts;
+            outstanding += unearned; count++; remainingSessions += rem;
+            const d = Number(p.days_remaining ?? 9999);
+            const b = BUCKETS.find(x => d <= x.max) || BUCKETS[BUCKETS.length - 1];
+            b.count++; b.value += unearned;
+        }
+        return {
+            outstanding: Math.round(outstanding * 100) / 100, count, remainingSessions,
+            buckets: BUCKETS.map(b => ({ label: b.label, count: b.count, value: Math.round(b.value * 100) / 100 })),
+        };
+    } catch {
+        return empty;
+    }
+}
+
 /** นับคอสที่ active + ใกล้หมดอายุภายใน N วัน (ยังมีครั้งเหลือ) — สำหรับแจ้งเตือน */
 export async function getExpiringPackagesCount(days = 30): Promise<{ count: number; soonestDays: number | null }> {
     try {
