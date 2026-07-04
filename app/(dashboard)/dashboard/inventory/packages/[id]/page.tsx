@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { notFound } from "next/navigation";
-import { getPackagePurchases } from "@/lib/actions/packages";
+import { getPackagePurchases, getPackagePriceHistory } from "@/lib/actions/packages";
 import PackageDetailClient from "./package-detail-client";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +23,12 @@ export default async function PackageDetailPage({
 
     if (!pkg) return notFound();
 
-    const purchasesRaw = await getPackagePurchases(id);
+    const [purchasesRaw, priceHistory] = await Promise.all([getPackagePurchases(id), getPackagePriceHistory(id)]);
     // Flatten patient relation (Supabase returns as array)
     const purchases = purchasesRaw.map(p => ({
         ...p,
         patient: Array.isArray(p.patient) ? (p.patient[0] || null) : p.patient,
     }));
 
-    return <PackageDetailClient pkg={pkg} purchases={purchases} />;
+    return <PackageDetailClient pkg={pkg} purchases={purchases} priceHistory={priceHistory} />;
 }

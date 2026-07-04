@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import {
     ChevronLeft, Sparkles, Edit3, Calendar, DollarSign,
     Users, Pencil, X, Loader2, CheckCircle, XCircle,
-    Trash2, AlertCircle,
+    Trash2, AlertCircle, Clock,
 } from "lucide-react";
 import { updatePackage, deletePackage } from "@/lib/actions/packages";
 import { PACKAGE_CATEGORIES, PACKAGE_STATUS_LABEL, PACKAGE_STATUS_COLOR, type PackageStatus } from "@/lib/package-types";
@@ -29,7 +29,12 @@ interface PackageItem {
     is_active: boolean;
     created_at: string;
     sales_commission_pct?: number | null;
+    commission_doctor_pct?: number | null;
+    commission_nurse_pct?: number | null;
+    max_discount_pct?: number | null;
 }
+
+interface PriceHistoryRow { id: string; old_price: number | null; new_price: number; changed_by_name: string | null; created_at: string; }
 
 interface Purchase {
     id: string;
@@ -51,8 +56,8 @@ interface Purchase {
 }
 
 export default function PackageDetailClient({
-    pkg, purchases,
-}: { pkg: PackageItem; purchases: Purchase[] }) {
+    pkg, purchases, priceHistory = [],
+}: { pkg: PackageItem; purchases: Purchase[]; priceHistory?: PriceHistoryRow[] }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showDelete, setShowDelete] = useState(false);
 
@@ -128,7 +133,36 @@ export default function PackageDetailClient({
                             <InfoBox icon={DollarSign} label="ราคา" value={`฿${Number(pkg.price).toLocaleString()}`} color="teal" />
                             <InfoBox icon={Calendar} label="อายุการใช้งาน" value={`${pkg.validity_days} วัน`} color="sky" />
                         </div>
+
+                        {/* ค่าตอบแทน + ส่วนลด (feature 5/11/12) */}
+                        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">ค่าตอบแทน:</span>
+                            <span className="px-2 py-0.5 rounded bg-cyan-50 text-cyan-700">แพทย์ {Number(pkg.commission_doctor_pct || 0)}%</span>
+                            <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-700">พยาบาล {Number(pkg.commission_nurse_pct || 0)}%</span>
+                            <span className="px-2 py-0.5 rounded bg-violet-50 text-violet-700">เซลล์ {Number(pkg.sales_commission_pct || 0)}%</span>
+                            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700" title="ส่วนลดสูงสุดโดยไม่ต้องขออนุมัติ (module 9)">ลดได้ ≤{pkg.max_discount_pct != null ? `${pkg.max_discount_pct}%` : "—"}</span>
+                        </div>
                     </div>
+
+                    {/* Price history (feature 10) */}
+                    {priceHistory.length > 0 && (
+                        <div className="gonix-card-premium">
+                            <div className="p-4 border-b border-slate-100">
+                                <h2 className="font-bold text-slate-800 flex items-center gap-2"><Clock className="h-4 w-4 text-amber-600" /> ประวัติการเปลี่ยนราคา</h2>
+                            </div>
+                            <div className="divide-y divide-slate-100">
+                                {priceHistory.map(h => (
+                                    <div key={h.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                                        <span className="tabular-nums text-slate-700">
+                                            {h.old_price != null && <span className="text-slate-400 line-through">฿{h.old_price.toLocaleString()}</span>} → <span className="font-bold">฿{h.new_price.toLocaleString()}</span>
+                                        </span>
+                                        <span className="text-[11px] text-slate-400">{h.changed_by_name || "—"} · {new Date(h.created_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="px-4 py-2.5"><p className="text-[11px] text-slate-400">ลูกค้าที่ซื้อก่อนหน้าไม่กระทบ — ระบบ snapshot ราคาตอนซื้อไว้แล้ว</p></div>
+                        </div>
+                    )}
 
                     {/* Purchases */}
                     <div className="gonix-card-premium">
@@ -295,6 +329,9 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
         validity_days: pkg.validity_days,
         is_active: pkg.is_active,
         sales_commission_pct: Number(pkg.sales_commission_pct || 0),
+        commission_doctor_pct: Number(pkg.commission_doctor_pct || 0),
+        commission_nurse_pct: Number(pkg.commission_nurse_pct || 0),
+        max_discount_pct: Number(pkg.max_discount_pct ?? 0),
     });
 
     const handleSubmit = () => {
@@ -310,6 +347,9 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
                 validity_days: Number(form.validity_days),
                 is_active: form.is_active,
                 sales_commission_pct: Number(form.sales_commission_pct) || 0,
+                commission_doctor_pct: Number(form.commission_doctor_pct) || null,
+                commission_nurse_pct: Number(form.commission_nurse_pct) || null,
+                max_discount_pct: Number(form.max_discount_pct) || null,
             });
             if (result.success) {
                 router.refresh();
@@ -407,6 +447,24 @@ function EditPackageModal({ pkg, onClose }: { pkg: PackageItem; onClose: () => v
                                 = ฿{(form.price * form.sales_commission_pct / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} ต่อการขาย 1 คอส
                             </p>
                         )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Comm. แพทย์ %</Label>
+                            <Input type="number" min={0} max={100} step="0.5" value={form.commission_doctor_pct}
+                                onChange={e => setForm({ ...form, commission_doctor_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Comm. พยาบาล %</Label>
+                            <Input type="number" min={0} max={100} step="0.5" value={form.commission_nurse_pct}
+                                onChange={e => setForm({ ...form, commission_nurse_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ส่วนลดสูงสุดที่ให้ได้โดยไม่ต้องขออนุมัติ (module 9)">ส่วนลดได้ ≤ %</Label>
+                            <Input type="number" min={0} max={100} step="1" value={form.max_discount_pct}
+                                onChange={e => setForm({ ...form, max_discount_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" />
+                        </div>
                     </div>
 
                     <div className="space-y-1.5">

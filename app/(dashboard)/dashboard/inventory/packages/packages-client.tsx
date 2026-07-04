@@ -33,6 +33,10 @@ interface PackageRow {
     used_sessions: number;
     utilization_pct: number;
     expiring_soon: number;
+    sales_commission_pct?: number | null;
+    commission_doctor_pct?: number | null;
+    commission_nurse_pct?: number | null;
+    max_discount_pct?: number | null;
 }
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -203,6 +207,16 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                                 </div>
                             </div>
 
+                            {/* DF/Commission + ส่วนลดสูงสุด */}
+                            {(p.commission_doctor_pct || p.commission_nurse_pct || p.sales_commission_pct || p.max_discount_pct != null) && (
+                                <div className="flex flex-wrap gap-1 mt-2 text-[10px]">
+                                    {!!p.commission_doctor_pct && <span className="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700">แพทย์ {p.commission_doctor_pct}%</span>}
+                                    {!!p.commission_nurse_pct && <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700">พยาบาล {p.commission_nurse_pct}%</span>}
+                                    {!!p.sales_commission_pct && <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">เซลล์ {p.sales_commission_pct}%</span>}
+                                    {p.max_discount_pct != null && <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">ลดได้ ≤{p.max_discount_pct}%</span>}
+                                </div>
+                            )}
+
                             {/* Utilization bar (ครั้งที่ใช้ vs ขายไป รวมทุก user) */}
                             {p.sold_sessions > 0 && (
                                 <div className="mt-2">
@@ -299,6 +313,9 @@ function CreatePackageModal({ onClose }: { onClose: () => void }) {
         price: 0,
         validity_days: 365,
         sales_commission_pct: 0,
+        commission_doctor_pct: 0,
+        commission_nurse_pct: 0,
+        max_discount_pct: 0,
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -314,6 +331,9 @@ function CreatePackageModal({ onClose }: { onClose: () => void }) {
                 price: Number(form.price),
                 validity_days: Number(form.validity_days),
                 sales_commission_pct: Number(form.sales_commission_pct) || 0,
+                commission_doctor_pct: Number(form.commission_doctor_pct) || null,
+                commission_nurse_pct: Number(form.commission_nurse_pct) || null,
+                max_discount_pct: Number(form.max_discount_pct) || null,
                 is_active: true,
             });
             if (result.success) {
@@ -439,6 +459,24 @@ function CreatePackageModal({ onClose }: { onClose: () => void }) {
                                 = ฿{(form.price * form.sales_commission_pct / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })} ต่อการขาย 1 คอส
                             </p>
                         )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Comm. แพทย์ %</Label>
+                            <Input type="number" min={0} max={100} step="0.5" value={form.commission_doctor_pct}
+                                onChange={e => setForm({ ...form, commission_doctor_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Comm. พยาบาล %</Label>
+                            <Input type="number" min={0} max={100} step="0.5" value={form.commission_nurse_pct}
+                                onChange={e => setForm({ ...form, commission_nurse_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ส่วนลดสูงสุดที่ให้ได้โดยไม่ต้องขออนุมัติ">ส่วนลดได้ ≤ %</Label>
+                            <Input type="number" min={0} max={100} step="1" value={form.max_discount_pct}
+                                onChange={e => setForm({ ...form, max_discount_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
                     </div>
 
                     <div className="space-y-1.5">

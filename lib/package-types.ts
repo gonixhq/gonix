@@ -35,6 +35,10 @@ export interface ServicePackage {
     price: number;
     validity_days: number;
     is_active: boolean;
+    sales_commission_pct?: number | null;
+    commission_doctor_pct?: number | null;
+    commission_nurse_pct?: number | null;
+    max_discount_pct?: number | null;
     created_at?: string;
     updated_at?: string;
 }

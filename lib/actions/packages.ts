@@ -128,7 +128,7 @@ export async function listActivePackages(): Promise<ServicePackage[]> {
 
         const { data } = await supabase
             .from("service_packages")
-            .select("id, code, name, description, category, total_sessions, price, validity_days, is_active")
+            .select("id, code, name, description, category, total_sessions, price, validity_days, is_active, sales_commission_pct, commission_doctor_pct, commission_nurse_pct, max_discount_pct")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("category")
@@ -188,6 +188,9 @@ export interface PackageInput {
     validity_days?: number;
     is_active?: boolean;
     sales_commission_pct?: number;
+    commission_doctor_pct?: number | null;
+    commission_nurse_pct?: number | null;
+    max_discount_pct?: number | null;
 }
 
 async function generatePackageCode(
@@ -235,6 +238,9 @@ export async function createPackage(input: PackageInput) {
                 validity_days: input.validity_days ?? 365,
                 is_active: input.is_active ?? true,
                 sales_commission_pct: input.sales_commission_pct ?? 0,
+                commission_doctor_pct: input.commission_doctor_pct ?? null,
+                commission_nurse_pct: input.commission_nurse_pct ?? null,
+                max_discount_pct: input.max_discount_pct ?? null,
             })
             .select("id")
             .single();
@@ -254,6 +260,8 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return { success: false, error: "Unauthorized" };
 
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const patch: any = {};
         if (input.code !== undefined) patch.code = input.code.trim();
@@ -265,6 +273,20 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.validity_days !== undefined) patch.validity_days = input.validity_days;
         if (input.is_active !== undefined) patch.is_active = input.is_active;
         if (input.sales_commission_pct !== undefined) patch.sales_commission_pct = input.sales_commission_pct;
+        if (input.commission_doctor_pct !== undefined) patch.commission_doctor_pct = input.commission_doctor_pct;
+        if (input.commission_nurse_pct !== undefined) patch.commission_nurse_pct = input.commission_nurse_pct;
+        if (input.max_discount_pct !== undefined) patch.max_discount_pct = input.max_discount_pct;
+
+        // ราคาเปลี่ยน → log ประวัติ (ราคาเก่า→ใหม่ ใครเปลี่ยน) — ลูกค้าเก่าไม่กระทบ (snapshot ตอนซื้อ)
+        if (input.price !== undefined) {
+            const { data: cur } = await supabase.from("service_packages").select("price").eq("id", id).maybeSingle();
+            const oldPrice = cur ? Number(cur.price) : null;
+            if (oldPrice !== null && oldPrice !== Number(input.price) && profile?.clinic_id) {
+                await supabase.from("package_price_history").insert({
+                    clinic_id: profile.clinic_id, package_id: id, old_price: oldPrice, new_price: input.price, changed_by: user.id,
+                });
+            }
+        }
 
         const { error } = await supabase
             .from("service_packages")
@@ -605,6 +627,28 @@ export async function getPackagePurchases(packageId: string) {
             .eq("package_id", packageId)
             .order("purchased_at", { ascending: false });
         return data || [];
+    } catch {
+        return [];
+    }
+}
+
+export interface PriceHistoryRow { id: string; old_price: number | null; new_price: number; changed_by_name: string | null; created_at: string; }
+
+/** ประวัติการเปลี่ยนราคาคอส */
+export async function getPackagePriceHistory(packageId: string): Promise<PriceHistoryRow[]> {
+    try {
+        const supabase = await createClient();
+        const { data } = await supabase.from("package_price_history")
+            .select("id, old_price, new_price, changed_by, created_at, profiles:changed_by(full_name)")
+            .eq("package_id", packageId).order("created_at", { ascending: false }).limit(50);
+        return (data || []).map(r => {
+            const rel = r.profiles as unknown as { full_name?: string } | { full_name?: string }[] | null;
+            const name = Array.isArray(rel) ? rel[0]?.full_name : rel?.full_name;
+            return {
+                id: r.id as string, old_price: r.old_price !== null ? Number(r.old_price) : null,
+                new_price: Number(r.new_price), changed_by_name: name || null, created_at: r.created_at as string,
+            };
+        });
     } catch {
         return [];
     }
