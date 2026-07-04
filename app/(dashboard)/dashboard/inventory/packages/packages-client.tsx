@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
     Plus, Search, Package, Sparkles, Calendar, Users,
-    CheckCircle, EyeOff, X, Loader2, DollarSign, Clock,
+    CheckCircle, EyeOff, X, Loader2, DollarSign, Clock, LayoutGrid, List, ArrowUpDown,
 } from "lucide-react";
 import { PermissionGate } from "@/components/ui/permission-button";
 import { createPackage } from "@/lib/actions/packages";
@@ -55,6 +55,9 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<string>("all");
     const [showCreate, setShowCreate] = useState(false);
+    const [view, setView] = useState<"grid" | "list">("grid");
+    const [sortKey, setSortKey] = useState<"name" | "price" | "utilization_pct" | "active_purchases" | "expiring_soon">("name");
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
     const totalActive = useMemo(() => packages.filter(p => p.is_active).length, [packages]);
     const totalActivePurchases = useMemo(() => packages.reduce((s, p) => s + p.active_purchases, 0), [packages]);
@@ -88,6 +91,16 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
             return true;
         });
     }, [packages, search, filter]);
+
+    const sorted = useMemo(() => {
+        const val = (p: PackageRow): number | string => sortKey === "name" ? p.name.toLowerCase() : (p[sortKey] as number);
+        return [...filtered].sort((a, b) => {
+            const av = val(a), bv = val(b);
+            const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+            return sortDir === "asc" ? cmp : -cmp;
+        });
+    }, [filtered, sortKey, sortDir]);
+    function toggleSort(k: typeof sortKey) { if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc"); else { setSortKey(k); setSortDir("asc"); } }
 
     return (
         <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
@@ -132,7 +145,7 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                         className="pl-10 h-10 rounded-xl focus:ring-blue-500/10 focus:border-blue-500"
                     />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                     <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด ({totalActive})</FilterChip>
                     {categories.map(c => (
                         <FilterChip key={c} active={filter === c} onClick={() => setFilter(c)}>
@@ -142,11 +155,15 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                     {inactiveCount > 0 && (
                         <FilterChip active={filter === "inactive"} onClick={() => setFilter("inactive")}>ปิดใช้งาน ({inactiveCount})</FilterChip>
                     )}
+                    <div className="ml-auto inline-flex items-center bg-slate-100 rounded-lg p-0.5">
+                        <button onClick={() => setView("grid")} title="มุมมองการ์ด" className={`h-7 w-7 rounded-md flex items-center justify-center ${view === "grid" ? "bg-white shadow-sm text-blue-700" : "text-slate-500"}`}><LayoutGrid className="h-4 w-4" /></button>
+                        <button onClick={() => setView("list")} title="มุมมองตาราง" className={`h-7 w-7 rounded-md flex items-center justify-center ${view === "list" ? "bg-white shadow-sm text-blue-700" : "text-slate-500"}`}><List className="h-4 w-4" /></button>
+                    </div>
                 </div>
             </div>
 
             {/* List */}
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
                 <div className="gonix-card-premium p-12 text-center">
                     <div className="h-14 w-14 rounded-2xl bg-rose-100 flex items-center justify-center mx-auto mb-3">
                         <Sparkles className="h-7 w-7 text-rose-500" />
@@ -158,9 +175,9 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                         <p className="text-sm text-slate-500 mt-1">เพิ่มคอสแรก เช่น HIFU 5 ครั้ง / ดริปผิว 3 ครั้ง</p>
                     )}
                 </div>
-            ) : (
+            ) : view === "grid" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {filtered.map(p => (
+                    {sorted.map(p => (
                         <Link
                             key={p.id}
                             href={`/dashboard/inventory/packages/${p.id}`}
@@ -250,10 +267,54 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                         </Link>
                     ))}
                 </div>
+            ) : (
+                <div className="gonix-card-premium overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50/60">
+                            <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                <th className="text-left px-4 py-2.5">รหัส</th>
+                                <SortTh label="ชื่อคอส" k="name" cur={sortKey} dir={sortDir} onSort={toggleSort} align="left" />
+                                <th className="text-left px-3 py-2.5">ประเภท</th>
+                                <th className="text-center px-3 py-2.5">ครั้ง</th>
+                                <SortTh label="ราคา" k="price" cur={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                                <SortTh label="ใช้งาน" k="utilization_pct" cur={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                                <SortTh label="Active" k="active_purchases" cur={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                                <SortTh label="ใกล้หมดอายุ" k="expiring_soon" cur={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                                <th className="text-center px-3 py-2.5">สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sorted.map(p => (
+                                <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                                    <td className="px-4 py-2.5"><Link href={`/dashboard/inventory/packages/${p.id}`} className="font-mono text-[11px] text-cyan-600 hover:underline">{p.code}</Link></td>
+                                    <td className="px-3 py-2.5"><Link href={`/dashboard/inventory/packages/${p.id}`} className="font-bold text-slate-800 hover:text-blue-700">{p.name}</Link></td>
+                                    <td className="px-3 py-2.5">{p.category && <Badge className={`border-0 text-[10px] font-bold uppercase ${CATEGORY_COLOR[p.category] || CATEGORY_COLOR.OTHER}`}>{p.category}</Badge>}</td>
+                                    <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{p.total_sessions}</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums font-bold text-slate-700">฿{Number(p.price).toLocaleString()}</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{p.sold_sessions > 0 ? `${p.utilization_pct}%` : "—"}</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums text-blue-700 font-bold">{p.active_purchases || "—"}</td>
+                                    <td className="px-3 py-2.5 text-right tabular-nums">{p.expiring_soon > 0 ? <span className="text-amber-700 font-bold">{p.expiring_soon}</span> : "—"}</td>
+                                    <td className="px-3 py-2.5 text-center">{p.is_active ? <CheckCircle className="h-4 w-4 text-emerald-500 inline" /> : <EyeOff className="h-4 w-4 text-slate-400 inline" />}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             )}
 
             {showCreate && <CreatePackageModal onClose={() => setShowCreate(false)} />}
         </div>
+    );
+}
+
+function SortTh<K extends string>({ label, k, cur, dir, onSort, align }: { label: string; k: K; cur: K; dir: "asc" | "desc"; onSort: (k: K) => void; align: "left" | "right" }) {
+    return (
+        <th className={`px-3 py-2.5 ${align === "right" ? "text-right" : "text-left"} cursor-pointer select-none hover:text-slate-700`} onClick={() => onSort(k)}>
+            <span className={`inline-flex items-center gap-1 ${align === "right" ? "flex-row-reverse" : ""}`}>
+                {label} <ArrowUpDown className={`h-3 w-3 ${cur === k ? "text-blue-600" : "opacity-30"}`} />
+                {cur === k && <span className="text-blue-600">{dir === "asc" ? "↑" : "↓"}</span>}
+            </span>
+        </th>
     );
 }
 
