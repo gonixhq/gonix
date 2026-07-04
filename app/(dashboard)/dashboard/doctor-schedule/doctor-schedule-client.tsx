@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     CalendarClock, Plus, Trash2, ChevronLeft, ChevronRight,
     Stethoscope, Clock, DoorOpen, Copy, Loader2, CalendarDays, LayoutGrid, Users, CheckSquare,
-    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle,
+    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight,
 } from "lucide-react";
+import ShiftSwapPanel from "./shift-swap-panel";
 import { bangkokDate } from "@/lib/utils/date";
 import {
     getShiftsForDate, getShiftsForMonth, getShiftsForRange, addShift, addShiftBulk, deleteShift, deleteShiftsForDates, copyShifts, copyShiftsMapped,
@@ -98,6 +99,7 @@ export default function DoctorScheduleClient({
 
     // day popup (คลิกวันบนปฏิทิน)
     const [popupDate, setPopupDate] = useState<string | null>(null);
+    const [showSwap, setShowSwap] = useState(false);
 
     // approval workflow
     const [period, setPeriod] = useState<SchedulePeriod | null>(null);
@@ -404,6 +406,11 @@ export default function DoctorScheduleClient({
                         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
                     )}
+
+                    <button onClick={() => setShowSwap(true)}
+                        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+                        <ArrowLeftRight className="h-4 w-4" /> เปลี่ยนเวร
+                    </button>
 
                     {view === "month" && !locked && (
                         <button onClick={() => { setSelectMode((m) => !m); setSelectedDates([]); }}
@@ -833,6 +840,15 @@ export default function DoctorScheduleClient({
                         </div>
                     )}
                 </>
+            )}
+
+            {/* ══════════════ SHIFT SWAP PANEL ══════════════ */}
+            {showSwap && (
+                <ShiftSwapPanel staff={staff} onClose={() => {
+                    setShowSwap(false);
+                    // เผื่ออนุมัติแล้วเวรถูกย้าย → รีโหลดมุมมองปัจจุบัน
+                    if (view === "day") loadDay(date); else if (view === "week") loadWeek(date); else loadMonth(month);
+                }} />
             )}
 
             {/* ══════════════ DAY POPUP (คลิกวันบนปฏิทิน) ══════════════ */}
