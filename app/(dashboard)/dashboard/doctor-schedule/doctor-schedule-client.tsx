@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     CalendarClock, Plus, Trash2, ChevronLeft, ChevronRight,
     Stethoscope, Clock, DoorOpen, Copy, Loader2, CalendarDays, LayoutGrid, Users, CheckSquare,
-    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight,
+    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight, Printer,
 } from "lucide-react";
 import ShiftSwapPanel from "./shift-swap-panel";
 import { bangkokDate } from "@/lib/utils/date";
@@ -411,6 +411,11 @@ export default function DoctorScheduleClient({
                         className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
                         <ArrowLeftRight className="h-4 w-4" /> เปลี่ยนเวร
                     </button>
+
+                    <a href={`/print/schedule/${month}`} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+                        <Printer className="h-4 w-4" /> พิมพ์ / PDF
+                    </a>
 
                     {view === "month" && !locked && (
                         <button onClick={() => { setSelectMode((m) => !m); setSelectedDates([]); }}
