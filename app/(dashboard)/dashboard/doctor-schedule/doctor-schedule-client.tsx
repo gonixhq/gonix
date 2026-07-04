@@ -7,6 +7,8 @@ import {
     CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight, Printer, ChevronDown,
 } from "lucide-react";
 import ShiftSwapPanel from "./shift-swap-panel";
+import DefaultSchedulePanel from "./default-schedule-panel";
+import { CalendarCog } from "lucide-react";
 import { bangkokDate } from "@/lib/utils/date";
 import {
     getShiftsForDate, getShiftsForMonth, getShiftsForRange, addShift, addShiftBulk, deleteShift, deleteShiftsForDates, copyShifts, copyShiftsMapped,
@@ -103,6 +105,7 @@ export default function DoctorScheduleClient({
     // day popup (คลิกวันบนปฏิทิน)
     const [popupDate, setPopupDate] = useState<string | null>(null);
     const [showSwap, setShowSwap] = useState(false);
+    const [showDefault, setShowDefault] = useState(false);
     const [printOpen, setPrintOpen] = useState(false);
 
     // approval workflow
@@ -192,7 +195,7 @@ export default function DoctorScheduleClient({
                 if (multiDates.length === 0) { setError("ยังไม่ได้เลือกวัน/ช่วงวัน"); setSaving(false); return; }
                 const res = await addShiftBulk({ doctor_staff_id: docId, dates: multiDates, start_time: start, end_time: end, room_id: roomId || null, note: note || null });
                 setNote("");
-                alert(`เพิ่มเวร ${res.count} วันแล้ว`);
+                alert(`เพิ่มเวร ${res.count} วันแล้ว${res.skipped ? ` · ข้าม ${res.skipped} วัน (เวรซ้อน)` : ""}`);
                 await loadDay(date);
             } else {
                 await addShift({ doctor_staff_id: docId, shift_date: date, start_time: start, end_time: end, room_id: roomId || null, note: note || null });
@@ -289,7 +292,7 @@ export default function DoctorScheduleClient({
         try {
             const res = await addShiftBulk({ doctor_staff_id: docId, dates: selectedDates, start_time: start, end_time: end, room_id: roomId || null, note: note || null });
             await loadMonth(month);
-            alert(`เพิ่มเวร ${res.count} วันแล้ว`);
+            alert(`เพิ่มเวร ${res.count} วันแล้ว${res.skipped ? ` · ข้าม ${res.skipped} วัน (เวรซ้อน)` : ""}`);
             setSelectedDates([]);
         } catch (err) {
             setError(err instanceof Error ? err.message : "เพิ่มไม่สำเร็จ");
@@ -416,6 +419,11 @@ export default function DoctorScheduleClient({
 
               {/* Action toolbar (แถวล่าง) */}
               <div className="flex items-center gap-2 flex-wrap lg:justify-end">
+                    <button onClick={() => setShowDefault(true)}
+                        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+                        <CalendarCog className="h-4 w-4" /> เวรมาตรฐาน
+                    </button>
+
                     <button onClick={() => setShowSwap(true)}
                         className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
                         <ArrowLeftRight className="h-4 w-4" /> เปลี่ยนเวร
@@ -848,9 +856,10 @@ export default function DoctorScheduleClient({
                                                 <Stethoscope className={`h-4 w-4 ${tn.text}`} />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-bold text-slate-800 truncate">
+                                                <div className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
                                                     {s.doctor_name}
-                                                    <span className="text-[11px] font-normal text-slate-400 ml-1.5">· {hoursOf(s.start_time, s.end_time)} ชม.</span>
+                                                    {s.source === "recurring" && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 shrink-0">ประจำ</span>}
+                                                    <span className="text-[11px] font-normal text-slate-400">· {hoursOf(s.start_time, s.end_time)} ชม.</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
                                                     <span className="inline-flex items-center gap-1 font-mono"><Clock className="h-3 w-3" />{s.start_time}–{s.end_time}</span>
@@ -886,6 +895,15 @@ export default function DoctorScheduleClient({
                 </>
             )}
 
+            {/* ══════════════ DEFAULT SCHEDULE PANEL ══════════════ */}
+            {showDefault && (
+                <DefaultSchedulePanel
+                    staff={staff} rooms={rooms} month={month} monthLabel={monthLabel(month)}
+                    onClose={() => setShowDefault(false)}
+                    onChanged={() => { if (view === "day") loadDay(date); else if (view === "week") loadWeek(date); else loadMonth(month); }}
+                />
+            )}
+
             {/* ══════════════ SHIFT SWAP PANEL ══════════════ */}
             {showSwap && (
                 <ShiftSwapPanel staff={staff} onClose={() => {
@@ -918,7 +936,7 @@ export default function DoctorScheduleClient({
                                     <div key={s.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
                                         <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${tn.bg}`}><Stethoscope className={`h-4 w-4 ${tn.text}`} /></div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-bold text-slate-800 truncate">{s.doctor_name} <span className="text-[11px] font-normal text-slate-400">· {roleLabel(s.role)}</span></div>
+                                            <div className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">{s.doctor_name} {s.source === "recurring" && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 shrink-0">ประจำ</span>}<span className="text-[11px] font-normal text-slate-400">· {roleLabel(s.role)}</span></div>
                                             <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
                                                 <span className="inline-flex items-center gap-1 font-mono"><Clock className="h-3 w-3" />{s.start_time}–{s.end_time}</span>
                                                 {s.room_name && <span className="inline-flex items-center gap-1"><DoorOpen className="h-3 w-3" />{s.room_name}</span>}

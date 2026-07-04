@@ -27,6 +27,7 @@ export interface DoctorShift {
     room_name: string | null;
     branch_id: string | null;
     note: string | null;
+    source: string;
 }
 
 export interface OnDutyDoctor {
@@ -75,7 +76,7 @@ export async function getShiftsForDate(date: string): Promise<DoctorShift[]> {
     const supabase = await createClient();
     const { data: shifts } = await supabase
         .from("doctor_shifts")
-        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id, branch_id, note")
+        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id, branch_id, note, source")
         .eq("shift_date", date)
         .order("start_time", { ascending: true });
 
@@ -96,6 +97,7 @@ export async function getShiftsForDate(date: string): Promise<DoctorShift[]> {
         room_name: s.room_id ? roomMap.get(s.room_id as string) || null : null,
         branch_id: (s.branch_id as string) || null,
         note: (s.note as string) || null,
+        source: (s.source as string) || "manual",
     }));
 }
 
@@ -108,6 +110,7 @@ export interface MonthShift {
     start_time: string;   // "HH:MM"
     end_time: string;     // "HH:MM"
     room_name: string | null;
+    source: string;
 }
 
 /** เวรทั้งเดือน (month = "YYYY-MM") — สำหรับมุมมองปฏิทินรายเดือน */
@@ -120,7 +123,7 @@ export async function getShiftsForMonth(month: string): Promise<MonthShift[]> {
 
     const { data: rows } = await supabase
         .from("doctor_shifts")
-        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id")
+        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id, source")
         .gte("shift_date", first).lte("shift_date", last)
         .order("shift_date", { ascending: true })
         .order("start_time", { ascending: true });
@@ -141,6 +144,7 @@ export async function getShiftsForMonth(month: string): Promise<MonthShift[]> {
             start_time: hhmm(s.start_time as string),
             end_time: hhmm(s.end_time as string),
             room_name: s.room_id ? roomMap.get(s.room_id as string) || null : null,
+            source: (s.source as string) || "manual",
         };
     });
 }
@@ -150,7 +154,7 @@ export async function getShiftsForRange(start: string, end: string): Promise<Mon
     const supabase = await createClient();
     const { data: rows } = await supabase
         .from("doctor_shifts")
-        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id")
+        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id, source")
         .gte("shift_date", start).lte("shift_date", end)
         .order("shift_date", { ascending: true })
         .order("start_time", { ascending: true });
@@ -171,6 +175,7 @@ export async function getShiftsForRange(start: string, end: string): Promise<Mon
             start_time: hhmm(s.start_time as string),
             end_time: hhmm(s.end_time as string),
             room_name: s.room_id ? roomMap.get(s.room_id as string) || null : null,
+            source: (s.source as string) || "manual",
         };
     });
 }
@@ -348,6 +353,7 @@ export async function addShiftBulk(input: {
         end_time: input.end_time,
         room_id: input.room_id || null,
         note: input.note || null,
+        source: "recurring",
         created_by: user.id,
     }));
     if (rows.length > 0) {
