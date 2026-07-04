@@ -16,8 +16,12 @@ const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h
 const hoursOf = (s: string, e: string) => Math.round(((toMin(e) - toMin(s)) / 60) * 10) / 10;
 function monthLabel(month: string) { const [y, m] = month.split("-").map(Number); return `${THAI_MONTHS[m - 1]} ${y + 543}`; }
 
-export default async function SchedulePrintPage({ params }: { params: Promise<{ month: string }> }) {
+export default async function SchedulePrintPage({ params, searchParams }: {
+    params: Promise<{ month: string }>;
+    searchParams: Promise<{ staff?: string }>;
+}) {
     const { month } = await params;
+    const { staff: staffFilter } = await searchParams;
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -30,7 +34,10 @@ export default async function SchedulePrintPage({ params }: { params: Promise<{ 
         }
     }
 
-    const shifts = await getShiftsForMonth(month);
+    const allShifts = await getShiftsForMonth(month);
+    // กรองรายบุคคล (ถ้าเลือก)
+    const shifts = staffFilter ? allShifts.filter((s) => s.doctor_staff_id === staffFilter) : allShifts;
+    const staffName = staffFilter ? (shifts[0]?.doctor_name || allShifts.find((s) => s.doctor_staff_id === staffFilter)?.doctor_name || "") : "";
 
     // จัดกลุ่มตามวัน
     const byDate: Record<string, typeof shifts> = {};
@@ -68,6 +75,7 @@ export default async function SchedulePrintPage({ params }: { params: Promise<{ 
                             <div className="text-[10px] uppercase tracking-[0.3em] font-semibold text-slate-600">Staff Schedule</div>
                             <h1 className="text-[22px] font-black tracking-tight text-black leading-tight mt-1">ตารางเวรการทำงาน</h1>
                             <div className="text-[13px] italic text-slate-700">{monthLabel(month)}</div>
+                            {staffName && <div className="text-[13px] font-bold text-slate-800 mt-0.5">เฉพาะ: {staffName}</div>}
                         </div>
                     </div>
                 </div>
@@ -114,8 +122,8 @@ export default async function SchedulePrintPage({ params }: { params: Promise<{ 
                     )}
                 </div>
 
-                {/* สรุปต่อคน */}
-                {summary.length > 0 && (
+                {/* สรุปต่อคน (ซ่อนเมื่อเลือกรายบุคคล) */}
+                {summary.length > 0 && !staffFilter && (
                     <div className="mt-5">
                         <h2 className="text-[14px] font-black tracking-wider mb-2">สรุปเวรรายเดือน</h2>
                         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse" }}>

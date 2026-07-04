@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     CalendarClock, Plus, Trash2, ChevronLeft, ChevronRight,
     Stethoscope, Clock, DoorOpen, Copy, Loader2, CalendarDays, LayoutGrid, Users, CheckSquare,
-    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight, Printer,
+    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle, ArrowLeftRight, Printer, ChevronDown,
 } from "lucide-react";
 import ShiftSwapPanel from "./shift-swap-panel";
 import { bangkokDate } from "@/lib/utils/date";
@@ -79,6 +79,9 @@ function endOfMonth(d: string): string {
 // ลำดับแสดงผล จ.–อา. → ค่า getDay()
 const WEEKDAY_POS = [1, 2, 3, 4, 5, 6, 0];
 
+// ซ่อนระบบส่งอนุมัติตารางเวรไว้ก่อน (ยังไม่ใช้งาน) — เปลี่ยนเป็น true เพื่อเปิดใช้
+const APPROVAL_ENABLED = false;
+
 export default function DoctorScheduleClient({
     staff, rooms, today, isOwner = false,
 }: {
@@ -100,13 +103,14 @@ export default function DoctorScheduleClient({
     // day popup (คลิกวันบนปฏิทิน)
     const [popupDate, setPopupDate] = useState<string | null>(null);
     const [showSwap, setShowSwap] = useState(false);
+    const [printOpen, setPrintOpen] = useState(false);
 
     // approval workflow
     const [period, setPeriod] = useState<SchedulePeriod | null>(null);
     const [approvalLog, setApprovalLog] = useState<ScheduleApprovalLogRow[]>([]);
     const [showLog, setShowLog] = useState(false);
     const [approvalBusy, setApprovalBusy] = useState(false);
-    const locked = period?.status === "pending" || period?.status === "approved";
+    const locked = APPROVAL_ENABLED && (period?.status === "pending" || period?.status === "approved");
 
     // add-form state
     const [docId, setDocId] = useState(staff[0]?.id || "");
@@ -159,7 +163,7 @@ export default function DoctorScheduleClient({
             setPeriod(p); setApprovalLog(log);
         } catch { /* noop */ }
     }, []);
-    useEffect(() => { loadApproval(month); }, [month, loadApproval]);
+    useEffect(() => { if (APPROVAL_ENABLED) loadApproval(month); }, [month, loadApproval]);
 
     // วันเป้าหมายของโหมดหลายวัน (ช่วงวัน × วันในสัปดาห์ที่เลือก)
     const multiDates = useMemo(() => {
@@ -412,10 +416,29 @@ export default function DoctorScheduleClient({
                         <ArrowLeftRight className="h-4 w-4" /> เปลี่ยนเวร
                     </button>
 
-                    <a href={`/print/schedule/${month}`} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
-                        <Printer className="h-4 w-4" /> พิมพ์ / PDF
-                    </a>
+                    <div className="relative">
+                        <button onClick={() => setPrintOpen((v) => !v)}
+                            className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+                            <Printer className="h-4 w-4" /> พิมพ์ / PDF <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        {printOpen && (
+                            <>
+                                <div className="fixed inset-0 z-30" onClick={() => setPrintOpen(false)} />
+                                <div className="absolute right-0 mt-1 z-40 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-1 max-h-72 overflow-y-auto">
+                                    <a href={`/print/schedule/${month}`} target="_blank" rel="noopener noreferrer" onClick={() => setPrintOpen(false)}
+                                        className="block px-3 py-2 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50">ทั้งหมด (ทุกคน)</a>
+                                    <div className="my-1 border-t border-slate-100" />
+                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">รายบุคคล</div>
+                                    {staff.length === 0 ? (
+                                        <div className="px-3 py-2 text-xs text-slate-400">— ไม่มีพนักงาน —</div>
+                                    ) : staff.map((d) => (
+                                        <a key={d.id} href={`/print/schedule/${month}?staff=${d.id}`} target="_blank" rel="noopener noreferrer" onClick={() => setPrintOpen(false)}
+                                            className="block px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 truncate">{d.name}</a>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
 
                     {view === "month" && !locked && (
                         <button onClick={() => { setSelectMode((m) => !m); setSelectedDates([]); }}
@@ -442,7 +465,7 @@ export default function DoctorScheduleClient({
             {error && <div className="rounded-xl px-4 py-2.5 text-sm bg-red-50 border border-red-200 text-red-700">{error}</div>}
 
             {/* ── Approval status bar (ต่อเดือน) ── */}
-            {period && (
+            {APPROVAL_ENABLED && period && (
                 <div className={`gonix-card-premium p-3.5 ${period.status === "approved" ? "border-emerald-200" : period.status === "pending" ? "border-amber-200" : ""}`}>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2.5 min-w-0">
