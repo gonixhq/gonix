@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
+import { notifyOwners, notifyProfileIds } from "@/lib/line-notify";
 import { revalidatePath } from "next/cache";
 
 export type SchedulePeriodStatus = "draft" | "pending" | "approved";
@@ -83,6 +84,8 @@ export async function submitScheduleForApproval(month: string) {
     if (error) return { success: false, error: error.message };
 
     await supabase.from("schedule_approval_log").insert({ clinic_id: clinicId, period_month: month, action: "submit", actor_id: userId, actor_name: name });
+    // แจ้งเตือน owner ทาง LINE ว่ามีตารางเวรรออนุมัติ (best-effort)
+    await notifyOwners(supabase, clinicId, `🗓️ มีตารางเวรเดือน ${month} รออนุมัติ (${count} เวร) จาก ${name || "พนักงาน"} — เปิดระบบเพื่ออนุมัติ`);
     revalidatePath("/dashboard/doctor-schedule");
     return { success: true, count };
 }
@@ -102,6 +105,12 @@ export async function decideSchedulePeriod(month: string, approve: boolean, note
     if (error) return { success: false, error: error.message };
 
     await supabase.from("schedule_approval_log").insert({ clinic_id: clinicId, period_month: month, action: approve ? "approve" : "reject", actor_id: userId, actor_name: name, note: note || null });
+    // แจ้งเตือนผู้ส่ง (best-effort)
+    if (cur.submitted_by) {
+        await notifyProfileIds(supabase, [cur.submitted_by], approve
+            ? `✅ ตารางเวรเดือน ${month} ได้รับการอนุมัติแล้ว`
+            : `❌ ตารางเวรเดือน ${month} ถูกปฏิเสธ${note ? ` — เหตุผล: ${note}` : ""} กรุณาแก้ไขและส่งใหม่`);
+    }
     revalidatePath("/dashboard/doctor-schedule");
     return { success: true };
 }

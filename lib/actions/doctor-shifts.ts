@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate, bangkokTime } from "@/lib/utils/date";
+import { notifyStaffIds } from "@/lib/line-notify";
 
 export interface ScheduleStaff {
     id: string;        // staff.id
@@ -296,6 +297,9 @@ export async function addShift(input: {
     });
     if (error) throw error;
 
+    // แจ้งเตือนพนักงานทาง LINE (best-effort)
+    await notifyStaffIds(supabase, [input.doctor_staff_id], `📅 มีเวรใหม่ ${input.shift_date} เวลา ${input.start_time}–${input.end_time}${input.note ? ` (${input.note})` : ""}`);
+
     revalidatePath("/dashboard/doctor-schedule");
     revalidatePath("/dashboard/overview");
     return { success: true };
@@ -349,6 +353,8 @@ export async function addShiftBulk(input: {
     if (rows.length > 0) {
         const { error } = await supabase.from("doctor_shifts").insert(rows);
         if (error) throw error;
+        // แจ้งเตือนพนักงานทาง LINE (best-effort)
+        await notifyStaffIds(supabase, [input.doctor_staff_id], `📅 มีเวรใหม่ ${rows.length} วัน เวลา ${input.start_time}–${input.end_time} (${useDates[0]}${rows.length > 1 ? ` … ${useDates[useDates.length - 1]}` : ""})`);
     }
 
     revalidatePath("/dashboard/doctor-schedule");
