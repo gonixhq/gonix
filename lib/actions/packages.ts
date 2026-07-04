@@ -10,6 +10,8 @@ import type {
     PackageUsage,
 } from "@/lib/package-types";
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // ════════════════════════════════════════════════════════════
 // Catalog (service_packages)
 // ════════════════════════════════════════════════════════════
@@ -80,6 +82,29 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
         return { outstanding: Math.round(outstanding * 100) / 100, count };
     } catch {
         return { outstanding: 0, count: 0 };
+    }
+}
+
+export interface BundleComponent { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; validity_days: number; }
+
+/** component packages ของ bundle */
+export async function getBundleComponents(bundleId: string): Promise<BundleComponent[]> {
+    try {
+        const supabase = await createClient();
+        const { data } = await supabase.from("package_components")
+            .select("component_id, service_packages!package_components_component_id_fkey(id, code, name, category, price, total_sessions, validity_days)")
+            .eq("bundle_id", bundleId);
+        return (data || []).map(r => {
+            const rel = r.service_packages as unknown as Record<string, unknown> | Record<string, unknown>[] | null;
+            const c = (Array.isArray(rel) ? rel[0] : rel) || {};
+            return {
+                id: c.id as string, code: (c.code as string) || "", name: (c.name as string) || "—",
+                category: (c.category as string) || null, price: Number(c.price || 0),
+                total_sessions: Number(c.total_sessions || 0), validity_days: Number(c.validity_days || 365),
+            };
+        }).filter(c => c.id);
+    } catch {
+        return [];
     }
 }
 
@@ -279,6 +304,8 @@ export interface PackageInput {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    is_bundle?: boolean;
+    component_ids?: string[];   // service_package ids ที่รวมใน bundle
 }
 
 async function generatePackageCode(
@@ -329,11 +356,19 @@ export async function createPackage(input: PackageInput) {
                 commission_doctor_pct: input.commission_doctor_pct ?? null,
                 commission_nurse_pct: input.commission_nurse_pct ?? null,
                 max_discount_pct: input.max_discount_pct ?? null,
+                is_bundle: input.is_bundle ?? false,
             })
             .select("id")
             .single();
 
         if (error) return { success: false, error: error.message };
+
+        // bundle → บันทึก component packages
+        if (input.is_bundle && input.component_ids?.length) {
+            await supabase.from("package_components").insert(
+                [...new Set(input.component_ids)].filter(cid => cid && cid !== data.id).map(cid => ({ clinic_id: profile.clinic_id, bundle_id: data.id, component_id: cid }))
+            );
+        }
 
         revalidatePath("/dashboard/inventory/packages");
         return { success: true, id: data.id };
@@ -364,6 +399,7 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.commission_doctor_pct !== undefined) patch.commission_doctor_pct = input.commission_doctor_pct;
         if (input.commission_nurse_pct !== undefined) patch.commission_nurse_pct = input.commission_nurse_pct;
         if (input.max_discount_pct !== undefined) patch.max_discount_pct = input.max_discount_pct;
+        if (input.is_bundle !== undefined) patch.is_bundle = input.is_bundle;
 
         // ราคาเปลี่ยน → log ประวัติ (ราคาเก่า→ใหม่ ใครเปลี่ยน) — ลูกค้าเก่าไม่กระทบ (snapshot ตอนซื้อ)
         if (input.price !== undefined) {
@@ -382,6 +418,16 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
             .eq("id", id);
 
         if (error) return { success: false, error: error.message };
+
+        // bundle → แทนที่ component ทั้งชุด
+        if (input.component_ids !== undefined && profile?.clinic_id) {
+            await supabase.from("package_components").delete().eq("bundle_id", id).eq("clinic_id", profile.clinic_id);
+            if (input.component_ids.length) {
+                await supabase.from("package_components").insert(
+                    [...new Set(input.component_ids)].filter(cid => cid && cid !== id).map(cid => ({ clinic_id: profile.clinic_id, bundle_id: id, component_id: cid }))
+                );
+            }
+        }
 
         revalidatePath("/dashboard/inventory/packages");
         revalidatePath(`/dashboard/inventory/packages/${id}`);
@@ -451,7 +497,7 @@ export async function purchasePackage(input: PurchasePackageInput) {
 
         const { data: pkg } = await supabase
             .from("service_packages")
-            .select("id, name, total_sessions, price, validity_days, is_active")
+            .select("id, name, total_sessions, price, validity_days, is_active, is_bundle, category")
             .eq("id", input.package_id)
             .maybeSingle();
         if (!pkg) return { success: false, error: "ไม่พบคอสนี้" };
@@ -486,6 +532,31 @@ export async function purchasePackage(input: PurchasePackageInput) {
                 inv_id: newInvId, clinic_id: profile.clinic_id, payment_method: dbMethod, amount,
             });
             invoiceId = newInvId;
+        }
+
+        // ── Bundle → แตกเป็น patient_package แยกต่อ component (แบ่งราคาตามสัดส่วนราคาตั้ง) ──
+        if (pkg.is_bundle) {
+            const comps = await getBundleComponents(pkg.id as string);
+            if (comps.length === 0) return { success: false, error: "Bundle นี้ยังไม่ได้กำหนดคอสย่อย" };
+            const totalList = comps.reduce((s, c) => s + c.price, 0) || 1;
+            const rows = comps.map((c, i) => {
+                // component สุดท้ายรับส่วนต่างที่ปัดเศษ เพื่อให้ยอดรวมตรง amount
+                const split = i === comps.length - 1
+                    ? round2(amount - comps.slice(0, -1).reduce((s, cc) => s + round2(amount * cc.price / totalList), 0))
+                    : round2(amount * c.price / totalList);
+                const exp = new Date(now); exp.setDate(exp.getDate() + (c.validity_days || 365));
+                return {
+                    clinic_id: profile.clinic_id, hn: input.hn, package_id: c.id, invoice_id: invoiceId,
+                    package_name: `${pkg.name} · ${c.name}`, category: c.category, total_sessions: c.total_sessions,
+                    paid_amount: split, purchased_at: now.toISOString(), expires_at: exp.toISOString(),
+                    note: input.note?.trim() || null, created_by: staffRow?.id || null,
+                };
+            });
+            const { error: bErr } = await supabase.from("patient_packages").insert(rows);
+            if (bErr) return { success: false, error: bErr.message };
+            revalidatePath(`/dashboard/patients/${input.hn}`);
+            revalidatePath("/dashboard/inventory/packages");
+            return { success: true, bundle: true, components: comps.length };
         }
 
         const { data, error } = await supabase

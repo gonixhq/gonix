@@ -39,6 +39,7 @@ export interface ServicePackage {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    is_bundle?: boolean;
     created_at?: string;
     updated_at?: string;
 }

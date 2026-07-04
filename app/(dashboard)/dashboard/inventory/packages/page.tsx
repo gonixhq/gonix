@@ -10,7 +10,7 @@ export default async function PackagesPage() {
 
     const { data: packages } = await supabase
         .from("service_packages")
-        .select("id, code, name, description, category, total_sessions, price, validity_days, is_active, sales_commission_pct, commission_doctor_pct, commission_nurse_pct, max_discount_pct")
+        .select("id, code, name, description, category, total_sessions, price, validity_days, is_active, sales_commission_pct, commission_doctor_pct, commission_nurse_pct, max_discount_pct, is_bundle")
         .order("is_active", { ascending: false })
         .order("category")
         .order("name");
