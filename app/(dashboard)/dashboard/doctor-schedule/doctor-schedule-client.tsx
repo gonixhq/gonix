@@ -4,12 +4,17 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     CalendarClock, Plus, Trash2, ChevronLeft, ChevronRight,
     Stethoscope, Clock, DoorOpen, Copy, Loader2, CalendarDays, LayoutGrid, Users, CheckSquare,
+    CalendarRange, Send, Lock, ShieldCheck, Check, X, History, AlertTriangle,
 } from "lucide-react";
 import { bangkokDate } from "@/lib/utils/date";
 import {
-    getShiftsForDate, getShiftsForMonth, addShift, addShiftBulk, deleteShift, deleteShiftsForDates, copyShifts,
+    getShiftsForDate, getShiftsForMonth, getShiftsForRange, addShift, addShiftBulk, deleteShift, deleteShiftsForDates, copyShifts, copyShiftsMapped,
     type DoctorShift, type MonthShift, type ScheduleStaff, type ScheduleRoom,
 } from "@/lib/actions/doctor-shifts";
+import {
+    getSchedulePeriod, getScheduleApprovalLog, submitScheduleForApproval, decideSchedulePeriod, reopenSchedulePeriod,
+    type SchedulePeriod, type ScheduleApprovalLogRow,
+} from "@/lib/actions/schedule-approval";
 
 const ROLE_LABEL: Record<string, string> = {
     owner: "เจ้าของ", admin: "แอดมิน", doctor: "แพทย์", dentist: "ทันตแพทย์",
@@ -49,6 +54,18 @@ function thaiDateLabel(date: string): string {
     const d = new Date(date + "T00:00:00");
     return `${THAI_FULL[d.getDay()]} ${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
+/** 7 วันของสัปดาห์ (จ.–อา.) ที่มีวัน date อยู่ */
+function weekDatesOf(date: string): string[] {
+    const d = new Date(date + "T00:00:00");
+    const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;   // จ=0 … อา=6
+    const mon = new Date(d); mon.setDate(d.getDate() - dow);
+    return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return bangkokDate(x); });
+}
+function weekLabel(date: string): string {
+    const w = weekDatesOf(date);
+    const a = new Date(w[0] + "T00:00:00"), b = new Date(w[6] + "T00:00:00");
+    return `${a.getDate()} ${THAI_MONTHS[a.getMonth()].slice(0, 3)} – ${b.getDate()} ${THAI_MONTHS[b.getMonth()].slice(0, 3)} ${b.getFullYear() + 543}`;
+}
 function monthLabel(month: string): string {
     const [y, m] = month.split("-").map(Number);
     return `${THAI_MONTHS[m - 1]} ${y + 543}`;
@@ -62,20 +79,32 @@ function endOfMonth(d: string): string {
 const WEEKDAY_POS = [1, 2, 3, 4, 5, 6, 0];
 
 export default function DoctorScheduleClient({
-    staff, rooms, today,
+    staff, rooms, today, isOwner = false,
 }: {
     staff: ScheduleStaff[];
     rooms: ScheduleRoom[];
     today: string;
+    isOwner?: boolean;
 }) {
-    const [view, setView] = useState<"month" | "day">("month");
+    const [view, setView] = useState<"month" | "week" | "day">("month");
     const [date, setDate] = useState(today);
     const month = date.slice(0, 7);
 
     const [shifts, setShifts] = useState<DoctorShift[]>([]);
     const [monthShifts, setMonthShifts] = useState<MonthShift[]>([]);
+    const [weekShifts, setWeekShifts] = useState<MonthShift[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
+    // day popup (คลิกวันบนปฏิทิน)
+    const [popupDate, setPopupDate] = useState<string | null>(null);
+
+    // approval workflow
+    const [period, setPeriod] = useState<SchedulePeriod | null>(null);
+    const [approvalLog, setApprovalLog] = useState<ScheduleApprovalLogRow[]>([]);
+    const [showLog, setShowLog] = useState(false);
+    const [approvalBusy, setApprovalBusy] = useState(false);
+    const locked = period?.status === "pending" || period?.status === "approved";
 
     // add-form state
     const [docId, setDocId] = useState(staff[0]?.id || "");
@@ -110,9 +139,25 @@ export default function DoctorScheduleClient({
         try { setMonthShifts(await getShiftsForMonth(mo)); }
         finally { setLoading(false); }
     }, []);
+    const loadWeek = useCallback(async (d: string) => {
+        setLoading(true);
+        const w = weekDatesOf(d);
+        try { setWeekShifts(await getShiftsForRange(w[0], w[6])); }
+        finally { setLoading(false); }
+    }, []);
 
     useEffect(() => { if (view === "day") loadDay(date); }, [view, date, loadDay]);
     useEffect(() => { if (view === "month") loadMonth(month); }, [view, month, loadMonth]);
+    useEffect(() => { if (view === "week") loadWeek(date); }, [view, date, loadWeek]);
+
+    // สถานะอนุมัติของเดือน + ประวัติ
+    const loadApproval = useCallback(async (mo: string) => {
+        try {
+            const [p, log] = await Promise.all([getSchedulePeriod(mo), getScheduleApprovalLog(mo)]);
+            setPeriod(p); setApprovalLog(log);
+        } catch { /* noop */ }
+    }, []);
+    useEffect(() => { loadApproval(month); }, [month, loadApproval]);
 
     // วันเป้าหมายของโหมดหลายวัน (ช่วงวัน × วันในสัปดาห์ที่เลือก)
     const multiDates = useMemo(() => {
@@ -168,6 +213,65 @@ export default function DoctorScheduleClient({
         } catch (err) {
             setError(err instanceof Error ? err.message : "คัดลอกไม่สำเร็จ");
         } finally { setCopying(false); }
+    }
+
+    const [copyingBulk, setCopyingBulk] = useState(false);
+    async function handleCopyWeek() {
+        if (!confirm("ทำซ้ำเวรทั้งสัปดาห์นี้ไปยังสัปดาห์ถัดไป?")) return;
+        setCopyingBulk(true); setError("");
+        try {
+            const pairs = weekDatesOf(date).map((d) => ({ from: d, to: shiftDay(d, 7) }));
+            const res = await copyShiftsMapped(pairs);
+            alert(`คัดลอกเวร ${res.copied ?? 0} รายการไปสัปดาห์ถัดไปแล้ว`);
+            await loadWeek(date);
+        } catch (err) { setError(err instanceof Error ? err.message : "ทำซ้ำไม่สำเร็จ"); }
+        finally { setCopyingBulk(false); }
+    }
+    async function handleCopyMonth() {
+        if (!confirm("ทำซ้ำเวรทั้งเดือนนี้ไปยังเดือนถัดไป? (วันเดียวกันของเดือนหน้า)")) return;
+        setCopyingBulk(true); setError("");
+        try {
+            const [y, m] = month.split("-").map(Number);
+            const nextM = m === 12 ? 1 : m + 1, nextY = m === 12 ? y + 1 : y;
+            const nextLast = new Date(nextY, nextM, 0).getDate();
+            const pairs: { from: string; to: string }[] = [];
+            for (const key of Object.keys(byDate)) {
+                if (key.slice(0, 7) !== month) continue;
+                const day = Number(key.slice(8, 10));
+                if (day > nextLast) continue;
+                pairs.push({ from: key, to: `${nextY}-${String(nextM).padStart(2, "0")}-${String(day).padStart(2, "0")}` });
+            }
+            if (pairs.length === 0) { setError("เดือนนี้ยังไม่มีเวรให้ทำซ้ำ"); setCopyingBulk(false); return; }
+            const res = await copyShiftsMapped(pairs);
+            alert(`คัดลอกเวร ${res.copied ?? 0} รายการไปเดือนถัดไปแล้ว`);
+        } catch (err) { setError(err instanceof Error ? err.message : "ทำซ้ำไม่สำเร็จ"); }
+        finally { setCopyingBulk(false); }
+    }
+
+    // ── approval workflow ──
+    async function handleSubmitApproval() {
+        if (!confirm(`ส่งตารางเวรเดือน ${monthLabel(month)} ให้ Owner อนุมัติ?\nระหว่างรออนุมัติจะแก้ไขเวรของเดือนนี้ไม่ได้`)) return;
+        setApprovalBusy(true); setError("");
+        const r = await submitScheduleForApproval(month);
+        setApprovalBusy(false);
+        if (!r.success) { setError(r.error || "ส่งอนุมัติไม่สำเร็จ"); return; }
+        await loadApproval(month);
+    }
+    async function handleDecide(approve: boolean) {
+        const note = approve ? undefined : (prompt("เหตุผลที่ปฏิเสธ (ไม่บังคับ)") || undefined);
+        setApprovalBusy(true); setError("");
+        const r = await decideSchedulePeriod(month, approve, note);
+        setApprovalBusy(false);
+        if (!r.success) { setError(r.error || "ทำรายการไม่สำเร็จ"); return; }
+        await loadApproval(month);
+    }
+    async function handleReopen() {
+        if (!confirm("เปิดตารางเวรที่อนุมัติแล้วกลับมาแก้ไข?")) return;
+        setApprovalBusy(true); setError("");
+        const r = await reopenSchedulePeriod(month);
+        setApprovalBusy(false);
+        if (!r.success) { setError(r.error || "เปิดแก้ไม่สำเร็จ"); return; }
+        await loadApproval(month);
     }
 
     async function handleBulkAddSelected() {
@@ -232,8 +336,23 @@ export default function DoctorScheduleClient({
     const onDutyCount = new Set(shifts.map((s) => s.doctor_staff_id)).size;
     const currentMonth = month.split("-").map(Number)[1];
 
-    const goPrev = () => view === "day" ? setDate(shiftDay(date, -1)) : setDate(`${shiftMonth(month, -1)}-01`);
-    const goNext = () => view === "day" ? setDate(shiftDay(date, 1)) : setDate(`${shiftMonth(month, 1)}-01`);
+    // เตือนเวลาทับซ้อนสด (day view โหมดวันเดียว)
+    const addConflict = useMemo(() => {
+        if (view !== "day" || addMode !== "single" || !docId || end <= start) return null;
+        const clash = shifts.find((s) => s.doctor_staff_id === docId && start < s.end_time && end > s.start_time);
+        return clash ? `${clash.start_time}–${clash.end_time}` : null;
+    }, [view, addMode, docId, start, end, shifts]);
+
+    // เวรของสัปดาห์ จัดกลุ่มตามวัน
+    const weekByDate = useMemo(() => {
+        const map: Record<string, MonthShift[]> = {};
+        weekShifts.forEach((s) => { (map[s.shift_date] ||= []).push(s); });
+        return map;
+    }, [weekShifts]);
+    const popupShifts = popupDate ? (byDate[popupDate] || []) : [];
+
+    const goPrev = () => view === "day" ? setDate(shiftDay(date, -1)) : view === "week" ? setDate(shiftDay(date, -7)) : setDate(`${shiftMonth(month, -1)}-01`);
+    const goNext = () => view === "day" ? setDate(shiftDay(date, 1)) : view === "week" ? setDate(shiftDay(date, 7)) : setDate(`${shiftMonth(month, 1)}-01`);
 
     return (
         <div className="space-y-5 animate-fade-in max-w-6xl mx-auto pb-10">
@@ -247,8 +366,10 @@ export default function DoctorScheduleClient({
                         <h1 className="text-lg font-black text-slate-800 tracking-tight leading-tight">ตารางเวรการทำงาน</h1>
                         <p className="text-xs text-slate-500">
                             {view === "day"
-                                ? `${thaiDateLabel(date)} · ${onDutyCount} ท่าน · ${shifts.length} เวร`
-                                : `${monthLabel(month)} · ${monthShifts.length} เวร · ${summary.length} คน`}
+                                ? `${thaiDateLabel(date)} · ${onDutyCount} คน · ${shifts.length} เวร`
+                                : view === "week"
+                                    ? `${weekLabel(date)} · ${weekShifts.length} เวร`
+                                    : `${monthLabel(month)} · ${monthShifts.length} เวร · ${summary.length} คน`}
                         </p>
                     </div>
                 </div>
@@ -259,6 +380,9 @@ export default function DoctorScheduleClient({
                         <button onClick={() => setView("month")} className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold ${view === "month" ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600"}`}>
                             <CalendarDays className="h-3.5 w-3.5" /> เดือน
                         </button>
+                        <button onClick={() => setView("week")} className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold ${view === "week" ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600"}`}>
+                            <CalendarRange className="h-3.5 w-3.5" /> สัปดาห์
+                        </button>
                         <button onClick={() => setView("day")} className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-bold ${view === "day" ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600"}`}>
                             <LayoutGrid className="h-3.5 w-3.5" /> วัน
                         </button>
@@ -268,26 +392,32 @@ export default function DoctorScheduleClient({
                     <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-xl p-0.5 shadow-sm">
                         <button onClick={goPrev} className="h-9 w-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600"><ChevronLeft className="h-4 w-4" /></button>
                         <button onClick={() => setDate(today)} className={`h-9 px-3 rounded-lg text-xs font-bold ${isToday && view === "day" ? "text-[#2B54F0]" : "text-slate-600 hover:bg-slate-100"}`}>
-                            {view === "day" ? "วันนี้" : "เดือนนี้"}
+                            {view === "day" ? "วันนี้" : view === "week" ? "สัปดาห์นี้" : "เดือนนี้"}
                         </button>
                         <button onClick={goNext} className="h-9 w-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600"><ChevronRight className="h-4 w-4" /></button>
                     </div>
 
-                    {view === "day" ? (
-                        <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
+                    {view === "month" ? (
+                        <input type="month" value={month} onChange={(e) => e.target.value && setDate(`${e.target.value}-01`)}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
                     ) : (
-                        <input type="month" value={month} onChange={(e) => e.target.value && setDate(`${e.target.value}-01`)}
+                        <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
                     )}
 
-                    {view === "month" && (
+                    {view === "month" && !locked && (
                         <button onClick={() => { setSelectMode((m) => !m); setSelectedDates([]); }}
                             className={`inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold border transition-colors ${selectMode ? "bg-[#2B54F0]/10 border-[#2B54F0]/30 text-[#2B54F0]" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
                             <CheckSquare className="h-4 w-4" /> เลือกวัน
                         </button>
                     )}
-                    {view === "month" && !selectMode && (
+                    {view === "month" && !selectMode && !locked && monthShifts.length > 0 && (
+                        <button onClick={handleCopyMonth} disabled={copyingBulk}
+                            className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                            {copyingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />} ทำซ้ำเดือน
+                        </button>
+                    )}
+                    {view === "month" && !selectMode && !locked && (
                         <button onClick={() => { if (date.slice(0, 7) !== month) setDate(`${month}-01`); setView("day"); }}
                             className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-bold text-white shadow-md"
                             style={{ background: "linear-gradient(90deg, #2B54F0, #00A6C0)" }}>
@@ -298,6 +428,69 @@ export default function DoctorScheduleClient({
             </div>
 
             {error && <div className="rounded-xl px-4 py-2.5 text-sm bg-red-50 border border-red-200 text-red-700">{error}</div>}
+
+            {/* ── Approval status bar (ต่อเดือน) ── */}
+            {period && (
+                <div className={`gonix-card-premium p-3.5 ${period.status === "approved" ? "border-emerald-200" : period.status === "pending" ? "border-amber-200" : ""}`}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            {period.status === "approved"
+                                ? <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700"><Lock className="h-3.5 w-3.5" /> อนุมัติแล้ว · ล็อค</span>
+                                : period.status === "pending"
+                                    ? <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700"><Clock className="h-3.5 w-3.5" /> รออนุมัติ</span>
+                                    : <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600"><CalendarDays className="h-3.5 w-3.5" /> ฉบับร่าง</span>}
+                            <span className="text-xs text-slate-500 truncate">ตารางเวร {monthLabel(month)}
+                                {period.status !== "draft" && period.decision_note && <span className="text-rose-500"> · หมายเหตุ: {period.decision_note}</span>}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {approvalLog.length > 0 && (
+                                <button onClick={() => setShowLog((v) => !v)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100">
+                                    <History className="h-3.5 w-3.5" /> ประวัติ ({approvalLog.length})
+                                </button>
+                            )}
+                            {period.status === "draft" && (
+                                <button onClick={handleSubmitApproval} disabled={approvalBusy}
+                                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold text-white shadow-md disabled:opacity-50" style={{ background: "linear-gradient(90deg, #2B54F0, #00A6C0)" }}>
+                                    {approvalBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} ส่งอนุมัติ
+                                </button>
+                            )}
+                            {period.status === "pending" && (isOwner ? (
+                                <>
+                                    <button onClick={() => handleDecide(true)} disabled={approvalBusy} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md disabled:opacity-50">
+                                        {approvalBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} อนุมัติ
+                                    </button>
+                                    <button onClick={() => handleDecide(false)} disabled={approvalBusy} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-bold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 disabled:opacity-50">
+                                        <X className="h-4 w-4" /> ปฏิเสธ
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="text-xs text-amber-600 font-semibold">รอ Owner อนุมัติ</span>
+                            ))}
+                            {period.status === "approved" && isOwner && (
+                                <button onClick={handleReopen} disabled={approvalBusy} className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                                    {approvalBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} เปิดแก้ (reopen)
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {showLog && approvalLog.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                            {approvalLog.map((l) => {
+                                const label = l.action === "submit" ? "ส่งอนุมัติ" : l.action === "approve" ? "อนุมัติ" : l.action === "reject" ? "ปฏิเสธ" : "เปิดแก้";
+                                return (
+                                    <div key={l.id} className="flex items-center gap-2 text-xs text-slate-500">
+                                        <span className="font-semibold text-slate-700">{label}</span>
+                                        <span>· {l.actor_name || "—"}</span>
+                                        <span>· {new Date(l.created_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}</span>
+                                        {l.note && <span className="text-rose-500 truncate">· {l.note}</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ══════════════ MONTH VIEW ══════════════ */}
             {view === "month" && (
@@ -368,7 +561,7 @@ export default function DoctorScheduleClient({
                                             key={i}
                                             onClick={() => {
                                                 if (selectMode) setSelectedDates((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
-                                                else { setDate(key); setView("day"); }
+                                                else setPopupDate(key);
                                             }}
                                             className={`min-h-[104px] text-left border-r border-b border-slate-100/80 p-1.5 transition-colors ${(i + 1) % 7 === 0 ? "border-r-0" : ""} ${isLastRow ? "border-b-0" : ""} ${selected ? "bg-[#2B54F0]/10 ring-2 ring-inset ring-[#2B54F0]" : !inMonth ? "bg-slate-50/40" : isTd ? "bg-blue-50/50" : "hover:bg-slate-50/70"}`}
                                         >
@@ -436,9 +629,65 @@ export default function DoctorScheduleClient({
                 </>
             )}
 
+            {/* ══════════════ WEEK VIEW ══════════════ */}
+            {view === "week" && (
+                <>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <h2 className="text-lg font-black text-slate-800 tracking-tight">{weekLabel(date)}</h2>
+                        {!locked && weekShifts.length > 0 && (
+                            <button onClick={handleCopyWeek} disabled={copyingBulk}
+                                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                                {copyingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />} ทำซ้ำสัปดาห์ถัดไป
+                            </button>
+                        )}
+                    </div>
+                    {loading ? (
+                        <div className="gonix-card-premium py-16 flex items-center justify-center text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-7 gap-2">
+                            {weekDatesOf(date).map((d, i) => {
+                                const ws = weekByDate[d] || [];
+                                const isTd = d === today;
+                                const dnum = new Date(d + "T00:00:00").getDate();
+                                return (
+                                    <button key={d} onClick={() => { setDate(d); setView("day"); }}
+                                        className={`text-left rounded-2xl border p-2.5 min-h-[150px] transition-colors ${isTd ? "border-[#2B54F0]/40 bg-blue-50/40" : "border-slate-200 bg-white hover:bg-slate-50/70"}`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={`text-[11px] font-black uppercase ${i >= 5 ? "text-rose-400" : "text-slate-500"}`}>{THAI_DAYS_SHORT[i]}</span>
+                                            <span className={`inline-flex items-center justify-center text-xs font-bold rounded-full h-6 w-6 ${isTd ? "text-white" : "text-slate-700"}`} style={isTd ? { background: "linear-gradient(135deg, #2B54F0, #00A6C0)" } : undefined}>{dnum}</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {ws.length === 0 ? (
+                                                <div className="text-[11px] text-slate-300 py-2 text-center">ว่าง</div>
+                                            ) : ws.map((s) => {
+                                                const tn = tone(s.role);
+                                                return (
+                                                    <div key={s.id} className={`text-[10px] px-1.5 py-1 rounded ${tn.bg} ${tn.text}`}>
+                                                        <div className="font-mono opacity-70">{s.start_time}–{s.end_time}</div>
+                                                        <div className="truncate font-semibold">{s.doctor_name}</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <p className="text-[11px] text-slate-400">💡 คลิกที่วันเพื่อเข้าไปเพิ่ม/แก้เวรของวันนั้น</p>
+                </>
+            )}
+
             {/* ══════════════ DAY VIEW ══════════════ */}
             {view === "day" && (
                 <>
+                    {locked && (
+                        <div className="gonix-card-premium p-3.5 flex items-center gap-2 text-sm text-slate-600 border-amber-200">
+                            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                            ตารางเวรเดือนนี้ {period?.status === "approved" ? "อนุมัติแล้ว (ล็อค)" : "อยู่ระหว่างรออนุมัติ"} — แก้ไขไม่ได้จนกว่าจะเปิดแก้ (reopen) หรือปฏิเสธ
+                        </div>
+                    )}
+                    {!locked && (
                     <form onSubmit={handleAdd} className="gonix-card-premium p-4">
                         <div className="flex items-center justify-between mb-3">
                             <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">
@@ -508,13 +757,19 @@ export default function DoctorScheduleClient({
                             </div>
                         )}
 
+                        {addConflict && (
+                            <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                                <AlertTriangle className="h-4 w-4 shrink-0" /> เวลาทับซ้อนกับเวร {addConflict} ของพนักงานคนนี้ในวันนี้ — บันทึกไม่ได้
+                            </div>
+                        )}
                         <div className="flex items-center gap-2.5 mt-2.5">
                             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="หมายเหตุ (ไม่บังคับ)" className="flex-1 h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
-                            <button type="submit" disabled={saving || (addMode === "multi" && multiDates.length === 0)} className="inline-flex items-center gap-1.5 h-10 px-5 rounded-xl text-sm font-bold text-white shadow-md disabled:opacity-60" style={{ background: "linear-gradient(90deg, #2B54F0, #00A6C0)" }}>
+                            <button type="submit" disabled={saving || !!addConflict || (addMode === "multi" && multiDates.length === 0)} className="inline-flex items-center gap-1.5 h-10 px-5 rounded-xl text-sm font-bold text-white shadow-md disabled:opacity-60" style={{ background: "linear-gradient(90deg, #2B54F0, #00A6C0)" }}>
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} {addMode === "multi" ? `เพิ่ม ${multiDates.length} วัน` : "เพิ่มเวร"}
                             </button>
                         </div>
                     </form>
+                    )}
 
                     <div className="gonix-card-premium overflow-hidden">
                         <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2">
@@ -552,9 +807,11 @@ export default function DoctorScheduleClient({
                                                     {s.note && <span className="text-slate-400">· {s.note}</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={() => handleDelete(s.id)} title="ลบเวร" className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            {!locked && (
+                                                <button onClick={() => handleDelete(s.id)} title="ลบเวร" className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -562,18 +819,64 @@ export default function DoctorScheduleClient({
                         )}
                     </div>
 
-                    <div className="gonix-card-premium p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <Copy className="h-4 w-4 text-[#2B54F0]" />
-                            <span className="font-semibold">คัดลอกเวรวันนี้ไปยัง</span>
+                    {!locked && (
+                        <div className="gonix-card-premium p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                                <Copy className="h-4 w-4 text-[#2B54F0]" />
+                                <span className="font-semibold">คัดลอกเวรวันนี้ไปยัง</span>
+                            </div>
+                            <input type="date" value={copyTo} onChange={(e) => setCopyTo(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
+                            <button onClick={handleCopy} disabled={copying || shifts.length === 0} className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                                {copying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />} คัดลอก
+                            </button>
+                            <span className="text-xs text-slate-400">ช่วยลดงานลงเวรซ้ำ</span>
                         </div>
-                        <input type="date" value={copyTo} onChange={(e) => setCopyTo(e.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
-                        <button onClick={handleCopy} disabled={copying || shifts.length === 0} className="inline-flex items-center gap-1.5 h-10 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-                            {copying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />} คัดลอก
-                        </button>
-                        <span className="text-xs text-slate-400">ช่วยลดงานลงเวรซ้ำ</span>
-                    </div>
+                    )}
                 </>
+            )}
+
+            {/* ══════════════ DAY POPUP (คลิกวันบนปฏิทิน) ══════════════ */}
+            {popupDate && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setPopupDate(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                            <div>
+                                <h3 className="font-bold text-slate-800">{thaiDateLabel(popupDate)}</h3>
+                                <p className="text-xs text-slate-400">{popupShifts.length} เวร · {new Set(popupShifts.map((s) => s.doctor_staff_id)).size} คน</p>
+                            </div>
+                            <button onClick={() => setPopupDate(null)} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500"><X className="h-4 w-4" /></button>
+                        </div>
+                        <div className="p-4 overflow-y-auto space-y-2">
+                            {popupShifts.length === 0 ? (
+                                <div className="py-8 text-center">
+                                    <Stethoscope className="h-8 w-8 text-slate-300 mx-auto mb-1.5" />
+                                    <p className="text-sm text-slate-500">ยังไม่มีเวรในวันนี้</p>
+                                </div>
+                            ) : popupShifts.map((s) => {
+                                const tn = tone(s.role);
+                                return (
+                                    <div key={s.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
+                                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${tn.bg}`}><Stethoscope className={`h-4 w-4 ${tn.text}`} /></div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-bold text-slate-800 truncate">{s.doctor_name} <span className="text-[11px] font-normal text-slate-400">· {roleLabel(s.role)}</span></div>
+                                            <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                                                <span className="inline-flex items-center gap-1 font-mono"><Clock className="h-3 w-3" />{s.start_time}–{s.end_time}</span>
+                                                {s.room_name && <span className="inline-flex items-center gap-1"><DoorOpen className="h-3 w-3" />{s.room_name}</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                            <button onClick={() => setPopupDate(null)} className="h-9 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">ปิด</button>
+                            <button onClick={() => { const d = popupDate; setPopupDate(null); setDate(d); setView("day"); }}
+                                className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold text-white shadow-md" style={{ background: "linear-gradient(90deg, #2B54F0, #00A6C0)" }}>
+                                <CalendarDays className="h-4 w-4" /> จัดการเวรวันนี้
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -144,6 +144,36 @@ export async function getShiftsForMonth(month: string): Promise<MonthShift[]> {
     });
 }
 
+/** เวรในช่วงวัน [start, end] — สำหรับมุมมองสัปดาห์ (อาจคร่อมเดือน) */
+export async function getShiftsForRange(start: string, end: string): Promise<MonthShift[]> {
+    const supabase = await createClient();
+    const { data: rows } = await supabase
+        .from("doctor_shifts")
+        .select("id, doctor_staff_id, shift_date, start_time, end_time, room_id")
+        .gte("shift_date", start).lte("shift_date", end)
+        .order("shift_date", { ascending: true })
+        .order("start_time", { ascending: true });
+    if (!rows || rows.length === 0) return [];
+
+    const [staffList, rooms] = await Promise.all([getScheduleStaff(), getScheduleRooms()]);
+    const sMap = new Map(staffList.map((s) => [s.id, s]));
+    const roomMap = new Map(rooms.map((r) => [r.id, r.name]));
+
+    return rows.map((s) => {
+        const st = sMap.get(s.doctor_staff_id as string);
+        return {
+            id: s.id as string,
+            doctor_staff_id: s.doctor_staff_id as string,
+            doctor_name: st?.name || "—",
+            role: st?.role || "",
+            shift_date: s.shift_date as string,
+            start_time: hhmm(s.start_time as string),
+            end_time: hhmm(s.end_time as string),
+            room_name: s.room_id ? roomMap.get(s.room_id as string) || null : null,
+        };
+    });
+}
+
 /** หมอที่เข้าเวรในวันที่กำหนด (รวมช่วงเวลา) — ใช้กับ widget + กรองหน้านัด */
 export async function getOnDutyDoctors(date: string): Promise<OnDutyDoctor[]> {
     const [shifts, doctorIds] = await Promise.all([getShiftsForDate(date), getDoctorIdSet()]);
@@ -187,6 +217,50 @@ export async function getDoctorsNotCheckedIn(): Promise<string[]> {
     return [...new Set(onNow.filter((s) => !checkedIn.has(s.doctor_staff_id)).map((s) => s.doctor_name))];
 }
 
+/** กันแก้ไขเวรของเดือนที่ส่งอนุมัติ/อนุมัติแล้ว (ล็อค) — draft/ไม่มี record = แก้ได้ */
+async function assertMonthsEditable(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any,
+    clinicId: string,
+    dates: string[],
+) {
+    const months = [...new Set(dates.map((d) => d.slice(0, 7)))];
+    if (months.length === 0) return;
+    const { data } = await supabase
+        .from("schedule_periods")
+        .select("period_month, status")
+        .eq("clinic_id", clinicId)
+        .in("period_month", months);
+    const locked = (data || []).find((p: { status: string }) => p.status === "pending" || p.status === "approved");
+    if (locked) {
+        const label = locked.status === "approved" ? "อนุมัติแล้ว (ล็อค)" : "รออนุมัติ";
+        throw new Error(`ตารางเวรเดือน ${locked.period_month} สถานะ "${label}" — แก้ไขไม่ได้ ต้องให้ owner เปิดแก้ (reopen) หรือปฏิเสธก่อน`);
+    }
+}
+
+/** เช็คเวรทับซ้อนของพนักงานคนเดียวกันในวันเดียว (start<existing.end && end>existing.start) */
+async function findShiftConflict(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any,
+    doctorStaffId: string,
+    date: string,
+    start: string,
+    end: string,
+    excludeId?: string,
+): Promise<{ start_time: string; end_time: string } | null> {
+    const { data: existing } = await supabase
+        .from("doctor_shifts")
+        .select("id, start_time, end_time")
+        .eq("doctor_staff_id", doctorStaffId)
+        .eq("shift_date", date);
+    for (const e of existing || []) {
+        if (excludeId && e.id === excludeId) continue;
+        const es = hhmm(e.start_time), ee = hhmm(e.end_time);
+        if (start < ee && end > es) return { start_time: es, end_time: ee };
+    }
+    return null;
+}
+
 export async function addShift(input: {
     doctor_staff_id: string;
     shift_date: string;
@@ -203,6 +277,11 @@ export async function addShift(input: {
     if (!profile) throw new Error("Profile not found");
 
     if (input.end_time <= input.start_time) throw new Error("เวลาสิ้นสุดต้องหลังเวลาเริ่ม");
+    await assertMonthsEditable(supabase, profile.clinic_id as string, [input.shift_date]);
+
+    // Conflict detection — เวรทับซ้อน
+    const conflict = await findShiftConflict(supabase, input.doctor_staff_id, input.shift_date, input.start_time, input.end_time);
+    if (conflict) throw new Error(`เวรทับซ้อนกับช่วง ${conflict.start_time}–${conflict.end_time} ของพนักงานคนนี้ในวันเดียวกัน`);
 
     const { error } = await supabase.from("doctor_shifts").insert({
         clinic_id: profile.clinic_id,
@@ -238,8 +317,26 @@ export async function addShiftBulk(input: {
     if (!profile) throw new Error("Profile not found");
     if (input.end_time <= input.start_time) throw new Error("เวลาสิ้นสุดต้องหลังเวลาเริ่ม");
     if (!input.dates.length) throw new Error("ยังไม่ได้เลือกวัน");
+    await assertMonthsEditable(supabase, profile.clinic_id as string, input.dates);
 
-    const rows = input.dates.map((d) => ({
+    // Conflict detection — ข้ามวันที่เวรทับซ้อน (ดึงเวรเดิมของพนักงานในชุดวันทีเดียว)
+    const { data: existing } = await supabase
+        .from("doctor_shifts")
+        .select("shift_date, start_time, end_time")
+        .eq("doctor_staff_id", input.doctor_staff_id)
+        .in("shift_date", input.dates);
+    const existByDate: Record<string, { s: string; e: string }[]> = {};
+    for (const e of existing || []) {
+        (existByDate[e.shift_date as string] ||= []).push({ s: hhmm(e.start_time as string), e: hhmm(e.end_time as string) });
+    }
+    const skipped: string[] = [];
+    const useDates = input.dates.filter((d) => {
+        const clash = (existByDate[d] || []).some((x) => input.start_time < x.e && input.end_time > x.s);
+        if (clash) { skipped.push(d); return false; }
+        return true;
+    });
+
+    const rows = useDates.map((d) => ({
         clinic_id: profile.clinic_id,
         doctor_staff_id: input.doctor_staff_id,
         shift_date: d,
@@ -249,12 +346,14 @@ export async function addShiftBulk(input: {
         note: input.note || null,
         created_by: user.id,
     }));
-    const { error } = await supabase.from("doctor_shifts").insert(rows);
-    if (error) throw error;
+    if (rows.length > 0) {
+        const { error } = await supabase.from("doctor_shifts").insert(rows);
+        if (error) throw error;
+    }
 
     revalidatePath("/dashboard/doctor-schedule");
     revalidatePath("/dashboard/overview");
-    return { success: true, count: rows.length };
+    return { success: true, count: rows.length, skipped: skipped.length };
 }
 
 export async function updateShift(id: string, input: {
@@ -265,6 +364,15 @@ export async function updateShift(id: string, input: {
 }) {
     const supabase = await createClient();
     if (input.end_time <= input.start_time) throw new Error("เวลาสิ้นสุดต้องหลังเวลาเริ่ม");
+
+    const { data: cur } = await supabase.from("doctor_shifts").select("doctor_staff_id, shift_date, clinic_id").eq("id", id).single();
+    if (cur) {
+        await assertMonthsEditable(supabase, cur.clinic_id as string, [cur.shift_date as string]);
+        // Conflict detection — เทียบกับเวรอื่นของพนักงานคนเดียวกันในวันเดียว (ยกเว้นตัวเอง)
+        const conflict = await findShiftConflict(supabase, cur.doctor_staff_id as string, cur.shift_date as string, input.start_time, input.end_time, id);
+        if (conflict) throw new Error(`เวรทับซ้อนกับช่วง ${conflict.start_time}–${conflict.end_time} ของพนักงานคนนี้ในวันเดียวกัน`);
+    }
+
     const { error } = await supabase.from("doctor_shifts").update({
         start_time: input.start_time,
         end_time: input.end_time,
@@ -277,10 +385,66 @@ export async function updateShift(id: string, input: {
     return { success: true };
 }
 
+/** คัดลอกเวรตามคู่ (from→to) หลายคู่ — ใช้ "ทำซ้ำทั้งสัปดาห์/เดือน" · ข้ามเวรที่ซ้ำเป๊ะอยู่แล้ว */
+export async function copyShiftsMapped(pairs: { from: string; to: string }[]) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+    const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+    if (!profile) throw new Error("Profile not found");
+    if (!pairs.length) return { success: true, copied: 0 };
+
+    const fromDates = [...new Set(pairs.map((p) => p.from))];
+    const toDates = [...new Set(pairs.map((p) => p.to))];
+    await assertMonthsEditable(supabase, profile.clinic_id as string, toDates);
+    const [{ data: src }, { data: dst }] = await Promise.all([
+        supabase.from("doctor_shifts").select("doctor_staff_id, shift_date, start_time, end_time, room_id, branch_id, note").in("shift_date", fromDates),
+        supabase.from("doctor_shifts").select("doctor_staff_id, shift_date, start_time, end_time").in("shift_date", toDates),
+    ]);
+    if (!src || src.length === 0) return { success: true, copied: 0 };
+
+    // เวรที่มีอยู่แล้วปลายทาง (กันซ้ำเป๊ะ)
+    const existKey = new Set((dst || []).map((d) => `${d.shift_date}|${d.doctor_staff_id}|${hhmm(d.start_time as string)}|${hhmm(d.end_time as string)}`));
+    const srcByFrom: Record<string, typeof src> = {};
+    for (const s of src) (srcByFrom[s.shift_date as string] ||= []).push(s);
+
+    const rows: Record<string, unknown>[] = [];
+    for (const { from, to } of pairs) {
+        for (const s of srcByFrom[from] || []) {
+            const key = `${to}|${s.doctor_staff_id}|${hhmm(s.start_time as string)}|${hhmm(s.end_time as string)}`;
+            if (existKey.has(key)) continue;
+            existKey.add(key);   // กันซ้ำภายในรอบเดียวกันด้วย
+            rows.push({
+                clinic_id: profile.clinic_id,
+                doctor_staff_id: s.doctor_staff_id,
+                shift_date: to,
+                start_time: s.start_time,
+                end_time: s.end_time,
+                room_id: s.room_id || null,
+                branch_id: s.branch_id || null,
+                note: s.note || null,
+                created_by: user.id,
+            });
+        }
+    }
+    if (rows.length > 0) {
+        const { error } = await supabase.from("doctor_shifts").insert(rows);
+        if (error) throw error;
+    }
+    revalidatePath("/dashboard/doctor-schedule");
+    revalidatePath("/dashboard/overview");
+    return { success: true, copied: rows.length };
+}
+
 /** ลบเวรทั้งหมดในชุดวันที่กำหนด (โหมดเลือกหลายวัน) */
 export async function deleteShiftsForDates(dates: string[]) {
     const supabase = await createClient();
     if (!dates.length) return { success: true, count: 0 };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (profile) await assertMonthsEditable(supabase, profile.clinic_id as string, dates);
+    }
     const { data, error } = await supabase
         .from("doctor_shifts")
         .delete()
@@ -294,6 +458,8 @@ export async function deleteShiftsForDates(dates: string[]) {
 
 export async function deleteShift(id: string) {
     const supabase = await createClient();
+    const { data: cur } = await supabase.from("doctor_shifts").select("shift_date, clinic_id").eq("id", id).single();
+    if (cur) await assertMonthsEditable(supabase, cur.clinic_id as string, [cur.shift_date as string]);
     const { error } = await supabase.from("doctor_shifts").delete().eq("id", id);
     if (error) throw error;
     revalidatePath("/dashboard/doctor-schedule");
@@ -308,6 +474,7 @@ export async function copyShifts(fromDate: string, toDate: string) {
     if (!user) throw new Error("Unauthorized");
     const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
     if (!profile) throw new Error("Profile not found");
+    await assertMonthsEditable(supabase, profile.clinic_id as string, [toDate]);
 
     const { data: src } = await supabase
         .from("doctor_shifts")
