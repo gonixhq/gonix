@@ -18,21 +18,23 @@ export default async function PackagesPage() {
     // สถิติต่อคอส: จำนวนที่ขาย + ครั้งที่ใช้ไป + คอสลูกค้าใกล้หมดอายุ (30 วัน ยังใช้ไม่ครบ)
     const { data: purchaseCounts } = await supabase
         .from("patient_packages")
-        .select("package_id, status, total_sessions, used_sessions, expires_at");
+        .select("package_id, status, total_sessions, used_sessions, expires_at, paid_amount");
 
     const now = Date.now();
     const DAY = 86400000;
-    const agg: Record<string, { active: number; total: number; sold: number; used: number; expiringSoon: number }> = {};
+    const agg: Record<string, { active: number; total: number; sold: number; used: number; expiringSoon: number; revenue: number }> = {};
     for (const p of purchaseCounts || []) {
         const key = p.package_id as string;
         if (!key) continue;
-        const a = (agg[key] = agg[key] || { active: 0, total: 0, sold: 0, used: 0, expiringSoon: 0 });
+        const a = (agg[key] = agg[key] || { active: 0, total: 0, sold: 0, used: 0, expiringSoon: 0, revenue: 0 });
         a.total++;
         if (p.status === "active") a.active++;
         const total = Number(p.total_sessions || 0);
         const used = Number(p.used_sessions || 0);
         a.sold += total;
         a.used += used;
+        // ยอดขายจริง = เงินที่จ่าย (ไม่นับคืนเงิน/ยกเลิก)
+        if (p.status !== "refunded" && p.status !== "cancelled") a.revenue += Number(p.paid_amount || 0);
         if (p.status === "active" && used < total && p.expires_at) {
             const daysLeft = (new Date(p.expires_at as string).getTime() - now) / DAY;
             if (daysLeft >= 0 && daysLeft <= 30) a.expiringSoon++;
@@ -50,6 +52,7 @@ export default async function PackagesPage() {
             used_sessions: used,
             utilization_pct: sold > 0 ? Math.round((used / sold) * 100) : 0,
             expiring_soon: a?.expiringSoon || 0,
+            revenue: a?.revenue || 0,
         };
     });
 

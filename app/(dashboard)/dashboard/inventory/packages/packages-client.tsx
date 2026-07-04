@@ -33,6 +33,7 @@ interface PackageRow {
     used_sessions: number;
     utilization_pct: number;
     expiring_soon: number;
+    revenue: number;
     sales_commission_pct?: number | null;
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
@@ -62,8 +63,9 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
 
     const totalActive = useMemo(() => packages.filter(p => p.is_active).length, [packages]);
     const totalActivePurchases = useMemo(() => packages.reduce((s, p) => s + p.active_purchases, 0), [packages]);
+    // ยอดขายจริง = เงินที่ลูกค้าจ่าย (paid_amount รวมทุกคอส, ตัดคืนเงิน/ยกเลิก) — ตรงกับหน้ารายละเอียด
     const totalRevenue = useMemo(
-        () => packages.reduce((s, p) => s + Number(p.price) * p.total_purchases, 0),
+        () => packages.reduce((s, p) => s + Number(p.revenue || 0), 0),
         [packages]
     );
     const categories = useMemo(() => {
