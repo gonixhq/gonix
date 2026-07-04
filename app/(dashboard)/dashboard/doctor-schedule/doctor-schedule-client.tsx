@@ -363,7 +363,8 @@ export default function DoctorScheduleClient({
     return (
         <div className="space-y-5 animate-fade-in max-w-6xl mx-auto pb-10">
             {/* Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+            <div className="space-y-2.5 pt-1">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                     <div className="h-10 w-10 rounded-2xl flex items-center justify-center bg-[#2B54F0]/10">
                         <CalendarClock className="h-5 w-5 text-[#2B54F0]" />
@@ -410,7 +411,11 @@ export default function DoctorScheduleClient({
                         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20" />
                     )}
+                </div>
+              </div>
 
+              {/* Action toolbar (แถวล่าง) */}
+              <div className="flex items-center gap-2 flex-wrap lg:justify-end">
                     <button onClick={() => setShowSwap(true)}
                         className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
                         <ArrowLeftRight className="h-4 w-4" /> เปลี่ยนเวร
@@ -569,11 +574,9 @@ export default function DoctorScheduleClient({
                     )}
 
                     <div className="gonix-card-premium overflow-hidden">
-                        {/* Month title */}
-                        <div className="px-5 py-3.5 border-b border-slate-200/60 flex items-center justify-center gap-2.5">
-                            <button onClick={goPrev} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400"><ChevronLeft className="h-5 w-5" /></button>
-                            <h2 className="text-xl font-black text-slate-800 tracking-tight tabular-nums min-w-[180px] text-center">{monthLabel(month)}</h2>
-                            <button onClick={goNext} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400"><ChevronRight className="h-5 w-5" /></button>
+                        {/* Month title (nav อยู่ที่ toolbar ด้านบนแล้ว) */}
+                        <div className="px-5 py-3 border-b border-slate-200/60 flex items-center justify-center">
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight tabular-nums text-center">{monthLabel(month)}</h2>
                         </div>
                         <div className="grid grid-cols-7 border-b border-slate-200/70 bg-slate-50/40">
                             {THAI_DAYS_SHORT.map((d, i) => (
@@ -583,6 +586,7 @@ export default function DoctorScheduleClient({
                         {loading ? (
                             <div className="py-16 flex items-center justify-center text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
                         ) : (
+                            <div className="relative">
                             <div className="grid grid-cols-7">
                                 {monthGrid.map((d, i) => {
                                     const key = bangkokDate(d);
@@ -623,6 +627,18 @@ export default function DoctorScheduleClient({
                                         </button>
                                     );
                                 })}
+                            </div>
+                            {monthShifts.length === 0 && !selectMode && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <div className="text-center bg-white/75 backdrop-blur-[1px] rounded-2xl px-7 py-5 shadow-sm border border-slate-100">
+                                        <div className="h-12 w-12 rounded-2xl bg-[#2B54F0]/10 flex items-center justify-center mx-auto mb-2">
+                                            <CalendarClock className="h-6 w-6 text-[#2B54F0]" />
+                                        </div>
+                                        <p className="text-sm font-bold text-slate-600">ยังไม่มีเวรในเดือนนี้</p>
+                                        <p className="text-xs text-slate-400 mt-1">คลิกที่วันในปฏิทิน หรือกด “เพิ่มเวร” เพื่อเริ่มลงเวร</p>
+                                    </div>
+                                </div>
+                            )}
                             </div>
                         )}
                         <div className="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-400">
