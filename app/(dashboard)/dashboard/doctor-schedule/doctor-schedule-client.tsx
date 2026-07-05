@@ -692,7 +692,13 @@ export default function DoctorScheduleClient({
             {view === "week" && (
                 <>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <h2 className="text-lg font-black text-slate-800 tracking-tight">{weekLabel(date)}</h2>
+                        <div className="flex items-center gap-2.5">
+                            <button onClick={() => setView("month")}
+                                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+                                <ChevronLeft className="h-4 w-4" /> ปฏิทิน
+                            </button>
+                            <h2 className="text-lg font-black text-slate-800 tracking-tight">{weekLabel(date)}</h2>
+                        </div>
                         {!locked && weekShifts.length > 0 && (
                             <button onClick={handleCopyWeek} disabled={copyingBulk}
                                 className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
@@ -740,6 +746,10 @@ export default function DoctorScheduleClient({
             {/* ══════════════ DAY VIEW ══════════════ */}
             {view === "day" && (
                 <>
+                    <button onClick={() => setView("month")}
+                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm font-bold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 w-fit">
+                        <ChevronLeft className="h-4 w-4" /> กลับปฏิทิน (มุมมองเดือน)
+                    </button>
                     {locked && (
                         <div className="gonix-card-premium p-3.5 flex items-center gap-2 text-sm text-slate-600 border-amber-200">
                             <Lock className="h-4 w-4 text-amber-600 shrink-0" />
