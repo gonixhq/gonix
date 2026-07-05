@@ -186,8 +186,8 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                 </div>
             </div>
 
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {/* Stat strip (compact) */}
+            <div className="gonix-card-premium px-4 py-2.5 flex flex-wrap items-center gap-x-7 gap-y-2.5">
                 <StatCard label="รายการทั้งหมด" value={totalActive} icon={Package} color="slate" />
                 <StatCard label="สต๊อกต่ำ" value={lowStockCount} icon={AlertTriangle} color="red" highlight={lowStockCount > 0} />
                 <StatCard
@@ -390,15 +390,15 @@ function StatCard({
     }[color];
 
     return (
-        <div className="gonix-card-premium p-4 relative overflow-hidden">
-            <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${styles.glow} blur-2xl pointer-events-none`} />
-            <div className="relative">
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-2.5 ${styles.tile}`}>
-                    <Icon className={`h-5 w-5 ${styles.iconText}`} strokeWidth={2.5} />
+        <div className="flex items-center gap-2.5">
+            <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${styles.tile}`}>
+                <Icon className={`h-4 w-4 ${styles.iconText}`} strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0 leading-tight">
+                <div className={`text-lg font-extrabold tabular-nums truncate ${styles.valueText}`}>{value}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    {label}{sub && <span className="text-red-600 ml-1">· {sub}</span>}
                 </div>
-                <div className={`text-2xl font-extrabold tabular-nums tracking-tight truncate ${styles.valueText}`}>{value}</div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mt-0.5">{label}</div>
-                {sub && <div className="text-[10px] font-bold text-red-600 mt-0.5">{sub}</div>}
             </div>
         </div>
     );
