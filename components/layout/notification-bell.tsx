@@ -5,7 +5,8 @@ import Link from "next/link";
 import {
     Bell, AlertTriangle, CalendarClock, Wallet, PackageOpen, X, ChevronRight,
 } from "lucide-react";
-import { getAlerts, type AlertSummary, type AlertItem } from "@/lib/actions/alerts";
+import { type AlertSummary, type AlertItem } from "@/lib/actions/alerts";
+import { getAlertsShared } from "@/lib/alerts-cache";
 
 const TYPE_META: Record<AlertItem["type"], { icon: React.ElementType; color: string; bg: string }> = {
     low_stock: { icon: PackageOpen, color: "text-red-600", bg: "bg-red-50" },
@@ -30,10 +31,10 @@ export default function NotificationBell() {
 
     useEffect(() => {
         let mounted = true;
-        getAlerts().then(d => { if (mounted) { setData(d); setLoading(false); } });
+        getAlertsShared().then(d => { if (mounted) { setData(d); setLoading(false); } });
         // Refresh ทุก 5 นาที
         const interval = setInterval(() => {
-            getAlerts().then(d => { if (mounted) setData(d); });
+            getAlertsShared().then(d => { if (mounted) setData(d); });
         }, 5 * 60 * 1000);
         return () => { mounted = false; clearInterval(interval); };
     }, []);

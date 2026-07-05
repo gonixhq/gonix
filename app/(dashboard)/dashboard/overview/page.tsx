@@ -309,7 +309,7 @@ export default async function DashboardPage({
                             <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate}
                         </p>
                         {clinicId && <RealtimeRefresh clinicId={clinicId} />}
-                        <AutoRefresh seconds={60} />
+                        <AutoRefresh seconds={180} />
                     </div>
                 </div>
             </div>

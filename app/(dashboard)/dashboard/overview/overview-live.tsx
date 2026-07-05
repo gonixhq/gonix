@@ -17,9 +17,10 @@ export function RealtimeRefresh({ clinicId }: { clinicId: string }) {
         if (!clinicId) return;
         const supabase = createClient();
         let timer: ReturnType<typeof setTimeout> | undefined;
+        // debounce ยาวขึ้น (รวม event ที่มาถี่ๆ ให้ refresh ครั้งเดียว — ลดโหลด DB)
         const bump = () => {
             clearTimeout(timer);
-            timer = setTimeout(() => router.refresh(), 800);
+            timer = setTimeout(() => router.refresh(), 3000);
         };
         const filter = `clinic_id=eq.${clinicId}`;
         const channel = supabase

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { getAlerts } from "@/lib/actions/alerts";
+import { getAlertsShared } from "@/lib/alerts-cache";
 import {
     LayoutDashboard,
     Users,
@@ -111,7 +111,7 @@ export default function Sidebar({
     const [badges, setBadges] = useState<Record<string, number>>({});
     useEffect(() => {
         let mounted = true;
-        getAlerts().then(a => {
+        getAlertsShared().then(a => {
             if (!mounted) return;
             setBadges({
                 "/dashboard/inventory": a.lowStock + a.expired + a.expiringSoon,
@@ -119,7 +119,7 @@ export default function Sidebar({
             });
         });
         const interval = setInterval(() => {
-            getAlerts().then(a => {
+            getAlertsShared().then(a => {
                 if (!mounted) return;
                 setBadges({
                     "/dashboard/inventory": a.lowStock + a.expired + a.expiringSoon,
