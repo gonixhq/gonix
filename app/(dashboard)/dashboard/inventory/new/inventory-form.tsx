@@ -108,6 +108,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [category, setCategory] = useState(item?.category || "drug");
     const [segment, setSegment] = useState(item?.segment || "product");
     const [unit, setUnit] = useState(item?.unit || "");
+    const [purchaseUnit, setPurchaseUnit] = useState(item?.purchase_unit || "");
+    const [trackGroup, setTrackGroup] = useState(item?.track_group || "");
+    const [unitsPerPack, setUnitsPerPack] = useState(item?.units_per_pack != null ? String(item.units_per_pack) : "");
     const [genericName, setGenericName] = useState(item?.generic_name || "");
     const [tradeName, setTradeName] = useState(item?.trade_name || "");
     const [strengthValue, setStrengthValue] = useState(item?.strength || "");
@@ -195,6 +198,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 const res = await updateInventoryItem({
                     id: item.id,
                     item_name: itemName, category, segment, unit,
+                    purchase_unit: purchaseUnit || null, track_group: trackGroup || null,
+                    units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
                     generic_name: genericName, trade_name: tradeName, strength,
                     dosage_form: dosageForm.trim(),
                     item_name_th: itemNameTh, indication, storage_info: storageInfo,
@@ -218,6 +223,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 category,
                 segment,
                 unit,
+                purchase_unit: purchaseUnit || null,
+                track_group: trackGroup || null,
+                units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
                 generic_name: genericName || null,
                 trade_name: tradeName || null,
                 strength: strength || null,
@@ -328,6 +336,20 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <datalist id="unit-options">
                             {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
                         </datalist>
+                    </FieldRow>
+                    <FieldRow label="หน่วยใหญ่ (Pack)">
+                        <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
+                    </FieldRow>
+                    <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
+                        <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
+                    </FieldRow>
+                    <FieldRow label="กลุ่มนับ (Consumables)">
+                        <select value={trackGroup} onChange={e => setTrackGroup(e.target.value)} className={selectCls}>
+                            <option value="">— ไม่ระบุ —</option>
+                            <option value="A">A — นับระดับ Pack (สำลี/แอลกอฮอล์/ถุงมือ)</option>
+                            <option value="B">B — นับระดับหน่วย (เข็ม/ยาชา/น้ำเกลือ)</option>
+                            <option value="C">C — ไม่ track (ทิชชู่/สบู่/ถุงขยะ)</option>
+                        </select>
                     </FieldRow>
                     <FieldRow label="รูปแบบ">
                         <select

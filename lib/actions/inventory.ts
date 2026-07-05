@@ -16,15 +16,17 @@ export interface ReceiveStockInput {
 // ฟิลด์ที่แก้ไขได้ผ่านฟอร์ม "แก้ไขรายละเอียด" (ไม่รวม stock_qty — ใช้ปรับสต๊อกแทน)
 const EDITABLE_FIELDS = [
     "item_name", "generic_name", "trade_name", "strength", "dosage_form",
-    "category", "segment", "unit", "sell_price", "cost_price", "min_stock",
+    "category", "segment", "unit", "purchase_unit", "sell_price", "cost_price", "min_stock",
     "location", "supplier", "note", "expiry_date",
+    // ── consumables ──
+    "track_group", "units_per_pack",
     // ── ข้อมูลฉลากยา ──
     "item_name_th", "indication", "storage_info", "dose_qty", "use_type",
     "frequency", "sig_text_default", "label_type", "warning_label",
     // ── ค่าตอบแทน (DF) ──
     "df_doctor", "df_nurse", "df_assistant",
 ] as const;
-const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock", "df_doctor", "df_nurse", "df_assistant"]);
+const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock", "units_per_pack", "df_doctor", "df_nurse", "df_assistant"]);
 
 /** แก้ไขรายละเอียดสินค้า + บันทึก audit (ใครแก้อะไรเมื่อไหร่) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

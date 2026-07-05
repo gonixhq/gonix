@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
     Plus, Search, PackageOpen, Box, Pill, AlertTriangle,
     DollarSign, Package, CheckCircle, EyeOff, Sparkles, CalendarClock,
+    PackageCheck, ClipboardCheck,
 } from "lucide-react";
 import { PermissionGate } from "@/components/ui/permission-button";
 
@@ -70,7 +71,9 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 type Filter = "all" | "drug" | "supply" | "low" | "expiry" | "inactive";
 
-export default function InventoryClient({ items }: { items: InventoryItem[] }) {
+interface ExpiringLotUI { item_id: string; item_name: string; lot_no: string | null; expiry_date: string; qty_remaining: number; days_left: number; }
+
+export default function InventoryClient({ items, expiring = [] }: { items: InventoryItem[]; expiring?: ExpiringLotUI[] }) {
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<Filter>("all");
 
@@ -157,7 +160,17 @@ export default function InventoryClient({ items }: { items: InventoryItem[] }) {
                         </>
                     )}
                 </p>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link href="/dashboard/inventory/par">
+                        <Button variant="outline" className="rounded-xl gap-1.5 h-9 border-blue-200 text-blue-700 hover:bg-blue-50">
+                            <PackageCheck className="h-4 w-4" /> เบิกเติม PAR
+                        </Button>
+                    </Link>
+                    <Link href="/dashboard/inventory/stock-count">
+                        <Button variant="outline" className="rounded-xl gap-1.5 h-9 border-amber-200 text-amber-700 hover:bg-amber-50">
+                            <ClipboardCheck className="h-4 w-4" /> ตรวจนับ
+                        </Button>
+                    </Link>
                     <Link href="/dashboard/inventory/packages">
                         <Button variant="outline" className="rounded-xl gap-1.5 h-9 border-rose-200 text-rose-700 hover:bg-rose-50">
                             <Sparkles className="h-4 w-4" /> คอสบริการ
@@ -188,6 +201,26 @@ export default function InventoryClient({ items }: { items: InventoryItem[] }) {
                 <StatCard label="ยา" value={drugCount} icon={Pill} color="amber" />
                 <StatCard label="มูลค่าสต๊อก" value={`฿${totalValue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`} icon={DollarSign} color="emerald" />
             </div>
+
+            {/* ล็อตใกล้หมดอายุ (≤30 วัน) */}
+            {expiring.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <CalendarClock className="h-4 w-4 text-amber-600" />
+                        <h3 className="text-sm font-bold text-amber-800">ล็อตใกล้หมดอายุ ({expiring.length}) — ใช้ก่อน</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {expiring.slice(0, 12).map((e, i) => (
+                            <Link key={i} href={`/dashboard/inventory/${e.item_id}`} className={`inline-flex items-center gap-1.5 text-xs rounded-lg px-2 py-1 border ${e.days_left < 0 ? "bg-rose-100 border-rose-200 text-rose-700" : "bg-white border-amber-200 text-amber-800"}`}>
+                                <span className="font-semibold">{e.item_name}</span>
+                                {e.lot_no && <span className="text-slate-400 font-mono">{e.lot_no}</span>}
+                                <span className="tabular-nums">· {e.days_left < 0 ? "หมดแล้ว" : `${e.days_left} วัน`}</span>
+                            </Link>
+                        ))}
+                        {expiring.length > 12 && <span className="text-xs text-amber-700 px-2 py-1">+{expiring.length - 12} รายการ</span>}
+                    </div>
+                </div>
+            )}
 
             {/* Search + filter */}
             <div className="gonix-card-premium p-4 space-y-3">
