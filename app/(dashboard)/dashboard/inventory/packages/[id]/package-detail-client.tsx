@@ -33,12 +33,15 @@ interface PackageItem {
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
     is_bundle?: boolean;
+    consume_item_id?: string | null;
+    consume_qty_per_session?: number | null;
 }
 
 interface PriceHistoryRow { id: string; old_price: number | null; new_price: number; changed_by_name: string | null; created_at: string; }
 
 interface CandidatePackage { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; }
 interface BundleComponentRow { id: string; code: string; name: string; category: string | null; price: number; total_sessions: number; validity_days: number; }
+interface InventoryItemLite { id: string; item_name: string; unit: string; stock_qty: number; }
 
 interface Purchase {
     id: string;
@@ -60,8 +63,8 @@ interface Purchase {
 }
 
 export default function PackageDetailClient({
-    pkg, purchases, priceHistory = [], bundleComponents = [], candidatePackages = [],
-}: { pkg: PackageItem; purchases: Purchase[]; priceHistory?: PriceHistoryRow[]; bundleComponents?: BundleComponentRow[]; candidatePackages?: CandidatePackage[] }) {
+    pkg, purchases, priceHistory = [], bundleComponents = [], candidatePackages = [], inventoryItems = [],
+}: { pkg: PackageItem; purchases: Purchase[]; priceHistory?: PriceHistoryRow[]; bundleComponents?: BundleComponentRow[]; candidatePackages?: CandidatePackage[]; inventoryItems?: InventoryItemLite[] }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showDelete, setShowDelete] = useState(false);
 
@@ -302,7 +305,7 @@ export default function PackageDetailClient({
                 </div>
             </div>
 
-            {showEdit && <EditPackageModal pkg={pkg} candidatePackages={candidatePackages} initialComponentIds={bundleComponents.map(c => c.id)} onClose={() => setShowEdit(false)} />}
+            {showEdit && <EditPackageModal pkg={pkg} candidatePackages={candidatePackages} initialComponentIds={bundleComponents.map(c => c.id)} inventoryItems={inventoryItems} onClose={() => setShowEdit(false)} />}
             {showDelete && <DeletePackageModal pkg={pkg} onClose={() => setShowDelete(false)} />}
         </div>
     );
@@ -350,7 +353,7 @@ function SidebarStat({ icon: Icon, label, value, color = "slate" }: {
     );
 }
 
-function EditPackageModal({ pkg, candidatePackages, initialComponentIds, onClose }: { pkg: PackageItem; candidatePackages: CandidatePackage[]; initialComponentIds: string[]; onClose: () => void }) {
+function EditPackageModal({ pkg, candidatePackages, initialComponentIds, inventoryItems, onClose }: { pkg: PackageItem; candidatePackages: CandidatePackage[]; initialComponentIds: string[]; inventoryItems: InventoryItemLite[]; onClose: () => void }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
@@ -368,6 +371,8 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, onClose
         commission_nurse_pct: Number(pkg.commission_nurse_pct || 0),
         max_discount_pct: Number(pkg.max_discount_pct ?? 0),
         is_bundle: !!pkg.is_bundle,
+        consume_item_id: pkg.consume_item_id || "",
+        consume_qty_per_session: pkg.consume_qty_per_session != null ? String(pkg.consume_qty_per_session) : "",
     });
     const [componentIds, setComponentIds] = useState<string[]>(initialComponentIds);
     const componentsSum = candidatePackages.filter(c => componentIds.includes(c.id)).reduce((s, c) => s + Number(c.price), 0);
@@ -390,6 +395,8 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, onClose
                 max_discount_pct: Number(form.max_discount_pct) || null,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
+                consume_item_id: form.consume_item_id || null,
+                consume_qty_per_session: form.consume_qty_per_session ? Number(form.consume_qty_per_session) : null,
             });
             if (result.success) {
                 router.refresh();
@@ -515,6 +522,25 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, onClose
                             rows={2}
                             className="rounded-xl"
                         />
+                    </div>
+
+                    {/* ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot) */}
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-sky-800">ตัดสต๊อกต่อการใช้ 1 ครั้ง (เช่น HIFU shot)</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="col-span-2">
+                                <select value={form.consume_item_id} onChange={e => setForm({ ...form, consume_item_id: e.target.value })}
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm">
+                                    <option value="">— ไม่ตัดสต๊อก —</option>
+                                    {inventoryItems.map(i => <option key={i.id} value={i.id}>{i.item_name} (เหลือ {i.stock_qty} {i.unit})</option>)}
+                                </select>
+                            </div>
+                            <Input type="number" min={0} step="1" placeholder="จำนวน/ครั้ง"
+                                value={form.consume_qty_per_session}
+                                onChange={e => setForm({ ...form, consume_qty_per_session: e.target.value })}
+                                className="rounded-xl tabular-nums" disabled={!form.consume_item_id} />
+                        </div>
+                        <p className="text-[11px] text-slate-500">ตอน “ตัดครั้ง” ในคอส ระบบจะตัดจำนวนนี้ออกจากคลังอัตโนมัติ (FEFO) เช่น 300 shot/ครั้ง</p>
                     </div>
 
                     {/* Bundle (feature 9) */}

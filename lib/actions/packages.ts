@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
+import { deductFEFO } from "@/lib/inventory-fefo";
 import type {
     ServicePackage,
     PatientPackage,
@@ -306,6 +307,8 @@ export interface PackageInput {
     max_discount_pct?: number | null;
     is_bundle?: boolean;
     component_ids?: string[];   // service_package ids ที่รวมใน bundle
+    consume_item_id?: string | null;          // ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot)
+    consume_qty_per_session?: number | null;  // จำนวนต่อครั้ง
 }
 
 async function generatePackageCode(
@@ -357,6 +360,8 @@ export async function createPackage(input: PackageInput) {
                 commission_nurse_pct: input.commission_nurse_pct ?? null,
                 max_discount_pct: input.max_discount_pct ?? null,
                 is_bundle: input.is_bundle ?? false,
+                consume_item_id: input.consume_item_id || null,
+                consume_qty_per_session: input.consume_qty_per_session ?? null,
             })
             .select("id")
             .single();
@@ -400,6 +405,8 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.commission_nurse_pct !== undefined) patch.commission_nurse_pct = input.commission_nurse_pct;
         if (input.max_discount_pct !== undefined) patch.max_discount_pct = input.max_discount_pct;
         if (input.is_bundle !== undefined) patch.is_bundle = input.is_bundle;
+        if (input.consume_item_id !== undefined) patch.consume_item_id = input.consume_item_id || null;
+        if (input.consume_qty_per_session !== undefined) patch.consume_qty_per_session = input.consume_qty_per_session ?? null;
 
         // ราคาเปลี่ยน → log ประวัติ (ราคาเก่า→ใหม่ ใครเปลี่ยน) — ลูกค้าเก่าไม่กระทบ (snapshot ตอนซื้อ)
         if (input.price !== undefined) {
@@ -656,9 +663,30 @@ export async function usePackageSession(input: UsePackageSessionInput) {
             .eq("id", pp.id);
         if (upErr) return { success: false, error: upErr.message };
 
+        // ตัดสต๊อกวัสดุต่อการใช้ 1 ครั้ง (เช่น HIFU shot) — mig 099 (best-effort, ไม่ block การตัดครั้ง)
+        try {
+            const { data: cfg } = await supabase.from("service_packages")
+                .select("consume_item_id, consume_qty_per_session")
+                .eq("id", pp.package_id).maybeSingle();
+            const consumeQty = Number(cfg?.consume_qty_per_session || 0);
+            if (cfg?.consume_item_id && consumeQty > 0) {
+                const { data: item } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.consume_item_id).eq("clinic_id", pp.clinic_id).maybeSingle();
+                if (item) {
+                    const bal = Number(item.stock_qty || 0) - consumeQty;
+                    await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", cfg.consume_item_id);
+                    await deductFEFO(supabase, pp.clinic_id as string, cfg.consume_item_id as string, consumeQty);
+                    await supabase.from("stock_card").insert({
+                        item_id: cfg.consume_item_id, clinic_id: pp.clinic_id, tx_type: "INTERNAL_USE",
+                        qty_delta: -consumeQty, balance_after: bal, note: `ใช้คอส (ครั้งที่ ${sessionNo})`, recorded_by: staffRow?.id || null,
+                    });
+                }
+            }
+        } catch { /* best-effort — ไม่ให้กระทบการตัดครั้ง */ }
+
         revalidatePath(`/dashboard/patients/${pp.hn}`);
         if (input.visit_vn) revalidatePath(`/dashboard/visits/${input.visit_vn}`);
         revalidatePath("/dashboard/doctor-station");
+        revalidatePath("/dashboard/inventory");
 
         return {
             success: true,

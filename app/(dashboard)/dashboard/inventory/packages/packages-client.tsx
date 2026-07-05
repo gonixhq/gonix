@@ -53,7 +53,9 @@ const CATEGORY_COLOR: Record<string, string> = {
     OTHER: "bg-slate-100 text-slate-700",
 };
 
-export default function PackagesClient({ packages }: { packages: PackageRow[] }) {
+interface InventoryItemLite { id: string; item_name: string; unit: string; stock_qty: number; }
+
+export default function PackagesClient({ packages, inventoryItems = [] }: { packages: PackageRow[]; inventoryItems?: InventoryItemLite[] }) {
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<string>("all");
     const [showCreate, setShowCreate] = useState(false);
@@ -306,7 +308,7 @@ export default function PackagesClient({ packages }: { packages: PackageRow[] })
                 </div>
             )}
 
-            {showCreate && <CreatePackageModal onClose={() => setShowCreate(false)} packages={packages} />}
+            {showCreate && <CreatePackageModal onClose={() => setShowCreate(false)} packages={packages} inventoryItems={inventoryItems} />}
         </div>
     );
 }
@@ -365,7 +367,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
     );
 }
 
-function CreatePackageModal({ onClose, packages }: { onClose: () => void; packages: PackageRow[] }) {
+function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: () => void; packages: PackageRow[]; inventoryItems: InventoryItemLite[] }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
@@ -382,6 +384,8 @@ function CreatePackageModal({ onClose, packages }: { onClose: () => void; packag
         commission_nurse_pct: 0,
         max_discount_pct: 0,
         is_bundle: false,
+        consume_item_id: "",
+        consume_qty_per_session: "",
     });
     const [componentIds, setComponentIds] = useState<string[]>([]);
     const bundleCandidates = packages.filter(p => p.is_active && !p.is_bundle);
@@ -406,6 +410,8 @@ function CreatePackageModal({ onClose, packages }: { onClose: () => void; packag
                 is_active: true,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
+                consume_item_id: form.consume_item_id || null,
+                consume_qty_per_session: form.consume_qty_per_session ? Number(form.consume_qty_per_session) : null,
             });
             if (result.success) {
                 router.refresh();
@@ -548,6 +554,23 @@ function CreatePackageModal({ onClose, packages }: { onClose: () => void; packag
                             <Input type="number" min={0} max={100} step="1" value={form.max_discount_pct}
                                 onChange={e => setForm({ ...form, max_discount_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
                         </div>
+                    </div>
+
+                    {/* ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot) */}
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-sky-800">ตัดสต๊อกต่อการใช้ 1 ครั้ง (เช่น HIFU shot)</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <select value={form.consume_item_id} onChange={e => setForm({ ...form, consume_item_id: e.target.value })}
+                                className="col-span-2 w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm">
+                                <option value="">— ไม่ตัดสต๊อก —</option>
+                                {inventoryItems.map(i => <option key={i.id} value={i.id}>{i.item_name} (เหลือ {i.stock_qty} {i.unit})</option>)}
+                            </select>
+                            <Input type="number" min={0} step="1" placeholder="จำนวน/ครั้ง"
+                                value={form.consume_qty_per_session}
+                                onChange={e => setForm({ ...form, consume_qty_per_session: e.target.value })}
+                                className="rounded-xl tabular-nums" disabled={!form.consume_item_id} />
+                        </div>
+                        <p className="text-[11px] text-slate-500">ตัดตอน “ตัดครั้ง” ในคอส (FEFO) เช่น 300 shot/ครั้ง</p>
                     </div>
 
                     {/* Bundle (feature 9) */}

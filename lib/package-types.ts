@@ -40,6 +40,8 @@ export interface ServicePackage {
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
     is_bundle?: boolean;
+    consume_item_id?: string | null;
+    consume_qty_per_session?: number | null;
     created_at?: string;
     updated_at?: string;
 }

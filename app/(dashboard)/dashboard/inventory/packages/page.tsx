@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
+import { getConsumableItems } from "@/lib/actions/consumables";
 import PackagesClient from "./packages-client";
 
 export const dynamic = "force-dynamic";
@@ -56,5 +57,7 @@ export default async function PackagesPage() {
         };
     });
 
-    return <PackagesClient packages={items} />;
+    const inventoryItems = await getConsumableItems();
+
+    return <PackagesClient packages={items} inventoryItems={inventoryItems} />;
 }

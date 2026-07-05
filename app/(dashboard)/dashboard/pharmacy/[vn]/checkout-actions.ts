@@ -240,6 +240,38 @@ export async function completeCheckout(input: CheckoutInput) {
             revalidatePath(`/dashboard/patients/${hn}`);
         }
 
+        // 8. ตัด stock kit ของบริการเดี่ยว (service_catalog.inventory_item_id + consume_qty, mig 052)
+        //    เช่น HIFU ขายครั้งเดียว → ตัด shot ตามที่ตั้งไว้ (best-effort, ไม่ block การชำระ)
+        try {
+            const serviceItems = items.filter(i => i.item_type === "service" && i.item_ref_id);
+            const svcIds = [...new Set(serviceItems.map(i => i.item_ref_id!))];
+            if (svcIds.length > 0) {
+                const { data: svcs } = await supabase.from("service_catalog")
+                    .select("id, inventory_item_id, consume_qty")
+                    .eq("clinic_id", clinicId).in("id", svcIds).not("inventory_item_id", "is", null);
+                const svcMap = new Map((svcs || []).map(s => [s.id as string, { inv: s.inventory_item_id as string, qty: Number(s.consume_qty) || 1 }]));
+                const { data: { user } } = await supabase.auth.getUser();
+                const { data: staffRow } = user ? await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle() : { data: null };
+                for (const it of serviceItems) {
+                    const cfg = svcMap.get(it.item_ref_id!);
+                    if (!cfg) continue;
+                    const deduct = cfg.qty * Math.max(1, Number(it.qty || 1));
+                    const { data: invItem } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.inv).eq("clinic_id", clinicId).maybeSingle();
+                    if (!invItem) continue;
+                    const bal = Number(invItem.stock_qty || 0) - deduct;
+                    await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", cfg.inv);
+                    await deductFEFO(supabase, clinicId, cfg.inv, deduct);
+                    await supabase.from("stock_card").insert({
+                        item_id: cfg.inv, clinic_id: clinicId, tx_type: "INTERNAL_USE",
+                        qty_delta: -deduct, balance_after: bal, note: `ใช้กับบริการ (${invId})`, recorded_by: staffRow?.id || null,
+                    });
+                }
+                if (svcs && svcs.length > 0) revalidatePath("/dashboard/inventory");
+            }
+        } catch (e) {
+            console.warn("[checkout] service kit deduct failed:", e);
+        }
+
         revalidatePath("/dashboard/pharmacy");
         revalidatePath("/dashboard/finance");
         revalidatePath("/dashboard");
