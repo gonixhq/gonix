@@ -186,8 +186,8 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                 </div>
             </div>
 
-            {/* Stat strip (compact) */}
-            <div className="gonix-card-premium px-4 py-2.5 flex flex-wrap items-center gap-x-7 gap-y-2.5">
+            {/* Stat cards (compact horizontal) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
                 <StatCard label="รายการทั้งหมด" value={totalActive} icon={Package} color="slate" />
                 <StatCard label="สต๊อกต่ำ" value={lowStockCount} icon={AlertTriangle} color="red" highlight={lowStockCount > 0} />
                 <StatCard
@@ -390,13 +390,14 @@ function StatCard({
     }[color];
 
     return (
-        <div className="flex items-center gap-2.5">
-            <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${styles.tile}`}>
-                <Icon className={`h-4 w-4 ${styles.iconText}`} strokeWidth={2.5} />
+        <div className="gonix-card-premium px-3.5 py-3 flex items-center gap-3 relative overflow-hidden">
+            <div className={`absolute -top-6 -right-6 w-16 h-16 rounded-full bg-gradient-to-br ${styles.glow} blur-xl pointer-events-none`} />
+            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 relative ${styles.tile}`}>
+                <Icon className={`h-5 w-5 ${styles.iconText}`} strokeWidth={2.5} />
             </div>
-            <div className="min-w-0 leading-tight">
-                <div className={`text-lg font-extrabold tabular-nums truncate ${styles.valueText}`}>{value}</div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            <div className="min-w-0 relative leading-tight">
+                <div className={`text-xl font-extrabold tabular-nums truncate ${styles.valueText}`}>{value}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mt-0.5">
                     {label}{sub && <span className="text-red-600 ml-1">· {sub}</span>}
                 </div>
             </div>
