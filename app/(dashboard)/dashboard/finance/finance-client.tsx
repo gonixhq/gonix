@@ -227,12 +227,6 @@ export default function FinanceClient({
                         {language === "en" ? "Receipts & Payments" : "ใบเสร็จรับเงิน & การชำระเงิน"}
                     </span>
                 </p>
-                <Link href="/dashboard/finance/new">
-                    <Button className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm shadow-cyan-500/20">
-                        <Plus className="h-4 w-4" />
-                        {language === "en" ? "Create Receipt" : "สร้างใบเสร็จ"}
-                    </Button>
-                </Link>
             </div>
 
             {/* Date range + search */}
