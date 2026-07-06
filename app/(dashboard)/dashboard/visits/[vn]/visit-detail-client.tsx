@@ -343,6 +343,13 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                     {chronicText}
                                 </span>
                             </div>
+                            {patient.past_history && (
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <History className="h-4 w-4 text-blue-600 shrink-0" />
+                                    <span className="text-slate-600 font-semibold shrink-0">{language === "en" ? "Past history (PH):" : "ประวัติอดีต (PH):"}</span>
+                                    <span className="text-blue-700 font-bold truncate">{patient.past_history}</span>
+                                </div>
+                            )}
                         </div>
                     );
                 })()}

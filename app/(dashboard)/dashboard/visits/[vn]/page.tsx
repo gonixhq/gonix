@@ -12,7 +12,7 @@ export default async function VisitDetailPage({
 
     const visitRes = await supabase.from("visits").select(`
       *,
-      patients!inner(hn, prefix, first_name, last_name, phone, gender, dob, allergy_summary, disease_summary, blood_group, nhso_rights, thai_id_card, occupation, marital_status, race, nationality, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, first_visit_date, patient_chronic_diseases(disease_name), patient_allergies(allergen_name, severity, is_active))
+      patients!inner(hn, prefix, first_name, last_name, phone, gender, dob, allergy_summary, disease_summary, past_history, blood_group, nhso_rights, thai_id_card, occupation, marital_status, race, nationality, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, first_visit_date, patient_chronic_diseases(disease_name), patient_allergies(allergen_name, severity, is_active))
     `).eq("vn", vn).single();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
