@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-    Clock, ChevronRight, AlertTriangle, Droplet, Activity, X, Trash2,
+    Clock, ChevronRight, AlertTriangle, Droplet, Activity, X, Trash2, HeartPulse,
 } from "lucide-react";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
 import { cancelVisit } from "@/lib/actions/visits";
@@ -17,6 +17,7 @@ interface Patient {
     dob?: string | null;
     blood_group?: string | null;
     allergy_summary?: string | null;
+    disease_summary?: string | null;
     phone?: string | null;
 }
 
@@ -120,7 +121,12 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                             )}
                             {pt?.allergy_summary && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[10px] font-bold">
-                                    <AlertTriangle className="h-2.5 w-2.5" /> {pt.allergy_summary}
+                                    <AlertTriangle className="h-2.5 w-2.5" /> แพ้: {pt.allergy_summary}
+                                </span>
+                            )}
+                            {pt?.disease_summary && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                    <HeartPulse className="h-2.5 w-2.5" /> โรคประจำตัว: {pt.disease_summary}
                                 </span>
                             )}
                         </div>

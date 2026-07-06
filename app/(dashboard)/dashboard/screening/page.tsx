@@ -21,7 +21,7 @@ export default async function ScreeningQueuePage() {
         .from("visits")
         .select(`
             vn, hn, visit_time, status, service_category, chief_complaint, triage_level, created_at,
-            patients!inner(prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, phone)
+            patients!inner(prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, phone)
         `)
         .eq("visit_date", today)
         .in("status", ["waiting", "triaged"])
