@@ -231,16 +231,23 @@ function ConfirmUseModal({
                     <div className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center mb-3">
                         <Check className="h-6 w-6 text-blue-600" />
                     </div>
-                    <h2 className="font-bold text-lg text-slate-800">ตัดครั้งคอสนี้?</h2>
+                    <h2 className="font-bold text-lg text-slate-800">ยืนยันตัดครั้งคอสนี้?</h2>
                     <div className="mt-3 p-3 bg-slate-50 rounded-xl space-y-1">
                         <div className="font-bold text-slate-800">{pp.package_name}</div>
                         <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-500">กำลังตัดครั้งที่</span>
+                            <span className="font-black text-blue-700 tabular-nums">
+                                {pp.total_sessions - pp.remaining_sessions + 1} / {pp.total_sessions}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
                             <span className="text-slate-500">หลังตัดจะเหลือ</span>
-                            <span className="font-bold text-blue-700 tabular-nums">
+                            <span className="font-bold text-slate-700 tabular-nums">
                                 {pp.remaining_sessions - 1} / {pp.total_sessions} ครั้ง
                             </span>
                         </div>
                     </div>
+                    <p className="mt-2 text-[11px] text-amber-600">⚠ ตัดแล้วย้อนกลับยาก — ตรวจสอบจำนวนครั้งให้ถูกต้อง</p>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>

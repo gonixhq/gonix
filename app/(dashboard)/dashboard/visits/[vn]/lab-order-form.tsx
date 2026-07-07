@@ -132,10 +132,6 @@ export default function LabOrderForm({ vn, hn }: LabOrderFormProps) {
                     })}
                 </div>
             </div>
-
-            <p className="text-xs text-slate-400 text-center pt-2">
-                * รายการ Lab จะเชื่อมกับระบบ Sub-system ในเวอร์ชันถัดไป
-            </p>
         </div>
     );
 }

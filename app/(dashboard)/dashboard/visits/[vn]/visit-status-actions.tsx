@@ -385,26 +385,34 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
                         </div>
 
                         {/* Footer */}
-                        <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex gap-3 rounded-b-2xl">
-                            <button
-                                type="button"
-                                onClick={() => setShowDialog(false)}
-                                disabled={loading}
-                                className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors">
-                                แก้ไขข้อมูล
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirm}
-                                disabled={loading}
-                                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
-                                {loading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <CheckCircle className="h-4 w-4" />
-                                )}
-                                ยืนยัน — ส่งต่อ
-                            </button>
+                        <div className="sticky bottom-0 bg-white border-t px-6 py-4 rounded-b-2xl space-y-2.5">
+                            {!isAesthetic && !summary.icd10 && (
+                                <div className="flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700 font-semibold">
+                                    <AlertTriangle className="h-4 w-4 shrink-0" /> ต้องระบุการวินิจฉัย (ICD-10) อย่างน้อย 1 รายการ ก่อนสิ้นสุดการตรวจ
+                                </div>
+                            )}
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDialog(false)}
+                                    disabled={loading}
+                                    className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-medium text-sm hover:bg-slate-50 transition-colors">
+                                    แก้ไขข้อมูล
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleConfirm}
+                                    disabled={loading || (!isAesthetic && !summary.icd10)}
+                                    title={!isAesthetic && !summary.icd10 ? "ต้องระบุ ICD-10 ก่อน" : undefined}
+                                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {loading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <CheckCircle className="h-4 w-4" />
+                                    )}
+                                    ยืนยัน — ส่งต่อ
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>,

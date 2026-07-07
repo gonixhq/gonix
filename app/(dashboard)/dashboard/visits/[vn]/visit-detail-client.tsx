@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock, CheckCircle2 } from "lucide-react";
 import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
 import type { FaceChartData } from "@/lib/aesthetic-types";
 import VisitStatusActions from "./visit-status-actions";
@@ -29,6 +29,12 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     const showPackagesTab = isAesthetic || !!patientHasPackages;
     const showMedCertTab = !isAesthetic;        // ใบรับรองไม่ใช่กับ aesthetic
     const defaultTab = isAesthetic ? "aesthetic" : "soap";
+
+    // Completion indicators (✓ บนแท็บที่กรอกแล้ว)
+    const doneSoap = !!(visit.soap_o || visit.soap_p);
+    const doneDx = !!(visit.icd10_primary || (drugs && drugs.length > 0));
+    const doneLab = !!(labOrders && labOrders.length > 0);
+    const doneMedCert = !!medCert;
 
     const statusLabel: Record<string, string> = {
         waiting: language === "en" ? "Waiting History" : "รอซักประวัติ",
@@ -385,6 +391,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                     <TabsTrigger value="soap" className={tabTriggerClass}>
                                         <Stethoscope className="h-4 w-4 shrink-0" />
                                         <span>{language === "en" ? "Examination" : "ตรวจร่างกาย"}</span>
+                                        {doneSoap && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                     </TabsTrigger>
                                 )}
                                 {visit.service_category === "aesthetic" && (
@@ -397,16 +404,19 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                     <TabsTrigger value="drugs" className={tabTriggerClass}>
                                         <Pill className="h-4 w-4 shrink-0" />
                                         <span>{language === "en" ? "Diagnosis & Rx" : "วินิจฉัย & สั่งยา"}</span>
+                                        {doneDx && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                     </TabsTrigger>
                                 )}
                                 <TabsTrigger value="lab" className={tabTriggerClass}>
                                     <TestTube className="h-4 w-4 shrink-0" />
                                     <span>{language === "en" ? "Lab Orders" : "สั่ง Lab"}</span>
+                                    {doneLab && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                 </TabsTrigger>
                                 {showMedCertTab && (
                                     <TabsTrigger value="medcert" className={tabTriggerClass}>
                                         <FileSignature className="h-4 w-4 shrink-0" />
                                         <span>{language === "en" ? "Certificate" : "ใบรับรองแพทย์"}</span>
+                                        {doneMedCert && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                     </TabsTrigger>
                                 )}
                                 {!isAesthetic && (
