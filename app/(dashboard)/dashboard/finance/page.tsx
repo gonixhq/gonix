@@ -5,6 +5,7 @@ import { getAnonRevenue } from "@/lib/actions/anonymous";
 import { getPettyCash } from "@/lib/actions/expenses";
 import { getDeferredRevenue } from "@/lib/actions/packages";
 import { getSegmentRevenue } from "@/lib/actions/segment-revenue";
+import { getMedCertsToPrint } from "@/lib/actions/med-cert";
 import FinanceClient from "./finance-client";
 
 export const dynamic = "force-dynamic";
@@ -138,8 +139,11 @@ export default async function FinancePage({
     const mergedInvoices = [...normalRows, ...anonRows]
         .sort((x, y) => String(y._ts).localeCompare(String(x._ts)));
 
+    const medCertsToPrint = await getMedCertsToPrint();
+
     return (
         <FinanceClient
+            medCertsToPrint={medCertsToPrint}
             invoices={mergedInvoices}
             range={{ preset, from, to, isToday: preset === "today" }}
             rangeRevenue={rangeRevenue}

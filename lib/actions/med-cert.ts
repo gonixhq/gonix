@@ -68,6 +68,40 @@ export async function approveMedCert(vn: string) {
     }
 }
 
+export interface MedCertToPrint {
+    vn: string; hn: string; patient_name: string; cert_type: string; approved_at: string | null;
+}
+
+/** ใบรับรองที่ approved แล้ว รอพิมพ์ (แจ้งเตือนเคาน์เตอร์ + พิมพ์จากหน้าจ่ายเงิน) */
+export async function getMedCertsToPrint(days = 2): Promise<MedCertToPrint[]> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle();
+        if (!profile?.clinic_id) return [];
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const { data } = await supabase.from("medical_certificates")
+            .select("vn, hn, cert_type, approved_at")
+            .eq("clinic_id", profile.clinic_id).eq("status", "approved")
+            .gte("approved_at", since)
+            .order("approved_at", { ascending: false }).limit(30);
+        if (!data || data.length === 0) return [];
+        const hns = [...new Set(data.map(d => d.hn as string).filter(Boolean))];
+        const nameMap: Record<string, string> = {};
+        if (hns.length > 0) {
+            const { data: pts } = await supabase.from("patients").select("hn, prefix, first_name, last_name").in("hn", hns);
+            for (const p of pts || []) nameMap[p.hn as string] = `${p.prefix || ""}${p.first_name || ""} ${p.last_name || ""}`.trim();
+        }
+        return data.map(d => ({
+            vn: d.vn as string, hn: d.hn as string, patient_name: nameMap[d.hn as string] || (d.hn as string),
+            cert_type: d.cert_type as string, approved_at: (d.approved_at as string) || null,
+        }));
+    } catch {
+        return [];
+    }
+}
+
 /** ยกเลิกอนุมัติ (กลับเป็น draft เพื่อแก้) */
 export async function reopenMedCert(vn: string) {
     try {

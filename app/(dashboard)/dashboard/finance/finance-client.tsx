@@ -7,9 +7,15 @@ import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
     Trash2, X, Loader2, ArrowDownCircle, Package, Download, Search, Eye, ArrowLeftRight, AlertCircle,
+    FileSignature, Printer,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+
+const MEDCERT_LABEL: Record<string, string> = {
+    sick_leave: "ลาป่วย", fit_for_work: "พร้อมทำงาน", fitness: "ตรวจสุขภาพ",
+    driving: "ใบขับขี่", government: "ราชการ", insurance: "ประกัน", other: "อื่นๆ",
+};
 import { addPettyCash, deletePettyCash, type PettyCashItem } from "@/lib/actions/expenses";
 import { getPatientLifetime } from "@/lib/actions/finance-insight";
 import { SEGMENTS, SEGMENT_STYLE, type Segment } from "@/lib/segments";
@@ -44,6 +50,7 @@ interface Invoice {
 interface RangeInfo { preset: string; from: string; to: string; isToday: boolean }
 
 export default function FinanceClient({
+    medCertsToPrint = [],
     invoices,
     range,
     rangeRevenue,
@@ -59,6 +66,7 @@ export default function FinanceClient({
     trend,
     forecast,
 }: {
+    medCertsToPrint?: { vn: string; hn: string; patient_name: string; cert_type: string; approved_at: string | null }[];
     invoices: Invoice[];
     range: RangeInfo;
     rangeRevenue: number;
@@ -228,6 +236,27 @@ export default function FinanceClient({
                     </span>
                 </p>
             </div>
+
+            {/* ── ใบรับรองแพทย์รอพิมพ์ (แจ้งเตือนเคาน์เตอร์ + พิมพ์) ── */}
+            {medCertsToPrint.length > 0 && (
+                <div className="gonix-card-premium p-3.5 border-amber-200">
+                    <div className="flex items-center gap-2 mb-2">
+                        <FileSignature className="h-4 w-4 text-amber-600" />
+                        <h2 className="text-sm font-bold text-slate-800">ใบรับรองแพทย์รอพิมพ์</h2>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{medCertsToPrint.length}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {medCertsToPrint.map((c) => (
+                            <a key={c.vn} href={`/print/med-cert/${c.vn}`} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 px-3 py-1.5 text-sm">
+                                <span className="font-semibold text-slate-700 truncate max-w-[160px]">{c.patient_name}</span>
+                                <span className="text-[10px] text-slate-400">{MEDCERT_LABEL[c.cert_type] || c.cert_type}</span>
+                                <Printer className="h-3.5 w-3.5 text-amber-700" />
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Date range + search */}
             <div className="flex items-center gap-2 flex-wrap">
