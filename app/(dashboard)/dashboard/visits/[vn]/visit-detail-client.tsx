@@ -534,7 +534,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {/* Tab 4: Medical Certificate */}
                         {showMedCertTab && (
                             <TabsContent forceMount value="medcert" className="p-6 m-0 data-[state=inactive]:hidden outline-none">
-                                <MedCertForm vn={vn} hn={patient.hn} />
+                                <MedCertForm vn={vn} hn={patient.hn} initial={medCert} />
                             </TabsContent>
                         )}
 

@@ -28,7 +28,7 @@ export default async function VisitDetailPage({
         supabase.from("vital_signs").select("*").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1),
         supabase.from("visit_status_logs").select("*").eq("vn", vn).order("changed_at", { ascending: true }),
         // Graceful: may error if table not created yet
-        supabase.from("medical_certificates").select("cert_type, rest_days, doctor_opinion").eq("vn", vn).maybeSingle(),
+        supabase.from("medical_certificates").select("cert_type, rest_days, doctor_opinion, rest_from, rest_to, status, sign_mode").eq("vn", vn).maybeSingle(),
         supabase.from("appointments").select("appt_date, appt_start, note").eq("source_vn", vn).limit(3),
         supabase.from("referrals").select("destination_hospital, referral_reason").eq("vn", vn).limit(3),
         supabase.from("visits").select(`
