@@ -27,12 +27,32 @@ const labCatalog: LabItem[] = [
     { id: "usg_abdomen", name: "Ultrasound Abdomen", price: 800 },
 ];
 
+// แนะนำ Lab ตาม CC (keyword → lab id) — คำใน CC ตรงคำไหน ให้ lab เหล่านั้นขึ้นก่อน + badge
+const CC_LAB_HINTS: { kw: string[]; labs: string[] }[] = [
+    { kw: ["ปวดท้อง", "ท้องเสีย", "อาเจียน", "จุกเสียด"], labs: ["urine", "usg_abdomen", "lft", "bmp"] },
+    { kw: ["ไข้", "หวัด", "เจ็บคอ", "ไอ"], labs: ["cbc", "covid", "xray_chest"] },
+    { kw: ["เบาหวาน", "น้ำตาล", "หิวน้ำ", "ปัสสาวะบ่อย"], labs: ["fbs", "hba1c", "lipid"] },
+    { kw: ["ปัสสาวะ", "แสบขัด", "กระเพาะปัสสาวะ"], labs: ["urine", "bmp"] },
+    { kw: ["เจ็บหน้าอก", "ใจสั่น", "เหนื่อย", "หัวใจ"], labs: ["ekg", "xray_chest", "lipid"] },
+    { kw: ["ตรวจสุขภาพ", "เช็คร่างกาย", "annual"], labs: ["cbc", "fbs", "lipid", "lft", "urine"] },
+];
+
 interface LabOrderFormProps {
     vn: string;
     hn: string;
+    cc?: string;
 }
 
-export default function LabOrderForm({ vn, hn }: LabOrderFormProps) {
+export default function LabOrderForm({ vn, hn, cc = "" }: LabOrderFormProps) {
+    // หา lab ids ที่แนะนำจาก CC
+    const suggestedIds = (() => {
+        const s = cc.toLowerCase();
+        const set = new Set<string>();
+        for (const h of CC_LAB_HINTS) if (h.kw.some(k => s.includes(k.toLowerCase()))) h.labs.forEach(l => set.add(l));
+        return set;
+    })();
+    // เรียง: แนะนำก่อน
+    const sortedCatalog = [...labCatalog].sort((a, b) => (suggestedIds.has(b.id) ? 1 : 0) - (suggestedIds.has(a.id) ? 1 : 0));
     const router = useRouter();
     const supabase = createClient();
     const [selected, setSelected] = useState<LabItem[]>([]);
@@ -115,17 +135,24 @@ export default function LabOrderForm({ vn, hn }: LabOrderFormProps) {
 
             {/* Lab catalog */}
             <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">เลือกรายการ Lab</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">
+                    เลือกรายการ Lab
+                    {suggestedIds.size > 0 && <span className="ml-2 normal-case text-[11px] text-emerald-600 font-bold">· แนะนำตามอาการขึ้นก่อน</span>}
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {labCatalog.map(lab => {
+                    {sortedCatalog.map(lab => {
                         const isSelected = selected.some(l => l.id === lab.id);
+                        const isSuggested = suggestedIds.has(lab.id);
                         return (
                             <button key={lab.id} type="button" onClick={() => toggleLab(lab)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-md border text-left text-sm transition-colors ${isSelected
                                     ? "border-blue-500 bg-blue-50 text-blue-800"
-                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                    : isSuggested
+                                        ? "border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50"
+                                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"}`}>
                                 <Plus className={`h-4 w-4 shrink-0 ${isSelected ? "text-blue-600 rotate-45" : "text-slate-400"}`} />
                                 <span className="flex-1">{lab.name}</span>
+                                {isSuggested && !isSelected && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 shrink-0">แนะนำ</span>}
                                 <span className="text-xs text-slate-400 shrink-0">฿{lab.price}</span>
                             </button>
                         );

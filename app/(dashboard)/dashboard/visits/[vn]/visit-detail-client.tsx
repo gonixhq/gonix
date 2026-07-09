@@ -541,7 +541,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
                         {/* Tab 3: Lab */}
                         <TabsContent forceMount value="lab" className="p-6 m-0 data-[state=inactive]:hidden outline-none">
-                            <LabOrderForm vn={vn} hn={patient.hn} />
+                            <LabOrderForm vn={vn} hn={patient.hn} cc={visit.chief_complaint || ""} />
                         </TabsContent>
 
                         {/* Tab 4: Medical Certificate */}
