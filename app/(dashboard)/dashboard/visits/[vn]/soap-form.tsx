@@ -6,6 +6,15 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { CheckCircle, Loader2 } from "lucide-react";
 
+// เทมเพลต PE ตามกลุ่มอาการที่พบบ่อย — กดแล้วเติมโครง หมอแก้เฉพาะที่ผิดปกติ
+const PE_TEMPLATES: { key: string; text: string }[] = [
+    { key: "URI", text: "GA: alert, not distress\nHEENT: injected pharynx, no exudate, TM normal\nLungs: clear, no adventitious sounds\nHeart: normal S1S2, no murmur" },
+    { key: "GI", text: "GA: alert\nAbdomen: soft, not distended, mild tenderness, no guarding/rebound, bowel sound normal\nNo hepatosplenomegaly" },
+    { key: "UTI", text: "GA: alert\nAbdomen: soft, suprapubic tenderness\nCVA tenderness: negative both sides" },
+    { key: "MSK", text: "Inspection: no deformity/swelling\nRange of motion: full/limited\nTenderness: -\nNeurovascular: intact" },
+    { key: "ปกติ", text: "GA: good consciousness, not distress\nHEENT: no pallor, no jaundice\nLungs: clear both lungs\nHeart: normal S1S2, no murmur\nAbdomen: soft, not tender\nExtremities: no edema" },
+];
+
 interface SoapFormProps {
     vn: string;
     visitType?: string;
@@ -100,9 +109,21 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
 
             <div className="space-y-5">
                 <div className="space-y-2">
-                    <Label htmlFor="soap_o" className="text-sm font-semibold text-slate-700">
-                        บันทึกผลการตรวจร่างกาย (Physical Examination)
-                    </Label>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <Label htmlFor="soap_o" className="text-sm font-semibold text-slate-700">
+                            บันทึกผลการตรวจร่างกาย (Physical Examination)
+                        </Label>
+                        <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-[10px] text-slate-400 font-semibold">เทมเพลต:</span>
+                            {PE_TEMPLATES.map((tpl) => (
+                                <button key={tpl.key} type="button"
+                                    onClick={() => handleChange("soap_o", values.soap_o ? values.soap_o + "\n" + tpl.text : tpl.text)}
+                                    className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
+                                    {tpl.key}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <textarea
                         id="soap_o"
                         value={values.soap_o}
