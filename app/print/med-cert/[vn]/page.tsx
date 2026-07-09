@@ -73,7 +73,7 @@ function CertPage({ lang, d }: { lang: "th" | "en"; d: any }) {
             <div className="mt-2 px-2 py-0.5" style={{ background: "#eee", fontWeight: 700 }}>{th ? "ส่วนที่ 1 — สำหรับผู้ขอรับใบรับรอง" : "Part 1 — For the applicant"}</div>
             <div className="mt-1.5 space-y-0.5">
                 <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Mr./Mrs./Miss"}</span> {name} <span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
-                <div><span style={lbl}>{th ? "ที่อยู่" : "Address"}</span> {d.patient?.address_detail || dots(70)}</div>
+                <div><span style={lbl}>{th ? "ที่อยู่" : "Address"}</span> {d.fullAddress || dots(70)}</div>
                 <div><span style={lbl}>{th ? "เลขบัตรประชาชน" : "ID No."}</span> {fmtId(d.patient?.thai_id_card)}</div>
                 <div className="mt-1" style={lbl}>{th ? "ประวัติสุขภาพ:" : "Health history:"}</div>
                 <div className="pl-4">1. {th ? "โรคประจำตัว" : "Underlying disease"} <Box on={!d.hasChronic} /> {th ? "ไม่มี" : "No"} <Box on={d.hasChronic} /> {th ? "มี" : "Yes"} {d.hasChronic ? `(${d.patient?.disease_summary})` : dots(28)}</div>
@@ -159,8 +159,17 @@ export default async function MedCertPrintPage({ params, searchParams }: {
     const { data: visit } = await supabase.from("visits").select("visit_date, icd10_primary, hn, clinic_id").eq("vn", vn).maybeSingle();
     const hn = (cert.hn as string) || (visit?.hn as string);
     const { data: patient } = await supabase.from("patients")
-        .select("prefix, first_name, last_name, first_name_en, last_name_en, dob, gender, thai_id_card, address_detail, disease_summary, past_history")
+        .select("prefix, first_name, last_name, first_name_en, last_name_en, dob, gender, thai_id_card, address_detail, subdistrict_code, disease_summary, past_history")
         .eq("hn", hn).maybeSingle();
+
+    // ประกอบที่อยู่เต็ม: address_detail + ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ (join address_ref)
+    let fullAddress = (patient?.address_detail as string) || "";
+    if (patient?.subdistrict_code) {
+        const { data: addr } = await supabase.from("address_ref")
+            .select("subdistrict_name, district_name, province_name, postal_code")
+            .eq("subdistrict_code", patient.subdistrict_code).maybeSingle();
+        if (addr) fullAddress = `${fullAddress ? fullAddress + " " : ""}ต.${addr.subdistrict_name} อ.${addr.district_name} จ.${addr.province_name} ${addr.postal_code}`.trim();
+    }
     const { data: vit } = await supabase.from("vital_signs").select("weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
 
     const clinicId = visit?.clinic_id as string | undefined;
@@ -187,7 +196,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
 
     const type = (cert.cert_type as string) || "other";
     const d = {
-        cert, visit, patient, vit, clinic, icdName, type,
+        cert, visit, patient, vit, clinic, icdName, type, fullAddress,
         nameTh: `${patient?.prefix || ""}${patient?.first_name || ""} ${patient?.last_name || ""}`.trim() || dots(40),
         nameEn: `${patient?.first_name_en || ""} ${patient?.last_name_en || ""}`.trim(),
         doctorName, doctorNameEn, doctorLicense, signatureUrl,
