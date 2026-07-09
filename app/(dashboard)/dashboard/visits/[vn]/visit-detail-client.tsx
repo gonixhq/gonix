@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Activity, AlertTriangle, Stethoscope, Heart, Sparkles, Pill, TestTube, FileSignature, History, Calendar, User, Pencil, MapPin, FileText, ChevronRight, Clock, CheckCircle2, Search } from "lucide-react";
 import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
 import type { FaceChartData } from "@/lib/aesthetic-types";
 import VisitStatusActions from "./visit-status-actions";
@@ -35,6 +36,18 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     const doneDx = !!(visit.icd10_primary || (drugs && drugs.length > 0));
     const doneLab = !!(labOrders && labOrders.length > 0);
     const doneMedCert = !!medCert;
+
+    // Filter ประวัติการรักษาตาม ICD-10 / CC
+    const [pastFilter, setPastFilter] = useState("");
+    const filteredPast = (() => {
+        const q = pastFilter.trim().toLowerCase();
+        if (!q) return pastVisits;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (pastVisits || []).filter((pv: any) =>
+            String(pv.icd10_primary || "").toLowerCase().includes(q) ||
+            String(pv.chief_complaint || "").toLowerCase().includes(q)
+        );
+    })();
 
     const statusLabel: Record<string, string> = {
         waiting: language === "en" ? "Waiting History" : "รอซักประวัติ",
@@ -613,11 +626,21 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
                                 {/* Past Visits */}
                                 <div>
-                                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-                                        <Activity className="h-3.5 w-3.5" />
-                                        {language === "en" ? "Previous Visits" : "ประวัติการรักษาก่อนหน้า"}
-                                        <span className="text-slate-400 normal-case font-normal">— 10 ครั้งล่าสุด</span>
-                                    </h3>
+                                    <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                            <Activity className="h-3.5 w-3.5" />
+                                            {language === "en" ? "Previous Visits" : "ประวัติการรักษาก่อนหน้า"}
+                                            <span className="text-slate-400 normal-case font-normal">— 10 ครั้งล่าสุด</span>
+                                        </h3>
+                                        {pastVisits.length > 0 && (
+                                            <div className="relative">
+                                                <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                                <input value={pastFilter} onChange={(e) => setPastFilter(e.target.value)}
+                                                    placeholder="กรอง ICD-10 / อาการ"
+                                                    className="h-8 w-48 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+                                            </div>
+                                        )}
+                                    </div>
 
                                     {pastVisits.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center p-10 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-slate-400">
@@ -625,10 +648,14 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                             <p className="text-sm font-medium">ไม่พบประวัติการรักษา</p>
                                             <p className="text-xs mt-1">visit นี้เป็นครั้งแรกของคนไข้</p>
                                         </div>
+                                    ) : filteredPast.length === 0 ? (
+                                        <div className="p-6 text-center text-sm text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                                            ไม่พบประวัติที่ตรงกับ “{pastFilter}”
+                                        </div>
                                     ) : (
                                         <div className="space-y-3">
                                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                            {pastVisits.map((pv: any) => (
+                                            {filteredPast.map((pv: any) => (
                                                 <PastVisitCard key={pv.vn} pv={pv} />
                                             ))}
                                         </div>

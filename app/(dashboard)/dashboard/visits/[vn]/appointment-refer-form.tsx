@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import { CalendarCheck, Loader2, CheckCircle, Save, ArrowRightCircle, Clock } from "lucide-react";
+import { CalendarCheck, Loader2, CheckCircle, Save, ArrowRightCircle, Clock, Printer } from "lucide-react";
 import { bangkokDate } from "@/lib/utils/date";
 
 interface AppointmentReferFormProps {
@@ -262,20 +262,27 @@ export default function AppointmentReferForm({ vn, hn, doctorId, showRefer = tru
                             <ArrowRightCircle className="h-4 w-4 text-orange-600" />
                             ส่งต่อ (Refer)
                         </h2>
-                        {referHospital && (
-                            <Button
-                                onClick={saveReferral}
-                                disabled={referLoading || referSaved}
-                                size="sm"
-                                className={referSaved
-                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                    : "bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm shadow-cyan-500/20"}
-                            >
-                                {referLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> :
-                                    referSaved ? <CheckCircle className="h-4 w-4 mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
-                                {referSaved ? "บันทึกแล้ว" : "บันทึกการส่งต่อ"}
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                            {referSaved && (
+                                <a href={`/print/referral/${vn}`} target="_blank" rel="noopener noreferrer">
+                                    <Button size="sm" variant="outline" className="gap-1.5"><Printer className="h-4 w-4" /> พิมพ์หนังสือส่งตัว</Button>
+                                </a>
+                            )}
+                            {referHospital && (
+                                <Button
+                                    onClick={saveReferral}
+                                    disabled={referLoading || referSaved}
+                                    size="sm"
+                                    className={referSaved
+                                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                        : "bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm shadow-cyan-500/20"}
+                                >
+                                    {referLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> :
+                                        referSaved ? <CheckCircle className="h-4 w-4 mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+                                    {referSaved ? "บันทึกแล้ว" : "บันทึกการส่งต่อ"}
+                                </Button>
+                            )}
+                        </div>
                     </div>
 
                     {referError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">{referError}</p>}
@@ -284,10 +291,14 @@ export default function AppointmentReferForm({ vn, hn, doctorId, showRefer = tru
                         <Label htmlFor="refer_hospital">รพ. ส่งต่อ (ตามสิทธิ์)</Label>
                         <Input
                             id="refer_hospital"
+                            list="common-hospitals"
                             value={referHospital}
                             onChange={e => { setReferHospital(e.target.value); setReferSaved(false); }}
-                            placeholder="รพ. ส่งต่อ"
+                            placeholder="พิมพ์หรือเลือกจากรายการ"
                         />
+                        <datalist id="common-hospitals">
+                            {["โรงพยาบาลศิริราช", "โรงพยาบาลรามาธิบดี", "โรงพยาบาลจุฬาลงกรณ์", "โรงพยาบาลราชวิถี", "โรงพยาบาลตำรวจ", "โรงพยาบาลพระมงกุฎเกล้า", "สถาบันมะเร็งแห่งชาติ", "โรงพยาบาลศูนย์ประจำจังหวัด"].map(h => <option key={h} value={h} />)}
+                        </datalist>
                     </div>
 
                     <div className="space-y-1.5">
