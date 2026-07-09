@@ -126,9 +126,13 @@ export default function MedCertForm({ vn, hn, initial }: MedCertFormProps) {
                     <div className="flex items-center gap-1.5">
                         {isApproved ? (
                             <>
-                                <Link href={`/print/med-cert/${vn}`} target="_blank">
-                                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1.5"><Printer className="h-4 w-4" /> พิมพ์ / Preview</Button>
-                                </Link>
+                                <div className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1.5 py-1">
+                                    <Printer className="h-4 w-4 text-blue-600" />
+                                    <span className="text-[11px] font-bold text-blue-700">พิมพ์:</span>
+                                    <Link href={`/print/med-cert/${vn}?lang=th`} target="_blank" className="text-xs font-bold px-2 py-0.5 rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-700">ไทย</Link>
+                                    <Link href={`/print/med-cert/${vn}?lang=en`} target="_blank" className="text-xs font-bold px-2 py-0.5 rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-700">EN</Link>
+                                    <Link href={`/print/med-cert/${vn}?lang=both`} target="_blank" className="text-xs font-bold px-2 py-0.5 rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-700">2 ภาษา</Link>
+                                </div>
                                 <Button size="sm" variant="outline" onClick={doReopen} disabled={pending} className="rounded-xl gap-1.5"><Undo2 className="h-4 w-4" /> เปิดแก้</Button>
                             </>
                         ) : (

@@ -247,12 +247,15 @@ export default function FinanceClient({
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {medCertsToPrint.map((c) => (
-                            <a key={c.vn} href={`/print/med-cert/${c.vn}`} target="_blank" rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-50 px-3 py-1.5 text-sm">
-                                <span className="font-semibold text-slate-700 truncate max-w-[160px]">{c.patient_name}</span>
+                            <div key={c.vn} className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-1.5 text-sm">
+                                <Printer className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                                <span className="font-semibold text-slate-700 truncate max-w-[140px]">{c.patient_name}</span>
                                 <span className="text-[10px] text-slate-400">{MEDCERT_LABEL[c.cert_type] || c.cert_type}</span>
-                                <Printer className="h-3.5 w-3.5 text-amber-700" />
-                            </a>
+                                <span className="flex items-center gap-1">
+                                    <a href={`/print/med-cert/${c.vn}?lang=th`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white border border-amber-200 hover:bg-amber-100 text-amber-700">ไทย</a>
+                                    <a href={`/print/med-cert/${c.vn}?lang=en`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white border border-amber-200 hover:bg-amber-100 text-amber-700">EN</a>
+                                </span>
+                            </div>
                         ))}
                     </div>
                 </div>

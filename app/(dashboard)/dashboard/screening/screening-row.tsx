@@ -146,14 +146,11 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                     {/* CTAs */}
                     <div className="shrink-0 flex items-center gap-1.5">
                         {visit.service_category === "med_cert" && (
-                            <Link
-                                href={`/print/med-cert/${visit.vn}`}
-                                target="_blank"
-                                title="พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)"
-                                className="inline-flex items-center justify-center h-9 px-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold gap-1"
-                            >
-                                <Printer className="h-4 w-4" /> ฟอร์ม
-                            </Link>
+                            <div className="inline-flex items-center h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 overflow-hidden" title="พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)">
+                                <Printer className="h-4 w-4 ml-2 mr-1" />
+                                <Link href={`/print/med-cert/${visit.vn}?lang=th`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100">ไทย</Link>
+                                <Link href={`/print/med-cert/${visit.vn}?lang=en`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100 border-l border-emerald-200">EN</Link>
+                            </div>
                         )}
                         <button
                             type="button"
