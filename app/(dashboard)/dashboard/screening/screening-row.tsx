@@ -30,6 +30,10 @@ interface Visit {
     chief_complaint?: string | null;
     triage_level?: string | null;
     created_at: string;
+    weight_kg?: number | null;
+    height_cm?: number | null;
+    bp_systolic?: number | null;
+    pulse_rate?: number | null;
     patients: Patient | Patient[];
 }
 
@@ -70,6 +74,7 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
     const pt = Array.isArray(visit.patients) ? visit.patients[0] : visit.patients;
     const cat = visit.service_category as ServiceCategory;
     const triage = visit.triage_level || "normal";
+    const hasVitals = !!(visit.weight_kg || visit.height_cm || visit.bp_systolic || visit.pulse_rate);
 
     function handleCancel() {
         setError(null);
@@ -146,11 +151,18 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                     {/* CTAs */}
                     <div className="shrink-0 flex items-center gap-1.5">
                         {visit.service_category === "med_cert" && (
-                            <div className="inline-flex items-center h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 overflow-hidden" title="พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)">
-                                <Printer className="h-4 w-4 ml-2 mr-1" />
-                                <Link href={`/print/med-cert/${visit.vn}?lang=th`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100">ไทย</Link>
-                                <Link href={`/print/med-cert/${visit.vn}?lang=en`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100 border-l border-emerald-200">EN</Link>
-                            </div>
+                            hasVitals ? (
+                                <div className="inline-flex items-center h-9 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 overflow-hidden" title="พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)">
+                                    <Printer className="h-4 w-4 ml-2 mr-1" />
+                                    <Link href={`/print/med-cert/${visit.vn}?lang=th`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100">ไทย</Link>
+                                    <Link href={`/print/med-cert/${visit.vn}?lang=en`} target="_blank" className="px-2 h-full flex items-center text-xs font-bold hover:bg-emerald-100 border-l border-emerald-200">EN</Link>
+                                </div>
+                            ) : (
+                                <span title="กรอก Vital Signs ก่อน แล้วค่อยพิมพ์ฟอร์ม (ข้อมูลจะขึ้นในฟอร์ม)"
+                                    className="inline-flex items-center gap-1 h-9 px-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 text-xs font-bold cursor-not-allowed">
+                                    <Printer className="h-4 w-4" /> กรอก Vital ก่อน
+                                </span>
+                            )
                         )}
                         <button
                             type="button"
