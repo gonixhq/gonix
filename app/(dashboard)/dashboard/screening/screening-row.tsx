@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-    Clock, ChevronRight, AlertTriangle, Droplet, Activity, X, Trash2, HeartPulse,
+    Clock, ChevronRight, AlertTriangle, Droplet, Activity, X, Trash2, HeartPulse, Printer,
 } from "lucide-react";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
 import { cancelVisit } from "@/lib/actions/visits";
@@ -145,6 +145,16 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
 
                     {/* CTAs */}
                     <div className="shrink-0 flex items-center gap-1.5">
+                        {visit.service_category === "med_cert" && (
+                            <Link
+                                href={`/print/med-cert/${visit.vn}`}
+                                target="_blank"
+                                title="พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)"
+                                className="inline-flex items-center justify-center h-9 px-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold gap-1"
+                            >
+                                <Printer className="h-4 w-4" /> ฟอร์ม
+                            </Link>
+                        )}
                         <button
                             type="button"
                             onClick={() => setShowCancelConfirm(true)}
