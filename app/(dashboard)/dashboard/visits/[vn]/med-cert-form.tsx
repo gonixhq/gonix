@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, CheckCircle, Save, Printer, ShieldCheck, Lock, Undo2 } from "lucide-react";
-import { saveMedCert, approveMedCert, reopenMedCert, type MedCertInput } from "@/lib/actions/med-cert";
+import { FileText, Loader2, CheckCircle, Save, Printer, ShieldCheck, Lock, Undo2, Upload, Trash2 } from "lucide-react";
+import { saveMedCert, approveMedCert, reopenMedCert, getMySignature, setMySignature, type MedCertInput } from "@/lib/actions/med-cert";
 
 interface MedCertInitial {
     cert_type?: string;
@@ -48,6 +48,35 @@ export default function MedCertForm({ vn, hn, initial }: MedCertFormProps) {
     const [status, setStatus] = useState(initial?.status || (initial?.cert_type ? "draft" : "none"));
     const [error, setError] = useState("");
     const [dirty, setDirty] = useState(false);
+
+    // ลายเซ็นของแพทย์ที่ล็อกอิน (data URL)
+    const [mySig, setMySig] = useState<string | null>(null);
+    const [sigBusy, setSigBusy] = useState(false);
+    const fileRef = useRef<HTMLInputElement>(null);
+    useEffect(() => { getMySignature().then(setMySig); }, []);
+
+    function onPickSignature(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 400_000) { setError("รูปใหญ่เกิน ~350KB — ครอปให้เล็กลง"); return; }
+        setSigBusy(true); setError("");
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const dataUrl = String(reader.result || "");
+            const r = await setMySignature(dataUrl);
+            setSigBusy(false);
+            if (!r.success) { setError(r.error || "อัปโหลดไม่สำเร็จ"); return; }
+            setMySig(dataUrl);
+        };
+        reader.onerror = () => { setSigBusy(false); setError("อ่านไฟล์ไม่สำเร็จ"); };
+        reader.readAsDataURL(file);
+    }
+    async function removeSignature() {
+        setSigBusy(true);
+        const r = await setMySignature(null);
+        setSigBusy(false);
+        if (r.success) setMySig(null);
+    }
 
     const needsCert = certType !== "none";
     const isApproved = status === "approved";
@@ -184,7 +213,28 @@ export default function MedCertForm({ vn, hn, initial }: MedCertFormProps) {
                             <button type="button" disabled={isApproved} onClick={() => { setSignMode("digital"); mark(); }}
                                 className={`h-9 px-3 rounded-lg text-xs font-bold ${signMode === "digital" ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600"}`}>ลายเซ็นดิจิทัล</button>
                         </div>
-                        <p className="text-[11px] text-slate-400">ดิจิทัล = ใส่รูปลายเซ็นหมอลง PDF (ต้องอัปโหลดลายเซ็นในโปรไฟล์) · เว้นที่ = พิมพ์เปล่าให้เซ็นมือ</p>
+                        <p className="text-[11px] text-slate-400">ดิจิทัล = ใส่รูปลายเซ็นหมอลง PDF · เว้นที่ = พิมพ์เปล่าให้เซ็นมือ</p>
+
+                        {signMode === "digital" && (
+                            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-600">ลายเซ็นของฉัน (ใช้กับใบรับรองทุกใบ)</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickSignature} />
+                                        <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={sigBusy} className="rounded-lg gap-1.5 h-8">
+                                            {sigBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} {mySig ? "เปลี่ยนรูป" : "อัปโหลดลายเซ็น"}
+                                        </Button>
+                                        {mySig && <button type="button" onClick={removeSignature} disabled={sigBusy} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>}
+                                    </div>
+                                </div>
+                                {mySig ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={mySig} alt="signature" className="h-14 object-contain mt-2 bg-white border border-slate-200 rounded-lg px-2" />
+                                ) : (
+                                    <p className="text-[11px] text-amber-600 mt-1.5">⚠ ยังไม่มีลายเซ็น — อัปโหลดรูป PNG พื้นหลังโปร่ง (ครอปเฉพาะลายเซ็น &lt; 350KB) แล้วจะ render ลง PDF อัตโนมัติ</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -31,6 +31,9 @@ export interface RegisterVisitInput {
     case_source?: "walk_in" | "line" | "affiliate" | "referral";
     case_affiliate_id?: string | null;   // เมื่อ case_source = affiliate
     case_referral_code?: string | null;  // เมื่อ case_source = referral
+
+    // Scenario B — คนไข้มาขอใบรับรอง: สร้าง draft ใบรับรองล่วงหน้า
+    med_cert_type?: string | null;       // ประเภทใบรับรอง (draft) เมื่อ service_category='med_cert'
 }
 
 /**
@@ -100,7 +103,7 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
             clinic_id: profile.clinic_id,
             hn: input.hn,
             visit_date: bangkokDate(),
-            visit_type: "opd",
+            visit_type: input.service_category === "med_cert" ? "med_cert" : "opd",
             service_category: input.service_category,
             status: initialStatus,
             chief_complaint: input.chief_complaint || null,
@@ -168,6 +171,18 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
                 note: `ลงทะเบียน — ${SERVICE_LABEL[input.service_category]}`,
             });
         } catch {}
+
+        // 5b. Scenario B — คนไข้มาขอใบรับรอง: สร้าง draft ใบรับรองล่วงหน้า (หมอแค่ verify/approve)
+        if (input.service_category === "med_cert") {
+            try {
+                await supabase.from("medical_certificates").insert({
+                    vn, hn: input.hn, clinic_id: profile.clinic_id, doctor_id: input.doctor_id || null,
+                    cert_type: input.med_cert_type || "sick_leave", status: "draft",
+                });
+            } catch (e) {
+                console.warn("[registerVisit] med cert draft failed:", e);
+            }
+        }
 
         // 6. Update patient stats
         await supabase.from("patients").update({

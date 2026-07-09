@@ -68,6 +68,33 @@ export async function approveMedCert(vn: string) {
     }
 }
 
+/** ลายเซ็นของแพทย์ที่ล็อกอินอยู่ (data URL) */
+export async function getMySignature(): Promise<string | null> {
+    try {
+        const { supabase, staffId } = await ctx();
+        if (!staffId) return null;
+        const { data } = await supabase.from("staff").select("signature_url").eq("id", staffId).maybeSingle();
+        return (data?.signature_url as string) || null;
+    } catch { return null; }
+}
+
+/** ตั้ง/ลบลายเซ็นของตัวเอง (รับ data URL base64 รูปเล็ก) */
+export async function setMySignature(dataUrl: string | null) {
+    try {
+        const { supabase, staffId } = await ctx();
+        if (!staffId) return { success: false, error: "ไม่พบข้อมูลพนักงานของผู้ใช้นี้" };
+        if (dataUrl) {
+            if (!/^data:image\/(png|jpeg|jpg|webp);base64,/.test(dataUrl)) return { success: false, error: "ไฟล์ต้องเป็นรูปภาพ" };
+            if (dataUrl.length > 500_000) return { success: false, error: "รูปใหญ่เกินไป (ควร < ~350KB) — ครอปให้เล็กลง" };
+        }
+        const { error } = await supabase.from("staff").update({ signature_url: dataUrl }).eq("id", staffId);
+        if (error) return { success: false, error: error.message };
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 export interface MedCertToPrint {
     vn: string; hn: string; patient_name: string; cert_type: string; approved_at: string | null;
 }
