@@ -202,13 +202,13 @@ function LayoutB({ d }: { d: any }) {
     const isSick = d.isSick;
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13.5px", lineHeight: 1.7 }}>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14.5px", lineHeight: 1.85 }}>
             <Masthead clinic={d.clinic} />
 
             <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>ใบรับรองแพทย์ / MEDICAL CERTIFICATE</div>
             <div className="text-right" style={{ fontSize: "11px" }}>เลขที่ / Ref No: {d.vn}</div>
 
-            <div className="mt-3 space-y-1">
+            <div className="mt-3 space-y-1.5">
                 <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName} เป็นผู้ประกอบวิชาชีพเวชกรรมแผนปัจจุบันชั้นหนึ่ง</div>
                 <div>ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว. {d.doctorLicense || "…………"} ปฏิบัติงาน ณ {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</div>
                 <div><span style={lbl}>ได้ทำการตรวจรักษาผู้ป่วยชื่อ</span> {d.nameTh}</div>
@@ -252,14 +252,16 @@ function LayoutC({ d }: { d: any }) {
     const prof = (label: string, on?: boolean) => <span className="mr-3"><Box on={on} /> {label}</span>;
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13.5px", lineHeight: 1.65 }}>
-            <div className="text-right" style={{ fontWeight: 700 }}>แบบ ภ.ท.๓๓</div>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14px", lineHeight: 1.75 }}>
+            <div className="flex justify-end mb-1">
+                <span style={{ fontWeight: 700, border: "1.5px solid #000", padding: "1px 12px", borderRadius: "4px", fontSize: "13px" }}>แบบ ภ.ท.๓๓</span>
+            </div>
             <Masthead clinic={d.clinic} />
 
             <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>ใบสั่งจ่ายสมุนไพรควบคุม (กัญชา)</div>
             <div className="text-right mt-1">วันที่ {fmtDate(d.visit?.visit_date, "th")}</div>
 
-            <div className="mt-2 space-y-1">
+            <div className="mt-2 space-y-1.5">
                 <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName}</div>
                 <div>ซึ่งเป็นผู้ประกอบวิชาชีพ</div>
                 <div className="pl-3">{prof("เวชกรรม", true)}{prof("ทันตกรรม")}{prof("แพทย์แผนไทย")}{prof("แพทย์แผนไทยประยุกต์")}</div>
