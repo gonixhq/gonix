@@ -6,12 +6,27 @@ import { useEffect } from "react";
  * Print toolbar (hidden on print) + auto-trigger print dialog on first load.
  * Disabled auto if URL contains ?noauto=1.
  */
+// พิมพ์หลังฟอนต์ (เช่น Sarabun) โหลดเสร็จ — กันปัญหาต้องกดพิมพ์ 2 รอบ
+async function printWhenReady() {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fonts = (document as any).fonts;
+        if (fonts?.ready) await fonts.ready;
+    } catch { /* ไม่รองรับ FontFaceSet — พิมพ์เลย */ }
+    window.print();
+}
+
 export default function PrintTrigger() {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get("noauto") === "1") return;
-        const t = setTimeout(() => window.print(), 600);
-        return () => clearTimeout(t);
+        let done = false;
+        const fire = () => { if (!done) { done = true; printWhenReady(); } };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fonts = (document as any).fonts;
+        if (fonts?.ready) fonts.ready.then(() => setTimeout(fire, 350));
+        const t = setTimeout(fire, 1500); // fallback เผื่อ fonts.ready ไม่ resolve
+        return () => { done = true; clearTimeout(t); };
     }, []);
 
     return (
@@ -22,7 +37,7 @@ export default function PrintTrigger() {
                     className="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-50">
                     ← กลับ
                 </button>
-                <button onClick={() => window.print()}
+                <button onClick={() => printWhenReady()}
                     className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold">
                     🖨️ พิมพ์ / บันทึก PDF
                 </button>

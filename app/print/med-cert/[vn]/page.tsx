@@ -300,7 +300,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
         .eq("vn", vn).maybeSingle();
     if (!cert) return notFound();
 
-    const { data: visit } = await supabase.from("visits").select("visit_date, visit_time, icd10_primary, hn, clinic_id, doctor_id, weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).maybeSingle();
+    const { data: visit } = await supabase.from("visits").select("visit_date, visit_time, icd10_primary, hn, clinic_id, doctor_id, room_id, weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).maybeSingle();
     const hn = (cert.hn as string) || (visit?.hn as string);
     const { data: patient } = await supabase.from("patients")
         .select("prefix, first_name, last_name, first_name_en, last_name_en, dob, gender, thai_id_card, nationality, address_detail, subdistrict_code, disease_summary, past_history")
@@ -330,7 +330,13 @@ export default async function MedCertPrintPage({ params, searchParams }: {
         : { data: null };
 
     // แพทย์: ใช้ผู้ที่ถูกเลือกในห้องตรวจ (visit.doctor_id) ก่อน แล้ว fallback ไปแพทย์ที่บันทึกในใบรับรอง
-    const doctorId = (visit?.doctor_id as string) || (cert.doctor_id as string) || null;
+    // ถ้ายังไม่มี → ใช้แพทย์ประจำห้อง (rooms.assigned_doctor_ids) ที่ visit ถูกส่งไป
+    let doctorId = (visit?.doctor_id as string) || (cert.doctor_id as string) || null;
+    if (!doctorId && visit?.room_id) {
+        const { data: room } = await supabase.from("rooms").select("assigned_doctor_ids").eq("id", visit.room_id).maybeSingle();
+        const ids = (room?.assigned_doctor_ids as string[] | null) || [];
+        if (ids.length > 0) doctorId = ids[0];
+    }
     let doctorName = "……………………………", doctorNameEn = "", doctorLicense = "", signatureUrl: string | null = null;
     if (doctorId) {
         const { data: st } = await supabase.from("staff").select("license_number, signature_url, profile_id").eq("id", doctorId).maybeSingle();
@@ -388,11 +394,14 @@ export default async function MedCertPrintPage({ params, searchParams }: {
 
     return (
         <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" />
+
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             <div className="print-wrap">{content}</div>
 
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
                 @media print {
                     .no-print { display:none !important; }
                     @page { size: A4; margin: 12mm; }

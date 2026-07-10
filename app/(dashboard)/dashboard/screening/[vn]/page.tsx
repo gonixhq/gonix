@@ -909,7 +909,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         <Label className="text-[15px] font-bold text-slate-800">ห้องตรวจ <span className="text-red-500">*</span></Label>
                         <select
                             value={selectedRoomId}
-                            onChange={e => setSelectedRoomId(e.target.value)}
+                            onChange={e => {
+                                const rid = e.target.value;
+                                setSelectedRoomId(rid);
+                                // ตั้งแพทย์ตามห้อง: หมอที่อยู่ในห้องตอนนี้ ก่อน แล้วค่อยหมอประจำห้อง
+                                const room = rooms.find(r => r.room_id === rid);
+                                const docId = room?.doctor_staff_id || room?.assigned_doctors?.[0]?.staff_id || "";
+                                if (docId) setDoctorId(docId);
+                            }}
                             className={`flex h-9 w-full rounded-lg border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
                                 !selectedRoomId ? "border-red-300 bg-red-50/30" : "border-slate-300"
                             }`}
