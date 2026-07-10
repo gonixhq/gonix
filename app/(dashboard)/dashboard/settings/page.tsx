@@ -41,6 +41,7 @@ export default function SettingsPage() {
     // Clinic
     const [clinicName, setClinicName] = useState("");
     const [clinicNameEn, setClinicNameEn] = useState("");
+    const [clinicCompany, setClinicCompany] = useState("");
     const [clinicCode, setClinicCode] = useState("");
     const [clinicTaxId, setClinicTaxId] = useState("");
     const [clinicLicense, setClinicLicense] = useState("");
@@ -73,11 +74,12 @@ export default function SettingsPage() {
                 if (profile.clinic_id) {
                     const { data: tenant } = await supabase
                         .from("tenants")
-                        .select("clinic_name, clinic_name_en, clinic_code, tax_id, license_number, phone, address_detail, logo_url, primary_color")
+                        .select("clinic_name, clinic_name_en, company_name, clinic_code, tax_id, license_number, phone, address_detail, logo_url, primary_color")
                         .eq("id", profile.clinic_id).single();
                     if (tenant) {
                         setClinicName(tenant.clinic_name || "");
                         setClinicNameEn(tenant.clinic_name_en || "");
+                        setClinicCompany(tenant.company_name || "");
                         setClinicCode(tenant.clinic_code || "");
                         setClinicTaxId(tenant.tax_id || "");
                         setClinicLicense(tenant.license_number || "");
@@ -109,6 +111,7 @@ export default function SettingsPage() {
                 const { error: clinicErr } = await supabase.from("tenants").update({
                     clinic_name: clinicName || null,
                     clinic_name_en: clinicNameEn || null,
+                    company_name: clinicCompany || null,
                     tax_id: clinicTaxId || null,
                     license_number: clinicLicense || null,
                     phone: clinicPhone || null,
@@ -262,6 +265,10 @@ export default function SettingsPage() {
                                     <div className="space-y-1.5">
                                         <Label className="text-xs">Clinic Name (EN)</Label>
                                         <Input value={clinicNameEn} onChange={e => setClinicNameEn(e.target.value)} className={inputClass} />
+                                    </div>
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label className="text-xs flex items-center gap-1.5"><Building2 className="h-3 w-3" /> ชื่อบริษัท/นิติบุคคล (หัวกระดาษบรรทัด 2)</Label>
+                                        <Input value={clinicCompany} onChange={e => setClinicCompany(e.target.value)} placeholder="เช่น บริษัท ธนเวช เมดิคอล จำกัด (สำนักงานใหญ่)" className={inputClass} />
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label className="text-xs flex items-center gap-1.5"><IdCard className="h-3 w-3" /> เลขผู้เสียภาษี (Tax ID)</Label>
