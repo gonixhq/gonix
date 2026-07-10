@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     Plus, Pencil, Trash2, AlertCircle, CheckCircle,
-    X, Eye, EyeOff, Stethoscope, UserCircle2, DoorOpen,
+    X, Eye, EyeOff, Stethoscope, UserCircle2, DoorOpen, Save, IdCard,
 } from "lucide-react";
 import {
     type Room, type RoomColor, ROOM_COLOR_STYLES, ROOM_TYPE_LABEL,
     ROOM_TYPE_OPTIONS, ROOM_COLOR_OPTIONS,
 } from "@/lib/room-types";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
-import { createRoom, updateRoom, deleteRoom, type RoomInput, type DoctorOption } from "@/lib/actions/rooms";
+import { createRoom, updateRoom, deleteRoom, setStaffLicense, type RoomInput, type DoctorOption } from "@/lib/actions/rooms";
 
 const SERVICE_CHOICES: ServiceCategory[] = ["general_med", "aesthetic", "wound_care", "med_cert", "checkup", "std_test"];
 
@@ -223,6 +223,9 @@ export default function RoomsClient({
                 </div>
             )}
 
+            {/* เลขใบอนุญาตแพทย์ (ว.) */}
+            <DoctorLicenses availableDoctors={availableDoctors} />
+
             {/* Form modal */}
             {showForm && (
                 <RoomFormModal
@@ -270,6 +273,76 @@ export default function RoomsClient({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function DoctorLicenses({ availableDoctors }: { availableDoctors: DoctorOption[] }) {
+    const [values, setValues] = useState<Record<string, string>>(
+        () => Object.fromEntries(availableDoctors.map((d) => [d.staff_id, d.license_number || ""]))
+    );
+    const [savingId, setSavingId] = useState<string | null>(null);
+    const [savedId, setSavedId] = useState<string | null>(null);
+    const [err, setErr] = useState<string | null>(null);
+
+    async function save(staffId: string) {
+        setSavingId(staffId);
+        setErr(null);
+        const res = await setStaffLicense(staffId, values[staffId] || "");
+        setSavingId(null);
+        if (!res.success) {
+            setErr(res.error || "บันทึกไม่สำเร็จ");
+            return;
+        }
+        setSavedId(staffId);
+        setTimeout(() => setSavedId((c) => (c === staffId ? null : c)), 2000);
+    }
+
+    if (availableDoctors.length === 0) return null;
+
+    return (
+        <div className="gonix-card-premium p-4">
+            <div className="flex items-center gap-2 mb-1">
+                <IdCard className="h-4 w-4 text-cyan-600" />
+                <h3 className="text-sm font-bold text-slate-800">เลขใบอนุญาตแพทย์ (ว.)</h3>
+            </div>
+            <p className="text-[11px] text-slate-500 mb-3">
+                ใช้แสดงในใบรับรองแพทย์ · ระบบจะดึงเลข ว. อัตโนมัติตามแพทย์ที่ถูกเลือกในห้องตรวจ
+            </p>
+            {err && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 mb-2 flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {err}
+                </div>
+            )}
+            <div className="space-y-2">
+                {availableDoctors.map((d) => (
+                    <div key={d.staff_id} className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0 text-sm text-slate-700 truncate">
+                            {ROLE_PREFIX_SHORT[d.role] && <span className="text-slate-400 mr-1">{ROLE_PREFIX_SHORT[d.role]}</span>}
+                            {d.name}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-slate-400 font-bold">ว.</span>
+                            <input
+                                value={values[d.staff_id] ?? ""}
+                                onChange={(e) => setValues((p) => ({ ...p, [d.staff_id]: e.target.value }))}
+                                placeholder="เลขที่ใบอนุญาต"
+                                className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                            />
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-lg h-8 gap-1 text-xs"
+                                disabled={savingId === d.staff_id}
+                                onClick={() => save(d.staff_id)}
+                            >
+                                {savedId === d.staff_id ? <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> : <Save className="h-3.5 w-3.5" />}
+                                {savingId === d.staff_id ? "..." : savedId === d.staff_id ? "แล้ว" : "บันทึก"}
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

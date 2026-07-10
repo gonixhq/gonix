@@ -33,6 +33,7 @@ export interface DoctorOption {
     staff_id: string;
     name: string;
     role: string;
+    license_number?: string;
 }
 
 /** Available doctors for assignment (doctor/dentist/physio/owner)
@@ -51,7 +52,7 @@ export async function listAvailableDoctors(): Promise<DoctorOption[]> {
 
         const { data } = await supabase
             .from("profiles")
-            .select("id, full_name, role, approval_status, is_active, staff(id)")
+            .select("id, full_name, role, approval_status, is_active, staff(id, license_number)")
             .eq("clinic_id", profile.clinic_id)
             .in("role", ["doctor", "dentist", "physio", "owner"])
             .eq("approval_status", "approved");
@@ -76,7 +77,7 @@ export async function listAvailableDoctors(): Promise<DoctorOption[]> {
             // Re-fetch to get fresh staff ids
             const { data: refetched } = await supabase
                 .from("profiles")
-                .select("id, full_name, role, staff(id)")
+                .select("id, full_name, role, staff(id, license_number)")
                 .eq("clinic_id", profile.clinic_id)
                 .in("role", ["doctor", "dentist", "physio", "owner"])
                 .eq("approval_status", "approved");
@@ -89,6 +90,7 @@ export async function listAvailableDoctors(): Promise<DoctorOption[]> {
                         staff_id: s?.id || r.id,
                         name: r.full_name || "—",
                         role: r.role || "",
+                        license_number: s?.license_number || "",
                     };
                 })
                 .sort((a, b) => a.name.localeCompare(b.name));
@@ -101,11 +103,40 @@ export async function listAvailableDoctors(): Promise<DoctorOption[]> {
                     staff_id: s?.id || r.id,
                     name: r.full_name || "—",
                     role: r.role || "",
+                    license_number: s?.license_number || "",
                 };
             })
             .sort((a, b) => a.name.localeCompare(b.name));
     } catch {
         return [];
+    }
+}
+
+/** บันทึกเลขใบอนุญาตประกอบวิชาชีพ (ว.) ของแพทย์ลงในตาราง staff */
+export async function setStaffLicense(staffId: string, license: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+
+        // เฉพาะ owner/admin เท่านั้น
+        const { data: profile } = await supabase
+            .from("profiles").select("clinic_id, role").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+        if (profile.role !== "owner" && profile.role !== "admin") {
+            return { success: false, error: "เฉพาะเจ้าของคลินิก/แอดมินเท่านั้น" };
+        }
+
+        const { error } = await supabase
+            .from("staff")
+            .update({ license_number: license.trim() || null })
+            .eq("id", staffId);
+        if (error) return { success: false, error: error.message };
+
+        revalidatePath("/dashboard/settings/rooms");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
     }
 }
 

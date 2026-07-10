@@ -57,16 +57,14 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
     const nameTh = clinic?.clinic_name || "คลินิกเวชกรรมธนเวช";
     const nameEn = clinic?.clinic_name_en || "TANAVEJ MEDICAL CLINIC";
     return (
-        <div className="text-center pb-2" style={{ borderBottom: "1.5px solid #000" }}>
+        <div className="flex items-start gap-3 pb-2" style={{ borderBottom: "2px solid #0891b2" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/clinic-logo.png" alt="" className="h-12 w-12 object-contain mx-auto mb-1" />
-            <div style={{ fontSize: "16px", fontWeight: 900 }}>{en ? nameEn : `${nameEn} (${nameTh})`}</div>
-            <div style={{ fontSize: "11px" }}>
-                {en ? "Medical Clinic License No:" : "เลขที่ใบอนุญาตประกอบการสถานพยาบาล:"} {clinic?.license_number || "…………"}
-            </div>
-            <div style={{ fontSize: "11px" }}>
-                {clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จังหวัดเชียงใหม่ ประเทศไทย")}
-                {clinic?.phone && <>{en ? " · Tel:" : " · โทร."} {clinic.phone}</>}
+            <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain shrink-0" />
+            <div className="flex-1 min-w-0">
+                <div style={{ fontSize: "16px", fontWeight: 700, lineHeight: 1.25 }}>{en ? nameEn : nameTh}</div>
+                {!en && <div style={{ fontSize: "11px", color: "#333" }}>{nameEn}</div>}
+                <div style={{ fontSize: "11px", color: "#333" }}>{clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จังหวัดเชียงใหม่ ประเทศไทย")}{clinic?.phone && <>{en ? " · Tel:" : " · โทร."} {clinic.phone}</>}</div>
+                <div style={{ fontSize: "10.5px", color: "#555" }}>{en ? "Medical Clinic License No:" : "เลขที่ใบอนุญาตประกอบการสถานพยาบาล:"} {clinic?.license_number || "…………………"}</div>
             </div>
         </div>
     );
@@ -99,7 +97,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
         : "MEDICAL CERTIFICATE";
 
     return (
-        <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.7 }}>
+        <div style={{ fontFamily: "'Bai Jamjuree', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.7 }}>
             <Masthead clinic={d.clinic} en={!th} />
 
             <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>{title}</div>
@@ -189,7 +187,7 @@ function LayoutB({ d }: { d: any }) {
     const isSick = d.isSick;
 
     return (
-        <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.85 }}>
+        <div style={{ fontFamily: "'Bai Jamjuree', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.85 }}>
             <Masthead clinic={d.clinic} />
 
             <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>ใบรับรองแพทย์ / MEDICAL CERTIFICATE</div>
@@ -239,7 +237,7 @@ function LayoutC({ d }: { d: any }) {
     const prof = (label: string, on?: boolean) => <span className="mr-3"><Box on={on} /> {label}</span>;
 
     return (
-        <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.8 }}>
+        <div style={{ fontFamily: "'Bai Jamjuree', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.8 }}>
             <div className="text-right" style={{ fontWeight: 700 }}>แบบ ภ.ท.๓๓</div>
             <Masthead clinic={d.clinic} />
 
@@ -388,6 +386,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
             <div className="print-wrap">{content}</div>
 
             <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;500;600;700&display=swap');
                 @media print {
                     .no-print { display:none !important; }
                     @page { size: A4; margin: 12mm; }
