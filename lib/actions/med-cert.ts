@@ -50,6 +50,23 @@ export async function saveMedCert(vn: string, hn: string, input: MedCertInput) {
     }
 }
 
+/** ตั้ง/อัปเดตประเภทใบรับรอง draft (ไม่ทับ field อื่น) — ใช้ตอนคัดกรอง/เคาน์เตอร์ */
+export async function setMedCertDraftType(vn: string, hn: string, certType: string) {
+    try {
+        const { supabase, staffId, clinicId } = await ctx();
+        const { data: existing } = await supabase.from("medical_certificates").select("id").eq("vn", vn).maybeSingle();
+        if (existing) {
+            await supabase.from("medical_certificates").update({ cert_type: certType, updated_at: new Date().toISOString() }).eq("id", existing.id);
+        } else {
+            await supabase.from("medical_certificates").insert({ vn, hn, clinic_id: clinicId, doctor_id: staffId, cert_type: certType, status: "draft" });
+        }
+        revalidatePath(`/dashboard/visits/${vn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** อนุมัติใบรับรอง → พร้อม print (แจ้งเตือนเคาน์เตอร์) */
 export async function approveMedCert(vn: string) {
     try {

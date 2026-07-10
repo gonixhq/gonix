@@ -14,6 +14,8 @@ import {
     Sparkles, Bandage, FileText, HeartPulse, TestTube, ChevronDown, Check, Printer,
 } from "lucide-react";
 import { SERVICE_LABEL, type ServiceCategory, type TriageLevel } from "@/lib/visit-service-types";
+import { MED_CERT_TYPES } from "@/lib/med-cert-types";
+import { setMedCertDraftType } from "@/lib/actions/med-cert";
 import {
     addAllergy, removeAllergy,
     addChronicDisease, removeChronicDisease,
@@ -121,6 +123,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
     /* Form state */
     const [serviceCategory, setServiceCategory] = useState<ServiceCategory>("general_med");
+    const [medCertType, setMedCertType] = useState("treatment");
     const [chiefComplaint, setChiefComplaint] = useState("");
     const [painScore, setPainScore] = useState<number | "">("");
     const [triageLevel, setTriageLevel] = useState<TriageLevel>("normal");
@@ -195,6 +198,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setPatient(pt);
         setPastHistory(pt?.past_history || "");
         setServiceCategory(v.service_category || "general_med");
+        // โหลดประเภทใบรับรองจาก draft (ถ้ามี)
+        if (v.service_category === "med_cert") {
+            supabase.from("medical_certificates").select("cert_type").eq("vn", vn).maybeSingle()
+                .then(({ data }) => { if (data?.cert_type) setMedCertType(data.cert_type as string); });
+        }
         setChiefComplaint(v.chief_complaint || "");
         setPainScore(v.pain_score ?? "");
         setTriageLevel(v.triage_level || "normal");
@@ -362,6 +370,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 height_cm: toNum(vitals.height_cm),
                 recorded_by: user?.id,
             });
+        }
+
+        // sync ประเภทใบรับรอง draft (กรณี visit ใบรับรอง)
+        if (serviceCategory === "med_cert") {
+            try { await setMedCertDraftType(vn, visit.hn, medCertType); } catch {}
         }
 
         if (sendToDoctor) {
@@ -797,6 +810,15 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-bold text-slate-800">ประเภทบริการ</Label>
                         <ServiceCategoryPicker value={serviceCategory} onChange={setServiceCategory} />
+                        {serviceCategory === "med_cert" && (
+                            <div className="mt-2">
+                                <Label className="text-xs font-bold text-emerald-800">ประเภทใบรับรอง</Label>
+                                <select value={medCertType} onChange={e => setMedCertType(e.target.value)}
+                                    className="mt-1 w-full h-11 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 text-sm font-semibold text-slate-700">
+                                    {MED_CERT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                </select>
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-bold text-slate-800">Pain Score</Label>

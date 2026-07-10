@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FileText, Loader2, CheckCircle, Save, Printer, ShieldCheck, Lock, Undo2, Upload, Trash2 } from "lucide-react";
 import { saveMedCert, approveMedCert, reopenMedCert, getMySignature, setMySignature, type MedCertInput } from "@/lib/actions/med-cert";
+import { MED_CERT_TYPES } from "@/lib/med-cert-types";
 
 interface MedCertInitial {
     cert_type?: string;
@@ -26,13 +27,7 @@ interface MedCertFormProps {
 
 const medCertTypes = [
     { value: "none", label: "-- ไม่ออกใบรับรอง --" },
-    { value: "sick_leave", label: "ใบรับรองแพทย์ — ลาป่วย" },
-    { value: "fit_for_work", label: "ใบรับรองแพทย์ — ร่างกายปกติ / พร้อมทำงาน" },
-    { value: "fitness", label: "ใบรับรองแพทย์ — ตรวจสุขภาพทั่วไป" },
-    { value: "driving", label: "ใบรับรองแพทย์ — ขอใบขับขี่" },
-    { value: "government", label: "ใบรับรองแพทย์ — ราชการ" },
-    { value: "insurance", label: "ใบรับรองแพทย์ — ประกัน" },
-    { value: "other", label: "ใบรับรองแพทย์ — อื่นๆ" },
+    ...MED_CERT_TYPES.map((t) => ({ value: t.value as string, label: t.label as string })),
 ];
 
 export default function MedCertForm({ vn, hn, initial }: MedCertFormProps) {

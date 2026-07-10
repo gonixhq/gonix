@@ -30,14 +30,20 @@ const Box = ({ on }: { on?: boolean }) => <span style={{ fontFamily: "sans-serif
 const dots = (n = 40) => "…".repeat(n);
 
 const CERT_SUB: Record<string, { th: string; en: string }> = {
+    treatment: { th: "รับรองการตรวจรักษา", en: "Treatment Certificate" },
     sick_leave: { th: "เพื่อการลาป่วย", en: "for Sick Leave" },
+    five_diseases: { th: "รับรองไม่เป็นโรคต้องห้าม 5 โรค", en: "5-Disease Certification" },
+    health_check: { th: "ตรวจสุขภาพ (สมัครงาน/เรียน)", en: "Health Examination (Job/Study)" },
+    driving: { th: "สำหรับใบอนุญาตขับรถ", en: "for Driving License" },
+    // เดิม (backward compat)
     fit_for_work: { th: "รับรองความพร้อมในการทำงาน", en: "Fitness for Work" },
     fitness: { th: "เพื่อการตรวจสุขภาพ", en: "Health Examination" },
-    driving: { th: "สำหรับใบอนุญาตขับรถ", en: "for Driving License" },
     government: { th: "เพื่อสมัคร/ปฏิบัติราชการ", en: "for Government Service" },
     insurance: { th: "เพื่อการประกัน", en: "for Insurance" },
     other: { th: "", en: "" },
 };
+// ประเภทที่ต้องมีคำรับรอง "ไม่เป็นผู้ทุพพลภาพ...ไม่ปรากฏโรค 5 โรค"
+const CERT_STMT_TYPES = new Set(["five_diseases", "health_check", "driving", "fitness", "government", "fit_for_work"]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CertPage({ lang, d }: { lang: "th" | "en"; d: any }) {
@@ -45,7 +51,7 @@ function CertPage({ lang, d }: { lang: "th" | "en"; d: any }) {
     const lbl = { fontWeight: 700 } as const;
     const name = th ? d.nameTh : (d.nameEn || d.nameTh);
     const sub = (CERT_SUB[d.type] || CERT_SUB.other)[lang];
-    const withCertStmt = d.type === "fitness" || d.type === "driving" || d.type === "government" || d.type === "fit_for_work";
+    const withCertStmt = CERT_STMT_TYPES.has(d.type);
 
     return (
         <div className="cert-sheet" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.75 }}>

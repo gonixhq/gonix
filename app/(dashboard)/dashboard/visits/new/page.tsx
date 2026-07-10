@@ -15,6 +15,7 @@ import {
 import { registerVisitWithScreening } from "@/lib/actions/visit-register";
 import { listAffiliates, type Affiliate } from "@/lib/actions/affiliates";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
+import { MED_CERT_TYPES } from "@/lib/med-cert-types";
 
 type CaseSource = "walk_in" | "line" | "affiliate" | "referral";
 
@@ -72,7 +73,7 @@ export default function NewVisitPage() {
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [serviceCategory, setServiceCategory] = useState<ServiceCategory>("general_med");
-    const [medCertType, setMedCertType] = useState("sick_leave");
+    const [medCertType, setMedCertType] = useState("treatment");
     const [briefNote, setBriefNote] = useState("");
     // ที่มาของเคส (บังคับ)
     const [caseSource, setCaseSource] = useState<CaseSource | "">("");
@@ -339,13 +340,7 @@ export default function NewVisitPage() {
                         <Label className="text-xs font-bold text-emerald-800">ประเภทใบรับรอง (สร้าง draft ให้หมอ verify)</Label>
                         <select value={medCertType} onChange={e => setMedCertType(e.target.value)}
                             className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm">
-                            <option value="sick_leave">ลาป่วย</option>
-                            <option value="fit_for_work">ร่างกายปกติ / พร้อมทำงาน</option>
-                            <option value="fitness">ตรวจสุขภาพทั่วไป</option>
-                            <option value="driving">ขอใบขับขี่</option>
-                            <option value="government">ราชการ</option>
-                            <option value="insurance">ประกัน</option>
-                            <option value="other">อื่นๆ</option>
+                            {MED_CERT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </select>
                         <p className="text-[11px] text-slate-500">ระบบจะสร้าง draft ใบรับรองไว้ล่วงหน้า — หมอเปิด Visit จะเห็นในแท็บใบรับรองทันที กด Approve/แก้ไขได้เลย</p>
                     </div>
