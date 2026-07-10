@@ -11,7 +11,7 @@ import {
     ArrowLeft, Loader2, AlertCircle, CheckCircle, Send,
     Droplet, AlertTriangle, ChevronRight, Heart, Stethoscope,
     Plus, X, Activity, Calendar,
-    Sparkles, Bandage, FileText, HeartPulse, TestTube, ChevronDown, Check,
+    Sparkles, Bandage, FileText, HeartPulse, TestTube, ChevronDown, Check, Printer,
 } from "lucide-react";
 import { SERVICE_LABEL, type ServiceCategory, type TriageLevel } from "@/lib/visit-service-types";
 import {
@@ -288,8 +288,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         reloadHistoryOnly();
     }
 
-    async function handleSave(sendToDoctor: boolean, roomIdOverride?: string) {
-        if (!visit) return;
+    async function handleSave(sendToDoctor: boolean, roomIdOverride?: string): Promise<boolean> {
+        if (!visit) return false;
 
         // Validate required fields before sending to doctor
         if (sendToDoctor) {
@@ -306,7 +306,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             if (missing.length > 0) {
                 setError(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
                 window.scrollTo({ top: 0, behavior: "smooth" });
-                return;
+                return false;
             }
         }
 
@@ -343,7 +343,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             status: newStatus,
         }).eq("vn", vn);
 
-        if (updErr) { setError(updErr.message); setSaving(false); return; }
+        if (updErr) { setError(updErr.message); setSaving(false); return false; }
 
         // อัปเดต Past History (PH) ระดับผู้ป่วย ถ้ามีการแก้
         if ((pastHistory || "") !== (patient?.past_history || "")) {
@@ -415,6 +415,23 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             if (sendToDoctor) router.push("/dashboard/screening");
             else loadData();
         }, 800);
+        return true;
+    }
+
+    // บันทึก vital ก่อน แล้วเปิดพิมพ์ฟอร์มใบรับรอง (ข้อมูล vital จะขึ้นในฟอร์ม)
+    async function saveAndPrintCert(lang: "th" | "en") {
+        const missing: string[] = [];
+        if (!vitals.weight_kg) missing.push("Weight");
+        if (!vitals.height_cm) missing.push("Height");
+        if (!vitals.bp_systolic) missing.push("BP");
+        if (!vitals.pulse_rate) missing.push("Pulse");
+        if (missing.length > 0) {
+            setError(`กรอก Vital ก่อนพิมพ์ (ข้อมูลจะได้ขึ้นในฟอร์ม): ${missing.join(", ")}`);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
+        const ok = await handleSave(false);
+        if (ok) window.open(`/print/med-cert/${vn}?lang=${lang}`, "_blank");
     }
 
     if (loading) {
@@ -716,6 +733,18 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-400" />
                     ส่งให้ {SERVICE_LABEL[serviceCategory]}
                 </div>
+
+                {serviceCategory === "med_cert" && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
+                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <Button disabled={saving} onClick={() => saveAndPrintCert("th")} variant="outline" className="rounded-lg h-9 text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-100">บันทึก & พิมพ์ ไทย</Button>
+                            <Button disabled={saving} onClick={() => saveAndPrintCert("en")} variant="outline" className="rounded-lg h-9 text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-100">Save & Print EN</Button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
+                    </div>
+                )}
+
                 <Button disabled={saving} onClick={() => {
                     // Validate vitals + CC + ห้อง ก่อนส่งตรวจ
                     const missing: string[] = [];
