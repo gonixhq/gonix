@@ -58,12 +58,11 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
     const nameEn = clinic?.clinic_name_en || "Tanavej Clinic";
     const company = clinic?.company_name as string | undefined;
     return (
-        <div className="pb-1.5" style={{ borderBottom: "2.5px solid #0891b2" }}>
-            <div className="flex items-center gap-3.5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain shrink-0" />
-                <div className="flex-1 min-w-0" style={{ lineHeight: 1.25 }}>
-                    <div style={{ fontSize: "17px", fontWeight: 700, letterSpacing: "0.01em" }}>
+        <div className="flex items-center justify-between gap-4 pb-1.5" style={{ borderBottom: "2.5px solid #0891b2" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/clinic-logo.png" alt="" className="h-20 w-20 object-contain shrink-0" />
+            <div className="text-right min-w-0" style={{ lineHeight: 1.3 }}>
+                    <div style={{ fontSize: "18.5px", fontWeight: 700, letterSpacing: "0.01em" }}>
                         {en ? nameEn : <>{nameTh} <span style={{ fontWeight: 600, color: "#0e7490" }}>{nameEn}</span></>}
                     </div>
                     {company && !en && <div style={{ fontSize: "11px", fontWeight: 500, color: "#374151" }}>{company}</div>}
@@ -76,7 +75,6 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
                     </div>
                 </div>
             </div>
-        </div>
     );
 }
 
@@ -166,6 +164,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 {!driving && <div className="pl-4">{th ? "4. โรคอื่น ๆ (ถ้ามี)" : "(4) Other diseases (if any)"} {dots(30)}</div>}
 
                 <div><span style={lbl}>{th ? "สรุปความเห็นและข้อแนะนำของแพทย์:" : "Physician's Conclusion / Advice:"}</span> {d.opinionText || dots(45)}</div>
+                <div>{dots(78)}</div>
                 <div>{dots(78)}</div>
             </div>
 
