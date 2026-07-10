@@ -128,8 +128,8 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 </> : (
                     <div className="pl-3">4. {th ? "ประวัติสุขภาพอื่นที่สำคัญ" : "Other significant health history"}: {d.patient?.past_history || dots(40)}</div>
                 )}
-                <div className="text-right mt-1">{th ? "ลงชื่อ" : "Signature"} …………………………………… {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
-                {!driving && <div className="text-right">{th ? "วันที่ ……… เดือน ………………… พ.ศ. …………" : "Date …… / ……………… / ……"}</div>}
+                <div className="text-right mt-1">{th ? "ลงชื่อ" : "Signature"} …………………………… ( {name} ) {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
+                <div className="text-right">{th ? <>วันที่ {fmtDate(d.visit?.visit_date, "th")}</> : <>Date {fmtDate(d.visit?.visit_date, "en")}</>}</div>
             </div>
 
             {/* ส่วนที่ 2 */}
