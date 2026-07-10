@@ -85,7 +85,10 @@ function CertPage({ lang, d }: { lang: "th" | "en"; d: any }) {
                 <div className="pl-4">1. {th ? "โรคประจำตัว" : "Underlying disease"} <Box on={!d.hasChronic} /> {th ? "ไม่มี" : "No"} <Box on={d.hasChronic} /> {th ? "มี" : "Yes"} {d.hasChronic ? `(${d.patient?.disease_summary})` : dots(28)}</div>
                 <div className="pl-4">2. {th ? "อุบัติเหตุและการผ่าตัด" : "Accident & surgery"} <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี" : "Yes"} {dots(26)}</div>
                 <div className="pl-4">3. {th ? "เคยเข้ารับการรักษาในโรงพยาบาล" : "History of hospitalization"} <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี" : "Yes"} {dots(20)}</div>
-                {d.isDriving && <div className="pl-4">4. {th ? "โรคลมชัก" : "Epilepsy"} <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี" : "Yes"} {dots(28)}</div>}
+                {d.isDriving && <>
+                    <div className="pl-4">4. {th ? "โรคลมชัก" : "Epilepsy"} <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี" : "Yes"} {dots(28)}</div>
+                    <div className="pl-4" style={{ fontSize: "10px", color: "#666" }}>* {th ? "กรณีมีโรคลมชัก ให้แนบประวัติการรักษาว่าปลอดจากอาการชักมากกว่า 1 ปี เพื่ออนุญาตให้ขับรถได้" : "If epileptic, attach treatment record showing >1 year seizure-free to be permitted to drive."}</div>
+                </>}
                 <div className="pl-4">{d.isDriving ? "5." : "4."} {th ? "ประวัติอื่นที่สำคัญ" : "Other significant history"} {d.patient?.past_history || dots(36)}</div>
                 <div className="text-right mt-1">{th ? "ลงชื่อ" : "Signed"} {dots(20)} {th ? "วันที่" : "Date"} {dots(14)}</div>
             </div>
