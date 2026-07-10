@@ -147,11 +147,11 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <div><span style={lbl}>{th ? "สถานที่ตรวจ:" : "Place of examination:"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"} {th && <><span style={lbl}> วันที่</span> {fmtDate(d.visit?.visit_date, "th")}</>}</div>
                 <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical Practice License No."}</span> {d.doctorLicense || "…………"}</div>
                 <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
-                <div className="grid grid-cols-4 gap-x-4 my-1 px-2 py-1.5" style={{ background: "#f8fafc", borderRadius: "6px" }}>
-                    <div><span style={lbl}>{th ? "น้ำหนัก" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}</div>
-                    <div><span style={lbl}>{th ? "ส่วนสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "ซม." : "cm"}</div>
-                    <div><span style={lbl}>{th ? "ความดัน" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}</div>
-                    <div><span style={lbl}>{th ? "ชีพจร" : "Pulse"}</span> {d.vit?.pulse_rate ?? "……"} {th ? "ครั้ง/นาที" : "/min"}</div>
+                <div className="my-1 px-3 py-1.5 flex items-center justify-between" style={{ background: "#f8fafc", borderRadius: "6px", whiteSpace: "nowrap", fontSize: "13.5px" }}>
+                    <span><span style={lbl}>{th ? "น้ำหนัก" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}</span>
+                    <span><span style={lbl}>{th ? "ส่วนสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "ซม." : "cm"}</span>
+                    <span><span style={lbl}>{th ? "ความดัน" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}</span>
+                    <span><span style={lbl}>{th ? "ชีพจร" : "Pulse"}</span> {d.vit?.pulse_rate ?? "……"} {th ? "ครั้ง/นาที" : "/min"}</span>
                 </div>
                 <div><span style={lbl}>{th ? "สภาพร่างกายทั่วไปอยู่ในเกณฑ์:" : "General Physical Condition:"}</span> <Box /> {th ? "ปกติ" : "Normal"} <Box /> {th ? "ผิดปกติ (ระบุ)" : "Abnormal (specify)"} {dots(20)}</div>
 
