@@ -58,18 +58,18 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
     const nameEn = clinic?.clinic_name_en || "Tanavej Clinic";
     const company = clinic?.company_name as string | undefined;
     return (
-        <div className="flex items-start gap-4 pb-2" style={{ borderBottom: "2px solid #0891b2" }}>
+        <div className="flex items-center gap-2.5 pb-1" style={{ borderBottom: "1.5px solid #0891b2" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/clinic-logo.png" alt="" className="h-16 w-16 object-contain shrink-0" />
-            <div className="flex-1 min-w-0">
-                <div style={{ fontSize: "19px", fontWeight: 700, lineHeight: 1.2 }}>
+            <img src="/clinic-logo.png" alt="" className="h-11 w-11 object-contain shrink-0" />
+            <div className="flex-1 min-w-0" style={{ lineHeight: 1.2 }}>
+                <div style={{ fontSize: "14px", fontWeight: 700 }}>
                     {en ? nameEn : <>{nameTh} <span style={{ fontWeight: 600, color: "#0e7490" }}>{nameEn}</span></>}
                 </div>
-                {company && !en && <div style={{ fontSize: "13.5px", fontWeight: 500, color: "#222" }}>{company}</div>}
-                <div style={{ fontSize: "12px", color: "#333", marginTop: "1px" }}>{clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}</div>
-                <div style={{ fontSize: "11.5px", color: "#555" }}>
-                    {clinic?.phone && <>{en ? "Tel:" : "โทร."} {clinic.phone} · </>}
-                    {en ? "License No:" : "เลขที่ใบอนุญาตประกอบการสถานพยาบาล"} {clinic?.license_number || "…………………"}
+                {company && !en && <div style={{ fontSize: "10.5px", fontWeight: 500, color: "#222" }}>{company}</div>}
+                <div style={{ fontSize: "9.5px", color: "#555" }}>
+                    {clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}
+                    {clinic?.phone && <> · {en ? "Tel:" : "โทร."} {clinic.phone}</>}
+                    {" · "}{en ? "License No:" : "เลขที่ใบอนุญาตฯ"} {clinic?.license_number || "…………"}
                 </div>
             </div>
         </div>
@@ -103,15 +103,15 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
         : "MEDICAL CERTIFICATE";
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14.5px", lineHeight: 1.65 }}>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.4 }}>
             <Masthead clinic={d.clinic} en={!th} />
 
-            <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>{title}</div>
-            <div className="text-right" style={{ fontSize: "11px" }}>{th ? "เลขที่ตรวจ / Ref No" : "Ref No"}: {d.vn}</div>
+            <div className="text-center mt-1.5" style={{ fontSize: "15px", fontWeight: 900 }}>{title}</div>
+            <div className="text-right" style={{ fontSize: "10px" }}>{th ? "เลขที่ตรวจ / Ref No" : "Ref No"}: {d.vn}</div>
 
             {/* ส่วนที่ 1 */}
-            <div className="mt-2" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 1 ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
-            <div className="mt-1 space-y-1">
+            <div className="mt-1.5" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 1 ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
+            <div className="mt-0.5 space-y-0.5">
                 <div><span style={lbl}>{th ? "ข้าพเจ้า นาย/นาง/นางสาว" : "Name (Mr./Mrs./Miss)"}</span> {name} <span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>{th ? "สถานที่อยู่ (ที่สามารถติดต่อได้)" : "Residential Address"}</span> {d.fullAddress || dots(60)}</div>
@@ -133,12 +133,12 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             </div>
 
             {/* ส่วนที่ 2 */}
-            <div className="mt-3" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 2 ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
-            <div className="mt-1 space-y-1">
+            <div className="mt-1.5" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 2 ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
+            <div className="mt-0.5 space-y-0.5">
                 <div><span style={lbl}>{th ? "สถานที่ตรวจ:" : "Place of examination:"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"} {th && <><span style={lbl}> วันที่</span> {fmtDate(d.visit?.visit_date, "th")}</>}</div>
                 <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical Practice License No."}</span> {d.doctorLicense || "…………"}</div>
                 <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย นาย/นาง/นางสาว" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
-                <div className="grid grid-cols-4 gap-x-4 gap-y-1 my-1 px-1 py-1.5" style={{ background: "#f8fafc", borderRadius: "6px" }}>
+                <div className="grid grid-cols-4 gap-x-4 my-0.5 px-2 py-1" style={{ background: "#f8fafc", borderRadius: "6px" }}>
                     <div><span style={lbl}>{th ? "น้ำหนัก" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}</div>
                     <div><span style={lbl}>{th ? "ส่วนสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "ซม." : "cm"}</div>
                     <div><span style={lbl}>{th ? "ความดัน" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}</div>
@@ -160,19 +160,19 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             </div>
 
             {/* ลายเซ็นแพทย์ */}
-            <div className="mt-6 flex justify-end">
+            <div className="mt-3 flex justify-end">
                 <div className="text-center" style={{ minWidth: "270px" }}>
                     {d.showDigital
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={d.signatureUrl} alt="" className="h-12 object-contain mx-auto" style={{ marginBottom: "-6px" }} />
-                        : <div className="h-10" />}
+                        ? <img src={d.signatureUrl} alt="" className="h-10 object-contain mx-auto" style={{ marginBottom: "-4px" }} />
+                        : <div className="h-7" />}
                     <div>{th ? "ลงชื่อ" : "Signature"} ………………………………… {th ? "แพทย์ผู้ตรวจร่างกาย" : "M.D."}</div>
                     <div>( {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} )</div>
                     <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : d.visit?.visit_date, lang)}</div>
                 </div>
             </div>
 
-            <div className="mt-4" style={{ fontSize: "10px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "4px" }}>
+            <div className="mt-2" style={{ fontSize: "9.5px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "3px" }}>
                 {th ? (
                     <>หมายเหตุ: (1) ต้องเป็นแพทย์ซึ่งได้ขึ้นทะเบียนรับใบอนุญาตประกอบวิชาชีพเวชกรรม (2) ใบรับรองแพทย์ฉบับนี้ให้ใช้ได้ 1 เดือนนับแต่วันที่ตรวจร่างกาย (3) คำรับรองนี้เป็นการตรวจวินิจฉัยเบื้องต้น{driving && " และใบรับรองแพทย์นี้ใช้สำหรับใบอนุญาตขับรถ และปฏิบัติหน้าที่เป็นผู้ประจำรถ"}</>
                 ) : (
@@ -193,7 +193,7 @@ function LayoutB({ d }: { d: any }) {
     const isSick = d.isSick;
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14.5px", lineHeight: 1.8 }}>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13.5px", lineHeight: 1.7 }}>
             <Masthead clinic={d.clinic} />
 
             <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>ใบรับรองแพทย์ / MEDICAL CERTIFICATE</div>
@@ -243,7 +243,7 @@ function LayoutC({ d }: { d: any }) {
     const prof = (label: string, on?: boolean) => <span className="mr-3"><Box on={on} /> {label}</span>;
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14.5px", lineHeight: 1.75 }}>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13.5px", lineHeight: 1.65 }}>
             <div className="text-right" style={{ fontWeight: 700 }}>แบบ ภ.ท.๓๓</div>
             <Masthead clinic={d.clinic} />
 
@@ -404,7 +404,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
             <style>{`
                 @media print {
                     .no-print { display:none !important; }
-                    @page { size: A4; margin: 12mm; }
+                    @page { size: A4; margin: 10mm 12mm; }
                     body { background:white !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
                     .print-page { max-width:100% !important; margin:0 !important; padding:0 !important; box-shadow:none !important; }
                     .page-break { break-before: page; page-break-before: always; }
