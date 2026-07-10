@@ -58,18 +58,22 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
     const nameEn = clinic?.clinic_name_en || "Tanavej Clinic";
     const company = clinic?.company_name as string | undefined;
     return (
-        <div className="flex items-center gap-2.5 pb-1" style={{ borderBottom: "1.5px solid #0891b2" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/clinic-logo.png" alt="" className="h-11 w-11 object-contain shrink-0" />
-            <div className="flex-1 min-w-0" style={{ lineHeight: 1.2 }}>
-                <div style={{ fontSize: "14px", fontWeight: 700 }}>
-                    {en ? nameEn : <>{nameTh} <span style={{ fontWeight: 600, color: "#0e7490" }}>{nameEn}</span></>}
-                </div>
-                {company && !en && <div style={{ fontSize: "10.5px", fontWeight: 500, color: "#222" }}>{company}</div>}
-                <div style={{ fontSize: "9.5px", color: "#555" }}>
-                    {clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}
-                    {clinic?.phone && <> · {en ? "Tel:" : "โทร."} {clinic.phone}</>}
-                    {" · "}{en ? "License No:" : "เลขที่ใบอนุญาตฯ"} {clinic?.license_number || "…………"}
+        <div className="pb-1.5" style={{ borderBottom: "2.5px solid #0891b2" }}>
+            <div className="flex items-center gap-3.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain shrink-0" />
+                <div className="flex-1 min-w-0" style={{ lineHeight: 1.25 }}>
+                    <div style={{ fontSize: "17px", fontWeight: 700, letterSpacing: "0.01em" }}>
+                        {en ? nameEn : <>{nameTh} <span style={{ fontWeight: 600, color: "#0e7490" }}>{nameEn}</span></>}
+                    </div>
+                    {company && !en && <div style={{ fontSize: "11px", fontWeight: 500, color: "#374151" }}>{company}</div>}
+                    <div style={{ fontSize: "10px", color: "#6b7280", marginTop: "1px" }}>
+                        {clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#6b7280" }}>
+                        {clinic?.phone && <>{en ? "Tel:" : "โทร."} {clinic.phone}{"  ·  "}</>}
+                        {en ? "License No:" : "เลขที่ใบอนุญาตประกอบการสถานพยาบาล"} {clinic?.license_number || "…………"}
+                    </div>
                 </div>
             </div>
         </div>
@@ -103,16 +107,16 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
         : "MEDICAL CERTIFICATE";
 
     return (
-        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "13px", lineHeight: 1.4 }}>
+        <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14px", lineHeight: 1.55 }}>
             <Masthead clinic={d.clinic} en={!th} />
 
-            <div className="text-center mt-1.5" style={{ fontSize: "15px", fontWeight: 900 }}>{title}</div>
-            <div className="text-right" style={{ fontSize: "10px" }}>{th ? "เลขที่ตรวจ / Ref No" : "Ref No"}: {d.vn}</div>
+            <div className="text-center mt-2" style={{ fontSize: "16px", fontWeight: 900 }}>{title}</div>
+            <div className="text-right" style={{ fontSize: "10.5px" }}>{th ? "เลขที่ตรวจ / Ref No" : "Ref No"}: {d.vn}</div>
 
             {/* ส่วนที่ 1 */}
-            <div className="mt-1.5" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 1 ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
-            <div className="mt-0.5 space-y-0.5">
-                <div><span style={lbl}>{th ? "ข้าพเจ้า นาย/นาง/นางสาว" : "Name (Mr./Mrs./Miss)"}</span> {name} <span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
+            <div className="mt-2" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 1 ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
+            <div className="mt-1 space-y-1">
+                <div><span style={lbl}>{th ? "ข้าพเจ้า" : "Name (Mr./Mrs./Miss)"}</span> {name} <span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>{th ? "สถานที่อยู่ (ที่สามารถติดต่อได้)" : "Residential Address"}</span> {d.fullAddress || dots(60)}</div>
                 <div style={lbl}>{th ? "ข้าพเจ้าขอใบรับรองสุขภาพ โดยมีประวัติสุขภาพดังนี้:" : "I do apply for a medical certificate with my health history as follows:"}</div>
@@ -133,12 +137,12 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             </div>
 
             {/* ส่วนที่ 2 */}
-            <div className="mt-1.5" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 2 ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
-            <div className="mt-0.5 space-y-0.5">
+            <div className="mt-2" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 2 ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
+            <div className="mt-1 space-y-1">
                 <div><span style={lbl}>{th ? "สถานที่ตรวจ:" : "Place of examination:"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"} {th && <><span style={lbl}> วันที่</span> {fmtDate(d.visit?.visit_date, "th")}</>}</div>
                 <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical Practice License No."}</span> {d.doctorLicense || "…………"}</div>
-                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย นาย/นาง/นางสาว" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
-                <div className="grid grid-cols-4 gap-x-4 my-0.5 px-2 py-1" style={{ background: "#f8fafc", borderRadius: "6px" }}>
+                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
+                <div className="grid grid-cols-4 gap-x-4 my-1 px-2 py-1.5" style={{ background: "#f8fafc", borderRadius: "6px" }}>
                     <div><span style={lbl}>{th ? "น้ำหนัก" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}</div>
                     <div><span style={lbl}>{th ? "ส่วนสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "ซม." : "cm"}</div>
                     <div><span style={lbl}>{th ? "ความดัน" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}</div>
@@ -160,7 +164,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             </div>
 
             {/* ลายเซ็นแพทย์ */}
-            <div className="mt-3 flex justify-end">
+            <div className="mt-5 flex justify-end">
                 <div className="text-center" style={{ minWidth: "270px" }}>
                     {d.showDigital
                         // eslint-disable-next-line @next/next/no-img-element
@@ -168,7 +172,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                         : <div className="h-7" />}
                     <div>{th ? "ลงชื่อ" : "Signature"} ………………………………… {th ? "แพทย์ผู้ตรวจร่างกาย" : "M.D."}</div>
                     <div>( {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} )</div>
-                    <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : d.visit?.visit_date, lang)}</div>
+                    <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), lang)}</div>
                 </div>
             </div>
 
@@ -202,7 +206,7 @@ function LayoutB({ d }: { d: any }) {
             <div className="mt-3 space-y-1">
                 <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName} เป็นผู้ประกอบวิชาชีพเวชกรรมแผนปัจจุบันชั้นหนึ่ง</div>
                 <div>ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว. {d.doctorLicense || "…………"} ปฏิบัติงาน ณ {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</div>
-                <div><span style={lbl}>ได้ทำการตรวจรักษาผู้ป่วยชื่อ นาย/นาง/นางสาว</span> {d.nameTh}</div>
+                <div><span style={lbl}>ได้ทำการตรวจรักษาผู้ป่วยชื่อ</span> {d.nameTh}</div>
                 <div><span style={lbl}>อายุ</span> {calcAge(d.patient?.dob)} ปี <span style={lbl}>เลขประจำตัวผู้ป่วย (HN)</span> {d.hn || "…………"}</div>
                 <div><span style={lbl}>เลขประจำตัวประชาชน / ID Number:</span> {fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>เมื่อวันที่</span> {fmtDate(d.visit?.visit_date, "th")} <span style={lbl}>เวลาประมาณ</span> {fmtTime(d.visit?.visit_time)} น.</div>
@@ -227,7 +231,7 @@ function LayoutB({ d }: { d: any }) {
                         : <div className="h-10" />}
                     <div>ลงชื่อ ………………………………………… แพทย์ผู้ตรวจ</div>
                     <div>( {d.doctorName} )</div>
-                    <div style={{ fontSize: "11px" }}>วันที่ {fmtDate(d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : d.visit?.visit_date, "th")}</div>
+                    <div style={{ fontSize: "11px" }}>วันที่ {fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), "th")}</div>
                 </div>
             </div>
 
