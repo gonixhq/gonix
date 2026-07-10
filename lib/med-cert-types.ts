@@ -3,7 +3,7 @@
 export const MED_CERT_TYPES = [
     { value: "treatment", label: "เอกสารแพทย์ (มาตรวจรักษาจริง)", en: "Medical Certificate (Treatment)" },
     { value: "sick_leave", label: "ใบรับรองแพทย์ — ลาป่วย", en: "Medical Certificate for Sick Leave" },
-    { value: "five_diseases", label: "ใบรับรองแพทย์ 5 โรค", en: "Medical Certificate (5 Diseases)" },
+    { value: "cannabis", label: "ใบสั่งจ่ายสมุนไพรควบคุม กัญชา (ภ.ท.๓๓)", en: "Controlled Herb (Cannabis) Prescription — ภ.ท.33" },
     { value: "health_check", label: "ใบตรวจสุขภาพ (สมัครงาน/เรียน)", en: "Health Examination (Job/Study)" },
     { value: "driving", label: "ใบรับรองแพทย์ — ใบขับขี่", en: "Medical Certificate for Driving License" },
 ] as const;

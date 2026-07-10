@@ -32,7 +32,7 @@ const dots = (n = 40) => "…".repeat(n);
 const CERT_SUB: Record<string, { th: string; en: string }> = {
     treatment: { th: "รับรองการตรวจรักษา", en: "Treatment Certificate" },
     sick_leave: { th: "เพื่อการลาป่วย", en: "for Sick Leave" },
-    five_diseases: { th: "รับรองไม่เป็นโรคต้องห้าม 5 โรค", en: "5-Disease Certification" },
+    cannabis: { th: "ใบสั่งจ่ายสมุนไพรควบคุม กัญชา (ภ.ท.๓๓)", en: "Controlled Herb (Cannabis) Prescription — ภ.ท.33" },
     health_check: { th: "ตรวจสุขภาพ (สมัครงาน/เรียน)", en: "Health Examination (Job/Study)" },
     driving: { th: "สำหรับใบอนุญาตขับรถ", en: "for Driving License" },
     // เดิม (backward compat)
@@ -43,7 +43,7 @@ const CERT_SUB: Record<string, { th: string; en: string }> = {
     other: { th: "", en: "" },
 };
 // ประเภทที่ต้องมีคำรับรอง "ไม่เป็นผู้ทุพพลภาพ...ไม่ปรากฏโรค 5 โรค"
-const CERT_STMT_TYPES = new Set(["five_diseases", "health_check", "driving", "fitness", "government", "fit_for_work"]);
+const CERT_STMT_TYPES = new Set(["health_check", "driving", "fitness", "government", "fit_for_work"]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CertPage({ lang, d }: { lang: "th" | "en"; d: any }) {
