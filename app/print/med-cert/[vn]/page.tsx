@@ -72,7 +72,7 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
                     </div>
                     <div style={{ fontSize: "10px", color: "#6b7280" }}>
                         {clinic?.phone && <>{en ? "Tel:" : "โทร."} {clinic.phone}{"  ·  "}</>}
-                        {en ? "License No:" : "เลขที่ใบอนุญาตประกอบการสถานพยาบาล"} {clinic?.license_number || "…………"}
+                        {en ? "License No:" : "เลขที่ใบอนุญาต"} {clinic?.license_number || "…………"}
                     </div>
                 </div>
             </div>
@@ -166,6 +166,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 {!driving && <div className="pl-4">{th ? "4. โรคอื่น ๆ (ถ้ามี)" : "(4) Other diseases (if any)"} {dots(30)}</div>}
 
                 <div><span style={lbl}>{th ? "สรุปความเห็นและข้อแนะนำของแพทย์:" : "Physician's Conclusion / Advice:"}</span> {d.opinionText || dots(45)}</div>
+                <div>{dots(78)}</div>
             </div>
 
             {/* ลายเซ็นแพทย์ */}
