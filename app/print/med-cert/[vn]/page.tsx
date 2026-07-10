@@ -209,7 +209,7 @@ function LayoutB({ d }: { d: any }) {
             <div className="text-right" style={{ fontSize: "11px" }}>เลขที่ / Ref No: {d.vn}</div>
 
             <div className="mt-3 space-y-1.5">
-                <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName} เป็นผู้ประกอบวิชาชีพเวชกรรมแผนปัจจุบันชั้นหนึ่ง</div>
+                <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName} เป็นผู้ประกอบวิชาชีพเวชกรรม</div>
                 <div>ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว. {d.doctorLicense || "…………"} ปฏิบัติงาน ณ {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</div>
                 <div><span style={lbl}>ได้ทำการตรวจรักษาผู้ป่วยชื่อ</span> {d.nameTh}</div>
                 <div><span style={lbl}>อายุ</span> {calcAge(d.patient?.dob)} ปี <span style={lbl}>เลขประจำตัวผู้ป่วย (HN)</span> {d.hn || "…………"}</div>
