@@ -132,8 +132,13 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 </> : (
                     <div className="pl-3">4. {th ? "ประวัติสุขภาพอื่นที่สำคัญ" : "Other significant health history"}: {d.patient?.past_history || dots(40)}</div>
                 )}
-                <div className="text-right mt-1">{th ? "ลงชื่อ" : "Signature"} …………………………… ( {name} ) {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
-                <div className="text-right">{th ? <>วันที่ {fmtDate(d.visit?.visit_date, "th")}</> : <>Date {fmtDate(d.visit?.visit_date, "en")}</>}</div>
+                <div className="mt-2 flex justify-end">
+                    <div className="text-center" style={{ minWidth: "300px" }}>
+                        <div>{th ? "ลงชื่อ" : "Signature"} …………………………………… {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
+                        <div>( {name} )</div>
+                        <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.visit?.visit_date, lang)}</div>
+                    </div>
+                </div>
             </div>
 
             {/* ส่วนที่ 2 */}
@@ -178,9 +183,9 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
 
             <div className="mt-2" style={{ fontSize: "9.5px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "3px" }}>
                 {th ? (
-                    <>หมายเหตุ: (1) ต้องเป็นแพทย์ซึ่งได้ขึ้นทะเบียนรับใบอนุญาตประกอบวิชาชีพเวชกรรม (2) ใบรับรองแพทย์ฉบับนี้ให้ใช้ได้ 1 เดือนนับแต่วันที่ตรวจร่างกาย (3) คำรับรองนี้เป็นการตรวจวินิจฉัยเบื้องต้น{driving && " และใบรับรองแพทย์นี้ใช้สำหรับใบอนุญาตขับรถ และปฏิบัติหน้าที่เป็นผู้ประจำรถ"}</>
+                    <>หมายเหตุ: ใบรับรองแพทย์ฉบับนี้ให้ใช้ได้ 1 เดือนนับแต่วันที่ตรวจร่างกาย{driving && " และใช้สำหรับใบอนุญาตขับรถ และปฏิบัติหน้าที่เป็นผู้ประจำรถ"}</>
                 ) : (
-                    <>N.B. (1) This form must be certified only by a licensed medical practitioner. (2) Must conclude fitness of applicant. (3) This certificate is valid within 1 month from the day of examination. (4) Approved by the Medical Council of Thailand.</>
+                    <>N.B. This certificate is valid within 1 month from the day of examination.{driving && " Valid for driving license and vehicle crew duty."}</>
                 )}
                 {th && <div className="mt-1">แบบฟอร์มนี้ได้รับการรับรองจากมติคณะกรรมการแพทยสภาในการประชุมครั้งที่ {driving ? "6/2564 วันที่ 13 พฤษภาคม 2564" : "4/2561 วันที่ 19 เมษายน 2561"}</div>}
             </div>
