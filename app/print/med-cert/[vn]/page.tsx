@@ -112,7 +112,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>{th ? "สถานที่อยู่ (ที่สามารถติดต่อได้)" : "Residential Address"}</span> {d.fullAddress || dots(60)}</div>
                 <div style={lbl}>{th ? "ข้าพเจ้าขอใบรับรองสุขภาพ โดยมีประวัติสุขภาพดังนี้:" : "I do apply for a medical certificate with my health history as follows:"}</div>
-                <div className="pl-3">1. {th ? "โรคประจำตัว" : "Personal chronic disease"}: <Box on={!d.hasChronic} /> {th ? "ไม่มี" : "No"} <Box on={d.hasChronic} /> {th ? "มี (ระบุ)" : "Yes (specify)"} {d.hasChronic ? d.patient?.disease_summary : dots(24)}</div>
+                <div className="pl-3">1. {th ? "โรคประจำตัว" : "Personal chronic disease"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {d.hasChronic ? d.patient?.disease_summary : dots(24)}</div>
                 <div className="pl-3">2. {th ? "อุบัติเหตุและการผ่าตัด" : "Accident or Surgery"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {dots(22)}</div>
                 <div className="pl-3">3. {th ? "เคยเข้ารับการรักษาในโรงพยาบาล" : "Hospital Admission"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {dots(18)}</div>
                 {driving ? <>
@@ -140,7 +140,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                     <span style={lbl}> {th ? "ความดันโลหิต" : "Blood Pressure"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}
                     <span style={lbl}> {th ? "ชีพจร" : "Pulse Rate"}</span> {d.vit?.pulse_rate ?? "……"} {th ? "ครั้ง/นาที" : "/min"}
                 </div>
-                <div><span style={lbl}>{th ? "สภาพร่างกายทั่วไปอยู่ในเกณฑ์:" : "General Physical Condition:"}</span> <Box on /> {th ? "ปกติ" : "Normal"} <Box /> {th ? "ผิดปกติ (ระบุ)" : "Abnormal (specify)"} {dots(20)}</div>
+                <div><span style={lbl}>{th ? "สภาพร่างกายทั่วไปอยู่ในเกณฑ์:" : "General Physical Condition:"}</span> <Box /> {th ? "ปกติ" : "Normal"} <Box /> {th ? "ผิดปกติ (ระบุ)" : "Abnormal (specify)"} {dots(20)}</div>
 
                 <div className="mt-1" style={{ textIndent: "1.5em" }}>
                     {th
@@ -296,7 +296,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
         .eq("vn", vn).maybeSingle();
     if (!cert) return notFound();
 
-    const { data: visit } = await supabase.from("visits").select("visit_date, visit_time, icd10_primary, hn, clinic_id").eq("vn", vn).maybeSingle();
+    const { data: visit } = await supabase.from("visits").select("visit_date, visit_time, icd10_primary, hn, clinic_id, doctor_id, weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).maybeSingle();
     const hn = (cert.hn as string) || (visit?.hn as string);
     const { data: patient } = await supabase.from("patients")
         .select("prefix, first_name, last_name, first_name_en, last_name_en, dob, gender, thai_id_card, nationality, address_detail, subdistrict_code, disease_summary, past_history")
@@ -310,16 +310,26 @@ export default async function MedCertPrintPage({ params, searchParams }: {
             .eq("subdistrict_code", patient.subdistrict_code).maybeSingle();
         if (addr) fullAddress = `${fullAddress ? fullAddress + " " : ""}ต.${addr.subdistrict_name} อ.${addr.district_name} จ.${addr.province_name} ${addr.postal_code}`.trim();
     }
-    const { data: vit } = await supabase.from("vital_signs").select("weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+    // vitals: อ่านจาก visits ก่อน (หน้าซักประวัติเซฟลง visits ทุกครั้ง) แล้ว fallback ไป vital_signs
+    const { data: vsRow } = await supabase.from("vital_signs").select("weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+    const vit = {
+        weight_kg: visit?.weight_kg ?? vsRow?.weight_kg ?? null,
+        height_cm: visit?.height_cm ?? vsRow?.height_cm ?? null,
+        bp_systolic: visit?.bp_systolic ?? vsRow?.bp_systolic ?? null,
+        bp_diastolic: visit?.bp_diastolic ?? vsRow?.bp_diastolic ?? null,
+        pulse_rate: visit?.pulse_rate ?? vsRow?.pulse_rate ?? null,
+    };
 
     const clinicId = visit?.clinic_id as string | undefined;
     const { data: clinic } = clinicId
         ? await supabase.from("tenants").select("clinic_name, clinic_name_en, address_detail, phone, license_number").eq("id", clinicId).maybeSingle()
         : { data: null };
 
+    // แพทย์: ใช้ผู้ที่ถูกเลือกในห้องตรวจ (visit.doctor_id) ก่อน แล้ว fallback ไปแพทย์ที่บันทึกในใบรับรอง
+    const doctorId = (visit?.doctor_id as string) || (cert.doctor_id as string) || null;
     let doctorName = "……………………………", doctorNameEn = "", doctorLicense = "", signatureUrl: string | null = null;
-    if (cert.doctor_id) {
-        const { data: st } = await supabase.from("staff").select("license_number, signature_url, profile_id").eq("id", cert.doctor_id).maybeSingle();
+    if (doctorId) {
+        const { data: st } = await supabase.from("staff").select("license_number, signature_url, profile_id").eq("id", doctorId).maybeSingle();
         doctorLicense = (st?.license_number as string) || "";
         signatureUrl = (st?.signature_url as string) || null;
         if (st?.profile_id) {
