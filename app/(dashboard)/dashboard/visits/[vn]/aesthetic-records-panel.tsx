@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FaceChartCanvas from "./face-chart-canvas";
 import { saveTreatmentNotes } from "@/lib/actions/aesthetic";
+import { listActiveServices } from "@/lib/actions/services";
 import type { AestheticRecords } from "@/lib/aesthetic-types";
 
 interface Props {
@@ -61,6 +62,19 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
     const [notes, setNotes] = useState(initial.treatment_notes || "");
     const [savingNotes, setSavingNotes] = useState(false);
     const [notesSaved, setNotesSaved] = useState(false);
+    // รายการความงามที่คลินิกขายจริง (segment=aesthetic จาก service_catalog)
+    const [catalogItems, setCatalogItems] = useState<string[]>([]);
+    useEffect(() => {
+        listActiveServices().then(list => {
+            const names = Array.from(new Set(
+                (list || [])
+                    .filter(s => s.segment === "aesthetic" && s.is_active !== false)
+                    .map(s => (s.service_name || "").trim())
+                    .filter(n => !!n)
+            ));
+            setCatalogItems(names);
+        }).catch(() => { });
+    }, []);
     const [, startTransition] = useTransition();
 
     function insertProcedure(tpl: string) {
@@ -132,18 +146,32 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
                         </Button>
                     </div>
                     <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-slate-500">แตะเพื่อแทรกหัตถการ/ยี่ห้อที่ใช้บ่อย (แล้วเติมตัวเลข):</p>
-                        {QUICK_GROUPS.map(g => (
-                            <div key={g.group} className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-[11px] text-slate-400 w-16 shrink-0">{g.group}</span>
-                                {g.items.map(p => (
-                                    <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
+                        <p className="text-xs font-semibold text-slate-500">
+                            {catalogItems.length > 0 ? "แตะเพื่อแทรกรายการที่คลินิกให้บริการ (แล้วเติมตัวเลข):" : "แตะเพื่อแทรกหัตถการ/ยี่ห้อที่ใช้บ่อย (แล้วเติมตัวเลข):"}
+                        </p>
+                        {catalogItems.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {catalogItems.map(name => (
+                                    <button key={name} type="button"
+                                        onClick={() => insertProcedure(`${name} จำนวน ___ (Lot ___ / Exp ___)`)}
                                         className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                                        + {p.label}
+                                        + {name}
                                     </button>
                                 ))}
                             </div>
-                        ))}
+                        ) : (
+                            QUICK_GROUPS.map(g => (
+                                <div key={g.group} className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[11px] text-slate-400 w-16 shrink-0">{g.group}</span>
+                                    {g.items.map(p => (
+                                        <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
+                                            className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                                            + {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            ))
+                        )}
                     </div>
                     <textarea
                         value={notes}
