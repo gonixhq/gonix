@@ -13,17 +13,44 @@ interface Props {
     initial: AestheticRecords;
 }
 
-// หัตถการที่ใช้บ่อย — กดแล้วแทรกบรรทัด (___ = ช่องให้หมอเติมเลข)
-const QUICK_PROCEDURES: { label: string; template: string }[] = [
-    { label: "Botox", template: "Botox ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-    { label: "Filler HA", template: "Filler HA ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-    { label: "HIFU", template: "HIFU ___ shot บริเวณ ___" },
-    { label: "Ultraformer", template: "Ultraformer ___ shot บริเวณ ___" },
-    { label: "Meso", template: "Mesotherapy ___ บริเวณ ___" },
-    { label: "ร้อยไหม", template: "ร้อยไหม ___ เส้น บริเวณ ___" },
-    { label: "Laser", template: "Laser ___ บริเวณ ___" },
-    { label: "PRP/Rejuran", template: "PRP/Rejuran ___ บริเวณ ___" },
-    { label: "Vitamin IV", template: "Vitamin IV/Drip: ___" },
+// หัตถการ/ยี่ห้อที่ใช้บ่อย — กดแล้วแทรกบรรทัด (___ = ช่องให้หมอเติมเลข)
+const QUICK_GROUPS: { group: string; items: { label: string; template: string }[] }[] = [
+    {
+        group: "โบทูลินัม",
+        items: [
+            { label: "Botox (Allergan)", template: "Botox Allergan ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Dysport", template: "Dysport ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Xeomin", template: "Xeomin ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Nabota", template: "Nabota ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Botulax", template: "Botulax ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Innotox", template: "Innotox ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+        ],
+    },
+    {
+        group: "ฟิลเลอร์",
+        items: [
+            { label: "Juvederm", template: "Filler Juvederm ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Restylane", template: "Filler Restylane ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Neuramis", template: "Filler Neuramis ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Belotero", template: "Filler Belotero ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+        ],
+    },
+    {
+        group: "อื่นๆ",
+        items: [
+            { label: "HIFU", template: "HIFU ___ shot บริเวณ ___" },
+            { label: "Ultraformer", template: "Ultraformer ___ shot บริเวณ ___" },
+            { label: "Ulthera", template: "Ulthera ___ shot บริเวณ ___" },
+            { label: "Thermage", template: "Thermage ___ shot บริเวณ ___" },
+            { label: "Meso", template: "Mesotherapy ___ บริเวณ ___" },
+            { label: "ร้อยไหม", template: "ร้อยไหม ___ เส้น บริเวณ ___" },
+            { label: "Laser", template: "Laser ___ บริเวณ ___" },
+            { label: "Rejuran", template: "Rejuran ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "Profhilo", template: "Profhilo ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+            { label: "PRP", template: "PRP ___ บริเวณ ___" },
+            { label: "Vitamin IV", template: "Vitamin IV/Drip: ___" },
+        ],
+    },
 ];
 
 type View = "face_chart" | "notes";
@@ -104,16 +131,19 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
                             {notesSaved ? "บันทึกแล้ว" : "บันทึก"}
                         </Button>
                     </div>
-                    <div>
-                        <p className="text-xs font-semibold text-slate-500 mb-1.5">แตะเพื่อแทรกหัตถการที่ใช้บ่อย (แล้วเติมตัวเลข):</p>
-                        <div className="flex flex-wrap gap-1.5">
-                            {QUICK_PROCEDURES.map(p => (
-                                <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
-                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                                    + {p.label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-slate-500">แตะเพื่อแทรกหัตถการ/ยี่ห้อที่ใช้บ่อย (แล้วเติมตัวเลข):</p>
+                        {QUICK_GROUPS.map(g => (
+                            <div key={g.group} className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] text-slate-400 w-16 shrink-0">{g.group}</span>
+                                {g.items.map(p => (
+                                    <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
+                                        className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                                        + {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                     <textarea
                         value={notes}
