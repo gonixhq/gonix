@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
 
 export interface AnonResultTest {
     test_name: string;
@@ -20,13 +21,21 @@ export interface AnonResult {
     tests: AnonResultTest[];
 }
 
+// ข้อความเดียวสำหรับทุกกรณีที่ verify ไม่ผ่าน — กันเดาว่ารหัสมีตัวตนจริงไหม (enumeration)
 const ERR_MSG: Record<string, string> = {
-    not_found: "ไม่พบรหัสนี้ — ตรวจสอบรหัสยืนยันอีกครั้ง",
-    no_phone: "เคสนี้ไม่ได้ลงเบอร์โทรไว้ — กรุณาติดต่อ/มารับผลที่คลินิก",
-    verify_failed: "รหัส หรือเบอร์ 4 ตัวท้าย ไม่ถูกต้อง",
+    verify_failed: "รหัสยืนยัน หรือเบอร์ 4 ตัวท้าย ไม่ถูกต้อง",
+    rate_limited: "พยายามเกินจำนวนครั้ง กรุณารอสักครู่แล้วลองใหม่",
 };
 
-/** เช็คผลออนไลน์ — verify ด้วย Verify Code + เบอร์ 4 ตัวท้าย (เรียก RPC security-definer) */
+/** ดึง client IP จาก proxy header (Vercel ตั้ง x-forwarded-for ให้) — ใช้ทำ rate limit */
+async function clientIp(): Promise<string> {
+    const h = await headers();
+    const xff = h.get("x-forwarded-for");
+    if (xff) return xff.split(",")[0].trim();
+    return h.get("x-real-ip") || "unknown";
+}
+
+/** เช็คผลออนไลน์ — verify ด้วย Verify Code + เบอร์ 4 ตัวท้าย (RPC security-definer + rate limit ต่อ IP) */
 export async function lookupAnonResult(
     code: string, phone4: string
 ): Promise<{ ok: true; data: AnonResult } | { ok: false; error: string }> {
@@ -35,11 +44,11 @@ export async function lookupAnonResult(
     if (c.length < 4 || p.length !== 4) return { ok: false, error: "กรุณากรอกรหัสยืนยัน และเบอร์ 4 ตัวท้ายให้ครบ" };
 
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("get_anon_result", { p_code: c, p_phone4: p });
+    const { data, error } = await supabase.rpc("get_anon_result", { p_code: c, p_phone4: p, p_ip: await clientIp() });
     if (error) return { ok: false, error: "ระบบขัดข้อง กรุณาลองใหม่" };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = data as any;
-    if (!r?.ok) return { ok: false, error: ERR_MSG[r?.error] || "ตรวจสอบไม่สำเร็จ" };
+    if (!r?.ok) return { ok: false, error: ERR_MSG[r?.error] || ERR_MSG.verify_failed };
     return { ok: true, data: r as AnonResult };
 }
 
@@ -50,9 +59,9 @@ export async function requestAnonFollowup(
     const c = (code || "").trim().toUpperCase();
     const p = (phone4 || "").replace(/\D/g, "").slice(-4);
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc("request_anon_followup", { p_code: c, p_phone4: p });
+    const { data, error } = await supabase.rpc("request_anon_followup", { p_code: c, p_phone4: p, p_ip: await clientIp() });
     if (error) return { ok: false, error: "ระบบขัดข้อง" };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = data as any;
-    return r?.ok ? { ok: true } : { ok: false, error: ERR_MSG[r?.error] || "ไม่สำเร็จ" };
+    return r?.ok ? { ok: true } : { ok: false, error: ERR_MSG[r?.error] || ERR_MSG.verify_failed };
 }

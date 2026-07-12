@@ -1,10 +1,17 @@
 // รหัสยืนยัน 6 หลักสำหรับคลินิกนิรนาม — เลี่ยงตัวอักษรกำกวม (0/O, 1/I/L)
-const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+// ใช้ CSPRNG (crypto) ไม่ใช่ Math.random() เพราะเป็น token ความปลอดภัย (ผล STD)
+const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 ตัว
 
 export function genVerifyCode(len = 6): string {
-    let s = "";
-    for (let i = 0; i < len; i++) {
-        s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    const n = ALPHABET.length;
+    // rejection sampling กัน modulo bias (แจกแจงตัวอักษรเท่ากันจริง)
+    const limit = Math.floor(4294967296 / n) * n; // 2^32 - (2^32 mod n)
+    const out: string[] = [];
+    const buf = new Uint32Array(1);
+    while (out.length < len) {
+        globalThis.crypto.getRandomValues(buf);
+        if (buf[0] >= limit) continue;
+        out.push(ALPHABET[buf[0] % n]);
     }
-    return s;
+    return out.join("");
 }
