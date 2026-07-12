@@ -37,6 +37,21 @@ const THAI_MONTHS = [
 ];
 
 /** แปลงวันที่ไทย "9 กันยายน 2540" (พ.ศ.) → "1997-09-09" (ค.ศ.) */
+/** จัดรูปเลขบัตร ปชช. 13 หลัก → x-xxxx-xxxxx-xx-x */
+export function formatThaiId(id?: string | null): string {
+    const s = (id || "").replace(/\D/g, "");
+    if (s.length !== 13) return id || "";
+    return `${s[0]}-${s.slice(1, 5)}-${s.slice(5, 10)}-${s.slice(10, 12)}-${s[12]}`;
+}
+
+/** ปิดเลขบัตร ปชช. โชว์เฉพาะ 4 หลักท้าย → x-xxxx-xxxxN-NN-N */
+export function maskThaiId(id?: string | null): string {
+    const s = (id || "").replace(/\D/g, "");
+    if (s.length !== 13) return id ? "•••" : "";
+    const m = s.slice(0, 9).replace(/./g, "x") + s.slice(9); // ปิด 9 หลักแรก โชว์ 4 หลักท้าย
+    return `${m[0]}-${m.slice(1, 5)}-${m.slice(5, 10)}-${m.slice(10, 12)}-${m[12]}`;
+}
+
 export function parseThaiDate(s: string): string {
     if (!s) return "";
     const m = s.trim().match(/^(\d{1,2})\s+([ก-๙.]+)\s+(\d{4})$/);

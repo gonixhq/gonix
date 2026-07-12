@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { MaskedId } from "@/components/ui/masked-id";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -175,7 +176,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {patient.thai_id_card && (
                             <div className="flex items-baseline gap-2">
                                 <span className="text-slate-500 shrink-0 w-20">เลขบัตร</span>
-                                <span className="font-mono text-slate-700 break-all">{patient.thai_id_card}</span>
+                                <MaskedId value={patient.thai_id_card} className="text-slate-700" />
                             </div>
                         )}
                         {patient.phone && (

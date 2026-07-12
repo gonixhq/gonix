@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { MaskedId } from "@/components/ui/masked-id";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -542,7 +543,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         {patient.thai_id_card && (
                             <div className="flex items-baseline gap-2">
                                 <span className="text-slate-500 shrink-0 w-20">เลขบัตร</span>
-                                <span className="font-mono text-slate-700">{patient.thai_id_card}</span>
+                                <MaskedId value={patient.thai_id_card} className="text-slate-700" />
                             </div>
                         )}
                         {patient.phone && (

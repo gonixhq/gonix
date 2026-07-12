@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { MaskedId } from "@/components/ui/masked-id";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -340,7 +341,7 @@ export default async function PatientDetailPage({
                                 <InfoRow icon={User} label="อาชีพ" value={patient.occupation || "—"} />
                                 <InfoRow icon={User} label="เชื้อชาติ" value={patient.race || "—"} />
                                 <InfoRow icon={User} label="สัญชาติ" value={patient.nationality || "—"} />
-                                <InfoRow icon={IdCard} label="เลขบัตร ปชช." value={patient.thai_id_card || "—"} mono />
+                                <InfoRow icon={IdCard} label="เลขบัตร ปชช." value={<MaskedId value={patient.thai_id_card} />} />
                                 {patient.passport_no && <InfoRow icon={IdCard} label="Passport" value={patient.passport_no} mono />}
                             </div>
                         </div>
@@ -484,7 +485,7 @@ function InfoRow({
 }: {
     icon: React.ElementType;
     label: string;
-    value: string;
+    value: React.ReactNode;
     mono?: boolean;
 }) {
     return (
