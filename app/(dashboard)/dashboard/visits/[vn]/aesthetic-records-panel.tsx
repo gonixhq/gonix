@@ -13,6 +13,19 @@ interface Props {
     initial: AestheticRecords;
 }
 
+// หัตถการที่ใช้บ่อย — กดแล้วแทรกบรรทัด (___ = ช่องให้หมอเติมเลข)
+const QUICK_PROCEDURES: { label: string; template: string }[] = [
+    { label: "Botox", template: "Botox ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
+    { label: "Filler HA", template: "Filler HA ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
+    { label: "HIFU", template: "HIFU ___ shot บริเวณ ___" },
+    { label: "Ultraformer", template: "Ultraformer ___ shot บริเวณ ___" },
+    { label: "Meso", template: "Mesotherapy ___ บริเวณ ___" },
+    { label: "ร้อยไหม", template: "ร้อยไหม ___ เส้น บริเวณ ___" },
+    { label: "Laser", template: "Laser ___ บริเวณ ___" },
+    { label: "PRP/Rejuran", template: "PRP/Rejuran ___ บริเวณ ___" },
+    { label: "Vitamin IV", template: "Vitamin IV/Drip: ___" },
+];
+
 type View = "face_chart" | "notes";
 
 export default function AestheticRecordsPanel({ vn, initial }: Props) {
@@ -22,6 +35,11 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
     const [savingNotes, setSavingNotes] = useState(false);
     const [notesSaved, setNotesSaved] = useState(false);
     const [, startTransition] = useTransition();
+
+    function insertProcedure(tpl: string) {
+        setNotes(prev => (prev.trim() ? prev.replace(/\s*$/, "") + "\n" : "") + "- " + tpl + "\n");
+        setNotesSaved(false);
+    }
 
     function handleSaveNotes() {
         setSavingNotes(true);
@@ -85,6 +103,17 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
                                     <Save className="h-4 w-4" />}
                             {notesSaved ? "บันทึกแล้ว" : "บันทึก"}
                         </Button>
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-slate-500 mb-1.5">แตะเพื่อแทรกหัตถการที่ใช้บ่อย (แล้วเติมตัวเลข):</p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {QUICK_PROCEDURES.map(p => (
+                                <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
+                                    className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
+                                    + {p.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                     <textarea
                         value={notes}
