@@ -389,7 +389,14 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
                                                     </span>
                                                 ) : <span className="text-slate-400">—</span>}
                                             </td>
-                                            <td className="px-4 py-2.5 text-right font-bold tabular-nums">{Number(l.qty_remaining).toLocaleString()} {item.unit}</td>
+                                            <td className="px-4 py-2.5 text-right">
+                                                <div className="font-bold tabular-nums">{Number(l.qty_remaining).toLocaleString()} {item.unit}</div>
+                                                {Number(l.units_per_pack) > 0 && (
+                                                    <div className="text-[10px] text-slate-400 tabular-nums">
+                                                        ≈ {(Number(l.qty_remaining) / Number(l.units_per_pack)).toLocaleString(undefined, { maximumFractionDigits: 1 })} {item.purchase_unit || "แพ็ค"} ({Number(l.units_per_pack)}{item.unit}/{item.purchase_unit || "แพ็ค"})
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums hidden sm:table-cell">{Number(l.qty_received).toLocaleString()}</td>
                                             <td className="px-4 py-2.5 text-right text-slate-500 tabular-nums hidden md:table-cell">{Number(l.cost_per_unit) > 0 ? `฿${Number(l.cost_per_unit).toLocaleString()}` : "—"}</td>
                                             <td className="px-2 py-2.5">
@@ -445,6 +452,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
                     itemName={item.item_name}
                     unit={item.unit}
                     currentStock={Number(item.stock_qty || 0)}
+                    purchaseUnit={item.purchase_unit}
+                    defaultPerPack={item.units_per_pack}
                     onClose={() => setShowReceive(false)}
                     onSuccess={(qty) => {
                         setSuccess(`✓ รับเข้าสต๊อก ${qty} ${item.unit} สำเร็จ`);
@@ -530,47 +539,58 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
 }
 
 function ReceiveModal({
-    itemId, itemName, unit, currentStock, onClose, onSuccess, onError,
+    itemId, itemName, unit, currentStock, purchaseUnit, defaultPerPack, onClose, onSuccess, onError,
 }: {
     itemId: string;
     itemName: string;
     unit: string;
     currentStock: number;
+    purchaseUnit?: string | null;
+    defaultPerPack?: number | null;
     onClose: () => void;
     onSuccess: (qty: number) => void;
     onError: (msg: string) => void;
 }) {
-    const [qty, setQty] = useState("");
+    const packUnit = purchaseUnit || "แพ็ค";
+    const canPack = !!(purchaseUnit || defaultPerPack);
+    const [packMode, setPackMode] = useState(canPack);   // ของที่รับเป็นแพ็ค default = โหมดแพ็ค
+    const [qty, setQty] = useState("");                  // จำนวน (ยูนิต หรือ แพ็ค ตามโหมด)
+    const [perPack, setPerPack] = useState(defaultPerPack != null ? String(defaultPerPack) : "");
     const [cost, setCost] = useState("");
     const [lot, setLot] = useState("");
     const [expiry, setExpiry] = useState("");
     const [note, setNote] = useState("");
     const [pending, startTransition] = useTransition();
 
+    const perPackN = parseFloat(perPack) || 0;
+    const qtyN = parseFloat(qty) || 0;
+    const totalUnits = packMode ? qtyN * perPackN : qtyN;   // ยูนิตรวมที่เพิ่มเข้าสต๊อก
+
     function handleSubmit() {
-        const q = parseFloat(qty);
-        if (!q || q <= 0) {
-            onError("กรุณากรอกจำนวนที่รับเข้า");
-            return;
-        }
+        if (!(totalUnits > 0)) { onError("กรุณากรอกจำนวนที่รับเข้า"); return; }
+        if (packMode && !(perPackN > 0)) { onError(`กรุณากรอกยูนิตต่อ${packUnit}`); return; }
+        // ราคาทุน: โหมดแพ็ค = ราคาต่อ 1 แพ็ค → แปลงเป็นต่อยูนิต
+        const costN = cost ? parseFloat(cost) : undefined;
+        const costPerUnit = costN != null ? (packMode && perPackN > 0 ? costN / perPackN : costN) : undefined;
         startTransition(async () => {
             const res = await receiveStock({
                 item_id: itemId,
-                qty: q,
-                cost_per_unit: cost ? parseFloat(cost) : undefined,
+                qty: totalUnits,
+                cost_per_unit: costPerUnit,
                 note: note || undefined,
                 lot_no: lot || undefined,
                 expiry_date: expiry || undefined,
+                units_per_pack: packMode ? perPackN : null,
             });
             if (!res.success) {
                 onError(res.error || "Error");
                 return;
             }
-            onSuccess(q);
+            onSuccess(totalUnits);
         });
     }
 
-    const newStock = currentStock + (parseFloat(qty) || 0);
+    const newStock = currentStock + totalUnits;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
@@ -590,31 +610,49 @@ function ReceiveModal({
                     </button>
                 </div>
 
-                <div>
-                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">จำนวน *</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                        <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={qty}
-                            onChange={e => setQty(e.target.value)}
-                            placeholder="0"
-                            className="text-right text-base font-bold tabular-nums"
-                        />
-                        <span className="text-sm text-slate-500 shrink-0">{unit}</span>
+                {canPack && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700">รับเป็น</span>
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+                            <button type="button" onClick={() => setPackMode(true)}
+                                className={`px-3 py-1 font-semibold transition-colors ${packMode ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>{packUnit}</button>
+                            <button type="button" onClick={() => setPackMode(false)}
+                                className={`px-3 py-1 font-semibold transition-colors ${!packMode ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>{unit}</button>
+                        </div>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                        คงเหลือเดิม: <span className="font-bold tabular-nums">{currentStock.toLocaleString()}</span>
-                        {qty && (
-                            <> → ใหม่: <span className="font-bold text-emerald-700 tabular-nums">{newStock.toLocaleString()}</span> {unit}</>
-                        )}
-                    </p>
+                )}
+
+                <div className={packMode ? "grid grid-cols-2 gap-3" : ""}>
+                    <div>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">จำนวน{packMode ? ` (${packUnit})` : ""} *</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                            <Input type="number" min="0" step="0.01" value={qty} onChange={e => setQty(e.target.value)}
+                                placeholder="0" className="text-right text-base font-bold tabular-nums" />
+                            <span className="text-sm text-slate-500 shrink-0">{packMode ? packUnit : unit}</span>
+                        </div>
+                    </div>
+                    {packMode && (
+                        <div>
+                            <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">ยูนิต/{packUnit} *</Label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Input type="number" min="0" step="1" value={perPack} onChange={e => setPerPack(e.target.value)}
+                                    placeholder="เช่น 100" className="text-right text-base font-bold tabular-nums" />
+                                <span className="text-sm text-slate-500 shrink-0">{unit}</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
+                <p className="text-[11px] text-slate-500">
+                    {packMode && totalUnits > 0 && <>รวม <span className="font-bold text-slate-700 tabular-nums">{totalUnits.toLocaleString()}</span> {unit} · </>}
+                    คงเหลือเดิม: <span className="font-bold tabular-nums">{currentStock.toLocaleString()}</span>
+                    {totalUnits > 0 && (
+                        <> → ใหม่: <span className="font-bold text-emerald-700 tabular-nums">{newStock.toLocaleString()}</span> {unit}</>
+                    )}
+                </p>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">ราคาทุน/หน่วย</Label>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">ราคาทุน/{packMode ? packUnit : "หน่วย"}</Label>
                         <div className="relative mt-1">
                             <Input
                                 type="number"

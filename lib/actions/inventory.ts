@@ -11,6 +11,7 @@ export interface ReceiveStockInput {
     note?: string;
     lot_no?: string;
     expiry_date?: string;   // วันหมดอายุของล็อตนี้
+    units_per_pack?: number | null;   // ยูนิตต่อขวด/แพ็คของล็อตนี้ (เช่น 100/200)
 }
 
 // ฟิลด์ที่แก้ไขได้ผ่านฟอร์ม "แก้ไขรายละเอียด" (ไม่รวม stock_qty — ใช้ปรับสต๊อกแทน)
@@ -209,7 +210,7 @@ export async function getItemLots(itemId: string) {
         if (!profile?.clinic_id) return [];
         const { data } = await supabase
             .from("inventory_lots")
-            .select("id, lot_no, expiry_date, qty_received, qty_remaining, cost_per_unit, received_at, note")
+            .select("id, lot_no, expiry_date, qty_received, qty_remaining, cost_per_unit, units_per_pack, received_at, note")
             .eq("clinic_id", profile.clinic_id).eq("item_id", itemId)
             .order("expiry_date", { ascending: true, nullsFirst: false })
             .order("received_at", { ascending: true });
@@ -329,6 +330,7 @@ export async function receiveStock(input: ReceiveStockInput) {
             qty_received: input.qty,
             qty_remaining: input.qty,
             cost_per_unit: input.cost_per_unit || 0,
+            units_per_pack: input.units_per_pack ?? null,
             note: input.note?.trim() || null,
             created_by: staffRow?.id || null,
         }).select("id").maybeSingle();
