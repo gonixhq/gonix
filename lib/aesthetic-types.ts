@@ -52,3 +52,10 @@ export const EMPTY_FACE_CHART: FaceChartData = {
     strokes: [],
     pins: [],
 };
+
+// ประวัติหัตถการความงามย้อนหลังของผู้ป่วย (1 visit)
+export interface PastAestheticVisit {
+    vn: string;
+    visit_date: string;
+    records: AestheticRecords;
+}

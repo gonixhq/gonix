@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { FaceChartData, AestheticRecords, AestheticPhoto } from "@/lib/aesthetic-types";
+import type { FaceChartData, AestheticRecords, AestheticPhoto, PastAestheticVisit } from "@/lib/aesthetic-types";
 
 const ALLOWED_IMAGE_MIME = new Set([
     "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic",
@@ -72,6 +72,37 @@ async function getCurrentRecords(vn: string): Promise<AestheticRecords> {
     const { supabase } = await getCtx();
     const { data } = await supabase.from("visits").select("aesthetic_records").eq("vn", vn).maybeSingle();
     return (data?.aesthetic_records as AestheticRecords) || {};
+}
+
+/** ประวัติหัตถการความงามย้อนหลังของผู้ป่วย (ไม่รวม visit ปัจจุบัน) — เฉพาะ visit ที่มีข้อมูล */
+export async function getPastAestheticRecords(hn: string, excludeVn: string): Promise<PastAestheticVisit[]> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !hn) return [];
+        const { data } = await supabase
+            .from("visits")
+            .select("vn, visit_date, aesthetic_records")
+            .eq("hn", hn)
+            .neq("vn", excludeVn)
+            .not("aesthetic_records", "is", null)
+            .order("visit_date", { ascending: false })
+            .limit(20);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows = (data || []) as any[];
+        return rows
+            .map(r => ({ vn: r.vn as string, visit_date: r.visit_date as string, records: (r.aesthetic_records || {}) as AestheticRecords }))
+            .filter(r => {
+                const rec = r.records;
+                return !!(
+                    rec.treatment_notes?.trim()
+                    || (rec.face_chart?.pins?.length || rec.face_chart?.strokes?.length)
+                    || (rec.photos?.before?.length || rec.photos?.after?.length)
+                );
+            });
+    } catch {
+        return [];
+    }
 }
 
 /** บันทึก face chart (strokes + pins) ลง visits.aesthetic_records */

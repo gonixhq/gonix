@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil } from "lucide-react";
+import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FaceChartCanvas from "./face-chart-canvas";
-import { saveTreatmentNotes } from "@/lib/actions/aesthetic";
+import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
+import { saveTreatmentNotes, getPastAestheticRecords } from "@/lib/actions/aesthetic";
 import { listActiveServices } from "@/lib/actions/services";
-import type { AestheticRecords } from "@/lib/aesthetic-types";
+import type { AestheticRecords, PastAestheticVisit } from "@/lib/aesthetic-types";
 
 interface Props {
     vn: string;
+    hn: string;
     initial: AestheticRecords;
 }
 
@@ -54,11 +56,20 @@ const QUICK_GROUPS: { group: string; items: { label: string; template: string }[
     },
 ];
 
-type View = "face_chart" | "notes";
+type View = "face_chart" | "notes" | "history";
 
-export default function AestheticRecordsPanel({ vn, initial }: Props) {
+export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
     const router = useRouter();
     const [view, setView] = useState<View>("face_chart");
+    const [pastVisits, setPastVisits] = useState<PastAestheticVisit[] | null>(null);
+    const [loadingPast, setLoadingPast] = useState(false);
+    function openHistory() {
+        setView("history");
+        if (pastVisits === null && !loadingPast) {
+            setLoadingPast(true);
+            getPastAestheticRecords(hn, vn).then(setPastVisits).finally(() => setLoadingPast(false));
+        }
+    }
     const [notes, setNotes] = useState(initial.treatment_notes || "");
     const [savingNotes, setSavingNotes] = useState(false);
     const [notesSaved, setNotesSaved] = useState(false);
@@ -123,6 +134,12 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
                 <ViewTab active={view === "notes"} onClick={() => setView("notes")} icon={FileText}>
                     บันทึกหัตถการ
                 </ViewTab>
+                <ViewTab active={view === "history"} onClick={openHistory} icon={History}>
+                    ประวัติย้อนหลัง
+                    {pastVisits && pastVisits.length > 0 && (
+                        <span className="ml-1 px-1.5 rounded-full bg-slate-500 text-white text-[10px] font-bold">{pastVisits.length}</span>
+                    )}
+                </ViewTab>
             </div>
 
             {/* Content */}
@@ -183,6 +200,49 @@ export default function AestheticRecordsPanel({ vn, initial }: Props) {
                     <p className="text-xs text-slate-500">
                         💡 แนะนำให้บันทึก: ชนิดยา/วัสดุ, Lot No, Expiry, จำนวน, จุดที่ฉีด, ผลข้างเคียง, คำแนะนำหลังทำ
                     </p>
+                </div>
+            )}
+
+            {view === "history" && (
+                <div className="space-y-3">
+                    {loadingPast && (
+                        <div className="py-8 text-center text-sm text-slate-400">
+                            <Loader2 className="h-5 w-5 animate-spin inline mr-1" /> กำลังโหลดประวัติ...
+                        </div>
+                    )}
+                    {!loadingPast && pastVisits && pastVisits.length === 0 && (
+                        <div className="py-8 text-center text-sm text-slate-400">ยังไม่มีประวัติหัตถการความงามครั้งก่อน</div>
+                    )}
+                    {!loadingPast && pastVisits?.map(pv => (
+                        <div key={pv.vn} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm font-bold text-slate-800">
+                                    {new Date(pv.visit_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-400">{pv.vn}</span>
+                            </div>
+                            {pv.records.treatment_notes?.trim() && (
+                                <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans bg-slate-50 rounded-lg p-2.5 m-0">{pv.records.treatment_notes}</pre>
+                            )}
+                            {(pv.records.face_chart?.pins?.length || pv.records.face_chart?.strokes?.length) ? (
+                                <div className="flex justify-center"><FaceChartRender data={pv.records.face_chart} width={220} /></div>
+                            ) : null}
+                            {(pv.records.photos?.before?.length || pv.records.photos?.after?.length) ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        ...(pv.records.photos?.before || []).map(p => ({ url: p.url, tag: "ก่อน" })),
+                                        ...(pv.records.photos?.after || []).map(p => ({ url: p.url, tag: "หลัง" })),
+                                    ].map((ph, i) => (
+                                        <a key={i} href={ph.url} target="_blank" rel="noreferrer" className="relative block">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={ph.url} alt="" className="h-16 w-16 object-cover rounded-lg border border-slate-200" />
+                                            <span className="absolute bottom-0 inset-x-0 text-[9px] text-center bg-black/50 text-white rounded-b-lg">{ph.tag}</span>
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

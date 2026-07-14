@@ -472,7 +472,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {/* Aesthetic Records (เฉพาะ aesthetic visit) */}
                         {visit.service_category === "aesthetic" && (
                             <TabsContent forceMount value="aesthetic" className="p-6 m-0 data-[state=inactive]:hidden outline-none">
-                                <AestheticRecordsPanel vn={vn} initial={visit.aesthetic_records || {}} />
+                                <AestheticRecordsPanel vn={vn} hn={patient.hn} initial={visit.aesthetic_records || {}} />
                             </TabsContent>
                         )}
 
