@@ -215,9 +215,14 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                     )}
                     {!loadingPast && pastVisits?.map(pv => (
                         <div key={pv.vn} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm font-bold text-slate-800">
-                                    {new Date(pv.visit_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-800">
+                                        {new Date(pv.visit_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 inline-flex items-center gap-1">
+                                        <Sparkles className="h-3 w-3 text-rose-400" /> โดย {pv.doctor_name || "— ไม่ระบุแพทย์ —"}
+                                    </div>
                                 </div>
                                 <span className="text-[11px] font-mono text-slate-400">{pv.vn}</span>
                             </div>

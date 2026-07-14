@@ -57,5 +57,6 @@ export const EMPTY_FACE_CHART: FaceChartData = {
 export interface PastAestheticVisit {
     vn: string;
     visit_date: string;
+    doctor_name?: string | null;   // แพทย์ผู้ทำหัตถการครั้งนั้น
     records: AestheticRecords;
 }

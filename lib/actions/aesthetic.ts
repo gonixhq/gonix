@@ -82,7 +82,7 @@ export async function getPastAestheticRecords(hn: string, excludeVn: string): Pr
         if (!user || !hn) return [];
         const { data } = await supabase
             .from("visits")
-            .select("vn, visit_date, aesthetic_records")
+            .select("vn, visit_date, doctor_id, aesthetic_records")
             .eq("hn", hn)
             .neq("vn", excludeVn)
             .not("aesthetic_records", "is", null)
@@ -90,8 +90,8 @@ export async function getPastAestheticRecords(hn: string, excludeVn: string): Pr
             .limit(20);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rows = (data || []) as any[];
-        return rows
-            .map(r => ({ vn: r.vn as string, visit_date: r.visit_date as string, records: (r.aesthetic_records || {}) as AestheticRecords }))
+        const kept = rows
+            .map(r => ({ vn: r.vn as string, visit_date: r.visit_date as string, doctor_id: (r.doctor_id as string) || null, records: (r.aesthetic_records || {}) as AestheticRecords }))
             .filter(r => {
                 const rec = r.records;
                 return !!(
@@ -100,6 +100,29 @@ export async function getPastAestheticRecords(hn: string, excludeVn: string): Pr
                     || (rec.photos?.before?.length || rec.photos?.after?.length)
                 );
             });
+
+        // ดึงชื่อแพทย์ผู้ทำ (visits.doctor_id → staff → profiles.full_name)
+        const docIds = Array.from(new Set(kept.map(r => r.doctor_id).filter((x): x is string => !!x)));
+        const nameByStaff = new Map<string, string>();
+        if (docIds.length) {
+            const { data: staff } = await supabase.from("staff").select("id, profile_id").in("id", docIds);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const staffRows = (staff || []) as any[];
+            const profIds = Array.from(new Set(staffRows.map(s => s.profile_id).filter(Boolean)));
+            const profName = new Map<string, string>();
+            if (profIds.length) {
+                const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", profIds);
+                for (const p of (profs || []) as { id: string; full_name: string }[]) profName.set(p.id, p.full_name);
+            }
+            for (const s of staffRows) nameByStaff.set(s.id, profName.get(s.profile_id) || "");
+        }
+
+        return kept.map(r => ({
+            vn: r.vn,
+            visit_date: r.visit_date,
+            doctor_name: r.doctor_id ? (nameByStaff.get(r.doctor_id) || null) : null,
+            records: r.records,
+        }));
     } catch {
         return [];
     }
