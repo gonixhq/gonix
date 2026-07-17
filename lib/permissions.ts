@@ -86,6 +86,17 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         ],
     },
     {
+        id: "pre_order",
+        label: "พรีออเดอร์ (Pre-Order)",
+        permissions: [
+            { key: "pre_order.view", label: "ดูพรีออเดอร์" },
+            { key: "pre_order.manage", label: "สร้าง/แก้/รับมัดจำ/ยกเลิก/เช็คอิน" },
+            { key: "pre_order.decide", label: "แพทย์ตัดสินรายการ (Doctor Gate)" },
+            { key: "pre_order.extend", label: "ขยายอายุมัดจำ (ผู้จัดการ)" },
+            { key: "pre_order.settings", label: "ตั้งค่าพรีออเดอร์" },
+        ],
+    },
+    {
         id: "inventory",
         label: "คลังสินค้า (Inventory)",
         permissions: [
@@ -129,6 +140,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
         "pharmacy.view",
         "lab.view", "lab.order", "lab.result",
         "anon.view", "anon.clinical", "anon.result",
+        "pre_order.view", "pre_order.decide",
         "reports.view",
     ],
 
@@ -148,6 +160,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
         "pharmacy.view",
         "lab.view",
         "anon.view", "anon.manage", "anon.result",
+        "pre_order.view", "pre_order.manage",
     ],
 
     pharmacist: [
@@ -169,12 +182,14 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
         "appointments.view", "appointments.create", "appointments.edit",
         "finance.view", "finance.collect",
         "anon.view", "anon.manage",
+        "pre_order.view", "pre_order.manage",
     ],
 
     accountant: [
         "patients.view",
         "visits.view",
         "finance.view", "finance.collect", "finance.refund", "finance.eod", "finance.commission",
+        "pre_order.view",
         "reports.view", "reports.export",
     ],
 };
