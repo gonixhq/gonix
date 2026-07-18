@@ -151,6 +151,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     const [newMode, setNewMode] = useState(false);
     const [np, setNp] = useState({ prefix: "นางสาว", first_name: "", last_name: "", phone: "" });
     const [creating, setCreating] = useState(false);
+    const [dupes, setDupes] = useState<PO[] | null>(null);
     const [channel, setChannel] = useState("line_oa");
     const [items, setItems] = useState<{ service_id: string; name: string; qty: number; price: number }[]>([]);
     const [svcSearch, setSvcSearch] = useState("");
@@ -165,11 +166,43 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     const total = items.reduce((s, i) => s + i.price * i.qty, 0);
     const filteredSvc = svcSearch ? services.filter(s => s.name.toLowerCase().includes(svcSearch.toLowerCase())).slice(0, 8) : [];
 
+    function pickPatient(p: PO) {
+        setHn(p.hn);
+        setHnLabel(`${p.hn} · ${p.first_name || ""} ${p.last_name || ""}${p.phone ? ` · ${p.phone}` : ""}`);
+        setDupes(null); setNewMode(false); setResults([]);
+    }
+
+    /** หาคนไข้เดิมที่น่าจะเป็นคนเดียวกัน — เบอร์ตรง หรือ ชื่อ+สกุลตรง */
+    async function findDuplicates(): Promise<PO[]> {
+        const digits = (s: string) => (s || "").replace(/\D/g, "");
+        const norm = (s: string) => (s || "").replace(/\s+/g, "").toLowerCase();
+        const phone = digits(np.phone);
+        const first = np.first_name.trim(), last = np.last_name.trim();
+
+        const queries = [first ? getPatients(first) : Promise.resolve([])];
+        if (phone.length >= 9) queries.push(getPatients(phone));
+        const found = (await Promise.all(queries)).flat() as PO[];
+
+        const seen = new Set<string>();
+        return found.filter((p: PO) => {
+            if (seen.has(p.hn)) return false;
+            seen.add(p.hn);
+            const samePhone = phone.length >= 9 && digits(p.phone) === phone;
+            const sameName = norm(p.first_name) === norm(first) && norm(p.last_name) === norm(last);
+            return samePhone || sameName;
+        });
+    }
+
     // ลูกค้าใหม่ที่ยังไม่มี HN — เปิดทะเบียนย่อ (ชื่อ+เบอร์) แล้วออก HN ทันที
-    async function createNewPatient() {
+    async function createNewPatient(force = false) {
         if (!np.first_name.trim() || !np.last_name.trim()) { onError("กรอกชื่อ-นามสกุลก่อน"); return; }
         setCreating(true);
         try {
+            // กัน HN ซ้ำ — เตือนก่อนสร้าง ถ้าเจอคนที่น่าจะเป็นคนเดียวกัน
+            if (!force) {
+                const hits = await findDuplicates();
+                if (hits.length > 0) { setDupes(hits); return; }
+            }
             const fd = new FormData();
             fd.set("prefix", np.prefix);
             fd.set("first_name", np.first_name.trim());
@@ -214,19 +247,43 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                         <div className="mt-1 space-y-2 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-cyan-800">ลูกค้าใหม่ (ระบบออก HN ให้อัตโนมัติ)</span>
-                                <button type="button" onClick={() => setNewMode(false)} className="text-[11px] text-slate-500 hover:underline">← ค้นหาแทน</button>
+                                <button type="button" onClick={() => { setNewMode(false); setDupes(null); }} className="text-[11px] text-slate-500 hover:underline">← ค้นหาแทน</button>
                             </div>
                             <div className="flex gap-2">
                                 <select value={np.prefix} onChange={e => setNp({ ...np, prefix: e.target.value })} className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
                                     {PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
-                                <input value={np.first_name} onChange={e => setNp({ ...np, first_name: e.target.value })} placeholder="ชื่อ *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                                <input value={np.last_name} onChange={e => setNp({ ...np, last_name: e.target.value })} placeholder="นามสกุล *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                                <input value={np.first_name} onChange={e => { setNp({ ...np, first_name: e.target.value }); setDupes(null); }} placeholder="ชื่อ *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                                <input value={np.last_name} onChange={e => { setNp({ ...np, last_name: e.target.value }); setDupes(null); }} placeholder="นามสกุล *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                             </div>
-                            <input value={np.phone} onChange={e => setNp({ ...np, phone: e.target.value })} placeholder="เบอร์โทร (แนะนำให้กรอก — ใช้ยืนยันตัวตอนมาถึง)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-                            <Button type="button" disabled={creating} onClick={createNewPatient} className="w-full h-9 rounded-lg bg-cyan-600 text-white">
-                                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้างคนไข้ + ออก HN"}
-                            </Button>
+                            <input value={np.phone} onChange={e => { setNp({ ...np, phone: e.target.value }); setDupes(null); }} placeholder="เบอร์โทร (แนะนำให้กรอก — ใช้ยืนยันตัวตอนมาถึง)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+
+                            {dupes && dupes.length > 0 ? (
+                                <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 space-y-2">
+                                    <div className="text-xs font-bold text-amber-900">⚠️ พบคนไข้เดิมที่ข้อมูลตรงกัน {dupes.length} ราย — ใช่คนเดียวกันไหม?</div>
+                                    <div className="space-y-1">
+                                        {dupes.map((p: PO) => (
+                                            <button key={p.hn} type="button" onClick={() => pickPatient(p)}
+                                                className="w-full text-left bg-white rounded-lg border border-amber-200 px-2.5 py-1.5 text-sm hover:bg-amber-100/50">
+                                                <span className="font-mono text-blue-700">{p.hn}</span> · {p.first_name} {p.last_name}
+                                                {p.phone ? <span className="text-slate-500"> · {p.phone}</span> : null}
+                                                <div className="text-[10px] text-slate-500">
+                                                    มา {p.visit_count || 0} ครั้ง{p.last_visit_date ? ` · ล่าสุด ${new Date(p.last_visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}` : ""}
+                                                    <span className="font-bold text-emerald-700"> — กดเพื่อใช้ HN นี้</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button type="button" disabled={creating} onClick={() => { setDupes(null); createNewPatient(true); }}
+                                        className="w-full text-[11px] font-bold text-slate-600 hover:underline py-1">
+                                        ไม่ใช่คนเดียวกัน — สร้าง HN ใหม่อยู่ดี
+                                    </button>
+                                </div>
+                            ) : (
+                                <Button type="button" disabled={creating} onClick={() => createNewPatient()} className="w-full h-9 rounded-lg bg-cyan-600 text-white">
+                                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้างคนไข้ + ออก HN"}
+                                </Button>
+                            )}
                             <p className="text-[10px] text-slate-500">กรอกข้อมูลย่อพอจองได้ — ที่เหลือ (บัตร ปชช./ที่อยู่/ประวัติแพ้) ค่อยเก็บตอนมาถึงคลินิก</p>
                         </div>
                     ) : (
@@ -245,7 +302,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                                     ))}
                                 </div>
                             )}
-                            <button type="button" onClick={() => { setNewMode(true); setResults([]); }}
+                            <button type="button" onClick={() => { setNewMode(true); setResults([]); setDupes(null); }}
                                 className="mt-1.5 text-xs font-bold text-cyan-700 hover:underline flex items-center gap-1">
                                 <Plus className="h-3.5 w-3.5" /> ลูกค้าใหม่ (ยังไม่มี HN)
                             </button>
