@@ -6,6 +6,7 @@ import { getPettyCash } from "@/lib/actions/expenses";
 import { getDeferredRevenue } from "@/lib/actions/packages";
 import { getSegmentRevenue } from "@/lib/actions/segment-revenue";
 import { getMedCertsToPrint } from "@/lib/actions/med-cert";
+import { getVoidRefundPattern } from "@/lib/actions/finance-insight";
 import FinanceClient from "./finance-client";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,11 @@ function startOfWeek(d: string): string {
 }
 function startOfMonth(d: string): string {
     return d.slice(0, 7) + "-01";
+}
+function startOfQuarter(d: string): string {
+    const m = Number(d.slice(5, 7));                 // 1-12
+    const qStart = Math.floor((m - 1) / 3) * 3 + 1;  // 1,4,7,10
+    return `${d.slice(0, 4)}-${String(qStart).padStart(2, "0")}-01`;
 }
 
 export default async function FinancePage({
@@ -39,6 +45,7 @@ export default async function FinancePage({
     let from = today, to = today;
     if (preset === "week") { from = startOfWeek(today); to = today; }
     else if (preset === "month") { from = startOfMonth(today); to = today; }
+    else if (preset === "quarter") { from = startOfQuarter(today); to = today; }
     else if (preset === "custom") { from = sp.from || today; to = sp.to || today; if (from > to) [from, to] = [to, from]; }
 
     const rangeStartISO = new Date(`${from}T00:00:00+07:00`).toISOString();
@@ -119,9 +126,26 @@ export default async function FinancePage({
         forecast = day > 0 ? Math.round(rangeRevenue / day * daysInMonth) : null;
     }
 
+    // ── ช่องทางชำระของแต่ละบิล (ใช้กรองในตาราง) ──
+    const invIds = (invoices || []).map((i) => i.id as string);
+    const methodByInv = new Map<string, string[]>();
+    if (invIds.length > 0) {
+        const { data: invPays } = await supabase
+            .from("payment_logs").select("inv_id, payment_method, amount")
+            .eq("clinic_id", clinicId).in("inv_id", invIds);
+        for (const p of invPays || []) {
+            if (Number(p.amount || 0) <= 0) continue;   // ข้ามรายการคืนเงิน (ยอดติดลบ)
+            const m = p.payment_method as string;
+            const k = m === "cash" ? "cash" : (m === "transfer" || m === "qr_promptpay") ? "transfer" : m === "credit_card" ? "credit" : "transfer";
+            const arr = methodByInv.get(p.inv_id as string) || [];
+            if (!arr.includes(k)) arr.push(k);
+            methodByInv.set(p.inv_id as string, arr);
+        }
+    }
+
     // ── รวมเคสนิรนามเข้ารายการ ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string }));
+    const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string, pay_methods: methodByInv.get(i.id) || [] }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anonRows = (anonPaid || []).map((a: any) => ({
         id: (a.verify_code || a.case_code || String(a.id).slice(0, 8)) as string,
@@ -135,11 +159,16 @@ export default async function FinancePage({
         is_anon: true,
         route: `/dashboard/anonymous/${a.id}`,
         _ts: (a.paid_at as string) || a.case_date,
+        pay_methods: [(() => {
+            const m = a.payment_method as string;
+            return m === "cash" ? "cash" : (m === "transfer" || m === "qr_promptpay") ? "transfer" : m === "credit_card" ? "credit" : "transfer";
+        })()],
     }));
     const mergedInvoices = [...normalRows, ...anonRows]
         .sort((x, y) => String(y._ts).localeCompare(String(x._ts)));
 
     const medCertsToPrint = await getMedCertsToPrint();
+    const voidPattern = await getVoidRefundPattern();
 
     return (
         <FinanceClient
@@ -158,6 +187,7 @@ export default async function FinancePage({
             segments={segments}
             trend={{ prevRevenue, growthPct }}
             forecast={forecast}
+            voidPattern={voidPattern}
         />
     );
 }

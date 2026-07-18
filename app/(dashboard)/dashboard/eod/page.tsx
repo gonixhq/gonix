@@ -1,6 +1,7 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { getEODSummary, getCloseDayHistory } from "@/lib/actions/end-of-day";
 import { getStaffReconPattern } from "@/lib/actions/finance-insight";
+import { getDiscountSummary } from "@/lib/actions/campaigns";
 import EODClient from "./eod-client";
 
 export default async function EODPage({
@@ -12,10 +13,11 @@ export default async function EODPage({
     const params = await searchParams;
     const targetDate = params.date || undefined;
 
-    const [summaryRes, history, staffPattern] = await Promise.all([
+    const [summaryRes, history, staffPattern, discounts] = await Promise.all([
         getEODSummary(targetDate),
         getCloseDayHistory(30),
         getStaffReconPattern(),
+        getDiscountSummary(targetDate),
     ]);
 
     if ("error" in summaryRes) {
@@ -26,5 +28,5 @@ export default async function EODPage({
         );
     }
 
-    return <EODClient summary={summaryRes} history={history} staffPattern={staffPattern} />;
+    return <EODClient summary={summaryRes} history={history} staffPattern={staffPattern} discounts={discounts} />;
 }

@@ -45,6 +45,7 @@ interface Invoice {
     patients: Patient | Patient[];
     is_anon?: boolean;
     route?: string;
+    pay_methods?: string[];   // cash / transfer / credit (จาก payment_logs)
 }
 
 interface RangeInfo { preset: string; from: string; to: string; isToday: boolean }
@@ -65,6 +66,7 @@ export default function FinanceClient({
     segments,
     trend,
     forecast,
+    voidPattern = [],
 }: {
     medCertsToPrint?: { vn: string; hn: string; patient_name: string; cert_type: string; approved_at: string | null }[];
     invoices: Invoice[];
@@ -81,13 +83,15 @@ export default function FinanceClient({
     segments: { segment: string; amount: number }[];
     trend: { prevRevenue: number; growthPct: number | null };
     forecast: number | null;
+    voidPattern?: { name: string; voids: number; refunds: number; total: number; isOutlier: boolean }[];
 }) {
     const { language } = useLanguage();
     const router = useRouter();
     const [filter, setFilter] = useState<"all" | "outstanding" | "paid" | "voided">("all");
+    const [payFilter, setPayFilter] = useState<"all" | "cash" | "transfer" | "credit">("all");
     const [search, setSearch] = useState("");
 
-    const rangeLabel = range.preset === "today" ? "วันนี้" : range.preset === "week" ? "สัปดาห์นี้" : range.preset === "month" ? "เดือนนี้" : `${range.from} – ${range.to}`;
+    const rangeLabel = range.preset === "today" ? "วันนี้" : range.preset === "week" ? "สัปดาห์นี้" : range.preset === "month" ? "เดือนนี้" : range.preset === "quarter" ? "ไตรมาสนี้" : `${range.from} – ${range.to}`;
     function setPreset(preset: string) {
         const url = preset === "today" ? "/dashboard/finance" : `/dashboard/finance?preset=${preset}`;
         router.push(url);
@@ -167,6 +171,7 @@ export default function FinanceClient({
         if (filter === "outstanding") list = list.filter(i => i.status === "issued" || i.status === "partial");
         else if (filter === "paid") list = list.filter(i => i.status === "paid");
         else if (filter === "voided") list = list.filter(i => i.status === "voided" || i.status === "refunded");
+        if (payFilter !== "all") list = list.filter(i => (i.pay_methods || []).includes(payFilter));
         const q = search.trim().toLowerCase();
         if (q) {
             list = list.filter(i => {
@@ -177,7 +182,18 @@ export default function FinanceClient({
             });
         }
         return list;
-    }, [invoices, filter, search]);
+    }, [invoices, filter, payFilter, search]);
+
+    // กราฟรายรับรายวันในช่วง (คำนวณจากบิลที่กรองแล้ว)
+    const dailySeries = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const i of filteredInvoices) {
+            if (i.status === "voided" || i.status === "refunded") continue;
+            const d = String(i.invoice_date).slice(0, 10);
+            map.set(d, (map.get(d) || 0) + Number(i.paid_amount || 0));
+        }
+        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, amount]) => ({ date, amount }));
+    }, [filteredInvoices]);
 
     // สรุปตามผลที่กรอง (Report Summary)
     const summary = useMemo(() => {
@@ -264,7 +280,7 @@ export default function FinanceClient({
             {/* Date range + search */}
             <div className="flex items-center gap-2 flex-wrap">
                 <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
-                    {([["today", "วันนี้"], ["week", "สัปดาห์นี้"], ["month", "เดือนนี้"]] as const).map(([k, l]) => (
+                    {([["today", "วันนี้"], ["week", "สัปดาห์นี้"], ["month", "เดือนนี้"], ["quarter", "ไตรมาสนี้"]] as const).map(([k, l]) => (
                         <button key={k} onClick={() => setPreset(k)}
                             className={cn("px-3 h-8 rounded-lg text-xs font-bold transition-all", range.preset === k ? "bg-white shadow text-blue-700" : "text-slate-500 hover:text-slate-700")}>{l}</button>
                     ))}
@@ -423,6 +439,44 @@ export default function FinanceClient({
                 </div>
             </div>
 
+            {/* เตือน: พนักงานที่ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด) */}
+            {voidPattern.some(v => v.isOutlier) && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 space-y-1.5">
+                    <div className="text-xs font-black text-amber-900 inline-flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5" /> ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด)
+                    </div>
+                    {voidPattern.filter(v => v.isOutlier).map((v, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-1.5">
+                            <span className="font-semibold text-slate-800">{v.name}</span>
+                            <span className="text-xs text-slate-600 tabular-nums">
+                                ยกเลิก {v.voids} · คืนเงิน {v.refunds} · <b className="text-amber-700">รวม {v.total} ครั้ง</b>
+                            </span>
+                        </div>
+                    ))}
+                    <p className="text-[10px] text-amber-700">สูงกว่าค่าเฉลี่ยของทีม 2 เท่าขึ้นไป — ตรวจสอบเหตุผลในประวัติใบเสร็จ</p>
+                </div>
+            )}
+
+            {/* กราฟรายรับรายวัน + เทียบช่วงก่อนหน้า */}
+            {dailySeries.length > 1 && (
+                <div className="gonix-card-premium p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
+                        <div className="text-xs font-bold text-slate-500 inline-flex items-center gap-1">
+                            <TrendingUp className="h-3.5 w-3.5" /> รายรับรายวัน ({rangeLabel})
+                        </div>
+                        {trend.growthPct != null && (
+                            <div className="text-[11px] font-bold">
+                                <span className="text-slate-400">ช่วงก่อนหน้า ฿{trend.prevRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} · </span>
+                                <span className={trend.growthPct >= 0 ? "text-emerald-600" : "text-rose-500"}>
+                                    {trend.growthPct >= 0 ? "▲" : "▼"} {Math.abs(trend.growthPct)}%
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    <RevenueBars data={dailySeries} />
+                </div>
+            )}
+
             {/* Petty Cash + Net Cash Flow */}
             <div className="gonix-card-premium overflow-hidden">
                 <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
@@ -521,6 +575,11 @@ export default function FinanceClient({
                         </FilterChip>
                         <FilterChip active={filter === "paid"} onClick={() => setFilter("paid")} color="emerald">ชำระแล้ว</FilterChip>
                         <FilterChip active={filter === "voided"} onClick={() => setFilter("voided")}>ยกเลิก/คืน</FilterChip>
+                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
+                        <FilterChip active={payFilter === "all"} onClick={() => setPayFilter("all")}>ทุกช่องทาง</FilterChip>
+                        <FilterChip active={payFilter === "cash"} onClick={() => setPayFilter("cash")} color="emerald">เงินสด</FilterChip>
+                        <FilterChip active={payFilter === "transfer"} onClick={() => setPayFilter("transfer")}>โอน/QR</FilterChip>
+                        <FilterChip active={payFilter === "credit"} onClick={() => setPayFilter("credit")}>บัตร</FilterChip>
                     </div>
                 </div>
 
@@ -681,6 +740,39 @@ export default function FinanceClient({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** กราฟแท่งรายรับรายวัน — SVG ล้วน ไม่ต้องพึ่ง chart library */
+function RevenueBars({ data }: { data: { date: string; amount: number }[] }) {
+    const max = Math.max(...data.map(d => d.amount), 1);
+    const H = 88, GAP = 2;
+    const w = 100 / data.length;
+    const fmtDay = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+    // แสดง label ไม่เกิน ~8 จุด กันตัวหนังสือทับกัน
+    const labelEvery = Math.ceil(data.length / 8);
+
+    return (
+        <div>
+            <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="w-full h-24" role="img" aria-label="กราฟรายรับรายวัน">
+                {data.map((d, i) => {
+                    const h = Math.max(1, (d.amount / max) * (H - 4));
+                    return (
+                        <rect key={d.date} x={i * w + GAP / 2} y={H - h} width={Math.max(0.5, w - GAP)} height={h}
+                            rx={0.8} className="fill-blue-500/80">
+                            <title>{`${fmtDay(d.date)} · ฿${d.amount.toLocaleString()}`}</title>
+                        </rect>
+                    );
+                })}
+            </svg>
+            <div className="flex justify-between mt-1 text-[9px] text-slate-400 tabular-nums">
+                {data.map((d, i) => (
+                    <span key={d.date} className="flex-1 text-center truncate">
+                        {i % labelEvery === 0 ? fmtDay(d.date) : ""}
+                    </span>
+                ))}
+            </div>
         </div>
     );
 }

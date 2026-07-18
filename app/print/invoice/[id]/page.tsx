@@ -130,6 +130,7 @@ interface ReceiptCopyProps {
     refunds: any[];
     subtotal: number;
     discount: number;
+    discountLines: any[];
     tax: number;
     total: number;
     balance: number;
@@ -142,7 +143,7 @@ function ReceiptCopy({
     copyLabel, copyLabelEn, isOriginal,
     inv, items, pt, clinic, branch, issuedByName,
     positivePayments, refunds,
-    subtotal, discount, tax, total, balance,
+    subtotal, discount, discountLines, tax, total, balance,
     isVoided, isRefunded,
 }: ReceiptCopyProps) {
     return (
@@ -265,10 +266,24 @@ function ReceiptCopy({
                         <td colSpan={4} className="text-right py-0.5 px-1.5 font-semibold">ยอดรวม</td>
                         <td className="text-right py-0.5 px-1.5 tabular-nums font-semibold">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
-                    {discount > 0 && (
+                    {/* ส่วนลดแยกบรรทัดตามที่มา — คนไข้/บัญชีเห็นว่าแต่ละก้อนมาจากไหน */}
+                    {discountLines.length > 0 ? discountLines.map((d: any) => (
+                        <tr key={d.id}>
+                            <td colSpan={4} className="text-right py-0.5 px-1.5 text-slate-700">
+                                ส่วนลด — {d.label}
+                            </td>
+                            <td className="text-right py-0.5 px-1.5 tabular-nums text-red-600">−{Number(d.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    )) : discount > 0 && (
                         <tr>
                             <td colSpan={4} className="text-right py-0.5 px-1.5 text-slate-700">หักส่วนลด</td>
                             <td className="text-right py-0.5 px-1.5 tabular-nums text-red-600">−{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    )}
+                    {discountLines.length > 0 && (
+                        <tr>
+                            <td colSpan={4} className="text-right py-0.5 px-1.5 font-semibold text-slate-700">รวมส่วนลด</td>
+                            <td className="text-right py-0.5 px-1.5 tabular-nums font-semibold text-red-600">−{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         </tr>
                     )}
                     {tax > 0 && (
@@ -367,6 +382,11 @@ export default async function InvoicePrintPage({
         supabase.from("payment_logs").select("payment_method, amount, transaction_ref, bank_name, created_at").eq("inv_id", id).order("created_at"),
     ]);
 
+    // ส่วนลดแยกตามที่มา (mig 107) — ถ้าไม่มีข้อมูล (บิลเก่า) จะ fallback เป็นบรรทัดรวมเดิม
+    const { data: discRows } = await supabase.from("invoice_discounts")
+        .select("id, discount_type, discount_source, amount, campaigns(code, name)")
+        .eq("inv_id", id).order("created_at");
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const inv = invRes.data as any;
     if (!inv) notFound();
@@ -398,10 +418,22 @@ export default async function InvoicePrintPage({
     const isVoided = inv.status === "voided";
     const isRefunded = inv.status === "refunded";
 
+    const KIND_LABEL: Record<string, string> = {
+        campaign: "โปรโมชัน", manual: "ส่วนลดพิเศษ",
+        package: "ส่วนลดคอส", staff_benefit: "สวัสดิการพนักงาน",
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const discountLines = ((discRows || []) as any[]).map((d) => {
+        const camp = Array.isArray(d.campaigns) ? d.campaigns[0] : d.campaigns;
+        const label = camp ? `${camp.code} (${camp.name})`
+            : d.discount_source || KIND_LABEL[d.discount_type] || "ส่วนลด";
+        return { id: d.id, label, amount: Number(d.amount || 0) };
+    }).filter((d) => d.amount > 0);
+
     const commonProps = {
         inv, items, pt, clinic, branch, issuedByName,
         positivePayments, refunds,
-        subtotal, discount, tax, total, balance,
+        subtotal, discount, discountLines, tax, total, balance,
         isVoided, isRefunded,
     };
 

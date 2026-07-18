@@ -88,3 +88,52 @@ export async function getStaffReconPattern(): Promise<StaffReconRow[]> {
         return [];
     }
 }
+
+export interface VoidPatternRow {
+    name: string; voids: number; refunds: number; total: number; isOutlier: boolean;
+}
+
+/**
+ * ตรวจจับพนักงานที่ยกเลิก/คืนเงินบ่อยผิดปกติ (จาก audit_logs 90 วันล่าสุด)
+ * เกณฑ์ outlier: ทำ ≥3 ครั้ง และมากกว่าค่าเฉลี่ยของทีม 2 เท่าขึ้นไป
+ */
+export async function getVoidRefundPattern(): Promise<VoidPatternRow[]> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+
+        const since = new Date(Date.now() - 90 * 86400000).toISOString();
+        const { data: logs } = await supabase
+            .from("audit_logs")
+            .select("action, performed_by, profiles!audit_logs_performed_by_fkey(full_name)")
+            .eq("clinic_id", profile.clinic_id)
+            .eq("table_name", "invoice_headers")
+            .in("action", ["void", "refund"])
+            .gte("performed_at", since)
+            .limit(1000);
+
+        const map: Record<string, VoidPatternRow> = {};
+        for (const l of logs || []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ll = l as any;
+            const id = ll.performed_by as string;
+            if (!id) continue;
+            const prof = Array.isArray(ll.profiles) ? ll.profiles[0] : ll.profiles;
+            if (!map[id]) map[id] = { name: prof?.full_name || "—", voids: 0, refunds: 0, total: 0, isOutlier: false };
+            if (ll.action === "void") map[id].voids++; else map[id].refunds++;
+            map[id].total++;
+        }
+
+        const rows = Object.values(map);
+        if (rows.length === 0) return [];
+        const avg = rows.reduce((s, r) => s + r.total, 0) / rows.length;
+        return rows
+            .map((r) => ({ ...r, isOutlier: r.total >= 3 && r.total >= avg * 2 }))
+            .sort((a, b) => b.total - a.total);
+    } catch {
+        return [];
+    }
+}

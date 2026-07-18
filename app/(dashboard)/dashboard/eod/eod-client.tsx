@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { closeClinicDay, reopenClinicDay, setOpeningFloat } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
+import type { DiscountDaySummary } from "@/lib/actions/campaigns";
+import { DISCOUNT_KIND_LABEL, type DiscountKind } from "@/lib/campaign-types";
 import { cn } from "@/lib/utils";
 
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
@@ -23,9 +25,13 @@ interface Props {
     summary: EODSummary;
     history: CloseDayHistory[];
     staffPattern: StaffReconRow[];
+    discounts: DiscountDaySummary;
 }
 
-export default function EODClient({ summary, history, staffPattern }: Props) {
+// เกินกว่านี้ถือว่าผิดปกติ → เตือนก่อนปิดยอด
+const DISCOUNT_ALERT_PCT = 20;
+
+export default function EODClient({ summary, history, staffPattern, discounts }: Props) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
@@ -488,6 +494,69 @@ export default function EODClient({ summary, history, staffPattern }: Props) {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+            </div>
+
+            {/* ส่วนลดของวันนี้ (ดูก่อนปิดยอด) */}
+            <div className="gonix-card-premium overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-200/60 flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-slate-600" />
+                    <h2 className="text-base font-bold text-slate-800">ส่วนลดวันนี้</h2>
+                    {discounts.total > 0 && (
+                        <span className={cn(
+                            "text-xs font-bold px-2 py-0.5 rounded",
+                            discounts.pctOfRevenue >= DISCOUNT_ALERT_PCT ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
+                        )}>
+                            {discounts.pctOfRevenue}% ของรายรับ
+                        </span>
+                    )}
+                </div>
+
+                {discounts.total === 0 ? (
+                    <div className="px-5 py-6 text-center text-sm text-slate-500">วันนี้ยังไม่มีการให้ส่วนลด</div>
+                ) : (
+                    <div className="p-5 space-y-3">
+                        {discounts.pctOfRevenue >= DISCOUNT_ALERT_PCT && (
+                            <div className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-800">
+                                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                <span>
+                                    <b>ส่วนลดสูงผิดปกติ</b> — วันนี้ให้ส่วนลดรวม {money(discounts.total)} คิดเป็น {discounts.pctOfRevenue}%
+                                    ของรายรับ (เกณฑ์เตือน {DISCOUNT_ALERT_PCT}%) ตรวจสอบก่อนปิดยอด
+                                </span>
+                            </div>
+                        )}
+
+                        <div className="flex items-baseline justify-between border-b border-slate-100 pb-2">
+                            <span className="text-sm font-bold text-slate-700">ส่วนลดรวม</span>
+                            <span className="text-2xl font-black text-red-600 tabular-nums">{money(discounts.total)}</span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            {discounts.byType.map(t => (
+                                <div key={t.type} className="flex items-center justify-between text-sm">
+                                    <span className="text-slate-600">
+                                        {DISCOUNT_KIND_LABEL[t.type as DiscountKind] || t.type}
+                                        <span className="text-xs text-slate-400 ml-1.5">({t.count} รายการ)</span>
+                                    </span>
+                                    <span className="font-semibold tabular-nums text-slate-800">{money(t.amount)}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {discounts.topStaff.length > 0 && (
+                            <div className="pt-2 border-t border-slate-100">
+                                <div className="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-1.5">ให้ส่วนลดโดย</div>
+                                <div className="space-y-1">
+                                    {discounts.topStaff.map((s, i) => (
+                                        <div key={i} className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-600">{s.name} <span className="text-slate-400">({s.count})</span></span>
+                                            <span className="font-semibold tabular-nums text-slate-700">{money(s.amount)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
