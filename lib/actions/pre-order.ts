@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { revalidatePath } from "next/cache";
+import { bangkokDate } from "@/lib/utils/date";
+import { deductFEFO } from "@/lib/inventory-fefo";
+import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
+import { generateFollowUpTasks } from "./follow-up";
+import { notifyPatient, PRE_ORDER_MSG } from "@/lib/pre-order-line";
 
 // ── ctx + permission ──
 async function ctx() {
@@ -175,6 +180,8 @@ export async function recordDeposit(
     await auditLog(supabase, clinicId, id, userId, role, "pending_deposit", "pending_doctor",
         { metadata: { deposit: input.amount, receipt_no: receiptNo, expires_at: expiresAt } });
 
+    await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.depositReceived(input.amount, expiresAt, receiptNo));
+
     revalidatePath("/dashboard/pre-orders");
     return { ok: true, deposit_expires_at: expiresAt, receipt_no: receiptNo };
 }
@@ -190,6 +197,10 @@ export async function schedulePreOrder(id: string, appointmentId: string): Promi
         .update({ status: "scheduled", appointment_id: appointmentId }).eq("id", id);
     if (error) return { ok: false, error: error.message };
     await auditLog(supabase, clinicId, id, userId, role, "pending_doctor", "scheduled", { metadata: { appointment_id: appointmentId } });
+
+    const { data: appt } = await supabase.from("appointments").select("appt_date").eq("id", appointmentId).maybeSingle();
+    await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.scheduled(appt?.appt_date || null));
+
     revalidatePath("/dashboard/pre-orders");
     return { ok: true };
 }
@@ -274,6 +285,252 @@ export async function submitDecisions(
     return { ok: true, status: newStatus, approved, rejected };
 }
 
+// ════════════════ T10: เปิดรักษา (decided → in_treatment) ════════════════
+/**
+ * สร้าง visit จริงจากรายการที่แพทย์อนุมัติ แล้วผูก vn กลับเข้าพรีออเดอร์
+ * หมายเหตุ: **ไม่ตัดสต๊อกที่ขั้นนี้** — Gonix ตัดสต๊อก service-kit ตอนคิดเงิน (T11)
+ * ถ้าตัดทั้งสองที่จะกลายเป็นตัดซ้ำ
+ * visit ถูกตั้ง status='with_nurse' → ไม่โผล่ในคิวห้องยา (waiting_medicine/waiting_payment)
+ * กันไม่ให้มีการ checkout ซ้ำอีกทางหนึ่ง
+ */
+export async function startTreatment(id: string): Promise<Ok<{ vn: string }> | Fail> {
+    const { supabase, clinicId, userId, role, perms } = await ctx();
+    if (!perms["pre_order.manage"]) return { ok: false, error: "ไม่มีสิทธิ์เปิดการรักษา" };
+    const po = await loadPO(supabase, clinicId, id);
+    if (!po) return { ok: false, error: "ไม่พบพรีออเดอร์" };
+    if (po.status !== "decided") return { ok: false, error: "สถานะไม่ถูกต้อง (ต้องเป็น decided)" };
+    if (po.vn) return { ok: false, error: `เปิดการรักษาไปแล้ว (VN ${po.vn})` };
+
+    const { data: items } = await supabase.from("pre_order_items")
+        .select("id, service_id, qty, status, decided_by").eq("pre_order_id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const approved = (items || []).filter((i: any) => i.status === "approved");
+    if (approved.length === 0) return { ok: false, error: "ไม่มีรายการที่แพทย์อนุมัติ" };
+
+    // service_category ของ visit — ดูจาก segment ของบริการที่อนุมัติ
+    const { data: svcs } = await supabase.from("service_catalog")
+        .select("id, segment").in("id", approved.map((i: { service_id: string }) => i.service_id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isAesthetic = (svcs || []).some((s: any) => s.segment === "aesthetic");
+
+    const { data: vn, error: vnErr } = await supabase.rpc("fn_next_number", { p_clinic_id: clinicId, p_type: "VN" });
+    if (vnErr || !vn) return { ok: false, error: `ออกเลข VN ไม่สำเร็จ: ${vnErr?.message || ""}` };
+
+    // attribution: channel/affiliate ของพรีออเดอร์ → case_source ของ visit (commission ตามมาถูกตัว)
+    const caseSource = po.affiliate_id ? "affiliate"
+        : po.referral_code ? "referral"
+            : po.channel === "line_oa" ? "line" : "walk_in";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doctorStaffId = (approved.find((i: any) => i.decided_by)?.decided_by as string) || null;
+    const nurseId = await staffIdOf(supabase, userId);
+
+    const { error: vErr } = await supabase.from("visits").insert({
+        vn, clinic_id: clinicId, hn: po.hn, visit_date: bangkokDate(),
+        visit_type: "opd",
+        service_category: isAesthetic ? "aesthetic" : "general_med",
+        status: "with_nurse",
+        chief_complaint: po.note || "พรีออเดอร์ (จองล่วงหน้า)",
+        doctor_id: doctorStaffId, nurse_id: nurseId,
+        case_source: caseSource,
+        case_affiliate_id: po.affiliate_id || null,
+        case_referral_code: po.referral_code || null,
+    });
+    if (vErr) return { ok: false, error: `สร้าง visit ไม่สำเร็จ: ${vErr.message}` };
+
+    const { error } = await supabase.from("pre_orders").update({ status: "in_treatment", vn }).eq("id", id);
+    if (error) return { ok: false, error: error.message };
+
+    // คิว + log (non-blocking)
+    try {
+        const { data: queueNum } = await supabase.rpc("fn_next_number", { p_clinic_id: clinicId, p_type: "QUEUE", p_prefix: "A" });
+        await supabase.from("queue_entries").insert({
+            clinic_id: clinicId, hn: po.hn, vn, queue_number: queueNum || "A01",
+            queue_type: "appointment", status: "with_nurse",
+        });
+    } catch { /* ignore */ }
+    try {
+        await supabase.from("visit_status_logs").insert({
+            vn, old_status: null, new_status: "with_nurse", changed_by: userId,
+            note: "เปิดการรักษาจากพรีออเดอร์",
+        });
+    } catch { /* ignore */ }
+
+    await auditLog(supabase, clinicId, id, userId, role, "decided", "in_treatment",
+        { metadata: { vn, approved_items: approved.length } });
+
+    revalidatePath("/dashboard/pre-orders");
+    revalidatePath("/dashboard/visits");
+    return { ok: true, vn: vn as string };
+}
+
+// ════════════════ T11: ปิดบิล (in_treatment → completed) ════════════════
+export interface CompleteTreatmentInput {
+    payment_method: "cash" | "transfer" | "credit_card" | "qr_promptpay";
+    extra_paid?: number;       // ยอดที่เก็บเพิ่มหน้าเคาน์เตอร์ (นอกเหนือจากมัดจำ)
+    discount?: number;
+    payment_ref?: string;
+    excess_resolution?: "convert_to_credit" | "refund_request";  // P4: มัดจำ > ยอดบิล
+}
+/**
+ * ออกใบเสร็จจาก "ราคา snapshot" ของรายการที่อนุมัติ (P5) → หักมัดจำ → ตัดสต๊อก service-kit
+ * mirror ของ completeCheckout (pharmacy) แต่ล็อกราคาจากพรีออเดอร์ ไม่ให้เคาน์เตอร์แก้
+ * commission ไม่ต้องเขียนเอง — v_commission_summary derive จาก invoice_items + visits.doctor_id
+ */
+export async function completeTreatment(
+    id: string, input: CompleteTreatmentInput
+): Promise<Ok<{ inv_id: string; total: number; applied: number; excess: number }> | Fail> {
+    const { supabase, clinicId, userId, role, perms } = await ctx();
+    if (!perms["pre_order.manage"]) return { ok: false, error: "ไม่มีสิทธิ์ปิดบิล" };
+    const po = await loadPO(supabase, clinicId, id);
+    if (!po) return { ok: false, error: "ไม่พบพรีออเดอร์" };
+    if (po.status !== "in_treatment") return { ok: false, error: "สถานะไม่ถูกต้อง (ต้องเป็น in_treatment)" };
+    if (!po.vn) return { ok: false, error: "พรีออเดอร์นี้ยังไม่มี VN — เปิดการรักษาก่อน" };
+
+    const invoiceDate = bangkokDate();
+    if (await isDayClosed(supabase, clinicId, invoiceDate)) return { ok: false, error: DAY_LOCKED_MSG };
+
+    // ── รายการที่อนุมัติ + ราคา snapshot (P5) ──
+    const { data: items } = await supabase.from("pre_order_items")
+        .select("id, service_id, qty, unit_price_snapshot, status").eq("pre_order_id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const approved = (items || []).filter((i: any) => i.status === "approved");
+    if (approved.length === 0) return { ok: false, error: "ไม่มีรายการที่อนุมัติ" };
+
+    const { data: svcs } = await supabase.from("service_catalog")
+        .select("id, service_name, segment, inventory_item_id, consume_qty")
+        .eq("clinic_id", clinicId).in("id", approved.map((i: { service_id: string }) => i.service_id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svcMap = new Map((svcs || []).map((s: any) => [s.id as string, s]));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subtotal = approved.reduce((s: number, i: any) => s + Number(i.unit_price_snapshot) * Number(i.qty), 0);
+    const discount = Math.max(0, Number(input.discount || 0));
+    const total = Math.max(0, subtotal - discount);
+
+    // ── มัดจำคงเหลือของพรีออเดอร์นี้ ──
+    const { data: ledger } = await supabase.from("deposit_ledger")
+        .select("entry_type, amount, payment_method").eq("pre_order_id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const depositAvailable = (ledger || []).reduce((s: number, l: any) => {
+        const amt = Number(l.amount || 0);
+        if (l.entry_type === "deposit_received") return s + amt;
+        if (["applied_to_invoice", "refunded", "forfeited"].includes(l.entry_type)) return s - Math.abs(amt);
+        return s;   // converted_to_credit = ยังเป็นเครดิตอยู่ ไม่หัก
+    }, 0);
+    const applied = Math.min(Math.max(0, depositAvailable), total);
+    const excess = Math.max(0, depositAvailable - total);
+    const extraPaid = Math.max(0, Number(input.extra_paid || 0));
+    const paid = applied + extraPaid;
+
+    // ── 1. invoice header ──
+    const invId = `INV-${Date.now().toString().slice(-6)}-${po.vn.slice(-4)}`;
+    const invoiceStatus = paid >= total ? "paid" : paid > 0 ? "partial" : "issued";
+    const { error: invErr } = await supabase.from("invoice_headers").insert({
+        id: invId, clinic_id: clinicId, vn: po.vn, hn: po.hn, invoice_date: invoiceDate,
+        subtotal, discount_amount: discount, total_amount: total,
+        paid_amount: paid, status: invoiceStatus,
+    });
+    if (invErr) return { ok: false, error: `สร้างใบเสร็จไม่สำเร็จ: ${invErr.message}` };
+
+    // ── 2. invoice items (ราคาจาก snapshot) ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = approved.map((i: any) => {
+        const svc = svcMap.get(i.service_id);
+        const unit = Number(i.unit_price_snapshot);
+        return {
+            inv_id: invId, clinic_id: clinicId, item_type: "service", item_ref_id: i.service_id,
+            item_name: svc?.service_name || "บริการ", qty: Number(i.qty),
+            unit_price: unit, line_total: unit * Number(i.qty), segment: svc?.segment || null,
+        };
+    });
+    const { error: itErr } = await supabase.from("invoice_items").insert(rows);
+    if (itErr) console.warn("[pre-order complete] invoice items:", itErr.message);
+
+    // ── 3. payment logs — มัดจำ + ยอดชำระเพิ่ม ──
+    const METHOD_MAP: Record<string, string> = { card: "credit_card", promptpay: "qr_promptpay", cash: "cash", transfer: "transfer" };
+    if (applied > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const depMethod = (ledger || []).find((l: any) => l.entry_type === "deposit_received")?.payment_method || "transfer";
+        await supabase.from("payment_logs").insert({
+            inv_id: invId, clinic_id: clinicId,
+            payment_method: METHOD_MAP[depMethod] || "transfer", amount: applied,
+            transaction_ref: `DEPOSIT:${id.slice(0, 8)}`,
+            note: "หักจากมัดจำพรีออเดอร์ (เงินรับล่วงหน้า)",
+        });
+    }
+    if (extraPaid > 0) {
+        await supabase.from("payment_logs").insert({
+            inv_id: invId, clinic_id: clinicId, payment_method: input.payment_method,
+            amount: extraPaid, transaction_ref: input.payment_ref?.trim() || null,
+            note: paid < total ? `ค้างชำระ ฿${(total - paid).toLocaleString()}` : null,
+        });
+    }
+
+    // ── 4. deposit ledger: ตัดมัดจำเข้าใบเสร็จ + P4 ส่วนเกิน ──
+    if (applied > 0) {
+        await supabase.from("deposit_ledger").insert({
+            clinic_id: clinicId, hn: po.hn, pre_order_id: id, entry_type: "applied_to_invoice",
+            amount: applied, receipt_no: invId, reason: `ตัดเข้าใบเสร็จ ${invId}`, created_by: userId,
+        });
+    }
+    if (excess > 0) {
+        const entryType = input.excess_resolution === "refund_request" ? "refund_pending" : "converted_to_credit";
+        await supabase.from("deposit_ledger").insert({
+            clinic_id: clinicId, hn: po.hn, pre_order_id: id, entry_type: entryType,
+            amount: excess, reason: `มัดจำส่วนเกินจากใบเสร็จ ${invId}`, created_by: userId,
+        });
+    }
+
+    // ── 5. items → fulfilled ──
+    await supabase.from("pre_order_items").update({ status: "fulfilled" })
+        .eq("pre_order_id", id).eq("status", "approved");
+
+    // ── 6. ตัดสต๊อก service-kit (mirror pharmacy checkout ข้อ 8) — best-effort ──
+    try {
+        const staffId = await staffIdOf(supabase, userId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const it of approved as any[]) {
+            const svc = svcMap.get(it.service_id);
+            if (!svc?.inventory_item_id) continue;
+            const deduct = (Number(svc.consume_qty) || 1) * Math.max(1, Number(it.qty || 1));
+            const { data: invItem } = await supabase.from("inventory")
+                .select("stock_qty").eq("id", svc.inventory_item_id).eq("clinic_id", clinicId).maybeSingle();
+            if (!invItem) continue;
+            const bal = Number(invItem.stock_qty || 0) - deduct;
+            await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", svc.inventory_item_id);
+            await deductFEFO(supabase, clinicId, svc.inventory_item_id, deduct);
+            await supabase.from("stock_card").insert({
+                item_id: svc.inventory_item_id, clinic_id: clinicId, tx_type: "INTERNAL_USE",
+                qty_delta: -deduct, balance_after: bal, note: `ใช้กับบริการพรีออเดอร์ (${invId})`, recorded_by: staffId,
+            });
+        }
+        revalidatePath("/dashboard/inventory");
+    } catch (e) {
+        console.warn("[pre-order complete] stock deduct failed:", e);
+    }
+
+    // ── 7. ปิด visit + คิว ──
+    await supabase.from("visits").update({ status: "completed", completed_at: new Date().toISOString() }).eq("vn", po.vn);
+    await supabase.from("queue_entries").update({ status: "done", done_at: new Date().toISOString() }).eq("vn", po.vn);
+
+    // ── 8. ปิดพรีออเดอร์ ──
+    const { error: poErr } = await supabase.from("pre_orders").update({ status: "completed" }).eq("id", id);
+    if (poErr) return { ok: false, error: poErr.message };
+
+    await auditLog(supabase, clinicId, id, userId, role, "in_treatment", "completed",
+        { metadata: { inv_id: invId, subtotal, discount, total, deposit_applied: applied, extra_paid: extraPaid, excess, excess_resolution: input.excess_resolution } });
+
+    if (invoiceStatus === "paid") {
+        try { await generateFollowUpTasks(invId); } catch { /* ignore */ }
+    }
+    await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.completed(total, applied, extraPaid, invId));
+
+    revalidatePath("/dashboard/pre-orders");
+    revalidatePath("/dashboard/finance");
+    revalidatePath("/dashboard/pharmacy");
+    return { ok: true, inv_id: invId, total, applied, excess };
+}
+
 // ════════════════ T5: ยกเลิก (+ deposit resolution P4) ════════════════
 export async function cancelPreOrder(
     id: string, input: { reason: string; deposit_resolution?: "refund_request" | "convert_to_credit" | null }
@@ -303,6 +560,9 @@ export async function cancelPreOrder(
     if (error) return { ok: false, error: error.message };
     await auditLog(supabase, clinicId, id, userId, role, po.status, "cancelled",
         { reason: input.reason, metadata: { deposit_resolution: input.deposit_resolution, deposit: depositTotal } });
+
+    await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.cancelled(input.deposit_resolution));
+
     revalidatePath("/dashboard/pre-orders");
     return { ok: true };
 }
@@ -388,6 +648,17 @@ export async function getDoctorQueue() {
         .select("id, hn, status, channel, created_at")
         .eq("clinic_id", clinicId).in("status", ["checked_in", "in_consult"])
         .order("created_at", { ascending: true });
+    return data || [];
+}
+
+/** คำขอคืนเงินที่รออนุมัติ (จากยกเลิก หรือมัดจำส่วนเกิน) */
+export async function getPendingRefunds() {
+    const { supabase, clinicId, perms } = await ctx();
+    if (!perms["pre_order.view"]) return [];
+    const { data } = await supabase.from("deposit_ledger")
+        .select("id, hn, amount, reason, created_at, pre_order_id")
+        .eq("clinic_id", clinicId).eq("entry_type", "refund_pending")
+        .order("created_at", { ascending: false });
     return data || [];
 }
 

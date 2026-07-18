@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, X, Loader2, Search, Clock, CheckCircle2, XCircle, Stethoscope } from "lucide-react";
+import { Plus, X, Loader2, Search, Clock, CheckCircle2, XCircle, Stethoscope, Settings, PlayCircle, Receipt } from "lucide-react";
 import {
     createPreOrder, confirmPreOrder, recordDeposit, checkInPreOrder,
     openConsult, submitDecisions, cancelPreOrder, extendExpiry, getPreOrder,
+    startTreatment, completeTreatment, resolveRefund, updatePreOrderSettings,
+    type PreOrderSettings, type CompleteTreatmentInput,
 } from "@/lib/actions/pre-order";
 import { getPatients } from "@/lib/actions/patients";
 
@@ -35,14 +37,17 @@ const STATUS: Record<string, { l: string; c: string }> = {
 };
 const badge = (s: string) => STATUS[s] || { l: s, c: "bg-slate-100 text-slate-600" };
 
-export default function PreOrdersClient({ initial, minDeposit, services, canManage, canDecide, canExtend }: {
-    initial: PO[]; minDeposit: number; services: Svc[]; canManage: boolean; canDecide: boolean; canExtend: boolean;
+export default function PreOrdersClient({ initial, settings, refunds, services, canManage, canDecide, canExtend, canSettings, canRefund }: {
+    initial: PO[]; settings: PreOrderSettings; refunds: PO[]; services: Svc[];
+    canManage: boolean; canDecide: boolean; canExtend: boolean; canSettings: boolean; canRefund: boolean;
 }) {
     const router = useRouter();
     const [showCreate, setShowCreate] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [detailId, setDetailId] = useState<string | null>(null);
     const [detail, setDetail] = useState<PO | null>(null);
     const [err, setErr] = useState("");
+    const minDeposit = settings.min_deposit_amount;
 
     async function openDetail(id: string) {
         setDetailId(id); setDetail(null); setErr("");
@@ -58,13 +63,49 @@ export default function PreOrdersClient({ initial, minDeposit, services, canMana
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
             <div className="flex items-center justify-between pt-1">
                 <p className="text-sm font-medium text-slate-500"><span className="font-bold text-blue-700">พรีออเดอร์</span> · จองล่วงหน้า + Doctor Gate</p>
-                {canManage && (
-                    <Button onClick={() => { setShowCreate(true); setErr(""); }} className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white">
-                        <Plus className="h-4 w-4" /> สร้างพรีออเดอร์
-                    </Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {canSettings && (
+                        <Button variant="outline" onClick={() => { setShowSettings(true); setErr(""); }} className="rounded-xl gap-1.5 h-9">
+                            <Settings className="h-4 w-4" /> ตั้งค่า
+                        </Button>
+                    )}
+                    {canManage && (
+                        <Button onClick={() => { setShowCreate(true); setErr(""); }} className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white">
+                            <Plus className="h-4 w-4" /> สร้างพรีออเดอร์
+                        </Button>
+                    )}
+                </div>
             </div>
             {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{err}</div>}
+
+            {/* คำขอคืนมัดจำที่รออนุมัติ */}
+            {refunds.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <div className="text-xs font-black text-amber-800 uppercase tracking-wide">คำขอคืนมัดจำ ({refunds.length})</div>
+                    {refunds.map((r: PO) => (
+                        <div key={r.id} className="flex items-center justify-between gap-2 text-sm bg-white rounded-lg px-3 py-2">
+                            <div className="min-w-0">
+                                <span className="font-mono text-blue-700">{r.hn}</span>
+                                <span className="font-bold tabular-nums ml-2">฿{Number(r.amount).toLocaleString()}</span>
+                                <div className="text-[11px] text-slate-500 truncate">{r.reason || "—"}</div>
+                            </div>
+                            {canRefund ? (
+                                <div className="flex gap-1 shrink-0">
+                                    <button onClick={async () => {
+                                        const res = await resolveRefund(r.id, true);
+                                        if (!res.ok) setErr(res.error); else router.refresh();
+                                    }} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold">อนุมัติคืน</button>
+                                    <button onClick={async () => {
+                                        if (!confirm("ปฏิเสธคำขอคืนเงินนี้? (ยอดจะกลับไปเป็นเครดิต)")) return;
+                                        const res = await resolveRefund(r.id, false);
+                                        if (!res.ok) setErr(res.error); else router.refresh();
+                                    }} className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 text-xs font-bold">ปฏิเสธ</button>
+                                </div>
+                            ) : <span className="text-[11px] text-amber-700 shrink-0">รอผู้มีสิทธิ์อนุมัติ</span>}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="gonix-card-premium overflow-hidden">
                 {initial.length === 0 ? (
@@ -92,6 +133,7 @@ export default function PreOrdersClient({ initial, minDeposit, services, canMana
             </div>
 
             {showCreate && <CreateModal services={services} onClose={() => setShowCreate(false)} onDone={() => { setShowCreate(false); refresh(); }} onError={setErr} />}
+            {showSettings && <SettingsModal settings={settings} onClose={() => setShowSettings(false)} onDone={() => { setShowSettings(false); router.refresh(); }} onError={setErr} />}
             {detailId && <DetailDrawer po={detail} services={services} minDeposit={minDeposit} canDecide={canDecide} canExtend={canExtend} canManage={canManage}
                 onClose={() => { setDetailId(null); setDetail(null); }} onAction={refresh} onError={setErr} />}
         </div>
@@ -205,6 +247,155 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     );
 }
 
+// ══════════ ปิดบิล (T11) ══════════
+function CompleteBox({ po, onError, onDone }: { po: PO; onError: (m: string) => void; onDone: () => void }) {
+    const [pending, start] = useTransition();
+    const [discount, setDiscount] = useState("");
+    const [method, setMethod] = useState<CompleteTreatmentInput["payment_method"]>("cash");
+    const [ref, setRef] = useState("");
+    const [excessRes, setExcessRes] = useState<"convert_to_credit" | "refund_request">("convert_to_credit");
+
+    const approved = (po.items || []).filter((i: PO) => i.status === "approved");
+    const subtotal = approved.reduce((s: number, i: PO) => s + Number(i.unit_price_snapshot) * Number(i.qty), 0);
+    const disc = Math.max(0, parseFloat(discount) || 0);
+    const total = Math.max(0, subtotal - disc);
+
+    // มัดจำคงเหลือของพรีออเดอร์นี้ (สูตรเดียวกับฝั่ง server)
+    const deposit = (po.ledger || []).reduce((s: number, l: PO) => {
+        const amt = Number(l.amount || 0);
+        if (l.entry_type === "deposit_received") return s + amt;
+        if (["applied_to_invoice", "refunded", "forfeited"].includes(l.entry_type)) return s - Math.abs(amt);
+        return s;
+    }, 0);
+    const applied = Math.min(Math.max(0, deposit), total);
+    const excess = Math.max(0, deposit - total);
+    const due = Math.max(0, total - applied);
+
+    return (
+        <div className="space-y-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3">
+            <div className="text-xs font-black text-teal-800 uppercase tracking-wide">ปิดบิล / ออกใบเสร็จ</div>
+
+            <div className="space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-slate-500">ยอดรวม (ราคาล็อกจากวันจอง)</span><span className="tabular-nums font-semibold">฿{subtotal.toLocaleString()}</span></div>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500">ส่วนลด</span>
+                    <input type="number" min={0} value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0"
+                        className="w-28 rounded-lg border border-slate-200 px-2 py-1 text-sm text-right tabular-nums" />
+                </div>
+                <div className="flex justify-between border-t border-teal-200 pt-1"><span className="font-bold">ยอดสุทธิ</span><span className="tabular-nums font-bold">฿{total.toLocaleString()}</span></div>
+                <div className="flex justify-between text-emerald-700"><span>หักมัดจำ</span><span className="tabular-nums">−฿{applied.toLocaleString()}</span></div>
+                <div className="flex justify-between border-t border-teal-200 pt-1"><span className="font-bold text-rose-700">ต้องเก็บเพิ่ม</span><span className="tabular-nums font-black text-rose-700">฿{due.toLocaleString()}</span></div>
+            </div>
+
+            {due > 0 && (
+                <div className="flex gap-2">
+                    <select value={method} onChange={e => setMethod(e.target.value as CompleteTreatmentInput["payment_method"])} className="flex-1 h-9 rounded-lg border border-slate-200 px-2 text-sm">
+                        <option value="cash">เงินสด</option><option value="transfer">โอน</option>
+                        <option value="credit_card">บัตรเครดิต</option><option value="qr_promptpay">พร้อมเพย์</option>
+                    </select>
+                    <input value={ref} onChange={e => setRef(e.target.value)} placeholder="เลขท้ายสลิป" className="w-28 rounded-lg border border-slate-200 px-2 text-sm" />
+                </div>
+            )}
+
+            {excess > 0 && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 space-y-1">
+                    <div className="text-[11px] font-bold text-amber-800">มัดจำเกินยอดบิล ฿{excess.toLocaleString()} — จะจัดการอย่างไร?</div>
+                    <select value={excessRes} onChange={e => setExcessRes(e.target.value as "convert_to_credit" | "refund_request")} className="w-full h-8 rounded-lg border border-amber-200 px-2 text-sm bg-white">
+                        <option value="convert_to_credit">เก็บเป็นเครดิตของลูกค้า</option>
+                        <option value="refund_request">ขอคืนเงิน (รออนุมัติ)</option>
+                    </select>
+                </div>
+            )}
+
+            <Button disabled={pending} onClick={() => start(async () => {
+                const r = await completeTreatment(po.id, {
+                    payment_method: method, extra_paid: due, discount: disc,
+                    payment_ref: ref || undefined,
+                    excess_resolution: excess > 0 ? excessRes : undefined,
+                });
+                if (!r.ok) { onError(r.error); return; }
+                onDone();
+            })} className="w-full rounded-lg bg-teal-600 text-white h-9 gap-1.5">
+                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Receipt className="h-4 w-4" /> รับเงิน + ออกใบเสร็จ</>}
+            </Button>
+            <p className="text-[10px] text-slate-500">ระบบจะออกใบเสร็จ ตัดสต๊อกที่ผูกกับบริการ ปิด Visit และปิดพรีออเดอร์ให้อัตโนมัติ</p>
+        </div>
+    );
+}
+
+// ══════════ ตั้งค่า (P1/P2/P3) ══════════
+function SettingsModal({ settings, onClose, onDone, onError }: {
+    settings: PreOrderSettings; onClose: () => void; onDone: () => void; onError: (m: string) => void;
+}) {
+    const [s, setS] = useState(settings);
+    const [warnDays, setWarnDays] = useState((settings.expiry_warning_days || []).join(","));
+    const [pending, start] = useTransition();
+
+    const num = (v: string, fb: number) => (v === "" ? 0 : parseInt(v)) || fb;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-900">ตั้งค่าพรีออเดอร์</h3>
+                    <button onClick={onClose}><X className="h-5 w-5 text-slate-500" /></button>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                    <div>
+                        <label className="text-xs font-bold text-slate-700">อายุมัดจำ (วัน)</label>
+                        <input type="number" min={1} value={s.deposit_validity_days} onChange={e => setS({ ...s, deposit_validity_days: num(e.target.value, 90) })}
+                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700">มัดจำขั้นต่ำ (บาท)</label>
+                        <input type="number" min={0} value={s.min_deposit_amount} onChange={e => setS({ ...s, min_deposit_amount: parseFloat(e.target.value) || 0 })}
+                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700">เมื่อมัดจำหมดอายุ</label>
+                        <select value={s.expiry_action} onChange={e => setS({ ...s, expiry_action: e.target.value })}
+                            className="mt-1 w-full h-10 rounded-lg border border-slate-200 px-3">
+                            <option value="convert_to_credit">แปลงเป็นเครดิตลูกค้า (แนะนำ)</option>
+                            <option value="forfeit">ริบมัดจำ</option>
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-xs font-bold text-slate-700">ขยายอายุได้ (ครั้ง)</label>
+                            <input type="number" min={0} value={s.max_expiry_extensions} onChange={e => setS({ ...s, max_expiry_extensions: num(e.target.value, 1) })}
+                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-700">ขยายครั้งละ (วัน)</label>
+                            <input type="number" min={1} value={s.extension_days} onChange={e => setS({ ...s, extension_days: num(e.target.value, 30) })}
+                                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-700">เตือนล่วงหน้าก่อนหมดอายุ (วัน, คั่นด้วย ,)</label>
+                        <input value={warnDays} onChange={e => setWarnDays(e.target.value)} placeholder="7,1"
+                            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" />
+                        <p className="text-[10px] text-slate-400 mt-0.5">ส่งผ่าน LINE ให้ลูกค้าที่ผูกบัญชีไว้</p>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t">
+                    <Button variant="outline" onClick={onClose} disabled={pending} className="rounded-xl">ยกเลิก</Button>
+                    <Button disabled={pending} onClick={() => start(async () => {
+                        const days = warnDays.split(",").map(x => parseInt(x.trim())).filter(n => !isNaN(n) && n > 0);
+                        const r = await updatePreOrderSettings({ ...s, expiry_warning_days: days });
+                        if (!r.ok) { onError(r.error); return; }
+                        onDone();
+                    })} className="rounded-xl bg-cyan-600 text-white">
+                        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ══════════ Detail ══════════
 function DetailDrawer({ po, services, minDeposit, canDecide, canExtend, canManage, onClose, onAction, onError }: {
     po: PO | null; services: Svc[]; minDeposit: number; canDecide: boolean; canExtend: boolean; canManage: boolean;
@@ -299,10 +490,22 @@ function DetailDrawer({ po, services, minDeposit, canDecide, canExtend, canManag
                                 }} className="w-full rounded-lg bg-violet-600 text-white h-9">บันทึกการตัดสิน</Button>
                             </div>
                         )}
-                        {po.status === "decided" && (
-                            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
-                                หมอตัดสินแล้ว — ขั้นเปิดรักษา/ปิดบิล (start-treatment / complete) จะเชื่อมกับ flow visit/ใบเสร็จเดิมในเฟสถัดไป
+                        {po.status === "decided" && canManage && (
+                            <div className="space-y-2">
+                                <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+                                    แพทย์ตัดสินแล้ว — กดเปิดการรักษาเพื่อสร้าง Visit (VN) จากรายการที่อนุมัติ
+                                </div>
+                                <Button disabled={pending} onClick={() => run(async () => {
+                                    const r = await startTreatment(po.id);
+                                    return r.ok ? { ok: true } : r;
+                                })} className="w-full rounded-xl bg-teal-600 text-white gap-1.5"><PlayCircle className="h-4 w-4" /> เปิดการรักษา (สร้าง Visit)</Button>
                             </div>
+                        )}
+                        {po.status === "in_treatment" && canManage && (
+                            <CompleteBox po={po} onError={onError} onDone={onAction} />
+                        )}
+                        {po.vn && (
+                            <div className="text-xs text-slate-500">VN: <span className="font-mono text-slate-700">{po.vn}</span></div>
                         )}
 
                         {/* cancel (ก่อนพบแพทย์) */}

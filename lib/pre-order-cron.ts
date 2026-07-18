@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { notifyPatient, PRE_ORDER_MSG } from "@/lib/pre-order-line";
 
 // actor สำหรับ event ที่ระบบทำเอง (cron) — nil uuid + actor_role='system'
 const SYSTEM_ACTOR = "00000000-0000-0000-0000-000000000000";
@@ -52,7 +53,54 @@ export async function runPreOrderExpiry() {
             metadata: { deposit: depositTotal, action: entryType },
         });
         count++;
-        // TODO(LINE): แจ้งคนไข้ว่ามัดจำถูกแปลงเป็นเครดิต (เมื่อ wire LINE OA sends)
+        if (depositTotal > 0) {
+            await notifyPatient(supabase, po.hn, entryType === "forfeited"
+                ? PRE_ORDER_MSG.expiredForfeited(depositTotal)
+                : PRE_ORDER_MSG.expiredToCredit(depositTotal));
+        }
     }
     return { expired: count };
+}
+
+/**
+ * T14: แจ้งเตือนล่วงหน้าก่อนมัดจำหมดอายุ (expiry_warning_days เช่น {7,1})
+ * รันวันละครั้งคู่กับ runPreOrderExpiry — ยิงเฉพาะวันที่ตรงพอดี (กันสแปมซ้ำทุกวัน)
+ */
+export async function runPreOrderExpiryWarnings() {
+    const supabase = createServiceClient();
+
+    const { data: settingsRows } = await supabase.from("pre_order_settings")
+        .select("clinic_id, expiry_warning_days");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const warnByClinic = new Map((settingsRows || []).map((s: any) => [s.clinic_id, (s.expiry_warning_days as number[]) || [7, 1]]));
+
+    const { data: active } = await supabase.from("pre_orders")
+        .select("id, clinic_id, hn, deposit_expires_at")
+        .in("status", ["pending_doctor", "scheduled"])
+        .not("deposit_expires_at", "is", null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (active || []) as any[];
+
+    let sent = 0;
+    for (const po of rows) {
+        const days = warnByClinic.get(po.clinic_id) || [7, 1];
+        // เหลืออีกกี่วัน (ปัดขึ้น) — ยิงเมื่อตรงกับค่าที่ตั้งไว้เท่านั้น
+        const daysLeft = Math.ceil((new Date(po.deposit_expires_at).getTime() - Date.now()) / 86400000);
+        if (!days.includes(daysLeft)) continue;
+
+        const { data: deps } = await supabase.from("deposit_ledger")
+            .select("amount, entry_type").eq("pre_order_id", po.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const balance = (deps || []).reduce((s: number, d: any) => {
+            const amt = Number(d.amount || 0);
+            if (d.entry_type === "deposit_received") return s + amt;
+            if (["applied_to_invoice", "refunded", "forfeited"].includes(d.entry_type)) return s - Math.abs(amt);
+            return s;
+        }, 0);
+        if (balance <= 0) continue;
+
+        await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.expiryWarning(daysLeft, po.deposit_expires_at, balance));
+        sent++;
+    }
+    return { warned: sent };
 }

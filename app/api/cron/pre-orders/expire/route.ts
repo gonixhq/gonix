@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runPreOrderExpiry } from "@/lib/pre-order-cron";
+import { runPreOrderExpiry, runPreOrderExpiryWarnings } from "@/lib/pre-order-cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +17,10 @@ function authorized(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
     if (!authorized(req)) return new NextResponse("unauthorized", { status: 401 });
     try {
+        // เตือนล่วงหน้าก่อน แล้วค่อยตัดอันที่หมดอายุ (ลำดับนี้กันการเตือนอันที่เพิ่งถูก expire)
+        const warn = await runPreOrderExpiryWarnings();
         const r = await runPreOrderExpiry();
-        return NextResponse.json({ ok: true, ...r });
+        return NextResponse.json({ ok: true, ...r, ...warn });
     } catch (e) {
         return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "error" }, { status: 500 });
     }
