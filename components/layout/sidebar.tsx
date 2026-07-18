@@ -42,6 +42,7 @@ const NAV_ITEMS: NavGroup[] = [
             { href: "/dashboard/overview", tKey: "dashboard", icon: LayoutDashboard },
             { href: "/dashboard/patients", tKey: "patients", icon: Users, permKey: "patients.view" },
             { href: "/dashboard/appointments", tKey: "appointments", icon: CalendarDays, permKey: "appointments.view" },
+            { href: "/dashboard/pre-orders", tKey: "preOrders", icon: ClipboardList, permKey: "pre_order.view" },
             { href: "/dashboard/follow-up", tKey: "followUp", icon: ClipboardList, permKey: "patients.view" },
         ],
     },
