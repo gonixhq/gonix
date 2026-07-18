@@ -10,7 +10,9 @@ import {
     startTreatment, completeTreatment, resolveRefund, updatePreOrderSettings,
     type PreOrderSettings, type CompleteTreatmentInput,
 } from "@/lib/actions/pre-order";
-import { getPatients } from "@/lib/actions/patients";
+import { getPatients, createPatient } from "@/lib/actions/patients";
+
+const PREFIXES = ["นาย", "นาง", "นางสาว", "เด็กชาย", "เด็กหญิง"];
 
 type Svc = { id: string; name: string; price: number };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,6 +148,9 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [results, setResults] = useState<any[]>([]);
     const [hn, setHn] = useState(""); const [hnLabel, setHnLabel] = useState("");
+    const [newMode, setNewMode] = useState(false);
+    const [np, setNp] = useState({ prefix: "นางสาว", first_name: "", last_name: "", phone: "" });
+    const [creating, setCreating] = useState(false);
     const [channel, setChannel] = useState("line_oa");
     const [items, setItems] = useState<{ service_id: string; name: string; qty: number; price: number }[]>([]);
     const [svcSearch, setSvcSearch] = useState("");
@@ -159,6 +164,27 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     }
     const total = items.reduce((s, i) => s + i.price * i.qty, 0);
     const filteredSvc = svcSearch ? services.filter(s => s.name.toLowerCase().includes(svcSearch.toLowerCase())).slice(0, 8) : [];
+
+    // ลูกค้าใหม่ที่ยังไม่มี HN — เปิดทะเบียนย่อ (ชื่อ+เบอร์) แล้วออก HN ทันที
+    async function createNewPatient() {
+        if (!np.first_name.trim() || !np.last_name.trim()) { onError("กรอกชื่อ-นามสกุลก่อน"); return; }
+        setCreating(true);
+        try {
+            const fd = new FormData();
+            fd.set("prefix", np.prefix);
+            fd.set("first_name", np.first_name.trim());
+            fd.set("last_name", np.last_name.trim());
+            fd.set("phone", np.phone.trim());
+            const r = await createPatient(fd);
+            setHn(r.hn as string);
+            setHnLabel(`${r.hn} · ${np.prefix}${np.first_name} ${np.last_name}${np.phone ? ` · ${np.phone}` : ""}`);
+            setNewMode(false);
+        } catch (e) {
+            onError(e instanceof Error ? e.message : "สร้างคนไข้ใหม่ไม่สำเร็จ");
+        } finally {
+            setCreating(false);
+        }
+    }
 
     function submit() {
         if (!hn) { onError("เลือกผู้ป่วยก่อน"); return; }
@@ -184,6 +210,25 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                             <span className="font-semibold text-emerald-800">{hnLabel}</span>
                             <button onClick={() => { setHn(""); setHnLabel(""); }} className="text-slate-400"><X className="h-4 w-4" /></button>
                         </div>
+                    ) : newMode ? (
+                        <div className="mt-1 space-y-2 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-cyan-800">ลูกค้าใหม่ (ระบบออก HN ให้อัตโนมัติ)</span>
+                                <button type="button" onClick={() => setNewMode(false)} className="text-[11px] text-slate-500 hover:underline">← ค้นหาแทน</button>
+                            </div>
+                            <div className="flex gap-2">
+                                <select value={np.prefix} onChange={e => setNp({ ...np, prefix: e.target.value })} className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
+                                    {PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                <input value={np.first_name} onChange={e => setNp({ ...np, first_name: e.target.value })} placeholder="ชื่อ *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                                <input value={np.last_name} onChange={e => setNp({ ...np, last_name: e.target.value })} placeholder="นามสกุล *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                            </div>
+                            <input value={np.phone} onChange={e => setNp({ ...np, phone: e.target.value })} placeholder="เบอร์โทร (แนะนำให้กรอก — ใช้ยืนยันตัวตอนมาถึง)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                            <Button type="button" disabled={creating} onClick={createNewPatient} className="w-full h-9 rounded-lg bg-cyan-600 text-white">
+                                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้างคนไข้ + ออก HN"}
+                            </Button>
+                            <p className="text-[10px] text-slate-500">กรอกข้อมูลย่อพอจองได้ — ที่เหลือ (บัตร ปชช./ที่อยู่/ประวัติแพ้) ค่อยเก็บตอนมาถึงคลินิก</p>
+                        </div>
                     ) : (
                         <>
                             <div className="flex gap-2 mt-1">
@@ -200,6 +245,10 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                                     ))}
                                 </div>
                             )}
+                            <button type="button" onClick={() => { setNewMode(true); setResults([]); }}
+                                className="mt-1.5 text-xs font-bold text-cyan-700 hover:underline flex items-center gap-1">
+                                <Plus className="h-3.5 w-3.5" /> ลูกค้าใหม่ (ยังไม่มี HN)
+                            </button>
                         </>
                     )}
                 </div>
