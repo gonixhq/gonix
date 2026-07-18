@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { deductFEFO } from "@/lib/inventory-fefo";
+import type { DiscountEntry } from "@/lib/campaign-types";
 
 export interface InvoiceItemInput {
     item_type: string;
@@ -11,7 +12,8 @@ export interface InvoiceItemInput {
     item_name: string;
     qty: number;
     unit_price: number;
-    line_total: number;
+    line_total: number;        // ยอดสุทธิของรายการ (หัก discount_amount แล้ว)
+    discount_amount?: number;  // ส่วนลดเฉพาะรายการนี้
     segment?: string | null;   // แผนกรายได้ (denormalize จาก source)
 }
 
@@ -26,13 +28,17 @@ export interface CheckoutInput {
     paymentRef?: string;   // อ้างอิง เช่น เลขท้ายสลิป 4 ตัว (โอน/บัตร)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     drugOrders: any[];
+    discounts?: DiscountEntry[];      // breakdown ส่วนลดทุกก้อน
+    campaignId?: string | null;
+    campaignLabel?: string | null;
 }
 
 export async function completeCheckout(input: CheckoutInput) {
     const supabase = await createClient();
 
     try {
-        const { vn, items, subtotal, discount, total, paid, paymentMethod, paymentRef, drugOrders } = input;
+        const { vn, items, subtotal, discount, total, paid, paymentMethod, paymentRef, drugOrders,
+            discounts, campaignId, campaignLabel } = input;
 
         // Fetch visit (clinic_id, hn)
         const { data: visit, error: vErr } = await supabase
@@ -114,6 +120,8 @@ export async function completeCheckout(input: CheckoutInput) {
                 total_amount: total,
                 paid_amount: paid,
                 status: invoiceStatus,
+                campaign_id: campaignId || null,
+                campaign: campaignLabel || null,
             });
 
         if (invErr) {
@@ -121,7 +129,8 @@ export async function completeCheckout(input: CheckoutInput) {
             throw new Error(`สร้างใบแจ้งหนี้ไม่สำเร็จ: ${invErr.message}`);
         }
 
-        // 5. Create invoice_items
+        // 5. Create invoice_items (เก็บ id กลับมาเพื่อผูกส่วนลดรายรายการ)
+        let itemIds: string[] = [];
         if (items.length > 0) {
             const rows = items.map(it => ({
                 inv_id: invId,
@@ -132,12 +141,40 @@ export async function completeCheckout(input: CheckoutInput) {
                 qty: it.qty,
                 unit_price: it.unit_price,
                 line_total: it.line_total,
+                discount_amount: it.discount_amount || 0,
                 segment: it.segment || null,
             }));
-            const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
+            const { data: inserted, error: itemsErr } = await supabase.from("invoice_items").insert(rows).select("id");
             if (itemsErr) {
                 console.error("Invoice items error:", itemsErr);
                 // non-blocking
+            } else {
+                itemIds = (inserted || []).map(r => r.id as string);
+            }
+        }
+
+        // 5a. Breakdown ส่วนลด → invoice_discounts (ใช้ทำรายงาน/audit ส่วนลด)
+        if (discounts && discounts.length > 0) {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const discRows = discounts
+                    .filter(d => Number(d.amount) > 0)
+                    .map(d => ({
+                        clinic_id: clinicId,
+                        inv_id: invId,
+                        inv_item_id: d.inv_item_index != null ? (itemIds[d.inv_item_index] || null) : null,
+                        discount_type: d.discount_type,
+                        discount_source: d.discount_source || null,
+                        campaign_id: d.campaign_id || null,
+                        amount: Number(d.amount),
+                        created_by: user?.id || null,
+                    }));
+                if (discRows.length > 0) {
+                    const { error: dErr } = await supabase.from("invoice_discounts").insert(discRows);
+                    if (dErr) console.warn("[checkout] invoice_discounts:", dErr.message);
+                }
+            } catch (e) {
+                console.warn("[checkout] discount breakdown failed:", e);
             }
         }
 

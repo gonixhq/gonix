@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { completeCheckout, type InvoiceItemInput } from "./checkout-actions";
+import { validateCampaignCode, type ValidatedCampaign } from "@/lib/actions/campaigns";
+import type { DiscountEntry } from "@/lib/campaign-types";
 import type { ServiceCatalogItem } from "@/lib/service-types";
 import { listActivePackages, getPatientActivePackages, usePackageSession } from "@/lib/actions/packages";
 import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
@@ -57,6 +59,7 @@ interface LineItem {
     locked?: boolean;       // ลบไม่ได้ (เช่น ค่าตรวจ)
     segment?: string | null;  // แผนกรายได้ (จาก source)
     max_discount_pct?: number | null;  // เพดานส่วนลด (เฉพาะคอส) — null = ไม่จำกัด
+    line_discount?: number;   // ส่วนลดเฉพาะรายการนี้ (บาท)
 }
 
 let uidCounter = 0;
@@ -112,6 +115,12 @@ export default function CheckoutForm({
 
     // Billing
     const [discount, setDiscount] = useState<number>(0);
+    const [discountReason, setDiscountReason] = useState("");
+    // แคมเปญ/โค้ดโปรฯ (ตรวจเงื่อนไขฝั่ง server)
+    const [promoCode, setPromoCode] = useState("");
+    const [promo, setPromo] = useState<ValidatedCampaign | null>(null);
+    const [promoErr, setPromoErr] = useState("");
+    const [promoChecking, setPromoChecking] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "credit">("cash");
     const [paymentRef, setPaymentRef] = useState("");
     const [amountReceived, setAmountReceived] = useState<string>("0");
@@ -225,7 +234,40 @@ export default function CheckoutForm({
         () => items.reduce((s, i) => s + (i.qty * i.unit_price), 0),
         [items]
     );
-    const grandTotal = Math.max(0, subtotal - discount);
+    // ส่วนลดรายรายการ (line discount) + แคมเปญ + ลดเองท้ายบิล
+    const lineDiscountTotal = useMemo(
+        () => items.reduce((s, i) => s + Math.min(Number(i.line_discount) || 0, i.qty * i.unit_price), 0),
+        [items]
+    );
+    const promoDiscount = promo?.discount_amount || 0;
+    const totalDiscount = Math.min(subtotal, lineDiscountTotal + promoDiscount + discount);
+    const grandTotal = Math.max(0, subtotal - totalDiscount);
+
+    // ตรวจโค้ดกับ server (เงื่อนไข/วันหมดอายุ/จำนวนครั้ง คำนวณฝั่ง server เท่านั้น)
+    async function applyPromo() {
+        const code = promoCode.trim();
+        if (!code) return;
+        setPromoChecking(true); setPromoErr("");
+        try {
+            const res = await validateCampaignCode({
+                code, hn: visit.hn,
+                items: items.map(i => ({ item_type: i.item_type, line_total: i.qty * i.unit_price - (Number(i.line_discount) || 0) })),
+            });
+            if (!res.ok) { setPromo(null); setPromoErr(res.error); return; }
+            setPromo(res); setPromoErr("");
+        } catch (e) {
+            setPromoErr(e instanceof Error ? e.message : "ตรวจโค้ดไม่สำเร็จ");
+        } finally {
+            setPromoChecking(false);
+        }
+    }
+    function clearPromo() { setPromo(null); setPromoCode(""); setPromoErr(""); }
+
+    // รายการ/ส่วนลดเปลี่ยน → โค้ดที่ apply ไว้อาจไม่ตรงเงื่อนไขแล้ว ให้ตรวจใหม่
+    useEffect(() => {
+        if (promo) { setPromo(null); setPromoErr("รายการเปลี่ยน — กดใช้โค้ดอีกครั้ง"); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [subtotal, lineDiscountTotal]);
 
     // เพดานส่วนลด (max_discount ต่อคอส) — คอสที่ตั้งเพดาน → ลดได้ไม่เกิน line × pct% · รายการอื่นไม่จำกัด
     const hasCappedPackage = useMemo(() => items.some(i => i.item_type === "package" && i.max_discount_pct != null), [items]);
@@ -237,7 +279,7 @@ export default function CheckoutForm({
         }, 0),
         [items]
     );
-    const overDiscountLimit = hasCappedPackage && discount > discountCeiling + 0.01;
+    const overDiscountLimit = hasCappedPackage && totalDiscount > discountCeiling + 0.01;
 
     // Auto-fill received amount = total เมื่อ grandTotal เปลี่ยน (ถ้ายังไม่ได้แก้)
     const receivedTouchedRef = useRef(false);
@@ -263,10 +305,10 @@ export default function CheckoutForm({
         );
     };
 
-    function updateItem(id: string, field: "qty" | "unit_price", value: string) {
+    function updateItem(id: string, field: "qty" | "unit_price" | "line_discount", value: string) {
         const num = parseFloat(value);
         setItems(prev =>
-            prev.map(it => it.id === id ? { ...it, [field]: isNaN(num) ? 0 : num } : it)
+            prev.map(it => it.id === id ? { ...it, [field]: isNaN(num) ? 0 : Math.max(0, num) } : it)
         );
     }
 
@@ -312,26 +354,60 @@ export default function CheckoutForm({
         setError("");
 
         try {
-            const lines: InvoiceItemInput[] = items.map(it => ({
-                item_type: it.item_type,
-                item_ref_id: it.item_ref_id,
-                item_name: it.item_name,
-                qty: it.qty,
-                unit_price: it.unit_price,
-                line_total: it.qty * it.unit_price,
-                segment: it.segment ?? null,
-            }));
+            const lines: InvoiceItemInput[] = items.map(it => {
+                const gross = it.qty * it.unit_price;
+                const lineDisc = Math.min(Number(it.line_discount) || 0, gross);
+                return {
+                    item_type: it.item_type,
+                    item_ref_id: it.item_ref_id,
+                    item_name: it.item_name,
+                    qty: it.qty,
+                    unit_price: it.unit_price,
+                    line_total: gross - lineDisc,     // ยอดสุทธิของรายการ (หักส่วนลดรายการแล้ว)
+                    discount_amount: lineDisc,
+                    segment: it.segment ?? null,
+                };
+            });
+
+            // breakdown ส่วนลดทุกก้อน → invoice_discounts (foundation ของ report/audit)
+            const discounts: DiscountEntry[] = [];
+            items.forEach((it, idx) => {
+                const lineDisc = Math.min(Number(it.line_discount) || 0, it.qty * it.unit_price);
+                if (lineDisc > 0) {
+                    discounts.push({
+                        inv_item_index: idx, discount_type: "manual",
+                        discount_source: `ลดรายการ: ${it.item_name}`, amount: lineDisc,
+                    });
+                }
+            });
+            if (promo) {
+                discounts.push({
+                    inv_item_index: null, discount_type: "campaign",
+                    discount_source: `${promo.code} · ${promo.name}`,
+                    campaign_id: promo.campaign_id, amount: promo.discount_amount,
+                });
+            }
+            if (discount > 0) {
+                discounts.push({
+                    inv_item_index: null, discount_type: "manual",
+                    discount_source: discountReason.trim() || "ลดท้ายบิล (ไม่ระบุเหตุผล)",
+                    amount: discount,
+                });
+            }
 
             const res = await completeCheckout({
                 vn: visit.vn,
                 items: lines,
                 subtotal,
-                discount,
+                discount: totalDiscount,
                 total: grandTotal,
                 paid: Math.min(received, grandTotal),  // จ่ายตามที่รับมา (cap ที่ total)
                 paymentMethod,
                 paymentRef: paymentRef.trim() || undefined,
                 drugOrders,
+                discounts,
+                campaignId: promo?.campaign_id || null,
+                campaignLabel: promo ? `${promo.code} · ${promo.name}` : null,
             });
 
             if (res.error) throw new Error(res.error);
@@ -568,6 +644,7 @@ export default function CheckoutForm({
                                         <th className="text-left px-3 py-2">รายการ</th>
                                         <th className="text-right px-3 py-2 w-20">จำนวน</th>
                                         <th className="text-right px-3 py-2 w-28">ราคา/หน่วย</th>
+                                        <th className="text-right px-3 py-2 w-24">ลดรายการ</th>
                                         <th className="text-right px-3 py-2 w-28">รวม</th>
                                         <th className="w-10 px-2"></th>
                                     </tr>
@@ -622,8 +699,25 @@ export default function CheckoutForm({
                                                     />
                                                 )}
                                             </td>
+                                            <td className="px-1 py-1">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    placeholder="0"
+                                                    value={it.line_discount || ""}
+                                                    onChange={e => updateItem(it.id, "line_discount", e.target.value)}
+                                                    title="ลดเฉพาะรายการนี้ เช่น แถมยาฟรี"
+                                                    className="h-8 text-right text-sm tabular-nums text-red-600"
+                                                />
+                                            </td>
                                             <td className="px-3 py-2 text-right font-bold text-slate-800 tabular-nums">
-                                                ฿{(it.qty * it.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                {(Number(it.line_discount) || 0) > 0 && (
+                                                    <div className="text-[10px] font-normal text-slate-400 line-through">
+                                                        ฿{(it.qty * it.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    </div>
+                                                )}
+                                                ฿{Math.max(0, it.qty * it.unit_price - (Number(it.line_discount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>
                                             <td className="px-1 py-2 text-center">
                                                 <button
@@ -655,19 +749,73 @@ export default function CheckoutForm({
                                 <span>ยอดรวม (Subtotal)</span>
                                 <span className="font-semibold tabular-nums">฿{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
+                            {/* ส่วนลดรายรายการ (รวมจากตาราง) */}
+                            {lineDiscountTotal > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>ส่วนลดรายรายการ</span>
+                                    <span className="font-semibold tabular-nums">−฿{lineDiscountTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+
+                            {/* โค้ดโปรโมชัน */}
+                            <div className="space-y-1.5">
+                                {promo ? (
+                                    <div className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                                        <div className="min-w-0">
+                                            <div className="text-xs font-black text-emerald-800 truncate">{promo.code} · {promo.name}</div>
+                                            <div className="text-[10px] text-emerald-700">ใช้กับยอด ฿{promo.eligible_base.toLocaleString()}</div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <span className="font-bold text-emerald-700 tabular-nums text-sm">−฿{promo.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                            <button onClick={clearPromo} title="เอาโค้ดออก" className="text-slate-400 hover:text-red-600"><X className="h-3.5 w-3.5" /></button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            value={promoCode}
+                                            onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoErr(""); }}
+                                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyPromo(); } }}
+                                            placeholder="โค้ดโปรโมชัน"
+                                            className="h-9 text-sm font-mono uppercase"
+                                        />
+                                        <Button type="button" size="sm" variant="outline" disabled={promoChecking || !promoCode.trim()}
+                                            onClick={applyPromo} className="h-9 shrink-0">
+                                            {promoChecking ? "..." : "ใช้โค้ด"}
+                                        </Button>
+                                    </div>
+                                )}
+                                {promoErr && <div className="text-[11px] text-red-600">{promoErr}</div>}
+                            </div>
+
                             <div className="flex items-center justify-between gap-3">
-                                <Label className="text-slate-600 whitespace-nowrap">ส่วนลด</Label>
+                                <Label className="text-slate-600 whitespace-nowrap">ลดเองท้ายบิล</Label>
                                 <div className="relative w-32">
                                     <Input
                                         type="number"
                                         min="0"
                                         value={discount || ""}
-                                        onChange={e => setDiscount(Number(e.target.value) || 0)}
+                                        onChange={e => setDiscount(Math.max(0, Number(e.target.value) || 0))}
                                         className="pl-7 h-9 text-right text-red-600 font-semibold tabular-nums"
                                     />
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">฿</span>
                                 </div>
                             </div>
+                            {discount > 0 && (
+                                <Input
+                                    value={discountReason}
+                                    onChange={e => setDiscountReason(e.target.value)}
+                                    placeholder="เหตุผลที่ลด (บันทึกไว้ตรวจสอบ)"
+                                    className="h-8 text-xs"
+                                />
+                            )}
+
+                            {totalDiscount > 0 && (
+                                <div className="flex justify-between border-t border-dashed border-slate-200 pt-2 text-red-600 font-bold">
+                                    <span>ส่วนลดรวม</span>
+                                    <span className="tabular-nums">−฿{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
                             {/* เตือนเมื่อส่วนลดเกินเพดาน max_discount ต่อคอส (ไม่บล็อก — flag ขออนุมัติ) */}
                             {overDiscountLimit && (
                                 <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">

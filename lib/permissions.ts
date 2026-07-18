@@ -86,6 +86,14 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
         ],
     },
     {
+        id: "campaign",
+        label: "แคมเปญ/ส่วนลด (Campaign)",
+        permissions: [
+            { key: "campaign.view", label: "ดูแคมเปญ/รายงานส่วนลด" },
+            { key: "campaign.manage", label: "สร้าง/แก้ไขแคมเปญและโค้ดส่วนลด" },
+        ],
+    },
+    {
         id: "pre_order",
         label: "พรีออเดอร์ (Pre-Order)",
         permissions: [
@@ -183,6 +191,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
         "finance.view", "finance.collect",
         "anon.view", "anon.manage",
         "pre_order.view", "pre_order.manage",
+        "campaign.view",
     ],
 
     accountant: [
@@ -190,6 +199,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
         "visits.view",
         "finance.view", "finance.collect", "finance.refund", "finance.eod", "finance.commission",
         "pre_order.view",
+        "campaign.view",
         "reports.view", "reports.export",
     ],
 };
