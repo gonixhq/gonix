@@ -12,8 +12,8 @@ export interface InvoiceItemInput {
     item_name: string;
     qty: number;
     unit_price: number;
-    line_total: number;        // ยอดสุทธิของรายการ (หัก discount_amount แล้ว)
-    discount_amount?: number;  // ส่วนลดเฉพาะรายการนี้
+    line_total: number;        // ราคาเต็มของรายการ (ก่อนหักส่วนลด) — ฐานค่ามือ
+    discount_amount?: number;  // ส่วนลดเฉพาะรายการนี้ (เก็บแยก ไม่หักออกจาก line_total)
     segment?: string | null;   // แผนกรายได้ (denormalize จาก source)
 }
 

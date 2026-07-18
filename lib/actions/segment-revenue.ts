@@ -18,19 +18,23 @@ export async function getSegmentRevenue(startDate?: string, endDate?: string): P
         const start = startDate || bangkokDate();
         const end = endDate || start;
 
-        // invoice ที่ไม่ voided/refunded ในช่วง → เก็บ factor (paid/total) ไว้ prorate
+        // invoice ที่ไม่ voided/refunded ในช่วง → เก็บ factor ไว้ prorate
+        // factor = paid / subtotal(ราคาเต็ม) เพราะ invoice_items.line_total เก็บราคาเต็ม
+        // → Σ(line_total × factor) = เงินที่รับจริง (ส่วนลด + ค้างชำระ ถูกเฉลี่ยลงแต่ละแผนกตามสัดส่วน)
+        // เดิมใช้ paid/total_amount ทำให้แผนกรวมกันเกินเงินจริงเท่ากับยอดส่วนลด
         const { data: invs } = await supabase
             .from("invoice_headers")
-            .select("id, status, total_amount, paid_amount")
+            .select("id, status, subtotal, total_amount, paid_amount")
             .eq("clinic_id", profile.clinic_id)
             .gte("invoice_date", start).lte("invoice_date", end);
 
         const factorMap: Record<string, number> = {};
         for (const i of invs || []) {
             if (i.status === "voided" || i.status === "refunded") continue;
-            const total = Number(i.total_amount || 0);
             const paid = Number(i.paid_amount || 0);
-            factorMap[i.id as string] = total > 0 ? Math.min(paid / total, 1) : (paid > 0 ? 1 : 0);
+            // ใช้ subtotal เป็นฐาน · ถ้าไม่มี (บิลเก่า/ข้อมูลขาด) fallback เป็น total_amount
+            const base = Number(i.subtotal || 0) || Number(i.total_amount || 0);
+            factorMap[i.id as string] = base > 0 ? Math.min(paid / base, 1) : (paid > 0 ? 1 : 0);
         }
         const validIds = Object.keys(factorMap);
 

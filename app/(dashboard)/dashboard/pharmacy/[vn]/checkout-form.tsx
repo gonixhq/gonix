@@ -363,7 +363,9 @@ export default function CheckoutForm({
                     item_name: it.item_name,
                     qty: it.qty,
                     unit_price: it.unit_price,
-                    line_total: gross - lineDisc,     // ยอดสุทธิของรายการ (หักส่วนลดรายการแล้ว)
+                    // line_total = "ราคาเต็ม" เสมอ (ก่อนหักส่วนลด) — ส่วนลดเก็บแยกที่ discount_amount
+                    // เพราะส่วนลดอาจมาจากแต้ม/กิฟต์วอยเชอร์ ซึ่งไม่ควรทำให้ฐานค่ามือลดลง
+                    line_total: gross,
                     discount_amount: lineDisc,
                     segment: it.segment ?? null,
                 };
