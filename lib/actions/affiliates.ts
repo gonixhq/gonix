@@ -10,6 +10,18 @@ const MANAGE_KEY = "finance.commission";
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const WHT_RATE = 0.03;
 
+/**
+ * ฐานคิดค่าคอมเซลล์ = "ราคาเต็มก่อนหักส่วนลด" (invoice_headers.subtotal)
+ * เหตุผล: เซลล์ไม่มีสิทธิ์ตั้ง/ลดราคาเอง — ส่วนลดมาจากแต้มสะสม กิฟต์วอยเชอร์
+ * หรือแคมเปญของคลินิก ซึ่งคลินิกได้มูลค่ามาแล้วทางอื่น จึงไม่ควรตัดค่าคอมเซลล์
+ * fallback: บิลเก่าที่ subtotal ว่าง → total_amount → paid_amount
+ * (ใช้เฉพาะการคิดค่าคอม — รายงานรายได้/LTV ยังใช้เงินที่รับจริง)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function commissionBase(inv: any): number {
+    return Number(inv?.subtotal || 0) || Number(inv?.total_amount || 0) || Number(inv?.paid_amount || 0) || 0;
+}
+
 /** เลือก % ตามขั้น: ขั้นที่ from_n มากสุดที่ <= index; ไม่เข้าขั้นใดเลย → flatPct */
 function pctForIndex(tiers: RateTier[], index: number, flatPct: number): number {
     let chosen = flatPct, bestFrom = -1;
@@ -215,7 +227,7 @@ export async function getAffiliateLedger(affiliateId: string, periodMonth: strin
         patList.forEach(p => { patByHn[p.hn as string] = { name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || (p.hn as string), attr: (p.affiliate_attributed_at as string) || null }; });
 
         const { data: invs } = hns.length ? await supabase.from("invoice_headers")
-            .select("id, hn, invoice_date, paid_amount, total_amount, status")
+            .select("id, hn, invoice_date, subtotal, paid_amount, total_amount, status")
             .in("hn", hns).eq("status", "paid").order("invoice_date", { ascending: true }) : { data: [] };
         const invList = invs || [];
         const primaryInvIds = invList.map(i => i.id as string);
@@ -250,7 +262,7 @@ export async function getAffiliateLedger(affiliateId: string, periodMonth: strin
             seqByHn[hn] = (seqByHn[hn] || 0) + 1;
             const billSeq = seqByHn[hn];
             if (!date || !date.startsWith(periodMonth)) continue; // เฉพาะเดือนนี้
-            const sale = Number(inv.paid_amount ?? inv.total_amount ?? 0);
+            const sale = commissionBase(inv);
 
             // บิลที่ถูกแบ่ง (override) → คิดตาม split pct ข้ามเงื่อนไข attribution ปกติ
             if (overriddenSet.has(inv.id as string)) {
@@ -294,7 +306,7 @@ export async function getAffiliateLedger(affiliateId: string, periodMonth: strin
         const secondaryIds = Object.keys(myPctByInv).filter(id => !primaryInvIds.includes(id));
         if (secondaryIds.length) {
             const { data: sInvs } = await supabase.from("invoice_headers")
-                .select("id, hn, invoice_date, paid_amount, total_amount, status")
+                .select("id, hn, invoice_date, subtotal, paid_amount, total_amount, status")
                 .in("id", secondaryIds).eq("status", "paid");
             const sList = sInvs || [];
             const sHns = [...new Set(sList.map(i => i.hn as string))];
@@ -307,7 +319,7 @@ export async function getAffiliateLedger(affiliateId: string, periodMonth: strin
                 const date = inv.invoice_date as string;
                 if (!date || !date.startsWith(periodMonth)) continue;
                 const sp = myPctByInv[inv.id as string];
-                const sale = Number(inv.paid_amount ?? inv.total_amount ?? 0);
+                const sale = commissionBase(inv);
                 out.push({
                     inv_id: inv.id as string, hn: inv.hn as string, patient_name: nameByHn[inv.hn as string] || (inv.hn as string),
                     invoice_date: date, sale_amount: sale, pct: sp, commission: round2(sale * sp / 100), is_split: true,
@@ -785,6 +797,7 @@ export async function getAffiliateQuality(affiliateId: string): Promise<Affiliat
         (invs || []).forEach(i => {
             const hn = i.hn as string;
             billsByHn[hn] = (billsByHn[hn] || 0) + 1;
+            // LTV/retention = "เงินที่คลินิกได้รับจริง" → ใช้ paid_amount (ไม่ใช่ commissionBase)
             revByHn[hn] = (revByHn[hn] || 0) + Number(i.paid_amount ?? i.total_amount ?? 0);
         });
         const activeHns = Object.keys(billsByHn);            // ลูกค้าที่มีบิลจ่ายแล้วจริง
@@ -884,8 +897,8 @@ export async function getInvoiceSplits(invId: string): Promise<InvoiceSplitInfo>
     try {
         const { supabase, clinicId } = await ctx();
         const { data: inv } = await supabase.from("invoice_headers")
-            .select("hn, paid_amount, total_amount").eq("id", invId).maybeSingle();
-        const sale = inv ? Number(inv.paid_amount ?? inv.total_amount ?? 0) : 0;
+            .select("hn, subtotal, paid_amount, total_amount").eq("id", invId).maybeSingle();
+        const sale = inv ? commissionBase(inv) : 0;
         let primary: { id: string; name: string } | null = null;
         if (inv?.hn) {
             const { data: pat } = await supabase.from("patients").select("affiliate_id").eq("clinic_id", clinicId).eq("hn", inv.hn).maybeSingle();
