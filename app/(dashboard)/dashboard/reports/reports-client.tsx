@@ -17,6 +17,8 @@ import type { GoalProgress } from "@/lib/actions/targets";
 import type { Seg } from "@/lib/report-segment";
 import { SEG_LABEL } from "@/lib/report-segment";
 import type { AcqSource, ConversionResult, Demographics, CampaignRow } from "@/lib/actions/marketing-report";
+import type { DiscountReport } from "@/lib/actions/campaigns";
+import { DISCOUNT_KIND_LABEL } from "@/lib/campaign-types";
 import type { SalesForecast } from "@/lib/actions/advanced-report";
 import { sendExecSummaryToMyLine } from "@/lib/actions/advanced-report";
 import type { SafetyMetrics } from "@/lib/actions/follow-up";
@@ -117,7 +119,7 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, forecast, safety, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, discountReport, forecast, safety, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
     summary: ReportSummary;
     prevSummary: ReportSummary;
@@ -126,6 +128,7 @@ export default function ReportsClient({
     conversion: ConversionResult;
     demographics: Demographics;
     campaigns: CampaignRow[];
+    discountReport: DiscountReport;
     forecast: SalesForecast;
     safety: SafetyMetrics;
     outstanding: OutstandingInvoice[];
@@ -143,7 +146,7 @@ export default function ReportsClient({
 }) {
     const router = useRouter();
     const [showOutstanding, setShowOutstanding] = useState(false);
-    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "advanced">("overview");
+    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "discount" | "advanced">("overview");
     const [execSending, setExecSending] = useState(false);
     const [execMsg, setExecMsg] = useState<string | null>(null);
 
@@ -257,13 +260,13 @@ export default function ReportsClient({
     }
 
     // เปิดหน้า print (บันทึก PDF) — section = แท็บปัจจุบัน หรือ "all" ทั้งหมด
-    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "advanced" | "all") {
+    function openPDF(section: "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "discount" | "advanced" | "all") {
         window.open(`/print/report?start=${startDate}&end=${endDate}&section=${section}&seg=${seg}`, "_blank");
     }
 
     const TAB_LABEL: Record<string, string> = {
         overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
-        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด", advanced: "เชิงลึก",
+        customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด", discount: "ส่วนลด", advanced: "เชิงลึก",
     };
 
     const maxDayRevenue = Math.max(...summary.revenueByDay.map(r => r.amount), 1);
@@ -410,6 +413,7 @@ export default function ReportsClient({
                     <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
                     <TabBtn active={tab === "operations"} onClick={() => setTab("operations")}>ปฏิบัติการ</TabBtn>
                     <TabBtn active={tab === "marketing"} onClick={() => setTab("marketing")}>การตลาด</TabBtn>
+                    <TabBtn active={tab === "discount"} onClick={() => setTab("discount")}>ส่วนลด</TabBtn>
                     <TabBtn active={tab === "advanced"} onClick={() => setTab("advanced")}>เชิงลึก</TabBtn>
                 </div>
 
@@ -1101,6 +1105,125 @@ export default function ReportsClient({
                         </div>
                         <div className="px-4 pb-4"><p className="text-[11px] text-slate-400">ใช้ตั้งกลุ่มเป้าหมายยิงแอดออนไลน์ให้แม่นขึ้น · ข้อมูลทั้งคลินิก (ไม่ผูกช่วงวันที่/แผนก)</p></div>
                     </div>
+                </div>
+            )}
+
+            {/* ── แท็บ ส่วนลด ── */}
+            {tab === "discount" && (
+                <div className="space-y-4 animate-fade-in">
+                    {/* สรุปยอด */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="gonix-card-premium p-4">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase">ส่วนลดรวม</div>
+                            <div className="text-2xl font-black text-red-600 tabular-nums mt-1">฿{fmt(discountReport.total)}</div>
+                        </div>
+                        <div className="gonix-card-premium p-4">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase">% ของยอดขายเต็ม</div>
+                            <div className={`text-2xl font-black tabular-nums mt-1 ${discountReport.pctOfSales >= 15 ? "text-amber-600" : "text-slate-800"}`}>{discountReport.pctOfSales}%</div>
+                        </div>
+                        <div className="gonix-card-premium p-4">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase">บิลที่มีส่วนลด</div>
+                            <div className="text-2xl font-black text-slate-800 tabular-nums mt-1">{fmt(discountReport.discountedBills)}</div>
+                        </div>
+                        <div className="gonix-card-premium p-4">
+                            <div className="text-[11px] font-bold text-slate-500 uppercase">ยอดขายเต็ม (ทั้งช่วง)</div>
+                            <div className="text-2xl font-black text-slate-800 tabular-nums mt-1">฿{fmt(discountReport.grossAll)}</div>
+                        </div>
+                    </div>
+
+                    {discountReport.total === 0 ? (
+                        <div className="gonix-card-premium p-10 text-center text-sm text-slate-400">ช่วงนี้ยังไม่มีการให้ส่วนลด</div>
+                    ) : (
+                        <>
+                            {/* แยกตามประเภท */}
+                            <div className="gonix-card-premium overflow-hidden">
+                                <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-red-500" />
+                                    <h2 className="text-sm font-bold text-slate-800">ส่วนลดแยกตามประเภท</h2>
+                                </div>
+                                <div className="p-5 space-y-2">
+                                    {discountReport.byType.map(t => {
+                                        const pct = discountReport.total > 0 ? Math.round(t.amount / discountReport.total * 100) : 0;
+                                        return (
+                                            <div key={t.type} className="flex items-center gap-3">
+                                                <span className="w-52 shrink-0 text-xs font-bold text-slate-600 truncate">
+                                                    {DISCOUNT_KIND_LABEL[t.type as keyof typeof DISCOUNT_KIND_LABEL] || t.type}
+                                                    <span className="text-slate-400 font-normal ml-1">({t.count})</span>
+                                                </span>
+                                                <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden">
+                                                    <div className="h-full bg-red-400/80 rounded-lg flex items-center justify-end px-2" style={{ width: `${Math.max(pct, 3)}%` }}>
+                                                        <span className="text-[10px] font-bold text-white tabular-nums">{pct}%</span>
+                                                    </div>
+                                                </div>
+                                                <span className="w-24 text-right text-xs tabular-nums font-bold text-red-600">฿{fmt2(t.amount)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* แยกตามแคมเปญ */}
+                            <div className="gonix-card-premium overflow-hidden">
+                                <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-pink-600" />
+                                    <h2 className="text-sm font-bold text-slate-800">ผลแคมเปญ/โค้ดโปรฯ</h2>
+                                    <span className="text-xs text-slate-400">(ใช้โค้ดจริงตอนคิดเงิน)</span>
+                                </div>
+                                {discountReport.byCampaign.length === 0 ? (
+                                    <p className="text-center text-sm text-slate-400 py-8">ช่วงนี้ยังไม่มีบิลที่ใช้โค้ดแคมเปญ</p>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm min-w-[640px]">
+                                            <thead className="bg-slate-50/60">
+                                                <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                    <th className="text-left px-4 py-2.5">โค้ด / แคมเปญ</th>
+                                                    <th className="text-right px-3 py-2.5">บิล</th>
+                                                    <th className="text-right px-3 py-2.5">ลูกค้า</th>
+                                                    <th className="text-right px-3 py-2.5">ส่วนลด</th>
+                                                    <th className="text-right px-4 py-2.5">รายได้สุทธิ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {discountReport.byCampaign.map(c => (
+                                                    <tr key={c.campaign_id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                                        <td className="px-4 py-2.5">
+                                                            <span className="font-mono font-bold text-blue-700">{c.code}</span>
+                                                            <span className="text-xs text-slate-500 ml-1.5">{c.name}</span>
+                                                            {c.channel && <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded ml-1">{c.channel}</span>}
+                                                        </td>
+                                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(c.invoice_count)}</td>
+                                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(c.unique_patients)}</td>
+                                                        <td className="px-3 py-2.5 text-right tabular-nums font-bold text-red-600">฿{fmt(c.discount_total)}</td>
+                                                        <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#10B981]">฿{fmt(c.net_revenue)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* รายพนักงานที่ให้ส่วนลด */}
+                            {discountReport.topStaff.length > 0 && (
+                                <div className="gonix-card-premium overflow-hidden">
+                                    <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                        <h2 className="text-sm font-bold text-slate-800">ให้ส่วนลดโดย</h2>
+                                        <span className="text-xs text-slate-400">(ตรวจสอบการให้ส่วนลดผิดปกติ)</span>
+                                    </div>
+                                    <div className="divide-y divide-slate-100">
+                                        {discountReport.topStaff.map((s, i) => (
+                                            <div key={i} className="px-5 py-2.5 flex items-center justify-between text-sm">
+                                                <span className="font-semibold text-slate-700">{s.name}</span>
+                                                <span className="text-slate-500 tabular-nums text-xs">{s.count} รายการ · <b className="text-red-600">฿{fmt2(s.amount)}</b></span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <p className="text-[11px] text-slate-400 px-1">ส่วนลดยึดยอดจริงจากหัวบิล — บิลเก่าที่ไม่ได้บันทึกที่มาจะรวมอยู่ใน &quot;ไม่ระบุที่มา&quot;</p>
+                        </>
+                    )}
                 </div>
             )}
 

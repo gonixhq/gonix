@@ -367,6 +367,92 @@ export async function getDiscountSummary(date?: string): Promise<DiscountDaySumm
     };
 }
 
+export interface DiscountReport {
+    total: number;
+    gross: number;             // ยอดขายเต็มก่อนลด (subtotal รวม) ของบิลที่มีส่วนลด
+    grossAll: number;          // ยอดขายเต็มทั้งหมดในช่วง (ใช้เทียบ %)
+    pctOfSales: number;        // ส่วนลดรวม / ยอดขายเต็มทั้งหมด
+    discountedBills: number;   // จำนวนบิลที่มีส่วนลด
+    byType: { type: string; amount: number; count: number }[];
+    byCampaign: CampaignPerf[];
+    topStaff: { name: string; amount: number; count: number }[];
+}
+
+/**
+ * รายงานส่วนลดของช่วงวันที่ (หน้ารายงาน) — ยึด invoice_headers.discount_amount เป็นยอดจริง
+ * (logic เดียวกับ getDiscountSummary แต่เป็นช่วง + แยกตามแคมเปญ)
+ */
+export async function getDiscountReport(from: string, to: string): Promise<DiscountReport> {
+    const { supabase, clinicId, perms } = await ctx();
+    const empty: DiscountReport = { total: 0, gross: 0, grossAll: 0, pctOfSales: 0, discountedBills: 0, byType: [], byCampaign: [], topStaff: [] };
+    if (!perms["campaign.view"] && !perms["finance.view"]) return empty;
+
+    const { data: invs } = await supabase.from("invoice_headers")
+        .select("id, status, subtotal, discount_amount, paid_amount, invoice_date")
+        .eq("clinic_id", clinicId).gte("invoice_date", from).lte("invoice_date", to);
+    const valid = ((invs || []) as any[]).filter(i => !["voided", "refunded"].includes(i.status));
+
+    const headerDiscById = new Map<string, number>(valid.map(i => [i.id as string, Number(i.discount_amount || 0)]));
+    const grossAll = valid.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+    const total = [...headerDiscById.values()].reduce((s, v) => s + v, 0);
+    const discountedIds = [...headerDiscById.entries()].filter(([, v]) => v > 0).map(([id]) => id);
+    const gross = valid.filter(i => Number(i.discount_amount || 0) > 0).reduce((s, i) => s + Number(i.subtotal || 0), 0);
+
+    const byTypeMap = new Map<string, { amount: number; count: number }>();
+    const byStaff = new Map<string, { amount: number; count: number }>();
+    const breakdownSumByInv = new Map<string, number>();
+
+    if (discountedIds.length > 0) {
+        // แบ่ง query กันเกิน URL length ถ้าบิลเยอะ
+        const chunk = 300;
+        for (let i = 0; i < discountedIds.length; i += chunk) {
+            const ids = discountedIds.slice(i, i + chunk);
+            const { data: rows } = await supabase.from("invoice_discounts")
+                .select("inv_id, amount, discount_type, created_by").eq("clinic_id", clinicId).in("inv_id", ids);
+            for (const r of (rows || []) as any[]) {
+                const amt = Number(r.amount || 0);
+                const t = byTypeMap.get(r.discount_type) || { amount: 0, count: 0 };
+                byTypeMap.set(r.discount_type, { amount: t.amount + amt, count: t.count + 1 });
+                breakdownSumByInv.set(r.inv_id, (breakdownSumByInv.get(r.inv_id) || 0) + amt);
+                if (r.created_by) {
+                    const s = byStaff.get(r.created_by) || { amount: 0, count: 0 };
+                    byStaff.set(r.created_by, { amount: s.amount + amt, count: s.count + 1 });
+                }
+            }
+        }
+    }
+
+    let unclassified = 0, unclassifiedCount = 0;
+    for (const id of discountedIds) {
+        const gap = (headerDiscById.get(id) || 0) - (breakdownSumByInv.get(id) || 0);
+        if (gap > 0.01) { unclassified += gap; unclassifiedCount++; }
+    }
+    if (unclassified > 0.01) byTypeMap.set("unclassified", { amount: unclassified, count: unclassifiedCount });
+
+    let topStaff: { name: string; amount: number; count: number }[] = [];
+    if (byStaff.size > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name").in("id", [...byStaff.keys()]);
+        const nameOf = new Map(((profs || []) as any[]).map(p => [p.id, p.full_name || "—"]));
+        topStaff = [...byStaff.entries()]
+            .map(([id, v]) => ({ name: nameOf.get(id) || "—", amount: Math.round(v.amount * 100) / 100, count: v.count }))
+            .sort((a, b) => b.amount - a.amount).slice(0, 8);
+    }
+
+    const byCampaign = await getCampaignPerformance(from, to);
+
+    return {
+        total: Math.round(total * 100) / 100,
+        gross: Math.round(gross * 100) / 100,
+        grossAll: Math.round(grossAll * 100) / 100,
+        pctOfSales: grossAll > 0 ? Math.round(total / grossAll * 1000) / 10 : 0,
+        discountedBills: discountedIds.length,
+        byType: [...byTypeMap.entries()].map(([type, v]) => ({ type, amount: Math.round(v.amount * 100) / 100, count: v.count }))
+            .sort((a, b) => b.amount - a.amount),
+        byCampaign: byCampaign.filter(c => c.invoice_count > 0),
+        topStaff,
+    };
+}
+
 /** ส่วนลดของบิลหนึ่งใบ (ใช้ในใบเสร็จ + หน้ารายละเอียด) */
 export async function getInvoiceDiscounts(invId: string) {
     const { supabase, clinicId } = await ctx();
