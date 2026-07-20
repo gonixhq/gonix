@@ -291,43 +291,61 @@ export interface DiscountDaySummary {
     topStaff: { name: string; amount: number; count: number }[];
 }
 
-/** สรุปส่วนลดของวัน (ใช้ในหน้าปิดยอด) + ยอดส่วนลดรายพนักงาน */
+/**
+ * สรุปส่วนลดของวัน (ใช้ในหน้าปิดยอด) + ยอดส่วนลดรายพนักงาน
+ *
+ * ⚠️ ยึด invoice_headers.discount_amount เป็น "ยอดจริง" (source of truth ของเงินที่ลดไปจริง)
+ * แล้วใช้ invoice_discounts มาแยกประเภท/รายพนักงาน — ส่วนที่ breakdown ไม่ครบ
+ * (บิลเก่าก่อนระบบ breakdown / ลดโดยไม่ได้ระบุที่มา) จะโผล่เป็น "ไม่ระบุที่มา"
+ * เพื่อให้ยอดรวมตรงกับหัวบิลเสมอ ไม่ตกหล่น
+ */
 export async function getDiscountSummary(date?: string): Promise<DiscountDaySummary> {
     const { supabase, clinicId, perms } = await ctx();
     const empty: DiscountDaySummary = { total: 0, byType: [], revenue: 0, pctOfRevenue: 0, topStaff: [] };
     if (!perms["finance.view"]) return empty;
     const day = date || bangkokDate();
 
-    const { data: rows } = await supabase.from("invoice_discounts")
-        .select("amount, discount_type, created_by, invoice_headers!inner(status, invoice_date, paid_amount)")
-        .eq("clinic_id", clinicId)
-        .eq("invoice_headers.invoice_date", day);
+    // บิลของวัน (ตัด voided/refunded) — ยอดลดในหัวบิล = ยอดจริง
+    const { data: invs } = await supabase.from("invoice_headers")
+        .select("id, status, discount_amount, paid_amount").eq("clinic_id", clinicId).eq("invoice_date", day);
+    const validInvs = ((invs || []) as any[]).filter(i => !["voided", "refunded"].includes(i.status));
+    const headerDiscById = new Map<string, number>(
+        validInvs.map(i => [i.id as string, Number(i.discount_amount || 0)])
+    );
+    const revenue = validInvs.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+    const total = [...headerDiscById.values()].reduce((s, v) => s + v, 0);
 
-    const valid = ((rows || []) as any[]).filter(r => {
-        const h = Array.isArray(r.invoice_headers) ? r.invoice_headers[0] : r.invoice_headers;
-        return h && !["voided", "refunded"].includes(h.status);
-    });
-
+    // breakdown เฉพาะบิลที่ valid ในวันนั้น
+    const discountedIds = [...headerDiscById.entries()].filter(([, v]) => v > 0).map(([id]) => id);
     const byTypeMap = new Map<string, { amount: number; count: number }>();
     const byStaff = new Map<string, { amount: number; count: number }>();
-    let total = 0;
-    for (const r of valid) {
-        const amt = Number(r.amount || 0);
-        total += amt;
-        const t = byTypeMap.get(r.discount_type) || { amount: 0, count: 0 };
-        byTypeMap.set(r.discount_type, { amount: t.amount + amt, count: t.count + 1 });
-        if (r.created_by) {
-            const s = byStaff.get(r.created_by) || { amount: 0, count: 0 };
-            byStaff.set(r.created_by, { amount: s.amount + amt, count: s.count + 1 });
+    const breakdownSumByInv = new Map<string, number>();
+
+    if (discountedIds.length > 0) {
+        const { data: rows } = await supabase.from("invoice_discounts")
+            .select("inv_id, amount, discount_type, created_by")
+            .eq("clinic_id", clinicId).in("inv_id", discountedIds);
+        for (const r of (rows || []) as any[]) {
+            const amt = Number(r.amount || 0);
+            const t = byTypeMap.get(r.discount_type) || { amount: 0, count: 0 };
+            byTypeMap.set(r.discount_type, { amount: t.amount + amt, count: t.count + 1 });
+            breakdownSumByInv.set(r.inv_id, (breakdownSumByInv.get(r.inv_id) || 0) + amt);
+            if (r.created_by) {
+                const s = byStaff.get(r.created_by) || { amount: 0, count: 0 };
+                byStaff.set(r.created_by, { amount: s.amount + amt, count: s.count + 1 });
+            }
         }
     }
 
-    // รายรับของวัน (paid_amount ตัด voided/refunded) — ใช้เทียบ %
-    const { data: invs } = await supabase.from("invoice_headers")
-        .select("paid_amount, status").eq("clinic_id", clinicId).eq("invoice_date", day);
-    const revenue = ((invs || []) as any[])
-        .filter(i => !["voided", "refunded"].includes(i.status))
-        .reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+    // เติมส่วนที่ breakdown ไม่ครบ → "ไม่ระบุที่มา" (ให้ยอดรวมตรงกับหัวบิล)
+    let unclassified = 0, unclassifiedCount = 0;
+    for (const id of discountedIds) {
+        const gap = (headerDiscById.get(id) || 0) - (breakdownSumByInv.get(id) || 0);
+        if (gap > 0.01) { unclassified += gap; unclassifiedCount++; }
+    }
+    if (unclassified > 0.01) {
+        byTypeMap.set("unclassified", { amount: unclassified, count: unclassifiedCount });
+    }
 
     // ชื่อพนักงาน
     let topStaff: { name: string; amount: number; count: number }[] = [];

@@ -132,12 +132,15 @@ interface AuditLog {
     profiles: { full_name: string; role: string } | { full_name: string; role: string }[] | null;
 }
 
+interface DiscountLine { id: string; type: string; label: string | null; amount: number }
+
 export default function InvoiceDetailClient({
-    invoice, items, payments, canManage, auditLogs = [],
+    invoice, items, payments, discountLines = [], canManage, auditLogs = [],
 }: {
     invoice: Invoice;
     items: InvoiceItem[];
     payments: PaymentLog[];
+    discountLines?: DiscountLine[];
     canManage: boolean;
     auditLogs?: AuditLog[];
 }) {
@@ -180,6 +183,14 @@ export default function InvoiceDetailClient({
     const total = Number(invoice.total_amount || 0);
     const paid = Number(invoice.paid_amount || 0);
     const balance = Number(invoice.balance_due || 0);
+
+    // ยึดยอดหัวบิลเป็นหลัก — ส่วนที่ breakdown ไม่ครบ (บิลเก่า/ไม่ระบุ) เติมเป็น "ไม่ระบุที่มา"
+    const breakdownSum = discountLines.reduce((s, d) => s + d.amount, 0);
+    const unclassified = Math.round((discount - breakdownSum) * 100) / 100;
+    const shownDiscounts = [
+        ...discountLines,
+        ...(unclassified > 0.01 ? [{ id: "_unclassified", type: "unclassified", label: "ไม่ระบุที่มา", amount: unclassified }] : []),
+    ];
 
     const positivePayments = payments.filter(p => p.amount >= 0);
     const refunds = payments.filter(p => p.amount < 0);
@@ -435,10 +446,25 @@ export default function InvoiceDetailClient({
                                 <span className="tabular-nums">฿{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                             {discount > 0 && (
-                                <div className="flex justify-between text-red-600">
-                                    <span>ส่วนลด</span>
-                                    <span className="tabular-nums">−฿{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
+                                <>
+                                    {shownDiscounts.map((d) => (
+                                        <div key={d.id} className="flex justify-between text-red-600">
+                                            <span className="truncate pr-2">
+                                                ส่วนลด{d.label ? ` — ${d.label}` : ""}
+                                                {d.type === "unclassified" && (
+                                                    <span className="text-[10px] text-amber-600 ml-1">(ไม่ได้บันทึกที่มา)</span>
+                                                )}
+                                            </span>
+                                            <span className="tabular-nums shrink-0">−฿{d.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    ))}
+                                    {shownDiscounts.length > 1 && (
+                                        <div className="flex justify-between text-red-600 font-bold border-t border-dashed border-red-200 pt-1">
+                                            <span>รวมส่วนลด</span>
+                                            <span className="tabular-nums">−฿{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {tax > 0 && (
                                 <div className="flex justify-between text-slate-600">

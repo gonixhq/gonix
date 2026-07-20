@@ -14,7 +14,7 @@ import {
 import { closeClinicDay, reopenClinicDay, setOpeningFloat } from "@/lib/actions/end-of-day";
 import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
 import type { DiscountDaySummary } from "@/lib/actions/campaigns";
-import { DISCOUNT_KIND_LABEL, type DiscountKind } from "@/lib/campaign-types";
+import { DISCOUNT_KIND_LABEL } from "@/lib/campaign-types";
 import { cn } from "@/lib/utils";
 
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
@@ -536,7 +536,7 @@ export default function EODClient({ summary, history, staffPattern, discounts }:
                             {discounts.byType.map(t => (
                                 <div key={t.type} className="flex items-center justify-between text-sm">
                                     <span className="text-slate-600">
-                                        {DISCOUNT_KIND_LABEL[t.type as DiscountKind] || t.type}
+                                        {DISCOUNT_KIND_LABEL[t.type as keyof typeof DISCOUNT_KIND_LABEL] || t.type}
                                         <span className="text-xs text-slate-400 ml-1.5">({t.count} รายการ)</span>
                                     </span>
                                     <span className="font-semibold tabular-nums text-slate-800">{money(t.amount)}</span>

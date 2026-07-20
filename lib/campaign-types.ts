@@ -5,11 +5,12 @@
 
 export type DiscountKind = "campaign" | "manual" | "package" | "staff_benefit";
 
-export const DISCOUNT_KIND_LABEL: Record<DiscountKind, string> = {
+export const DISCOUNT_KIND_LABEL: Record<DiscountKind | "unclassified", string> = {
     campaign: "แคมเปญ/โค้ดโปรฯ",
     manual: "ลดเอง (พนักงาน)",
     package: "ส่วนลดคอส",
     staff_benefit: "สวัสดิการพนักงาน",
+    unclassified: "ไม่ระบุที่มา (บิลเก่า/ไม่ได้บันทึกเหตุผล)",
 };
 
 export interface Campaign {

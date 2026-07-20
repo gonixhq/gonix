@@ -37,6 +37,23 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         .eq("inv_id", id)
         .order("paid_at", { ascending: true });
 
+    // ส่วนลดแยกตามที่มา (mig 107) — บิลเก่าจะไม่มี, client เติม "ไม่ระบุที่มา" ให้ยอดตรงหัวบิล
+    const { data: discountRows } = await supabase
+        .from("invoice_discounts")
+        .select("id, discount_type, discount_source, amount, campaigns(code, name)")
+        .eq("inv_id", id)
+        .order("created_at");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const discountLines = ((discountRows || []) as any[]).map((d) => {
+        const camp = Array.isArray(d.campaigns) ? d.campaigns[0] : d.campaigns;
+        return {
+            id: d.id as string,
+            type: d.discount_type as string,
+            label: camp ? `${camp.code} · ${camp.name}` : (d.discount_source || null),
+            amount: Number(d.amount || 0),
+        };
+    });
+
     // คืนเงิน / ยกเลิก ใบเสร็จ — พนักงานทุกคนทำได้ แต่ต้องใส่เหตุผล + audit log
     const canManage = true;
 
@@ -49,6 +66,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             invoice={invoice}
             items={items || []}
             payments={payments || []}
+            discountLines={discountLines}
             canManage={canManage}
             auditLogs={auditLogs}
         />
