@@ -38,3 +38,5 @@ next-env.d.ts
 
 # สคริปต์ล้างข้อมูลทดสอบ — เก็บไว้เครื่องเท่านั้น (TRUNCATE จริง อย่าเผลอ commit)
 supabase/reset_test_data.sql
+
+.env*
