@@ -35,6 +35,7 @@ export interface FollowUpTask {
     assigned_doctor_id: string | null;
     doctor_name: string | null;
     escalated_at: string | null;
+    updated_at: string;
 }
 
 /** สร้าง task ติดตามผลอัตโนมัติจากบิลที่ชำระแล้ว (เรียกแบบ non-blocking หลังจ่ายเงิน) */
@@ -103,7 +104,7 @@ export async function getFollowUpsForDate(dateStr?: string, opts?: { includeOver
         const { supabase, clinicId } = await ctx();
         const target = dateStr || new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
         let q = supabase.from("follow_up_tasks")
-            .select("id, hn, vn, service_name, due_date, status, severity, symptom_note, assigned_doctor_id, escalated_at")
+            .select("id, hn, vn, service_name, due_date, status, severity, symptom_note, assigned_doctor_id, escalated_at, updated_at")
             .eq("clinic_id", clinicId).in("status", ["pending", "callback", "unreachable"]);
         q = opts?.includeOverdue ? q.lte("due_date", target) : q.eq("due_date", target);
         const { data } = await q.order("due_date", { ascending: true }).limit(500);
@@ -135,7 +136,8 @@ export async function getFollowUpsForDate(dateStr?: string, opts?: { includeOver
             assigned_doctor_id: (t.assigned_doctor_id as string) || null,
             doctor_name: t.assigned_doctor_id ? (docMap[t.assigned_doctor_id as string] || null) : null,
             escalated_at: (t.escalated_at as string) || null,
-        })).sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) || a.due_date.localeCompare(b.due_date));
+            updated_at: t.updated_at as string,
+        })).sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) || b.updated_at.localeCompare(a.updated_at));
     } catch {
         return [];
     }
@@ -211,21 +213,93 @@ export async function escalateFollowUp(taskId: string, note?: string) {
 export interface FollowUpLogEntry { id: string; action: string; status: string | null; severity: string | null; note: string | null; actor_name: string | null; created_at: string; }
 export interface PatientFollowUp extends FollowUpTask { logs: FollowUpLogEntry[]; }
 
-/** ผู้ป่วยรายงานอาการเองผ่าน LINE (LIFF) — anon context ใช้ service client bypass RLS */
-export async function submitSelfReport(lineUid: string, severity: Severity, note: string): Promise<{ ok: boolean; error?: string }> {
+type LineVerifyResult = { ok: true; sub: string } | { ok: false; reason: "expired" | "invalid" };
+
+/** ยืนยัน LINE ID token กับ LINE โดยตรง (ห้ามเชื่อ userId ที่ client ส่งมาเฉยๆ) */
+async function verifyLineIdToken(idToken: string): Promise<LineVerifyResult> {
+    const channelId = process.env.LINE_LOGIN_CHANNEL_ID || "";
+    if (!idToken || !channelId) return { ok: false, reason: "invalid" };
     try {
-        if (!lineUid) return { ok: false, error: "เปิดผ่าน LINE เท่านั้น" };
+        const r = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data: any = await r.json().catch(() => null);
+        if (!r.ok) {
+            const desc = String(data?.error_description || data?.error || "").toLowerCase();
+            return { ok: false, reason: desc.includes("expired") ? "expired" : "invalid" };
+        }
+        if (!data?.sub || data.aud !== channelId) return { ok: false, reason: "invalid" };
+        return { ok: true, sub: data.sub as string };
+    } catch {
+        return { ok: false, reason: "invalid" };
+    }
+}
+
+const SEV_RANK: Record<Severity, number> = { green: 0, yellow: 1, red: 2 };
+
+/** ผู้ป่วยรายงานอาการเองผ่าน LINE (LIFF) — anon context ใช้ service client bypass RLS
+ *  identity ยืนยันจาก LINE ID token เท่านั้น ไม่เชื่อ userId ดิบจาก client */
+export async function submitSelfReport(idToken: string, clinicId: string, severity: Severity, note: string): Promise<{ ok: boolean; error?: string; phone?: string }> {
+    try {
+        if (!clinicId) return { ok: false, error: "เปิดผ่านลิงก์ของคลินิกเท่านั้น" };
+        const verify = await verifyLineIdToken(idToken);
+        if (!verify.ok) {
+            return {
+                ok: false,
+                error: verify.reason === "expired"
+                    ? "เซสชันหมดอายุ กรุณาเปิดหน้านี้ใหม่อีกครั้ง"
+                    : "ยืนยันตัวตนไม่สำเร็จ — กรุณาเปิดผ่านแอป LINE ใหม่อีกครั้ง",
+            };
+        }
         const supabase = createServiceClient();
         const { data: pat } = await supabase.from("patients")
-            .select("hn, clinic_id, first_name, last_name").eq("line_user_id", lineUid).limit(1).maybeSingle();
-        if (!pat) return { ok: false, error: "ยังไม่ได้ผูกบัญชี LINE กับคลินิก" };
-        const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
-        const { data: task, error } = await supabase.from("follow_up_tasks").insert({
-            clinic_id: pat.clinic_id, hn: pat.hn, service_name: "รายงานอาการเอง (ผ่าน LINE)",
-            due_date: today, severity, symptom_note: note || null, self_reported: true, status: "pending",
-        }).select("id").single();
-        if (error) return { ok: false, error: error.message };
-        await supabase.from("follow_up_task_log").insert({ clinic_id: pat.clinic_id, task_id: task.id, action: "self_report", severity, note: note || null });
+            .select("hn, clinic_id, first_name, last_name")
+            .eq("clinic_id", clinicId).eq("line_user_id", verify.sub).limit(1).maybeSingle();
+        if (!pat) return { ok: false, error: "ยังไม่ได้ผูกบัญชี LINE กับคลินิกนี้" };
+
+        // มีงานติดตามที่ยังเปิดอยู่ไหม — ถ้ามีให้ต่อยอด (escalate severity เท่านั้น, ไม่ทับ note เดิม)
+        const { data: openTask } = await supabase.from("follow_up_tasks")
+            .select("id, severity").eq("hn", pat.hn).eq("clinic_id", pat.clinic_id)
+            .in("status", ["pending", "callback", "unreachable"])
+            .order("due_date", { ascending: false }).limit(1).maybeSingle();
+
+        let taskId: string;
+        if (openTask) {
+            taskId = openTask.id as string;
+            // ต้อง bump updated_at เสมอแม้ severity ไม่เปลี่ยน — ไม่งั้นรายงานซ้ำระดับเดิมจะเงียบหายจากสายตาสตาฟ
+            const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+            if (SEV_RANK[severity] > SEV_RANK[openTask.severity as Severity]) patch.severity = severity;
+            const { error } = await supabase.from("follow_up_tasks")
+                .update(patch)
+                .eq("id", taskId).eq("hn", pat.hn).eq("clinic_id", pat.clinic_id);
+            if (error) return { ok: false, error: error.message };
+        } else {
+            // ไม่มีงานเปิดอยู่ — สร้างใหม่ได้เฉพาะถ้ามีประวัติมาใช้บริการใน 30 วันล่าสุด
+            const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+            const { data: recentVisit } = await supabase.from("visits")
+                .select("vn").eq("hn", pat.hn).eq("clinic_id", pat.clinic_id)
+                .gte("visit_date", since).order("visit_date", { ascending: false }).limit(1).maybeSingle();
+            if (!recentVisit) {
+                const { data: clinic } = await supabase.from("tenants").select("phone").eq("id", pat.clinic_id).maybeSingle();
+                return {
+                    ok: false,
+                    error: "ไม่พบประวัติการรักษาในช่วง 30 วันที่ผ่านมา กรุณาโทรติดต่อคลินิกโดยตรง",
+                    phone: (clinic?.phone as string) || undefined,
+                };
+            }
+            const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+            const { data: newTask, error } = await supabase.from("follow_up_tasks").insert({
+                clinic_id: pat.clinic_id, hn: pat.hn, vn: recentVisit.vn, service_name: "รายงานอาการเอง (ผ่าน LINE)",
+                due_date: today, severity, symptom_note: note || null, self_reported: true, status: "pending",
+            }).select("id").single();
+            if (error) return { ok: false, error: error.message };
+            taskId = newTask.id as string;
+        }
+
+        await supabase.from("follow_up_task_log").insert({ clinic_id: pat.clinic_id, task_id: taskId, action: "self_report", severity, note: note || null });
 
         // แจ้ง owner ถ้าอาการด่วน/ผิดปกติ
         if (severity !== "green") {
@@ -234,6 +308,7 @@ export async function submitSelfReport(lineUid: string, severity: Severity, note
             const msg = `📩 คนไข้รายงานอาการเอง (${severity === "red" ? "ด่วน 🔴" : "ผิดปกติ 🟡"})\nคนไข้: ${pname} (HN ${pat.hn})\nอาการ: ${note || "-"}\nกรุณาติดต่อกลับ`;
             for (const o of owners || []) await pushLineText(o.line_user_id as string, msg);
         }
+        // TODO: เพิ่มคอลัมน์ last_self_report_at แยกจาก updated_at ในอนาคต เพื่อแยกรายงานจากคนไข้ออกจากการแก้ไขของสตาฟ
         return { ok: true };
     } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
@@ -324,7 +399,7 @@ export async function getPatientFollowUps(hn: string): Promise<PatientFollowUp[]
     try {
         const { supabase, clinicId } = await ctx();
         const { data: tasks } = await supabase.from("follow_up_tasks")
-            .select("id, hn, vn, service_name, due_date, status, severity, symptom_note, assigned_doctor_id, escalated_at, created_at")
+            .select("id, hn, vn, service_name, due_date, status, severity, symptom_note, assigned_doctor_id, escalated_at, created_at, updated_at")
             .eq("clinic_id", clinicId).eq("hn", hn).order("due_date", { ascending: false }).limit(100);
         const tList = tasks || [];
         if (tList.length === 0) return [];
@@ -346,6 +421,7 @@ export async function getPatientFollowUps(hn: string): Promise<PatientFollowUp[]
             vn: (t.vn as string) || null, service_name: (t.service_name as string) || null, due_date: t.due_date as string,
             status: t.status as FollowUpStatus, severity: t.severity as Severity, symptom_note: (t.symptom_note as string) || null,
             assigned_doctor_id: (t.assigned_doctor_id as string) || null, doctor_name: null, escalated_at: (t.escalated_at as string) || null,
+            updated_at: t.updated_at as string,
             logs: logsByTask[t.id as string] || [],
         }));
     } catch {

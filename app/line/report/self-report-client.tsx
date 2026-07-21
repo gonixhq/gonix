@@ -15,12 +15,12 @@ const OPTIONS: { key: Severity; label: string; desc: string; cls: string }[] = [
     { key: "red", label: "อาการรุนแรง 🔴", desc: "ปวดมาก บวมมาก แพ้ยา", cls: "border-rose-300 bg-rose-50 text-rose-700" },
 ];
 
-export default function SelfReportClient({ liffId }: { liffId: string }) {
+export default function SelfReportClient({ liffId, clinicId }: { liffId: string; clinicId: string }) {
     const [ready, setReady] = useState(false);
-    const [lineUid, setLineUid] = useState("");
     const [sev, setSev] = useState<Severity | null>(null);
     const [note, setNote] = useState("");
     const [err, setErr] = useState("");
+    const [errPhone, setErrPhone] = useState("");
     const [busy, setBusy] = useState(false);
     const [done, setDone] = useState(false);
 
@@ -29,17 +29,20 @@ export default function SelfReportClient({ liffId }: { liffId: string }) {
             if (!liffId) { setErr("ยังไม่ได้ตั้งค่า LIFF ID"); return; }
             await window.liff.init({ liffId });
             if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
-            const p = await window.liff.getProfile();
-            setLineUid(p.userId); setReady(true);
+            setReady(true);
         } catch { setErr("เริ่มต้น LINE ไม่สำเร็จ — กรุณาเปิดผ่านแอป LINE"); }
     }
 
     async function submit() {
         if (!sev) { setErr("กรุณาเลือกอาการ"); return; }
-        setErr(""); setBusy(true);
-        const r = await submitSelfReport(lineUid, sev, note.trim());
+        setErr(""); setErrPhone(""); setBusy(true);
+        const idToken = window.liff?.getIDToken?.();
+        if (!idToken) { setBusy(false); setErr("ยืนยันตัวตนไม่สำเร็จ — กรุณาเปิดผ่านแอป LINE ใหม่อีกครั้ง"); return; }
+        const r = await submitSelfReport(idToken, clinicId, sev, note.trim());
         setBusy(false);
-        if (r.ok) setDone(true); else setErr(r.error || "ส่งไม่สำเร็จ");
+        if (r.ok) { setDone(true); return; }
+        setErr(r.error || "ส่งไม่สำเร็จ");
+        if (r.phone) setErrPhone(r.phone);
     }
 
     return (
@@ -75,7 +78,12 @@ export default function SelfReportClient({ liffId }: { liffId: string }) {
                                 ))}
                                 <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="อธิบายอาการเพิ่มเติม (ถ้ามี)"
                                     className="w-full rounded-xl border-2 border-slate-200 px-3 py-2 text-sm focus:border-[#06C755] focus:outline-none" />
-                                {err && <p className="text-sm text-rose-600 bg-rose-50 rounded-xl px-3 py-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" /> {err}</p>}
+                                {err && (
+                                    <p className="text-sm text-rose-600 bg-rose-50 rounded-xl px-3 py-2 flex items-center gap-1.5">
+                                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                                        <span>{err}{errPhone && <> — <a href={`tel:${errPhone}`} className="underline font-bold">โทร {errPhone}</a></>}</span>
+                                    </p>
+                                )}
                                 <button onClick={submit} disabled={busy || !sev} className="w-full h-12 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50" style={{ background: "linear-gradient(90deg,#06C755,#15FF83)" }}>
                                     {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <HeartPulse className="h-5 w-5" />} ส่งรายงานอาการ
                                 </button>

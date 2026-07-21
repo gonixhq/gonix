@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export default function LineLinkPage() {
     return (
         <LineLinkClient
-            liffId={process.env.NEXT_PUBLIC_LIFF_ID || ""}
+            liffId={process.env.NEXT_PUBLIC_LIFF_ID_LINK || ""}
             clinicId={process.env.NEXT_PUBLIC_CLINIC_ID || ""}
         />
     );

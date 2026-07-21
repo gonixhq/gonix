@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     let payload: any;
     try { payload = JSON.parse(body); } catch { return NextResponse.json({ ok: true }); }
 
-    const liffId = process.env.NEXT_PUBLIC_LIFF_ID || "";
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID_LINK || "";
     for (const ev of payload.events || []) {
         // ข้อความตัวอักษร → ลองผูกบัญชีเซลล์ด้วยรหัส AFF-xxxx
         if (ev.type === "message" && ev.message?.type === "text" && ev.source?.userId) {

@@ -52,6 +52,7 @@ function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; t
     const [showNote, setShowNote] = useState(false);
     const [showSatisfied, setShowSatisfied] = useState(false);
     const isOverdue = task.due_date < today;
+    const isRecentlyUpdated = Date.now() - new Date(task.updated_at).getTime() < 24 * 60 * 60 * 1000;
 
     function markSatisfied() {
         setShowSatisfied(true);
@@ -84,6 +85,7 @@ function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; t
                         <span className="font-mono text-[10px] text-slate-400">{task.hn}</span>
                         {isOverdue && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">เลยกำหนด</span>}
                         {task.escalated_at && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">แจ้งแพทย์แล้ว</span>}
+                        {isRecentlyUpdated && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">อัปเดตใหม่</span>}
                     </div>
                     <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                         <span>{task.service_name || "-"}</span>

@@ -20,7 +20,7 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
 
     async function initLiff() {
         try {
-            if (!liffId) { setErr("ยังไม่ได้ตั้งค่า LIFF ID (NEXT_PUBLIC_LIFF_ID)"); return; }
+            if (!liffId) { setErr("ยังไม่ได้ตั้งค่า LIFF ID (NEXT_PUBLIC_LIFF_ID_LINK)"); return; }
             await window.liff.init({ liffId });
             if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
             const p = await window.liff.getProfile();
