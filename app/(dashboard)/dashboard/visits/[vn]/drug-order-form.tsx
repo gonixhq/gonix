@@ -155,6 +155,8 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
         setSavingIcd10(true);
         await supabase.from("visits").update({ icd10_primary: item.code }).eq("vn", vn);
         setSavingIcd10(false);
+        // refresh เพื่อให้ปุ่ม "สิ้นสุดการตรวจ" เห็นค่า ICD ล่าสุด (summary อ่านจาก server)
+        router.refresh();
     }
 
     // Drug search — include drug + supply + sig defaults from inventory
