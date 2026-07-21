@@ -76,6 +76,9 @@ interface EndExamProps {
 
 export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summary, serviceCategory }: EndExamProps) {
     const isAesthetic = serviceCategory === "aesthetic";
+    // ICD-10 ไม่บังคับสำหรับ: ความงาม (aesthetic) และ ขอใบรับรองแพทย์ (med_cert)
+    // — เคสขอใบรับรอง การวินิจฉัยอยู่ในตัวใบรับรองเอง ไม่จำเป็นต้องมี ICD
+    const icdRequired = !isAesthetic && serviceCategory !== "med_cert";
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -172,10 +175,14 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
                                             <span className="font-mono font-bold text-blue-700 text-sm bg-white px-2 py-0.5 rounded shrink-0">{summary.icd10}</span>
                                             <span className="text-slate-800 text-sm font-medium">{summary.icd10Name || "—"}</span>
                                         </div>
-                                    ) : (
+                                    ) : icdRequired ? (
                                         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                                             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                                             <span className="text-amber-800 text-sm font-medium">ยังไม่ได้ระบุการวินิจฉัย</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+                                            <span className="text-slate-500 text-sm">— ไม่ได้ระบุ (ไม่บังคับสำหรับใบรับรองแพทย์)</span>
                                         </div>
                                     )}
                                 </SummarySection>
@@ -386,7 +393,7 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
 
                         {/* Footer */}
                         <div className="sticky bottom-0 bg-white border-t px-6 py-4 rounded-b-2xl space-y-2.5">
-                            {!isAesthetic && !summary.icd10 && (
+                            {icdRequired && !summary.icd10 && (
                                 <div className="flex items-center gap-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700 font-semibold">
                                     <AlertTriangle className="h-4 w-4 shrink-0" /> ต้องระบุการวินิจฉัย (ICD-10) อย่างน้อย 1 รายการ ก่อนสิ้นสุดการตรวจ
                                 </div>
@@ -402,8 +409,8 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
                                 <button
                                     type="button"
                                     onClick={handleConfirm}
-                                    disabled={loading || (!isAesthetic && !summary.icd10)}
-                                    title={!isAesthetic && !summary.icd10 ? "ต้องระบุ ICD-10 ก่อน" : undefined}
+                                    disabled={loading || (icdRequired && !summary.icd10)}
+                                    title={icdRequired && !summary.icd10 ? "ต้องระบุ ICD-10 ก่อน" : undefined}
                                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                     {loading ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
