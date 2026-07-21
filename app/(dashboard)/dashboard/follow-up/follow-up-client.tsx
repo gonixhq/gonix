@@ -112,6 +112,15 @@ function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; t
                 <button onClick={() => setShowNote(v => !v)} className="ml-auto text-[11px] font-bold text-slate-500 hover:text-slate-800">{showNote ? "ซ่อนบันทึก" : "บันทึกอาการ"}</button>
             </div>
 
+            {task.self_report_note && (
+                <div className="mt-2 rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-2">
+                    <div className="text-[10px] font-bold text-indigo-700 mb-0.5">
+                        คนไข้รายงานเอง (LINE){task.self_report_at ? ` · ${new Date(task.self_report_at).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </div>
+                    <div className="text-sm text-indigo-900 whitespace-pre-wrap">{task.self_report_note}</div>
+                </div>
+            )}
+
             {(showNote || task.symptom_note) && (
                 <div className="mt-2">
                     <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="บันทึกอาการ/feedback ของคนไข้ (เก็บใน EMR)"

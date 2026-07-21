@@ -36,6 +36,8 @@ export interface FollowUpTask {
     doctor_name: string | null;
     escalated_at: string | null;
     updated_at: string;
+    self_report_note: string | null;
+    self_report_at: string | null;
 }
 
 /** สร้าง task ติดตามผลอัตโนมัติจากบิลที่ชำระแล้ว (เรียกแบบ non-blocking หลังจ่ายเงิน) */
@@ -125,6 +127,19 @@ export async function getFollowUpsForDate(dateStr?: string, opts?: { includeOver
             const { data: staff } = await supabase.from("staff").select("id, profiles(full_name)").in("id", docIds);
             (staff || []).forEach(s => { const rel = s.profiles as unknown as { full_name?: string } | { full_name?: string }[] | null; const p = Array.isArray(rel) ? rel[0] : rel; docMap[s.id as string] = p?.full_name || "—"; });
         }
+        // รายงานอาการล่าสุดที่คนไข้ส่งเอง (จาก log) — แสดงแยกจาก symptom_note ที่สตาฟกรอก ไม่ทับกัน
+        const taskIds = tasks.map(t => t.id as string);
+        const selfReportMap: Record<string, { note: string | null; created_at: string }> = {};
+        if (taskIds.length) {
+            const { data: reports } = await supabase.from("follow_up_task_log")
+                .select("task_id, note, created_at").eq("clinic_id", clinicId).in("task_id", taskIds).eq("action", "self_report")
+                .order("created_at", { ascending: false });
+            (reports || []).forEach(r => {
+                const tid = r.task_id as string;
+                if (!selfReportMap[tid]) selfReportMap[tid] = { note: (r.note as string) || null, created_at: r.created_at as string };
+            });
+        }
+
         const sevRank: Record<string, number> = { red: 0, yellow: 1, green: 2 };
         return tasks.map(t => ({
             id: t.id as string, hn: t.hn as string,
@@ -137,6 +152,8 @@ export async function getFollowUpsForDate(dateStr?: string, opts?: { includeOver
             doctor_name: t.assigned_doctor_id ? (docMap[t.assigned_doctor_id as string] || null) : null,
             escalated_at: (t.escalated_at as string) || null,
             updated_at: t.updated_at as string,
+            self_report_note: selfReportMap[t.id as string]?.note || null,
+            self_report_at: selfReportMap[t.id as string]?.created_at || null,
         })).sort((a, b) => (sevRank[a.severity] - sevRank[b.severity]) || b.updated_at.localeCompare(a.updated_at));
     } catch {
         return [];
@@ -422,6 +439,7 @@ export async function getPatientFollowUps(hn: string): Promise<PatientFollowUp[]
             status: t.status as FollowUpStatus, severity: t.severity as Severity, symptom_note: (t.symptom_note as string) || null,
             assigned_doctor_id: (t.assigned_doctor_id as string) || null, doctor_name: null, escalated_at: (t.escalated_at as string) || null,
             updated_at: t.updated_at as string,
+            self_report_note: null, self_report_at: null, // ดูรายงานอาการเองแบบเต็มได้ใน logs ด้านล่างอยู่แล้ว
             logs: logsByTask[t.id as string] || [],
         }));
     } catch {
