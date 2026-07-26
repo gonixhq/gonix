@@ -73,7 +73,7 @@ async function decide(id: string, decision: "approved" | "rejected", note?: stri
 
     const { error } = await supabase.from("price_approvals")
         .update({ status: decision, approved_by: userId, approved_at: new Date().toISOString(), note: note || null })
-        .eq("id", id);
+        .eq("id", id).eq("clinic_id", clinicId);   // ผูก clinic_id บน mutation เอง (ไม่พึ่ง SELECT ก่อนหน้าอย่างเดียว)
     if (error) return { success: false, error: error.message };
     revalidatePath("/dashboard/price-approvals");
     return { success: true };

@@ -169,7 +169,7 @@ export async function claimReferralReward(
             reward_amount: type === "points" ? 0 : value,
             reward_points: type === "points" ? Math.round(value) : 0,
         };
-        const { error } = await supabase.from("patient_referrals").update(patch).eq("id", referralId);
+        const { error } = await supabase.from("patient_referrals").update(patch).eq("id", referralId).eq("clinic_id", clinicId);
         if (error) return { success: false, error: error.message };
 
         // ถ้าเลือกแต้ม → บวกเข้า loyalty ของผู้แนะนำ (ใช้ระบบเดิม)
