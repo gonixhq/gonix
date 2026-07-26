@@ -40,3 +40,4 @@ next-env.d.ts
 supabase/reset_test_data.sql
 
 .env*
+!.env.example
