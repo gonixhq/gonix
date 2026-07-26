@@ -31,7 +31,7 @@ export default async function PublicRegisterPage({
         .limit(1)
         .maybeSingle();
 
-    return <RegisterForm clinic={{
+    return <RegisterForm clinicCode={clinicCode.toUpperCase()} clinic={{
         ...tenant,
         phone: branch?.phone || null,
         address_detail: branch?.address || null,

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { CheckCircle, Loader2, MessageCircle, ShieldCheck, AlertTriangle, Search, X } from "lucide-react";
 import { PDPAModal } from "@/components/ui/pdpa-modal";
+import { submitPendingRegistration } from "@/lib/actions/pending-registrations";
 
 interface AddressItem {
     subdistrict_code: string;
@@ -24,7 +25,7 @@ interface Clinic {
     address_detail: string | null;
 }
 
-export default function RegisterForm({ clinic }: { clinic: Clinic }) {
+export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; clinicCode: string }) {
     const supabase = createClient();
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState(false);
@@ -111,12 +112,10 @@ export default function RegisterForm({ clinic }: { clinic: Clinic }) {
             pdpa_consent: form.get("pdpa_consent") === "on",
         };
 
-        const { error: insertErr } = await supabase
-            .from("pending_registrations")
-            .insert(payload);
-
-        if (insertErr) {
-            setError(`ส่งข้อมูลไม่สำเร็จ: ${insertErr.message}`);
+        // ส่งผ่าน server action → RPC security-definer (clinic_id ผูกจาก code + rate limit, mig 110)
+        const res = await submitPendingRegistration(clinicCode, payload);
+        if (!res.ok) {
+            setError(res.error || "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่");
             setSubmitting(false);
             return;
         }
