@@ -70,7 +70,7 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
                                 <p className="text-sm text-slate-600">ยืนยันตัวตนเพื่อผูกบัญชี LINE ({display}) กับข้อมูลผู้ป่วยของคุณ</p>
                                 <div>
                                     <label className="text-xs font-bold text-slate-600 mb-1 block">HN (เลขประจำตัวผู้ป่วย)</label>
-                                    <input value={hn} onChange={(e) => setHn(e.target.value)} placeholder="เช่น 0001"
+                                    <input value={hn} onChange={(e) => setHn(e.target.value)} placeholder="เช่น HN690011 หรือ 690011"
                                         className="w-full h-12 rounded-xl border-2 border-slate-200 px-3 text-base font-mono focus:border-[#06C755] focus:outline-none" />
                                 </div>
                                 <div>
