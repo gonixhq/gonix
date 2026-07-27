@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import { notFound } from "next/navigation";
-import { getInventoryAuditLogs, getItemLots } from "@/lib/actions/inventory";
+import { getInventoryAuditLogs, getItemLots, getItemVials } from "@/lib/actions/inventory";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import InventoryDetailClient from "./inventory-detail-client";
 
@@ -36,9 +36,12 @@ export default async function InventoryDetailPage({
         .order("recorded_at", { ascending: false })
         .limit(50);
 
-    const [editLogs, lots, perm] = await Promise.all([
-        getInventoryAuditLogs(id), getItemLots(id), getEffectivePermissionsForUser(),
+    const isInjectable = item.deduction_type === "injectable_vial";
+    const [editLogs, lots, vials, perm] = await Promise.all([
+        getInventoryAuditLogs(id), getItemLots(id),
+        isInjectable ? getItemVials(id) : Promise.resolve([]),
+        getEffectivePermissionsForUser(),
     ]);
 
-    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} lots={lots} isOwner={perm.role === "owner"} />;
+    return <InventoryDetailClient item={item} history={history || []} editLogs={editLogs} lots={lots} vials={vials} isOwner={perm.role === "owner"} />;
 }

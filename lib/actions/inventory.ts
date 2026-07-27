@@ -222,6 +222,65 @@ export async function getItemLots(itemId: string) {
     }
 }
 
+/** ดึง vial ราย-ขวด (injectable model B) — เรียงเปิดค้าง/ยังไม่เปิดก่อน */
+export async function getItemVials(itemId: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return [];
+        const { data } = await supabase
+            .from("inventory_vials")
+            .select("id, lot_number, expiry_date, capacity_total, capacity_remaining, status, opened_at, received_at, note")
+            .eq("clinic_id", profile.clinic_id).eq("item_id", itemId)
+            .order("status", { ascending: true })   // depleted/open/unopened (alphabetical: depleted,open,unopened)
+            .order("expiry_date", { ascending: true, nullsFirst: false })
+            .limit(200);
+        return data || [];
+    } catch {
+        return [];
+    }
+}
+
+/** ทิ้งเศษ vial ที่เปิดค้าง (Botox reconstituted 24 ชม.) → depleted + บันทึก waste (P05) */
+export async function discardVial(vialId: string, reason?: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const { data: vial } = await supabase.from("inventory_vials")
+            .select("id, item_id, lot_number, capacity_remaining, status")
+            .eq("id", vialId).eq("clinic_id", profile.clinic_id).maybeSingle();
+        if (!vial) return { success: false, error: "ไม่พบ vial" };
+        if (vial.status === "depleted") return { success: false, error: "vial นี้ใช้หมด/ทิ้งไปแล้ว" };
+
+        const wasteQty = Number(vial.capacity_remaining || 0);
+        const { error: upErr } = await supabase.from("inventory_vials")
+            .update({ status: "depleted", capacity_remaining: 0 }).eq("id", vialId);
+        if (upErr) return { success: false, error: upErr.message };
+
+        const { data: staffRow } = await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+        const { data: itemAfter } = await supabase.from("inventory").select("stock_qty").eq("id", vial.item_id).maybeSingle();
+        // บันทึก waste (ไม่ใช่การขาย) — who/when จาก recorded_by/recorded_at
+        await supabase.from("stock_card").insert({
+            item_id: vial.item_id, clinic_id: profile.clinic_id, tx_type: "WASTE",
+            qty_delta: -wasteQty, balance_after: Math.max(0, Number(itemAfter?.stock_qty || 0) - wasteQty),
+            note: `ทิ้งเศษ vial (Lot ${vial.lot_number || "—"}) เหลือ ${wasteQty}${reason ? ` · ${reason}` : ""}`,
+            recorded_by: staffRow?.id || null,
+        });
+        await supabase.rpc("fn_sync_vial_stock", { p_item: vial.item_id });
+
+        revalidatePath(`/dashboard/inventory/${vial.item_id}`);
+        return { success: true, wasteQty };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** แก้ไขล็อต (เลขล็อต/วันหมดอายุ/คงเหลือ) — สำหรับแก้ที่กรอกผิด */
 export async function updateLot(input: { id: string; lot_no?: string; expiry_date?: string | null; qty_remaining?: number }) {
     try {
