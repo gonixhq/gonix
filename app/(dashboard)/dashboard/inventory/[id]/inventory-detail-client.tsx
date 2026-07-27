@@ -454,6 +454,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
                     currentStock={Number(item.stock_qty || 0)}
                     purchaseUnit={item.purchase_unit}
                     defaultPerPack={item.units_per_pack}
+                    requireLotExpiry={item.deduction_type === "injectable_vial"}
                     onClose={() => setShowReceive(false)}
                     onSuccess={(qty) => {
                         setSuccess(`✓ รับเข้าสต๊อก ${qty} ${item.unit} สำเร็จ`);
@@ -539,7 +540,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, i
 }
 
 function ReceiveModal({
-    itemId, itemName, unit, currentStock, purchaseUnit, defaultPerPack, onClose, onSuccess, onError,
+    itemId, itemName, unit, currentStock, purchaseUnit, defaultPerPack, requireLotExpiry = false, onClose, onSuccess, onError,
 }: {
     itemId: string;
     itemName: string;
@@ -547,6 +548,7 @@ function ReceiveModal({
     currentStock: number;
     purchaseUnit?: string | null;
     defaultPerPack?: number | null;
+    requireLotExpiry?: boolean;   // เวชภัณฑ์ฉีด → บังคับ lot + วันหมดอายุ
     onClose: () => void;
     onSuccess: (qty: number) => void;
     onError: (msg: string) => void;
@@ -569,6 +571,8 @@ function ReceiveModal({
     function handleSubmit() {
         if (!(totalUnits > 0)) { onError("กรุณากรอกจำนวนที่รับเข้า"); return; }
         if (packMode && !(perPackN > 0)) { onError(`กรุณากรอกยูนิตต่อ${packUnit}`); return; }
+        // เวชภัณฑ์ฉีด: บังคับ lot + วันหมดอายุ (track ราย vial / recall)
+        if (requireLotExpiry && (!lot.trim() || !expiry)) { onError("เวชภัณฑ์ฉีดต้องกรอกเลข lot และวันหมดอายุ"); return; }
         // ราคาทุน: โหมดแพ็ค = ราคาต่อ 1 แพ็ค → แปลงเป็นต่อยูนิต
         const costN = cost ? parseFloat(cost) : undefined;
         const costPerUnit = costN != null ? (packMode && perPackN > 0 ? costN / perPackN : costN) : undefined;
@@ -667,13 +671,13 @@ function ReceiveModal({
                         </div>
                     </div>
                     <div>
-                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">Lot No.</Label>
-                        <Input value={lot} onChange={e => setLot(e.target.value)} placeholder="—" className="mt-1 font-mono" />
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">Lot No.{requireLotExpiry && <span className="text-rose-500"> *</span>}</Label>
+                        <Input value={lot} onChange={e => setLot(e.target.value)} placeholder={requireLotExpiry ? "บังคับกรอก" : "—"} className="mt-1 font-mono" />
                     </div>
                 </div>
 
                 <div>
-                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">วันหมดอายุ (ล็อตนี้)</Label>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">วันหมดอายุ (ล็อตนี้){requireLotExpiry && <span className="text-rose-500"> *</span>}</Label>
                     <Input type="date" value={expiry} onChange={e => setExpiry(e.target.value)} className="mt-1" />
                     <p className="text-[11px] text-slate-400 mt-1">ระบบจะแท็กวันหมดอายุของรายการจากล็อตที่ใกล้หมดสุด</p>
                 </div>

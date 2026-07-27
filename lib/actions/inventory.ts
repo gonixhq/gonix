@@ -21,6 +21,8 @@ const EDITABLE_FIELDS = [
     "location", "supplier", "note", "expiry_date",
     // ── consumables / stock model ──
     "track_group", "units_per_pack", "deduction_type",
+    // ── เวชภัณฑ์ฉีด (injectable) ──
+    "brand", "model_variant", "capacity_unit_label",
     // ── ข้อมูลฉลากยา ──
     "item_name_th", "indication", "storage_info", "dose_qty", "use_type",
     "frequency", "sig_text_default", "label_type", "warning_label",

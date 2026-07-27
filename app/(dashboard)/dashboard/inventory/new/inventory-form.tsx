@@ -115,6 +115,12 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [deductionType, setDeductionType] = useState<string>(
         item?.deduction_type || (item?.track_group ? "consumable_periodic" : item?.units_per_pack != null ? "injectable_vial" : "unit_piece")
     );
+    // field เฉพาะเวชภัณฑ์ฉีด (P02)
+    const [brand, setBrand] = useState(item?.brand || "");
+    const [modelVariant, setModelVariant] = useState(item?.model_variant || "");
+    const [capacityUnitLabel, setCapacityUnitLabel] = useState(item?.capacity_unit_label || "unit");
+    const [brandOptions, setBrandOptions] = useState<string[]>([]);
+    const [modelOptions, setModelOptions] = useState<string[]>([]);
     const [genericName, setGenericName] = useState(item?.generic_name || "");
     const [tradeName, setTradeName] = useState(item?.trade_name || "");
     const [strengthValue, setStrengthValue] = useState(item?.strength || "");
@@ -181,6 +187,20 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [category]);
 
+    // ดึงแบรนด์/รุ่นที่เคยมี ไว้ทำ datalist (free-select — เลือกเดิม หรือพิมพ์ใหม่)
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            const { data } = await supabase.from("inventory").select("brand, model_variant")
+                .or("brand.not.is.null,model_variant.not.is.null");
+            if (!alive || !data) return;
+            setBrandOptions([...new Set(data.map(d => d.brand).filter(Boolean) as string[])].sort());
+            setModelOptions([...new Set(data.map(d => d.model_variant).filter(Boolean) as string[])].sort());
+        })();
+        return () => { alive = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     async function handleSave() {
         if (!itemName || !unit || !sellPrice) {
             setError("กรุณากรอก ชื่อแสดง (Item Name), หน่วยนับ (Unit) และ ราคาขาย (Price)");
@@ -205,6 +225,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     purchase_unit: purchaseUnit || null, track_group: trackGroup || null,
                     units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
                     deduction_type: deductionType || null,
+                    brand: brand || null, model_variant: modelVariant || null,
+                    capacity_unit_label: deductionType === "injectable_vial" ? capacityUnitLabel : null,
                     generic_name: genericName, trade_name: tradeName, strength,
                     dosage_form: dosageForm.trim(),
                     item_name_th: itemNameTh, indication, storage_info: storageInfo,
@@ -232,6 +254,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 track_group: trackGroup || null,
                 units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
                 deduction_type: deductionType || null,
+                brand: brand || null,
+                model_variant: modelVariant || null,
+                capacity_unit_label: deductionType === "injectable_vial" ? capacityUnitLabel : null,
                 generic_name: genericName || null,
                 trade_name: tradeName || null,
                 strength: strength || null,
@@ -353,17 +378,32 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         </select>
                     </FieldRow>
 
-                    {/* ── ฉีด: ขนาดขวด + หน่วยใหญ่ (lot/expiry บังคับตอนรับเข้า) ── */}
+                    {/* ── ฉีด: แบรนด์/รุ่น/ขนาดขวด (lot/expiry บังคับตอนรับเข้า) ── */}
                     {deductionType === "injectable_vial" && (
                         <>
+                            <FieldRow label="แบรนด์">
+                                <Input list="brand-options" value={brand} onChange={e => setBrand(e.target.value)} placeholder="เช่น Allergan, Galderma" className={inputCls} />
+                                <datalist id="brand-options">{brandOptions.map(b => <option key={b} value={b} />)}</datalist>
+                            </FieldRow>
+                            <FieldRow label="รุ่น / variant">
+                                <Input list="model-options" value={modelVariant} onChange={e => setModelVariant(e.target.value)} placeholder="เช่น Voluma, Volbella" className={inputCls} />
+                                <datalist id="model-options">{modelOptions.map(m => <option key={m} value={m} />)}</datalist>
+                            </FieldRow>
                             <FieldRow label="หน่วยใหญ่ (ขวด/ตลับ)">
                                 <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น ขวด, vial, ตลับ" className={inputCls} />
                             </FieldRow>
-                            <FieldRow label="ยูนิต/ขวด (ค่าเริ่มต้น)">
-                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100 (Botox), 20000 (HIFU shot)" className={inputCls} />
+                            <FieldRow label="หน่วยความจุ">
+                                <select value={capacityUnitLabel} onChange={e => setCapacityUnitLabel(e.target.value)} className={selectCls}>
+                                    <option value="unit">unit (ยูนิต — Botox)</option>
+                                    <option value="shot">shot (HIFU/RF)</option>
+                                    <option value="ml">ml (Filler)</option>
+                                </select>
+                            </FieldRow>
+                            <FieldRow label={`ความจุ/ขวด (${capacityUnitLabel} ต่อขวด)`} colSpan={2}>
+                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100 (Botox 100u), 1 (Filler 1ml), 20000 (HIFU)" className={inputCls} />
                             </FieldRow>
                             <div className="col-span-2 text-[11px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                                💡 เลข lot + วันหมดอายุจะบังคับกรอกตอน<b>รับเข้าสต๊อก</b> (ขวดหลายขนาดระบุยูนิต/ขวดต่อล็อตได้)
+                                💡 เลข lot + วันหมดอายุจะ<b>บังคับกรอกตอนรับเข้าสต๊อก</b> (ขวดหลายขนาดระบุความจุต่อล็อตได้)
                             </div>
                         </>
                     )}
@@ -436,7 +476,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     </FieldRow>
             </Section>
 
-            {/* ═══════════ SECTION 2: ข้อมูลฉลากยา ═══════════ */}
+            {/* ═══════════ SECTION 2: ข้อมูลฉลากยา (ซ่อนสำหรับเวชภัณฑ์ฉีด — ไม่มี SIG/ฉลากยา) ═══════════ */}
+            {deductionType !== "injectable_vial" && (
             <Section title="ข้อมูลฉลากยา" icon={Tag} color="amber">
                     <SubHeader label="ข้อมูลทั่วไป" />
                     <FieldRow label="ชื่อภาษาไทย">
@@ -519,6 +560,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         />
                     </FieldRow>
             </Section>
+            )}
 
             {/* ═══════════ SECTION 3: ราคา สต๊อก ค่าธรรมเนียม ═══════════ */}
             <Section title="ราคา สต๊อก และค่าธรรมเนียม" icon={CircleDollarSign} color="emerald">
