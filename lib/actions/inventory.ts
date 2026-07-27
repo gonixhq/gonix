@@ -19,8 +19,8 @@ const EDITABLE_FIELDS = [
     "item_name", "generic_name", "trade_name", "strength", "dosage_form",
     "category", "segment", "unit", "purchase_unit", "sell_price", "cost_price", "min_stock",
     "location", "supplier", "note", "expiry_date",
-    // ── consumables ──
-    "track_group", "units_per_pack",
+    // ── consumables / stock model ──
+    "track_group", "units_per_pack", "deduction_type",
     // ── ข้อมูลฉลากยา ──
     "item_name_th", "indication", "storage_info", "dose_qty", "use_type",
     "frequency", "sig_text_default", "label_type", "warning_label",

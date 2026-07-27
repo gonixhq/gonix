@@ -111,6 +111,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [purchaseUnit, setPurchaseUnit] = useState(item?.purchase_unit || "");
     const [trackGroup, setTrackGroup] = useState(item?.track_group || "");
     const [unitsPerPack, setUnitsPerPack] = useState(item?.units_per_pack != null ? String(item.units_per_pack) : "");
+    // ประเภทการตัดสต๊อก (P01) — เดาค่าเริ่มต้นจากข้อมูลเดิมถ้ายังไม่เคยตั้ง
+    const [deductionType, setDeductionType] = useState<string>(
+        item?.deduction_type || (item?.track_group ? "consumable_periodic" : item?.units_per_pack != null ? "injectable_vial" : "unit_piece")
+    );
     const [genericName, setGenericName] = useState(item?.generic_name || "");
     const [tradeName, setTradeName] = useState(item?.trade_name || "");
     const [strengthValue, setStrengthValue] = useState(item?.strength || "");
@@ -200,6 +204,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     item_name: itemName, category, segment, unit,
                     purchase_unit: purchaseUnit || null, track_group: trackGroup || null,
                     units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
+                    deduction_type: deductionType || null,
                     generic_name: genericName, trade_name: tradeName, strength,
                     dosage_form: dosageForm.trim(),
                     item_name_th: itemNameTh, indication, storage_info: storageInfo,
@@ -226,6 +231,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 purchase_unit: purchaseUnit || null,
                 track_group: trackGroup || null,
                 units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
+                deduction_type: deductionType || null,
                 generic_name: genericName || null,
                 trade_name: tradeName || null,
                 strength: strength || null,
@@ -337,20 +343,65 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
                         </datalist>
                     </FieldRow>
-                    <FieldRow label="หน่วยใหญ่ (Pack)">
-                        <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
-                    </FieldRow>
-                    <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
-                        <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
-                    </FieldRow>
-                    <FieldRow label="กลุ่มนับ (Consumables)">
-                        <select value={trackGroup} onChange={e => setTrackGroup(e.target.value)} className={selectCls}>
-                            <option value="">— ไม่ระบุ —</option>
-                            <option value="A">A — นับระดับ Pack (สำลี/แอลกอฮอล์/ถุงมือ)</option>
-                            <option value="B">B — นับระดับหน่วย (เข็ม/ยาชา/น้ำเกลือ)</option>
-                            <option value="C">C — ไม่ track (ทิชชู่/สบู่/ถุงขยะ)</option>
+
+                    {/* ประเภทการตัดสต๊อก (P01) — ตัวสลับหลักว่าของชิ้นนี้ตัดสต๊อกแบบไหน */}
+                    <FieldRow label="ประเภทการตัดสต๊อก" required colSpan={2}>
+                        <select value={deductionType} onChange={e => setDeductionType(e.target.value)} className={selectCls}>
+                            <option value="injectable_vial">💉 เวชภัณฑ์ฉีด — เปิดขวดแล้วแบ่งใช้ (Botox/Filler/HIFU) · track lot</option>
+                            <option value="unit_piece">📦 นับชิ้น — ตัดทีละชิ้นตอนใช้ (ยาเม็ด/อุปกรณ์)</option>
+                            <option value="consumable_periodic">🧴 วัสดุสิ้นเปลือง — ไม่ตัดต่อเคส นับเป็นรอบ (สำลี/แอลกอฮอล์)</option>
                         </select>
                     </FieldRow>
+
+                    {/* ── ฉีด: ขนาดขวด + หน่วยใหญ่ (lot/expiry บังคับตอนรับเข้า) ── */}
+                    {deductionType === "injectable_vial" && (
+                        <>
+                            <FieldRow label="หน่วยใหญ่ (ขวด/ตลับ)">
+                                <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น ขวด, vial, ตลับ" className={inputCls} />
+                            </FieldRow>
+                            <FieldRow label="ยูนิต/ขวด (ค่าเริ่มต้น)">
+                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100 (Botox), 20000 (HIFU shot)" className={inputCls} />
+                            </FieldRow>
+                            <div className="col-span-2 text-[11px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                                💡 เลข lot + วันหมดอายุจะบังคับกรอกตอน<b>รับเข้าสต๊อก</b> (ขวดหลายขนาดระบุยูนิต/ขวดต่อล็อตได้)
+                            </div>
+                        </>
+                    )}
+
+                    {/* ── นับชิ้น: หน่วยใหญ่ + อัตราแปลง (ไม่บังคับ) ── */}
+                    {deductionType === "unit_piece" && (
+                        <>
+                            <FieldRow label="หน่วยใหญ่ (Pack)">
+                                <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
+                            </FieldRow>
+                            <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
+                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
+                            </FieldRow>
+                        </>
+                    )}
+
+                    {/* ── สิ้นเปลือง: กลุ่มนับ + อัตราแปลง (นับเป็นรอบ ไม่ตัดต่อเคส) ── */}
+                    {deductionType === "consumable_periodic" && (
+                        <>
+                            <FieldRow label="หน่วยใหญ่ (Pack)">
+                                <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
+                            </FieldRow>
+                            <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
+                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
+                            </FieldRow>
+                            <FieldRow label="กลุ่มนับ (Consumables)" colSpan={2}>
+                                <select value={trackGroup} onChange={e => setTrackGroup(e.target.value)} className={selectCls}>
+                                    <option value="">— ไม่ระบุ —</option>
+                                    <option value="A">A — นับระดับ Pack (สำลี/แอลกอฮอล์/ถุงมือ)</option>
+                                    <option value="B">B — นับระดับหน่วย (เข็ม/ยาชา/น้ำเกลือ)</option>
+                                    <option value="C">C — ไม่ track (ทิชชู่/สบู่/ถุงขยะ)</option>
+                                </select>
+                            </FieldRow>
+                            <div className="col-span-2 text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                🧴 ไม่ตัดสต๊อกต่อเคส — นับจริงเป็นรอบที่หน้า &quot;นับสต๊อก&quot; (Stock Count)
+                            </div>
+                        </>
+                    )}
                     <FieldRow label="รูปแบบ">
                         <select
                             value={dosageCustom ? "__custom__" : (DOSAGE_FORM_OPTIONS.some(o => o.value === dosageForm) ? dosageForm : "")}
