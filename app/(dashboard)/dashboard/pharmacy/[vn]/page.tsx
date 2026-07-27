@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { listActiveServices } from "@/lib/actions/services";
+import { getVisitInjections } from "@/lib/actions/injections";
 import CheckoutForm from "./checkout-form";
 
 export default async function PharmacyCheckoutPage({ params }: { params: Promise<{ vn: string }> }) {
@@ -63,11 +64,14 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     // Active drugs + supplies from inventory (สำหรับ "เพิ่มยา/เวชภัณฑ์" picker)
     const { data: drugs } = await supabase
         .from("inventory")
-        .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category, segment")
+        .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category, segment, deduction_type")
         .in("category", ["drug", "supply"])
         .eq("is_active", true)
         .order("category")
         .order("item_name");
+
+    // การฉีดที่หมอบันทึก → เด้งขึ้นบิลอัตโนมัติ (P06)
+    const injections = await getVisitInjections(vn);
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-24">
@@ -77,6 +81,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
                 labOrders={labOrders || []}
                 services={services}
                 inventoryDrugs={drugs || []}
+                injections={injections}
             />
         </div>
     );

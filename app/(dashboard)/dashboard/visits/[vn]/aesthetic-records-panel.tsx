@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FaceChartCanvas from "./face-chart-canvas";
+import InjectionRecorder from "./injection-recorder";
 import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
 import { saveTreatmentNotes, getPastAestheticRecords } from "@/lib/actions/aesthetic";
 import { listActiveServices } from "@/lib/actions/services";
@@ -120,6 +121,9 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                     <p className="text-xs text-slate-500">แผนผังใบหน้า · บันทึกการรักษา</p>
                 </div>
             </div>
+
+            {/* บันทึกการฉีด structured (ตัดสต๊อก + ขึ้นบิลอัตโนมัติ) */}
+            <InjectionRecorder vn={vn} />
 
             {/* View tabs */}
             <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-100/70 border border-slate-200/60">

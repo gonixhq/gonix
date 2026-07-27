@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { deductFEFO } from "@/lib/inventory-fefo";
+import { deductVials } from "@/lib/inventory-vials";
 import type { DiscountEntry } from "@/lib/campaign-types";
 
 export interface InvoiceItemInput {
@@ -218,6 +219,46 @@ export async function completeCheckout(input: CheckoutInput) {
             } catch (e) {
                 console.warn("[checkout] price approval log failed:", e);
             }
+        }
+
+        // 5c. เวชภัณฑ์ฉีด (vial model B, P06) — ตัด vial ตามบิล + บันทึก recall + เทียบกับที่หมอบันทึก
+        //     (item_type='injectable' → ข้าม drug/service-kit bulk path ด้านบน/ล่าง ไม่ตัดซ้ำ)
+        try {
+            const injLines = items.filter(i => i.item_type === "injectable" && i.item_ref_id);
+            if (injLines.length > 0) {
+                const { data: { user } } = await supabase.auth.getUser();
+                const billByItem = new Map<string, number>();
+                for (const it of injLines) billByItem.set(it.item_ref_id!, (billByItem.get(it.item_ref_id!) || 0) + Number(it.qty));
+
+                for (const [itemId, billQty] of billByItem) {
+                    const res = await deductVials(supabase, clinicId, itemId, billQty);
+                    if (!res.ok) { console.warn("[checkout] deductVials:", res.error); continue; }
+                    const rows = (res.used || []).map(u => ({
+                        clinic_id: clinicId, vn, hn, item_id: itemId,
+                        vial_id: u.vial_id, lot_number: u.lot, qty: u.qty,
+                    }));
+                    if (rows.length) await supabase.from("vial_usage").insert(rows);
+                }
+
+                // reconcile: หมอบันทึก vs บิล → flag ถ้าต่าง (leakage/คิดเงินขาด)
+                const { data: docInj } = await supabase.from("visit_injections").select("item_id, qty").eq("vn", vn);
+                const docByItem = new Map<string, number>();
+                for (const d of docInj || []) docByItem.set(d.item_id as string, (docByItem.get(d.item_id as string) || 0) + Number(d.qty));
+                const mismatches: { item_id: string; doctor: number; billed: number }[] = [];
+                for (const itemId of new Set([...billByItem.keys(), ...docByItem.keys()])) {
+                    const b = billByItem.get(itemId) || 0, dq = docByItem.get(itemId) || 0;
+                    if (Math.abs(b - dq) > 0.001) mismatches.push({ item_id: itemId, doctor: dq, billed: b });
+                }
+                if (mismatches.length > 0) {
+                    await supabase.from("audit_logs").insert({
+                        clinic_id: clinicId, table_name: "visits", record_id: vn, action: "injection_mismatch",
+                        new_data: { inv_id: invId, mismatches }, performed_by: user?.id || null,
+                    });
+                }
+                revalidatePath("/dashboard/inventory");
+            }
+        } catch (e) {
+            console.warn("[checkout] injectable vial deduction failed:", e);
         }
 
         // 6. Create payment log (เฉพาะถ้ามีการชำระจริง)

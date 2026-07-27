@@ -34,6 +34,7 @@ const ITEM_TYPE_LABEL: Record<string, string> = {
     procedure: "ค่าหัตถการ",
     service: "ค่าบริการ",
     supply: "ค่าวัสดุ",
+    injectable: "ฉีด (vial)",
     package: "คอสบริการ",
     other: "อื่นๆ",
 };
@@ -45,6 +46,7 @@ const ITEM_TYPE_COLOR: Record<string, string> = {
     procedure: "bg-rose-100 text-rose-700",
     service: "bg-blue-100 text-blue-700",
     supply: "bg-indigo-100 text-indigo-700",
+    injectable: "bg-violet-100 text-violet-700",
     package: "bg-rose-100 text-rose-700",
     other: "bg-slate-100 text-slate-700",
 };
@@ -76,7 +78,10 @@ interface InventoryDrug {
     stock_qty: number;
     category?: string;  // 'drug' | 'supply'
     segment?: string | null;
+    deduction_type?: string | null;   // injectable_vial → ตัดผ่าน vial
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Injection = any;
 
 export default function CheckoutForm({
     visit,
@@ -84,12 +89,14 @@ export default function CheckoutForm({
     labOrders,
     services = [],
     inventoryDrugs = [],
+    injections = [],
 }: {
     visit: Visit;
     drugOrders: DrugOrder[];
     labOrders: LabOrder[];
     services?: ServiceCatalogItem[];
     inventoryDrugs?: InventoryDrug[];
+    injections?: Injection[];
 }) {
     const router = useRouter();
     const p = Array.isArray(visit.patients) ? visit.patients[0] : (visit.patients || visit.patient);
@@ -134,14 +141,16 @@ export default function CheckoutForm({
     const [drugSearch, setDrugSearch] = useState("");
 
     function addDrugItem(drug: InventoryDrug) {
+        // เวชภัณฑ์ฉีด → item_type='injectable' (checkout ตัดผ่าน vial, ข้าม bulk deduct)
+        const isInjectable = drug.deduction_type === "injectable_vial";
         setItems(prev => [...prev, {
             id: uid(),
-            item_type: drug.category === "supply" ? "supply" : "drug",
+            item_type: isInjectable ? "injectable" : (drug.category === "supply" ? "supply" : "drug"),
             item_ref_id: drug.id,
             item_name: `${drug.item_name}${drug.strength ? ` ${drug.strength}` : ""}`,
             qty: 1,
             unit_price: Number(drug.sell_price),
-            segment: drug.segment || "product",
+            segment: isInjectable ? "aesthetic" : (drug.segment || "product"),
         }]);
         setShowDrugPicker(false);
         setDrugSearch("");
@@ -226,8 +235,21 @@ export default function CheckoutForm({
             });
         });
 
+        // การฉีดที่หมอบันทึก (P06) → เด้งขึ้นบิลอัตโนมัติ (item_type='injectable' → ตัด vial)
+        (injections || []).forEach((inj) => {
+            initialItems.push({
+                id: uid(),
+                item_type: "injectable",
+                item_ref_id: inj.item_id,
+                item_name: `${inj.item_name}${inj.brand ? ` (${inj.brand})` : ""}${inj.site ? ` @ ${inj.site}` : ""}`,
+                qty: Number(inj.qty || 1),
+                unit_price: Number(inj.sell_price || 0),
+                segment: "aesthetic",
+            });
+        });
+
         setItems(initialItems);
-    }, [drugOrders, labOrders]);
+    }, [drugOrders, labOrders, injections]);
 
     // Calculations
     const subtotal = useMemo(
