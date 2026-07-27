@@ -315,7 +315,7 @@ export default function NewPatientPage() {
                 past_history: getField("past_history"),
                 nhso_rights: getField("nhso_rights") || "self_pay",
                 nhso_main_hospital: getField("nhso_main_hospital"),
-                line_user_id: getField("line_user_id"),
+                line_id_handle: getField("line_id_handle"),   // handle ที่ staff กรอก — ไม่ใช่ platform uid (line_user_id ตั้งโดย LIFF เท่านั้น)
                 address_detail: getField("address_detail"),
                 address_moo: getField("address_moo"),
                 subdistrict_code: selectedAddress?.subdistrict_code || getField("subdistrict_code"),
@@ -600,7 +600,7 @@ export default function NewPatientPage() {
                             <Input name="phone" type="tel" defaultValue={pulledData?.phone || ""} placeholder="08X-XXX-XXXX" className={FORM_INPUT_CLS} />
                         </FieldRow>
                         <FieldRow label="Line ID">
-                            <Input name="line_user_id" defaultValue={pulledData?.line_user_id || ""} placeholder="@line_id" className={FORM_INPUT_CLS} />
+                            <Input name="line_id_handle" defaultValue={pulledData?.line_id_handle || pulledData?.line_user_id || ""} placeholder="@line_id" className={FORM_INPUT_CLS} />
                         </FieldRow>
 
                         <FieldRow label="อีเมล" colSpan={2}>

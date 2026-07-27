@@ -95,7 +95,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
             thai_id_card: getField("thai_id_card"),
             phone,
             email: getField("email"),
-            line_user_id: getField("line_user_id"),
+            line_id_handle: getField("line_id_handle"),
             blood_group: getField("blood_group"),
             marital_status: getField("marital_status"),
             occupation: getField("occupation"),
@@ -222,7 +222,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     <div className="grid grid-cols-1 gap-3">
                         <Field label="เบอร์โทรศัพท์ *" name="phone" type="tel" required placeholder="08X-XXX-XXXX" />
                         <Field label="อีเมล" name="email" type="email" placeholder="example@email.com" />
-                        <Field label="LINE ID" name="line_user_id" placeholder="@somchai หรือเบอร์โทร LINE" />
+                        <Field label="LINE ID" name="line_id_handle" placeholder="@somchai หรือเบอร์โทร LINE" />
                     </div>
 
                     {/* Address */}

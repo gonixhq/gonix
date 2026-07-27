@@ -40,7 +40,7 @@ export default async function PatientCardPrintPage({
     const [patientRes, allergiesRes, chronicRes] = await Promise.all([
         supabase.from("patients").select(`
             hn, prefix, first_name, last_name, first_name_en, last_name_en,
-            dob, gender, phone, email, line_user_id, allergy_summary, blood_group,
+            dob, gender, phone, email, line_id_handle, allergy_summary, blood_group,
             nhso_rights, nhso_main_hospital, thai_id_card, passport_no,
             disease_summary, address_detail, subdistrict_code,
             occupation, race, nationality, marital_status,
@@ -222,7 +222,7 @@ export default async function PatientCardPrintPage({
                         <CardSection title="ข้อมูลติดต่อ" subtitle="Contact">
                             <Row label="โทรศัพท์" value={patient.phone || "—"} mono />
                             {patient.email && <Row label="อีเมล" value={patient.email} />}
-                            {patient.line_user_id && <Row label="LINE" value={patient.line_user_id} mono />}
+                            {patient.line_id_handle && <Row label="LINE" value={patient.line_id_handle} mono />}
                             <Row label="ที่อยู่" value={fullAddress || "—"} wrap />
                         </CardSection>
                     </div>

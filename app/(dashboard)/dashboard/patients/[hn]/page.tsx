@@ -353,7 +353,8 @@ export default async function PatientDetailPage({
                                 <InfoRow icon={Mail} label="อีเมล" value={patient.email || "—"} />
                                 <InfoRow icon={MapPin} label="ที่อยู่" value={patient.address_detail || "—"} />
                                 {fullAddress && <InfoRow icon={MapPin} label="ตำบล/อำเภอ/จังหวัด" value={fullAddress} />}
-                                {patient.line_user_id && <InfoRow icon={User} label="LINE" value={patient.line_user_id} mono />}
+                                {patient.line_id_handle && <InfoRow icon={User} label="LINE" value={patient.line_id_handle} mono />}
+                                {patient.line_user_id && <InfoRow icon={User} label="LINE" value="เชื่อมบัญชีแล้ว ✓" />}
                             </div>
                         </div>
 
