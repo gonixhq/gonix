@@ -3,15 +3,16 @@
 import { useState } from "react";
 import Script from "next/script";
 import { Loader2, CheckCircle2, AlertTriangle, Link2 } from "lucide-react";
-import { linkLineAccount } from "@/lib/actions/line-link";
+import { linkLineAccount, linkStaffLine } from "@/lib/actions/line-link";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare global { interface Window { liff: any } }
 
-export default function LineLinkClient({ liffId, clinicId }: { liffId: string; clinicId: string }) {
+export default function LineLinkClient({ liffId, clinicId, staffMode = false, staffToken = "" }: { liffId: string; clinicId: string; staffMode?: boolean; staffToken?: string }) {
     const [ready, setReady] = useState(false);
     const [lineUid, setLineUid] = useState("");
     const [display, setDisplay] = useState("");
+    const [idToken, setIdToken] = useState("");
     const [hn, setHn] = useState("");
     const [phone4, setPhone4] = useState("");
     const [err, setErr] = useState("");
@@ -24,7 +25,9 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
             await window.liff.init({ liffId });
             if (!window.liff.isLoggedIn()) { window.liff.login(); return; }
             const p = await window.liff.getProfile();
-            setLineUid(p.userId); setDisplay(p.displayName); setReady(true);
+            setLineUid(p.userId); setDisplay(p.displayName);
+            try { setIdToken(window.liff.getIDToken() || ""); } catch { /* ignore */ }
+            setReady(true);
         } catch {
             setErr("เริ่มต้น LINE ไม่สำเร็จ — กรุณาเปิดผ่านแอป LINE");
         }
@@ -40,6 +43,16 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
         else setErr(res.error || "");
     }
 
+    async function submitStaff() {
+        setErr("");
+        if (!idToken) { setErr("ยืนยันตัวตนไม่สำเร็จ — เปิดลิงก์ผ่านแอป LINE อีกครั้ง"); return; }
+        setBusy(true);
+        const res = await linkStaffLine(staffToken, idToken, display);
+        setBusy(false);
+        if (res.ok) setDone(display || "");
+        else setErr(res.error || "");
+    }
+
     return (
         <>
             <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" onReady={() => { void initLiff(); }} />
@@ -49,7 +62,7 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
                         <div className="h-10 w-10 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#06C755,#15FF83)" }}>
                             <Link2 className="h-5 w-5 text-white" />
                         </div>
-                        <div className="font-black text-lg">ผูกบัญชี LINE</div>
+                        <div className="font-black text-lg">{staffMode ? "ผูก LINE พนักงาน" : "ผูกบัญชี LINE"}</div>
                     </div>
 
                     <div className="bg-white rounded-3xl shadow-2xl p-6">
@@ -57,13 +70,25 @@ export default function LineLinkClient({ liffId, clinicId }: { liffId: string; c
                             <div className="text-center space-y-3">
                                 <CheckCircle2 className="h-14 w-14 text-emerald-500 mx-auto" />
                                 <h1 className="text-lg font-black text-slate-800">ผูกบัญชีสำเร็จ</h1>
-                                <p className="text-sm text-slate-500">{done ? `สวัสดีคุณ ${done}` : ""} ตั้งแต่นี้จะได้รับแจ้งเตือนนัดหมาย/ผลตรวจผ่าน LINE</p>
+                                <p className="text-sm text-slate-500">
+                                    {done ? `สวัสดีคุณ ${done}` : ""} {staffMode ? "ตั้งแต่นี้จะได้รับแจ้งเตือนอาการด่วนของคนไข้ผ่าน LINE" : "ตั้งแต่นี้จะได้รับแจ้งเตือนนัดหมาย/ผลตรวจผ่าน LINE"}
+                                </p>
                                 <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold mt-2">ปิดหน้าต่าง</button>
                             </div>
                         ) : !ready ? (
                             <div className="text-center py-8 text-slate-400">
                                 {err ? <p className="text-sm text-rose-600 inline-flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" /> {err}</p>
                                     : <span className="inline-flex items-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> กำลังเชื่อม LINE...</span>}
+                            </div>
+                        ) : staffMode ? (
+                            <div className="space-y-4 text-center">
+                                <p className="text-sm text-slate-600">ผูกบัญชี LINE <b>{display}</b> เพื่อรับแจ้งเตือนอาการด่วนของคนไข้</p>
+                                {err && <p className="text-sm text-rose-600 bg-rose-50 rounded-xl px-3 py-2 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" /> {err}</p>}
+                                <button onClick={submitStaff} disabled={busy}
+                                    className="w-full h-12 rounded-xl text-white font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60"
+                                    style={{ background: "linear-gradient(90deg,#06C755,#15FF83)" }}>
+                                    {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Link2 className="h-5 w-5" />} ยืนยันผูกบัญชี
+                                </button>
                             </div>
                         ) : (
                             <div className="space-y-4">

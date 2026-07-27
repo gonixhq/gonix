@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
-import { pushLineText } from "@/lib/line";
+import { pushLineText, verifyLineIdToken } from "@/lib/line";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 
 async function ctx() {
@@ -229,31 +229,6 @@ export async function escalateFollowUp(taskId: string, note?: string) {
 
 export interface FollowUpLogEntry { id: string; action: string; status: string | null; severity: string | null; note: string | null; actor_name: string | null; created_at: string; }
 export interface PatientFollowUp extends FollowUpTask { logs: FollowUpLogEntry[]; }
-
-type LineVerifyResult = { ok: true; sub: string } | { ok: false; reason: "expired" | "invalid" };
-
-/** ยืนยัน LINE ID token กับ LINE โดยตรง (ห้ามเชื่อ userId ที่ client ส่งมาเฉยๆ) */
-async function verifyLineIdToken(idToken: string): Promise<LineVerifyResult> {
-    const channelId = process.env.LINE_LOGIN_CHANNEL_ID || "";
-    if (!idToken || !channelId) return { ok: false, reason: "invalid" };
-    try {
-        const r = await fetch("https://api.line.me/oauth2/v2.1/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data: any = await r.json().catch(() => null);
-        if (!r.ok) {
-            const desc = String(data?.error_description || data?.error || "").toLowerCase();
-            return { ok: false, reason: desc.includes("expired") ? "expired" : "invalid" };
-        }
-        if (!data?.sub || data.aud !== channelId) return { ok: false, reason: "invalid" };
-        return { ok: true, sub: data.sub as string };
-    } catch {
-        return { ok: false, reason: "invalid" };
-    }
-}
 
 const SEV_RANK: Record<Severity, number> = { green: 0, yellow: 1, red: 2 };
 

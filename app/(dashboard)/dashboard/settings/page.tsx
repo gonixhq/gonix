@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/i18n";
 import { SectionBanner } from "@/components/ui/section-banner";
+import { generateStaffLinkToken } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2,
 } from "lucide-react";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -181,6 +182,9 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
+                    {/* ผูก LINE รับแจ้งเตือน */}
+                    <StaffLineLinkCard />
+
                     {/* Clinic Code (owner/admin only) */}
                     {isAdmin && clinicCode && (
                         <div className="gonix-card-premium overflow-hidden">
@@ -344,6 +348,50 @@ function InfoRow({ icon: Icon, label, value, mono }: { icon: React.ElementType; 
                 <span className="text-xs text-slate-500">{label}</span>
             </div>
             <span className={`text-sm text-slate-800 font-semibold truncate ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
+        </div>
+    );
+}
+
+/** ผูก LINE ของ staff เพื่อรับแจ้งเตือนอาการด่วน (P19 — สร้าง token → เปิดลิงก์ในแอป LINE) */
+function StaffLineLinkCard() {
+    const [url, setUrl] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState("");
+    const [copied, setCopied] = useState(false);
+
+    async function gen() {
+        setBusy(true); setErr("");
+        const r = await generateStaffLinkToken();
+        setBusy(false);
+        if (r.ok && r.url) setUrl(r.url); else setErr(r.error || "สร้างลิงก์ไม่สำเร็จ");
+    }
+
+    return (
+        <div className="gonix-card-premium overflow-hidden">
+            <SectionBanner icon={Link2} title="ผูก LINE รับแจ้งเตือน" description="รับแจ้งเตือนอาการด่วนของคนไข้" />
+            <div className="p-5 space-y-3">
+                <p className="text-xs text-slate-500">ผูกบัญชี LINE ของคุณ เพื่อรับแจ้งเตือนเมื่อคนไข้รายงานอาการด่วนผ่าน LINE · กดสร้างลิงก์แล้ว<b>เปิดในแอป LINE ของคุณ</b></p>
+                {!url ? (
+                    <Button onClick={gen} disabled={busy} className="w-full rounded-xl gap-2">
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} สร้างลิงก์ผูก LINE
+                    </Button>
+                ) : (
+                    <div className="space-y-2">
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                            เปิดลิงก์นี้<b>ในแอป LINE ของคุณ</b> (ใช้ได้ 10 นาที) แล้วกดยืนยัน:
+                        </div>
+                        <div className="flex gap-2">
+                            <Input readOnly value={url} className="text-xs font-mono" onFocus={(e) => e.currentTarget.select()} />
+                            <Button variant="outline" onClick={() => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="shrink-0">
+                                {copied ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                        <a href={url} target="_blank" rel="noreferrer" className="block text-center text-sm text-[#06C755] font-bold underline py-1">เปิดใน LINE →</a>
+                        <button onClick={gen} className="w-full text-xs text-slate-400 hover:text-slate-600">สร้างลิงก์ใหม่</button>
+                    </div>
+                )}
+                {err && <p className="text-xs text-rose-600">{err}</p>}
+            </div>
         </div>
     );
 }

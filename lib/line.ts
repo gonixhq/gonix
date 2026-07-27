@@ -32,3 +32,29 @@ export function verifyLineSignature(body: string, signature: string | null): boo
     const hash = crypto.createHmac("sha256", SECRET).update(body).digest("base64");
     return hash === signature;
 }
+
+export type LineVerifyResult = { ok: true; sub: string } | { ok: false; reason: "expired" | "invalid" };
+
+/** ยืนยัน LINE ID token กับ LINE โดยตรง (ห้ามเชื่อ userId ที่ client ส่งมาเฉยๆ)
+ *  ใช้ทั้ง self-report ของคนไข้ และการผูก LINE ของพนักงาน */
+export async function verifyLineIdToken(idToken: string): Promise<LineVerifyResult> {
+    const channelId = process.env.LINE_LOGIN_CHANNEL_ID || "";
+    if (!idToken || !channelId) return { ok: false, reason: "invalid" };
+    try {
+        const r = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data: any = await r.json().catch(() => null);
+        if (!r.ok) {
+            const desc = String(data?.error_description || data?.error || "").toLowerCase();
+            return { ok: false, reason: desc.includes("expired") ? "expired" : "invalid" };
+        }
+        if (!data?.sub || data.aud !== channelId) return { ok: false, reason: "invalid" };
+        return { ok: true, sub: data.sub as string };
+    } catch {
+        return { ok: false, reason: "invalid" };
+    }
+}
