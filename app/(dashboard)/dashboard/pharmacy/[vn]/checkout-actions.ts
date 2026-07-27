@@ -53,6 +53,27 @@ export async function completeCheckout(input: CheckoutInput) {
         const clinicId = visit.clinic_id;
         const hn = visit.hn;
 
+        // 0. Pre-check: สต๊อก vial ต้องพอ "ก่อน" เขียนอะไรทั้งสิ้น (block ปิดบิล — บังคับคีย์รับเข้าก่อน)
+        const injBill = new Map<string, number>();
+        for (const it of items) {
+            if (it.item_type === "injectable" && it.item_ref_id) {
+                injBill.set(it.item_ref_id, (injBill.get(it.item_ref_id) || 0) + Number(it.qty));
+            }
+        }
+        if (injBill.size > 0) {
+            const { data: injItems } = await supabase.from("inventory")
+                .select("id, item_name, stock_qty").in("id", [...injBill.keys()]);
+            const shorts: string[] = [];
+            for (const inv of injItems || []) {
+                const need = injBill.get(inv.id as string) || 0;
+                const have = Number(inv.stock_qty || 0);
+                if (need > have + 0.001) shorts.push(`• ${inv.item_name}: มี ${have.toLocaleString()} / ต้องใช้ ${need.toLocaleString()}`);
+            }
+            if (shorts.length > 0) {
+                return { error: `สต๊อก vial ไม่พอ — กรุณารับเข้าสต๊อกให้ครบก่อนปิดบิล:\n${shorts.join("\n")}` };
+            }
+        }
+
         // 1. Mark visit as completed
         const { error: visitError } = await supabase
             .from("visits")
