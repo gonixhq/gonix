@@ -11,7 +11,7 @@ import {
     ArrowLeft, Plus, Minus, Edit3, Package, AlertTriangle, History, X,
     TrendingUp, TrendingDown, CheckCircle, AlertCircle, Pencil, Clock, Ban, Trash2,
 } from "lucide-react";
-import { receiveStock, adjustStock, updateInventoryItem, updateLot, deleteLot, setInventoryActive, deleteInventoryItem } from "@/lib/actions/inventory";
+import { receiveStock, receiveVials, adjustStock, updateInventoryItem, updateLot, deleteLot, setInventoryActive, deleteInventoryItem } from "@/lib/actions/inventory";
 import { SEGMENT_LABEL } from "@/lib/segments";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -577,6 +577,22 @@ function ReceiveModal({
         const costN = cost ? parseFloat(cost) : undefined;
         const costPerUnit = costN != null ? (packMode && perPackN > 0 ? costN / perPackN : costN) : undefined;
         startTransition(async () => {
+            // เวชภัณฑ์ฉีด → สร้างราย vial (model B, mig 116/117) แทน bulk lot
+            if (requireLotExpiry) {
+                if (!(perPackN > 0)) { onError("ระบุความจุต่อขวด (ยูนิต/ขวด)"); return; }
+                const res = await receiveVials({
+                    item_id: itemId,
+                    num_vials: packMode ? qtyN : 1,
+                    capacity_per_vial: perPackN,
+                    lot_no: lot.trim(),
+                    expiry_date: expiry,
+                    cost_per_vial: costN,
+                    note: note || undefined,
+                });
+                if (!res.success) { onError(res.error || "Error"); return; }
+                onSuccess(res.totalUnits || totalUnits);
+                return;
+            }
             const res = await receiveStock({
                 item_id: itemId,
                 qty: totalUnits,

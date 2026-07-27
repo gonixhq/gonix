@@ -362,6 +362,66 @@ export async function receiveStock(input: ReceiveStockInput) {
     }
 }
 
+export interface ReceiveVialsInput {
+    item_id: string;
+    num_vials: number;            // จำนวนขวด
+    capacity_per_vial: number;    // ความจุต่อขวด (ยูนิต)
+    lot_no: string;               // บังคับ (injectable)
+    expiry_date: string;          // บังคับ (injectable)
+    cost_per_vial?: number;       // ราคาทุนต่อขวด
+    note?: string;
+}
+
+/** รับเข้าเวชภัณฑ์ฉีดแบบ vial model B — สร้าง 1 แถวต่อ 1 ขวด (P04) */
+export async function receiveVials(input: ReceiveVialsInput) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+        if (!profile?.clinic_id) return { success: false, error: "Profile not found" };
+
+        const n = Math.floor(input.num_vials);
+        const cap = Number(input.capacity_per_vial);
+        if (!(n > 0)) return { success: false, error: "จำนวนขวดต้องมากกว่า 0" };
+        if (!(cap > 0)) return { success: false, error: "ความจุต่อขวดต้องมากกว่า 0" };
+        if (!input.lot_no?.trim() || !input.expiry_date) return { success: false, error: "เวชภัณฑ์ฉีดต้องระบุ lot และวันหมดอายุ" };
+
+        const { data: staffRow } = await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+        const costPerUnit = input.cost_per_vial && cap > 0 ? input.cost_per_vial / cap : null;
+
+        // สร้าง 1 แถวต่อ 1 ขวด (unopened)
+        const rows = Array.from({ length: n }, () => ({
+            clinic_id: profile.clinic_id, item_id: input.item_id,
+            lot_number: input.lot_no.trim(), expiry_date: input.expiry_date,
+            capacity_total: cap, capacity_remaining: cap, status: "unopened",
+            created_by: staffRow?.id || null, note: input.note?.trim() || null,
+        }));
+        const { error: insErr } = await supabase.from("inventory_vials").insert(rows);
+        if (insErr) return { success: false, error: insErr.message };
+
+        const totalUnits = n * cap;
+        // stock_card + cost (best-effort) แล้ว sync stock_qty จาก vial
+        const { data: itemBefore } = await supabase.from("inventory").select("stock_qty").eq("id", input.item_id).maybeSingle();
+        await supabase.from("stock_card").insert({
+            item_id: input.item_id, clinic_id: profile.clinic_id, tx_type: "PO_RECEIVE",
+            qty_delta: totalUnits, balance_after: Number(itemBefore?.stock_qty || 0) + totalUnits,
+            cost_per_unit: costPerUnit, total_cost: input.cost_per_vial ? input.cost_per_vial * n : null,
+            note: `รับเข้า ${n} ขวด × ${cap} · Lot: ${input.lot_no.trim()}`, recorded_by: staffRow?.id || null,
+        });
+        if (input.cost_per_vial != null) {
+            await supabase.from("inventory").update({ cost_price: costPerUnit, updated_at: new Date().toISOString() }).eq("id", input.item_id);
+        }
+        await supabase.rpc("fn_sync_vial_stock", { p_item: input.item_id });
+
+        revalidatePath("/dashboard/inventory");
+        revalidatePath(`/dashboard/inventory/${input.item_id}`);
+        return { success: true, totalUnits };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 export interface AdjustStockInput {
     item_id: string;
     new_qty: number;          // ยอดที่ถูกต้อง (หลังนับ)
