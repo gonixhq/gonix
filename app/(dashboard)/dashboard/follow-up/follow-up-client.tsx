@@ -14,7 +14,7 @@ const SEV_RING: Record<Severity, string> = { green: "border-l-emerald-400", yell
 const SEV_LABEL: Record<Severity, string> = { green: "ปกติ", yellow: "เฝ้าระวัง", red: "ด่วน" };
 const STATUS_LABEL: Record<string, string> = { pending: "รอติดตาม", contacted: "ติดต่อแล้ว", unreachable: "ติดต่อไม่ได้", callback: "รอโทรกลับ", done: "เสร็จ", cancelled: "ยกเลิก" };
 
-export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditReview }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null; canEditReview: boolean }) {
+export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditReview, lineAlertConfigured = true }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null; canEditReview: boolean; lineAlertConfigured?: boolean }) {
     const router = useRouter();
     const overdueCount = tasks.filter(t => t.due_date < today).length;
     const redCount = tasks.filter(t => t.severity === "red").length;
@@ -32,6 +32,16 @@ export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditR
                     <Link href={`/dashboard/follow-up?date=${shiftDate(date, 1)}`}><button className="h-9 w-9 rounded-lg border border-slate-300 bg-white flex items-center justify-center"><ChevronRight className="h-4 w-4" /></button></Link>
                 </div>
             </div>
+
+            {!lineAlertConfigured && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+                    <div>
+                        <b>ยังไม่มีใครผูก LINE รับแจ้งเตือน</b> — เมื่อคนไข้รายงานอาการ<span className="font-bold text-rose-600">ด่วน</span>ผ่าน LINE
+                        ระบบจะแจ้งเตือนไม่ถึงใครเลย · ให้เจ้าของ/แอดมินเข้าไปผูกบัญชี LINE เพื่อรับแจ้งเตือน (คนไข้จะถูกบอกให้โทรหาคลินิกแทนชั่วคราว)
+                    </div>
+                </div>
+            )}
 
             {canEditReview && <ReviewUrlSetter initial={reviewUrl} />}
 

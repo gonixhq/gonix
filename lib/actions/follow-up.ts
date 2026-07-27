@@ -259,7 +259,7 @@ const SEV_RANK: Record<Severity, number> = { green: 0, yellow: 1, red: 2 };
 
 /** ผู้ป่วยรายงานอาการเองผ่าน LINE (LIFF) — anon context ใช้ service client bypass RLS
  *  identity ยืนยันจาก LINE ID token เท่านั้น ไม่เชื่อ userId ดิบจาก client */
-export async function submitSelfReport(idToken: string, clinicId: string, severity: Severity, note: string): Promise<{ ok: boolean; error?: string; phone?: string }> {
+export async function submitSelfReport(idToken: string, clinicId: string, severity: Severity, note: string): Promise<{ ok: boolean; error?: string; phone?: string; alertDelivered?: boolean; clinicPhone?: string }> {
     try {
         if (!clinicId) return { ok: false, error: "เปิดผ่านลิงก์ของคลินิกเท่านั้น" };
         const verify = await verifyLineIdToken(idToken);
@@ -318,17 +318,54 @@ export async function submitSelfReport(idToken: string, clinicId: string, severi
 
         await supabase.from("follow_up_task_log").insert({ clinic_id: pat.clinic_id, task_id: taskId, action: "self_report", severity, note: note || null });
 
-        // แจ้ง owner ถ้าอาการด่วน/ผิดปกติ
+        // แจ้ง owner/admin ถ้าอาการด่วน/ผิดปกติ — ต้องรู้ว่า "ถึงมือใครจริงไหม" ไม่ล้มเงียบ
+        let alertDelivered = true;   // green = ไม่ต้องแจ้ง ถือว่าไม่เกี่ยว
+        let clinicPhone: string | undefined;
         if (severity !== "green") {
-            const { data: owners } = await supabase.from("profiles").select("line_user_id").eq("clinic_id", pat.clinic_id).eq("role", "owner").not("line_user_id", "is", null);
+            const { data: recipients } = await supabase.from("profiles")
+                .select("line_user_id").eq("clinic_id", pat.clinic_id)
+                .in("role", ["owner", "admin"]).not("line_user_id", "is", null);
+            const targets = (recipients || []).map(r => r.line_user_id as string).filter(Boolean);
             const pname = `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || pat.hn;
             const msg = `📩 คนไข้รายงานอาการเอง (${severity === "red" ? "ด่วน 🔴" : "ผิดปกติ 🟡"})\nคนไข้: ${pname} (HN ${pat.hn})\nอาการ: ${note || "-"}\nกรุณาติดต่อกลับ`;
-            for (const o of owners || []) await pushLineText(o.line_user_id as string, msg);
+
+            if (targets.length === 0) {
+                // ไม่มี owner/admin ผูก LINE → alert ไม่ถึงใครเลย (config gap — surface ที่ dashboard)
+                alertDelivered = false;
+                console.error("[line-push] self_report_alert: ไม่มี owner/admin ผูก LINE (alert ไม่ถึงใคร)", { clinic: pat.clinic_id, severity });
+            } else {
+                let anyOk = false;
+                for (const to of targets) {
+                    const res = await pushLineText(to, msg);
+                    if (res.ok) anyOk = true;
+                    else console.error("[line-push] self_report_alert ล้มเหลว", { severity, error: res.error });  // ไม่ log ข้อมูลคนไข้
+                }
+                alertDelivered = anyOk;
+            }
+
+            // ถ้า alert ไม่ถึงใคร → ดึงเบอร์คลินิกไปบอกคนไข้ให้โทรเอง (กันบอก "รับแล้ว" ทั้งที่ไม่มีใครรู้)
+            if (!alertDelivered) {
+                const { data: clinic } = await supabase.from("tenants").select("phone").eq("id", pat.clinic_id).maybeSingle();
+                clinicPhone = (clinic?.phone as string) || undefined;
+            }
         }
         // TODO: เพิ่มคอลัมน์ last_self_report_at แยกจาก updated_at ในอนาคต เพื่อแยกรายงานจากคนไข้ออกจากการแก้ไขของสตาฟ
-        return { ok: true };
+        return { ok: true, alertDelivered, clinicPhone };
     } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : "เกิดข้อผิดพลาด" };
+    }
+}
+
+/** เช็คว่ามี owner/admin ผูก LINE ไว้รับแจ้งเตือนไหม — ถ้าไม่มี อาการแดงของคนไข้จะแจ้งเตือนไม่ถึงใคร */
+export async function hasLineAlertRecipient(): Promise<boolean> {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { count } = await supabase.from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("clinic_id", clinicId).in("role", ["owner", "admin"]).not("line_user_id", "is", null);
+        return (count || 0) > 0;
+    } catch {
+        return true;   // เช็คไม่ได้ → ไม่ต้องขึ้นเตือน (กัน false alarm)
     }
 }
 

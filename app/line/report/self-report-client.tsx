@@ -23,6 +23,8 @@ export default function SelfReportClient({ liffId, clinicId }: { liffId: string;
     const [errPhone, setErrPhone] = useState("");
     const [busy, setBusy] = useState(false);
     const [done, setDone] = useState(false);
+    const [alertFailed, setAlertFailed] = useState(false);   // อาการด่วน/ผิดปกติ แต่แจ้งทีมงานไม่ถึง
+    const [clinicPhone, setClinicPhone] = useState("");
 
     async function initLiff() {
         try {
@@ -40,7 +42,13 @@ export default function SelfReportClient({ liffId, clinicId }: { liffId: string;
         if (!idToken) { setBusy(false); setErr("ยืนยันตัวตนไม่สำเร็จ — กรุณาเปิดผ่านแอป LINE ใหม่อีกครั้ง"); return; }
         const r = await submitSelfReport(idToken, clinicId, sev, note.trim());
         setBusy(false);
-        if (r.ok) { setDone(true); return; }
+        if (r.ok) {
+            // อาการไม่ปกติ แต่แจ้งทีมงานไม่ถึง → เตือนให้โทรเอง (อย่าบอก "รับแล้ว" ลอยๆ)
+            setAlertFailed(sev !== "green" && r.alertDelivered === false);
+            setClinicPhone(r.clinicPhone || "");
+            setDone(true);
+            return;
+        }
         setErr(r.error || "ส่งไม่สำเร็จ");
         if (r.phone) setErrPhone(r.phone);
     }
@@ -56,12 +64,29 @@ export default function SelfReportClient({ liffId, clinicId }: { liffId: string;
                     </div>
                     <div className="bg-white rounded-3xl shadow-2xl p-6">
                         {done ? (
-                            <div className="text-center space-y-3">
-                                <CheckCircle2 className="h-14 w-14 text-emerald-500 mx-auto" />
-                                <h1 className="text-lg font-black text-slate-800">ส่งข้อมูลแล้ว</h1>
-                                <p className="text-sm text-slate-500">คลินิกได้รับอาการของคุณแล้ว {sev !== "green" ? "ทีมงานจะติดต่อกลับโดยเร็วค่ะ" : "ขอบคุณค่ะ 🙏"}</p>
-                                <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold mt-2">ปิดหน้าต่าง</button>
-                            </div>
+                            alertFailed ? (
+                                <div className="text-center space-y-3">
+                                    <AlertTriangle className="h-14 w-14 text-amber-500 mx-auto" />
+                                    <h1 className="text-lg font-black text-slate-800">บันทึกอาการแล้ว</h1>
+                                    <p className="text-sm text-slate-600">
+                                        เราบันทึกอาการของคุณไว้แล้ว แต่ระบบแจ้งเตือนทีมงานอาจไม่ถึงในขณะนี้
+                                        {sev === "red" ? " หากอาการรุนแรง กรุณาโทรหาคลินิกโดยตรงทันที" : " เพื่อความมั่นใจ กรุณาโทรแจ้งคลินิกด้วยค่ะ"}
+                                    </p>
+                                    {clinicPhone && (
+                                        <a href={`tel:${clinicPhone}`} className="block w-full h-12 rounded-xl bg-rose-600 text-white font-bold leading-[3rem]">
+                                            📞 โทรหาคลินิก {clinicPhone}
+                                        </a>
+                                    )}
+                                    <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl border border-slate-300 text-slate-600 font-bold mt-1">ปิดหน้าต่าง</button>
+                                </div>
+                            ) : (
+                                <div className="text-center space-y-3">
+                                    <CheckCircle2 className="h-14 w-14 text-emerald-500 mx-auto" />
+                                    <h1 className="text-lg font-black text-slate-800">ส่งข้อมูลแล้ว</h1>
+                                    <p className="text-sm text-slate-500">คลินิกได้รับอาการของคุณแล้ว {sev !== "green" ? "ทีมงานจะติดต่อกลับโดยเร็วค่ะ" : "ขอบคุณค่ะ 🙏"}</p>
+                                    <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold mt-2">ปิดหน้าต่าง</button>
+                                </div>
+                            )
                         ) : !ready ? (
                             <div className="text-center py-8 text-slate-400">
                                 {err ? <p className="text-sm text-rose-600 inline-flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" /> {err}</p>
