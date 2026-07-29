@@ -12,6 +12,7 @@ import {
     Pill, Plus, Trash2, X, AlertCircle, Sparkles, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 import { completeCheckout, type InvoiceItemInput } from "./checkout-actions";
 import { validateCampaignCode, type ValidatedCampaign } from "@/lib/actions/campaigns";
 import type { DiscountEntry } from "@/lib/campaign-types";
@@ -363,7 +364,7 @@ export default function CheckoutForm({
 
     function handleAddItem() {
         if (!newItem.item_name.trim()) {
-            setError("กรุณากรอกชื่อรายการ");
+            toast.error("กรุณากรอกชื่อรายการ");
             return;
         }
         const qty = parseFloat(newItem.qty) || 1;
@@ -387,11 +388,11 @@ export default function CheckoutForm({
 
     const handleComplete = async () => {
         if (!isPaymentValid) {
-            setError("ยอดเงินรับน้อยกว่ายอดสุทธิ");
+            toast.error("ยอดเงินรับน้อยกว่ายอดสุทธิ");
             return;
         }
         if (items.length === 0) {
-            setError("ไม่มีรายการในใบเสร็จ");
+            toast.error("ไม่มีรายการในใบเสร็จ");
             return;
         }
 
@@ -462,6 +463,7 @@ export default function CheckoutForm({
             if (res.error) throw new Error(res.error);
 
             setSaved(true);
+            toast.success("ปิดบิลสำเร็จ");
             // เปิดหน้าพิมพ์ใบเสร็จรับเงินในแท็บใหม่
             if (res.invId) {
                 window.open(`/print/invoice/${res.invId}`, "_blank");
@@ -472,7 +474,7 @@ export default function CheckoutForm({
             }, 1500);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
-            setError(e.message || "เกิดข้อผิดพลาด");
+            toast.error(e.message || "เกิดข้อผิดพลาด");
         } finally {
             setLoading(false);
         }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,10 +128,10 @@ export default function NewVisitPage() {
     }, [caseSource, affiliates.length]);
 
     async function handleSubmit() {
-        if (!selectedPatient) { setError("กรุณาเลือกผู้ป่วยก่อน"); return; }
-        if (!caseSource) { setError("กรุณาเลือก “ที่มาของเคส” ก่อนบันทึก"); return; }
-        if (caseSource === "affiliate" && !caseAffiliateId) { setError("เลือกเซลล์ฟรีแลนซ์ก่อน"); return; }
-        if (caseSource === "referral" && !caseReferralCode.trim()) { setError("กรอกรหัสลูกค้าแนะนำก่อน"); return; }
+        if (!selectedPatient) { toast.error("กรุณาเลือกผู้ป่วยก่อน"); return; }
+        if (!caseSource) { toast.error("กรุณาเลือก “ที่มาของเคส” ก่อนบันทึก"); return; }
+        if (caseSource === "affiliate" && !caseAffiliateId) { toast.error("เลือกเซลล์ฟรีแลนซ์ก่อน"); return; }
+        if (caseSource === "referral" && !caseReferralCode.trim()) { toast.error("กรอกรหัสลูกค้าแนะนำก่อน"); return; }
         setSubmitting(true);
         setError("");
 
@@ -149,15 +150,15 @@ export default function NewVisitPage() {
 
             if (!res.success) {
                 console.error("[visits/new] register failed:", res.error);
-                setError(res.error || "เกิดข้อผิดพลาด — ไม่ทราบสาเหตุ");
+                toast.error(res.error || "เกิดข้อผิดพลาด — ไม่ทราบสาเหตุ");
                 return;
             }
 
-            setSuccess(`✓ สร้าง Visit สำเร็จ! VN: ${res.vn} — ส่งเข้าคิวซักประวัติแล้ว`);
+            toast.success(`สร้าง Visit สำเร็จ! VN: ${res.vn} — ส่งเข้าคิวซักประวัติแล้ว`);
             setTimeout(() => router.push("/dashboard/screening"), 1200);
         } catch (e) {
             console.error("[visits/new] submit exception:", e);
-            setError(e instanceof Error ? e.message : "Network error — ลองใหม่อีกครั้ง");
+            toast.error(e instanceof Error ? e.message : "Network error — ลองใหม่อีกครั้ง");
         } finally {
             setSubmitting(false);
         }

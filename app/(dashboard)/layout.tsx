@@ -6,6 +6,7 @@ import QuickActionFab from "@/components/layout/quick-action-fab";
 import { LanguageProvider } from "@/lib/i18n";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { PermissionProvider } from "@/lib/auth/permission-context";
+import { Toaster } from "@/lib/toast";
 
 export default async function DashboardLayout({
     children,
@@ -97,6 +98,7 @@ export default async function DashboardLayout({
                     </main>
                     {permissions["visits.edit"] === true && <QuickActionFab />}
                 </div>
+                <Toaster />
             </div>
           </PermissionProvider>
         </LanguageProvider>

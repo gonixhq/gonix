@@ -14,6 +14,7 @@ import {
     Plus, X, Activity, Calendar,
     Sparkles, Bandage, FileText, HeartPulse, TestTube, ChevronDown, Check, Printer,
 } from "lucide-react";
+import { toast } from "@/lib/toast";
 import { SERVICE_LABEL, type ServiceCategory, type TriageLevel } from "@/lib/visit-service-types";
 import { MED_CERT_TYPES } from "@/lib/med-cert-types";
 import { setMedCertDraftType } from "@/lib/actions/med-cert";
@@ -187,7 +188,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         ]);
 
         if (!visitRes.data) {
-            setError("ไม่พบ Visit นี้");
+            toast.error("ไม่พบ Visit นี้");
             setLoading(false);
             return;
         }
@@ -313,7 +314,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             if (!vitals.height_cm) missing.push("Height");
 
             if (missing.length > 0) {
-                setError(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
+                toast.error(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
                 window.scrollTo({ top: 0, behavior: "smooth" });
                 return false;
             }
@@ -352,7 +353,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             status: newStatus,
         }).eq("vn", vn);
 
-        if (updErr) { setError(updErr.message); setSaving(false); return false; }
+        if (updErr) { toast.error(updErr.message); setSaving(false); return false; }
 
         // อัปเดต Past History (PH) ระดับผู้ป่วย ถ้ามีการแก้
         if ((pastHistory || "") !== (patient?.past_history || "")) {
@@ -424,7 +425,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         }
 
         setSaving(false);
-        setSuccess(sendToDoctor ? "✓ ส่งตรวจเรียบร้อย!" : "✓ บันทึกแล้ว");
+        toast.success(sendToDoctor ? "ส่งตรวจเรียบร้อย!" : "บันทึกแล้ว");
         setTimeout(() => {
             if (sendToDoctor) router.push("/dashboard/screening");
             else loadData();
@@ -440,7 +441,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         if (!vitals.bp_systolic) missing.push("BP");
         if (!vitals.pulse_rate) missing.push("Pulse");
         if (missing.length > 0) {
-            setError(`กรอก Vital ก่อนพิมพ์ (ข้อมูลจะได้ขึ้นในฟอร์ม): ${missing.join(", ")}`);
+            toast.error(`กรอก Vital ก่อนพิมพ์ (ข้อมูลจะได้ขึ้นในฟอร์ม): ${missing.join(", ")}`);
             window.scrollTo({ top: 0, behavior: "smooth" });
             return;
         }
@@ -772,7 +773,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     if (!vitals.height_cm) missing.push("Height");
                     if (!selectedRoomId) missing.push("ห้องตรวจ");
                     if (missing.length > 0) {
-                        setError(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
+                        toast.error(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
                         window.scrollTo({ top: 0, behavior: "smooth" });
                         return;
                     }
