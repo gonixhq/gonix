@@ -1015,7 +1015,7 @@ export default function CheckoutForm({
                         <Button
                             className="w-full h-12 rounded-xl text-base font-bold gap-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25"
                             onClick={handleComplete}
-                            disabled={loading || !isReadyToComplete || !isPaymentValid || items.length === 0}
+                            disabled={loading || saved || !isReadyToComplete || !isPaymentValid || items.length === 0}
                         >
                             {loading ? <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> :
                                 saved ? <CheckCircle2 className="h-5 w-5" /> :

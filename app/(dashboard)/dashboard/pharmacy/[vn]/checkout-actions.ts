@@ -54,6 +54,18 @@ export async function completeCheckout(input: CheckoutInput) {
         const clinicId = visit.clinic_id;
         const hn = visit.hn;
 
+        // 0-guard. กันบิลซ้ำ: visit นี้ต้องยังไม่มีใบเสร็จที่ยังใช้งานอยู่
+        //   (กันกดปิดบิลซ้ำ/สองแท็บ/retry → 1 visit = 1 บิลเสมอ · ยกเว้นที่ยกเลิก/คืนเงินไปแล้ว)
+        const { data: dupInv } = await supabase
+            .from("invoice_headers")
+            .select("id")
+            .eq("vn", vn)
+            .not("status", "in", "(voided,refunded)")
+            .limit(1);
+        if (dupInv && dupInv.length > 0) {
+            return { error: `Visit นี้ออกใบเสร็จไปแล้ว (${dupInv[0].id}) — ถ้าต้องการออกใบใหม่ ให้ยกเลิก (void) ใบเดิมก่อน` };
+        }
+
         // 0. Pre-check: สต๊อก vial ต้องพอ "ก่อน" เขียนอะไรทั้งสิ้น (block ปิดบิล — บังคับคีย์รับเข้าก่อน)
         const injBill = new Map<string, number>();
         for (const it of items) {
