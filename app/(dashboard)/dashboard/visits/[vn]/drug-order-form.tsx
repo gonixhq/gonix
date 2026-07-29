@@ -197,7 +197,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
         else { setSearchResults([]); setShowSearch(false); }
     }, [supabase]);
 
-    /** Build sig from inventory fields if sig_text_default is empty */
+    /** Build sig from inventory fields — เว้นว่างถ้าไม่มีข้อมูล (ยาฉีด/เวชภัณฑ์ไม่ต้องมีวิธีใช้) */
     function buildSig(drug: DrugItem): string {
         // 1. If sig_text_default exists, use it
         if (drug.sig_text_default && drug.sig_text_default.trim()) {
@@ -209,8 +209,8 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
         if (drug.frequency) parts.push(drug.frequency);
         if (drug.use_type) parts.push(drug.use_type);
         if (parts.length > 0) return parts.join(" ");
-        // 3. Fallback to common default
-        return commonSigs[0];
+        // 3. ไม่มีข้อมูลวิธีใช้ → เว้นว่าง (หมอเติมเองถ้าต้องการ · ยาฉีดคีย์แล้วสั่งได้เลย)
+        return "";
     }
 
     function addDrug(drug: DrugItem) {
@@ -263,7 +263,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
                 generic_name: inv.generic_name || "",
                 qty,
                 unit: inv.unit || "เม็ด",
-                sig_text: item.sig_text || commonSigs[0],
+                sig_text: item.sig_text || "",
                 cost_per_unit: inv.sell_price || 0,
                 total_cost: (inv.sell_price || 0) * qty,
             };
@@ -520,7 +520,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
                                             <Input
                                                 value={line.sig_text}
                                                 onChange={e => updateLine(idx, "sig_text", e.target.value)}
-                                                placeholder="วิธีใช้"
+                                                placeholder="วิธีใช้ (เว้นว่างได้ เช่น ยาฉีด)"
                                                 className="h-8 text-xs flex-1"
                                             />
                                             <Button

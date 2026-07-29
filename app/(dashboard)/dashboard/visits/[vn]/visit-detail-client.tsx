@@ -13,6 +13,7 @@ import type { FaceChartData } from "@/lib/aesthetic-types";
 import VisitStatusActions from "./visit-status-actions";
 import SoapForm from "./soap-form";
 import DrugOrderForm from "./drug-order-form";
+import SavedDrugsEditor from "./saved-drugs-editor";
 import LabOrderForm from "./lab-order-form";
 import MedCertForm from "./med-cert-form";
 import AppointmentReferForm from "./appointment-refer-form";
@@ -497,43 +498,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                         <div className="h-8 w-1 bg-gradient-to-b from-blue-700 to-slate-900 rounded-full" />
                                         <p className="text-base font-bold text-slate-800">{language === "en" ? "Prescribed Medicines" : "รายการยาที่บันทึกแล้ว"}</p>
                                     </div>
-                                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-slate-50 border-b border-slate-200">
-                                                <tr>
-                                                    <th className="text-left px-5 py-3.5 font-bold text-slate-600 uppercase tracking-wide text-xs">{language === "en" ? "Medicine" : "ชื่อยา"}</th>
-                                                    <th className="text-center px-4 py-3.5 font-bold text-slate-600 uppercase tracking-wide text-xs w-24">{language === "en" ? "Qty" : "จำนวน"}</th>
-                                                    <th className="text-left px-4 py-3.5 font-bold text-slate-600 uppercase tracking-wide text-xs">{language === "en" ? "Sig" : "วิธีใช้"}</th>
-                                                    <th className="text-right px-5 py-3.5 font-bold text-slate-600 uppercase tracking-wide text-xs w-32">{language === "en" ? "Price" : "ราคา (฿)"}</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                                {drugs.map((d: any) => {
-                                                    const inv = Array.isArray(d.inventory) ? d.inventory[0] : d.inventory;
-                                                    return (
-                                                        <tr key={d.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors">
-                                                            <td className="px-5 py-4">
-                                                                <div className="font-bold text-slate-800">{inv?.item_name}</div>
-                                                                {inv?.generic_name && <div className="text-xs font-medium text-slate-500 mt-0.5">{inv.generic_name} {inv.strength}</div>}
-                                                            </td>
-                                                            <td className="px-4 py-4 text-center font-bold text-slate-700 bg-slate-50">{d.qty} <span className="text-xs font-normal text-slate-400">{d.unit}</span></td>
-                                                            <td className="px-4 py-4 text-slate-600 text-[13px]">{d.sig_text || "—"}</td>
-                                                            <td className="px-5 py-4 text-right font-black text-blue-600 bg-blue-50/30">฿{d.total_cost?.toLocaleString()}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                            <tfoot className="bg-blue-50/50 border-t border-blue-100">
-                                                <tr>
-                                                    <td colSpan={3} className="px-5 py-3 text-sm font-bold text-blue-800 uppercase text-right tracking-widest">{language === "en" ? "Total Price" : "รวมค่ายาทั้งหมด"}</td>
-                                                    <td className="px-5 py-3 text-right font-black text-blue-600 text-lg">
-                                                        ฿{drugs.reduce((s: number, d: { total_cost?: number }) => s + (d.total_cost || 0), 0).toLocaleString()}
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
-                                    </div>
+                                    <SavedDrugsEditor drugs={drugs} vn={vn} language={language} />
                                 </div>
                             )}
 
