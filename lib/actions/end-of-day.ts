@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { getAnonRevenue } from "./anonymous";
 import { getPettyCashTotal } from "./expenses";
-import type { EODSummary, PendingVisit, CloseDayHistory } from "@/lib/eod-types";
+import type { EODSummary, PendingVisit, CloseDayHistory, DayTxn } from "@/lib/eod-types";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 type SB = Awaited<ReturnType<typeof createClient>>;
@@ -45,6 +45,74 @@ async function computePaymentBreakdown(
         transfer_total: r2(transfer.amount), transfer_count: transfer.count,
         credit_total: r2(credit.amount), credit_count: credit.count,
     };
+}
+
+/** รายการรับเงินราย transaction ของวัน (payment_logs + นิรนาม) — เรียงตามเวลา
+ *  ไว้กระทบกับสมุดบัญชี/สลิปโอนทีละรายการ (แก้ปัญหายอดรวมไม่ตรงบัญชี) */
+export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+    if (!profile?.clinic_id) return [];
+    const clinicId = profile.clinic_id as string;
+    const targetDate = date || bangkokDate();
+    const startISO = new Date(`${targetDate}T00:00:00+07:00`).toISOString();
+    const next = new Date(`${targetDate}T00:00:00+07:00`); next.setDate(next.getDate() + 1);
+    const endISO = next.toISOString();
+
+    // 1. payment_logs (checkout ปกติ / คอส / มัดจำพรีออเดอร์)
+    const { data: logs } = await supabase.from("payment_logs")
+        .select("id, inv_id, payment_method, amount, bank_name, transaction_ref, slip_ref, paid_at, received_by")
+        .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO).order("paid_at");
+
+    const invIds = [...new Set((logs || []).map(l => l.inv_id).filter(Boolean) as string[])];
+    const invHn = new Map<string, string>();
+    if (invIds.length) {
+        const { data: invs } = await supabase.from("invoice_headers").select("id, hn").in("id", invIds);
+        for (const iv of invs || []) invHn.set(iv.id as string, iv.hn as string);
+    }
+    const hns = [...new Set([...invHn.values()])];
+    const hnName = new Map<string, string>();
+    if (hns.length) {
+        const { data: pts } = await supabase.from("patients").select("hn, prefix, first_name, last_name").in("hn", hns);
+        for (const p of pts || []) hnName.set(p.hn as string, `${p.prefix || ""}${p.first_name} ${p.last_name}`.trim());
+    }
+    const staffIds = [...new Set((logs || []).map(l => l.received_by).filter(Boolean) as string[])];
+    const staffName = new Map<string, string>();
+    if (staffIds.length) {
+        const { data: st } = await supabase.from("staff").select("id, full_name").in("id", staffIds);
+        for (const s of st || []) staffName.set(s.id as string, s.full_name as string);
+    }
+
+    const rows: DayTxn[] = (logs || []).map(l => {
+        const hn = l.inv_id ? invHn.get(l.inv_id as string) : undefined;
+        return {
+            id: l.id as string, source: "invoice" as const, ref: (l.inv_id as string) || "",
+            time: (l.paid_at as string) || null,
+            patient: (hn && hnName.get(hn)) || (hn ? `HN ${hn}` : "-"),
+            method: (l.payment_method as string) || "other", amount: Number(l.amount || 0),
+            bank: (l.bank_name as string) || null, txn_ref: (l.transaction_ref as string) || null,
+            slip: (l.slip_ref as string) || null,
+            staff: l.received_by ? (staffName.get(l.received_by as string) || null) : null,
+        };
+    });
+
+    // 2. คลินิกนิรนาม (anon_cases — คนละแหล่งกับ payment_logs)
+    const { data: anon } = await supabase.from("anon_cases")
+        .select("id, case_code, total_amount, payment_method, paid_at")
+        .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO).order("paid_at");
+    for (const c of anon || []) {
+        rows.push({
+            id: c.id as string, source: "anon", ref: (c.case_code as string) || "นิรนาม",
+            time: (c.paid_at as string) || null, patient: "นิรนาม",
+            method: (c.payment_method as string) || "cash", amount: Number(c.total_amount || 0),
+            bank: null, txn_ref: null, slip: null, staff: null,
+        });
+    }
+
+    rows.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+    return rows;
 }
 
 /** Get summary of visits/revenue for a given date (default today) */

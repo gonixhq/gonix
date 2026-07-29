@@ -9,16 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import {
     DoorClosed, AlertCircle, CheckCircle, Wallet, Users, FileText,
     Clock, X, History, RotateCcw, ArrowRight, ClipboardList, Calendar, ShieldCheck,
-    Calculator, Coins, CreditCard, ArrowLeftRight, Save,
+    Calculator, Coins, CreditCard, ArrowLeftRight, Save, Receipt, ChevronDown,
 } from "lucide-react";
 import { closeClinicDay, reopenClinicDay, setOpeningFloat } from "@/lib/actions/end-of-day";
-import { STATUS_LABEL, type EODSummary, type CloseDayHistory } from "@/lib/eod-types";
+import { STATUS_LABEL, PAYMENT_METHOD_LABEL, type EODSummary, type CloseDayHistory, type DayTxn } from "@/lib/eod-types";
 import type { DiscountDaySummary } from "@/lib/actions/campaigns";
 import { DISCOUNT_KIND_LABEL } from "@/lib/campaign-types";
 import { cn } from "@/lib/utils";
 
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 const DENOMS = [1000, 500, 100, 50, 20, 10, 5, 1];
+const fmtTime = (iso: string | null) => iso
+    ? new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
+    : "—";
 
 interface StaffReconRow { name: string; closes: number; shortCount: number; netOverShort: number; shortRate: number }
 interface Props {
@@ -26,12 +29,13 @@ interface Props {
     history: CloseDayHistory[];
     staffPattern: StaffReconRow[];
     discounts: DiscountDaySummary;
+    transactions: DayTxn[];
 }
 
 // เกินกว่านี้ถือว่าผิดปกติ → เตือนก่อนปิดยอด
 const DISCOUNT_ALERT_PCT = 20;
 
-export default function EODClient({ summary, history, staffPattern, discounts }: Props) {
+export default function EODClient({ summary, history, staffPattern, discounts, transactions }: Props) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showConfirm, setShowConfirm] = useState(false);
@@ -50,6 +54,14 @@ export default function EODClient({ summary, history, staffPattern, discounts }:
     const [floatSaved, setFloatSaved] = useState(false);
     const [showDenom, setShowDenom] = useState(false);
     const [denom, setDenom] = useState<Record<number, string>>({});
+
+    // ── รายการรับเงินราย transaction (กระทบบัญชี/สลิป) ──
+    const [showTxns, setShowTxns] = useState(false);
+    const [txnMethod, setTxnMethod] = useState<string>("all");
+    const txnMethodKeys = ["cash", "transfer", "qr_promptpay", "credit_card"];
+    const txnByMethod = (m: string) => transactions.filter(t => m === "all" ? true : (m === "transfer" ? (t.method === "transfer" || t.method === "qr_promptpay") : t.method === m));
+    const filteredTxns = txnByMethod(txnMethod);
+    const filteredTxnTotal = filteredTxns.reduce((s, t) => s + t.amount, 0);
 
     const floatNum = Number(startingFloat) || 0;
     const expectedCash = floatNum + summary.cash_received - summary.petty_total;
@@ -381,6 +393,99 @@ export default function EODClient({ summary, history, staffPattern, discounts }:
                             actualValue={creditActual} onActual={setCreditActual} overShort={creditOverShort} />
                     </div>
                 </div>
+            </div>
+
+            {/* รายการรับเงินราย transaction — กระทบกับบัญชี/สลิปทีละรายการ */}
+            <div className="gonix-card-premium p-5">
+                <button onClick={() => setShowTxns(v => !v)} className="w-full flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-emerald-700" />
+                        <h2 className="text-base font-bold text-slate-800">รายการรับเงินวันนี้</h2>
+                        <span className="text-xs text-slate-500">({transactions.length} รายการ · รวม {money(transactions.reduce((s, t) => s + t.amount, 0))})</span>
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 text-slate-400 transition-transform", showTxns && "rotate-180")} />
+                </button>
+
+                {showTxns && (
+                    <div className="mt-4 space-y-3">
+                        {/* filter ช่องทาง + ยอดรวมต่อช่องทาง */}
+                        <div className="flex flex-wrap gap-2">
+                            {["all", ...txnMethodKeys].map(m => {
+                                const rows = txnByMethod(m);
+                                if (m !== "all" && rows.length === 0) return null;
+                                const sub = rows.reduce((s, t) => s + t.amount, 0);
+                                const label = m === "all" ? "ทั้งหมด" : (PAYMENT_METHOD_LABEL[m] || m);
+                                return (
+                                    <button key={m} onClick={() => setTxnMethod(m)}
+                                        className={cn("px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors",
+                                            txnMethod === m ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300")}>
+                                        {label} <span className="tabular-nums opacity-80">· {rows.length} · {money(sub)}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {filteredTxns.length === 0 ? (
+                            <p className="text-sm text-slate-400 text-center py-6">ยังไม่มีรายการรับเงินในช่องทางนี้</p>
+                        ) : (
+                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-left text-xs text-slate-500 uppercase tracking-wider">
+                                            <th className="px-3 py-2 font-bold">เวลา</th>
+                                            <th className="px-3 py-2 font-bold">คนไข้</th>
+                                            <th className="px-3 py-2 font-bold">ช่องทาง</th>
+                                            <th className="px-3 py-2 font-bold">อ้างอิง / สลิป</th>
+                                            <th className="px-3 py-2 font-bold">ผู้รับเงิน</th>
+                                            <th className="px-3 py-2 font-bold text-right">จำนวน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredTxns.map(t => (
+                                            <tr key={`${t.source}-${t.id}`} className="border-t border-slate-100 hover:bg-slate-50/60">
+                                                <td className="px-3 py-2 tabular-nums text-slate-600 whitespace-nowrap">{fmtTime(t.time)}</td>
+                                                <td className="px-3 py-2 text-slate-800">
+                                                    {t.source === "anon"
+                                                        ? <span className="text-slate-500">นิรนาม <span className="text-xs text-slate-400">({t.ref})</span></span>
+                                                        : t.patient}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    <span className={cn("text-[11px] px-2 py-0.5 rounded font-semibold",
+                                                        t.method === "cash" ? "bg-amber-100 text-amber-700"
+                                                            : t.method === "credit_card" ? "bg-violet-100 text-violet-700"
+                                                                : "bg-blue-100 text-blue-700")}>
+                                                        {PAYMENT_METHOD_LABEL[t.method] || t.method}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-slate-500">
+                                                    {t.source === "invoice" && t.ref
+                                                        ? <Link href={`/dashboard/finance/${t.ref}`} className="text-blue-600 hover:underline font-mono">{t.ref}</Link>
+                                                        : <span className="font-mono">{t.ref}</span>}
+                                                    {(t.bank || t.txn_ref || t.slip) && (
+                                                        <div className="text-[11px] text-slate-400 mt-0.5">
+                                                            {[t.bank, t.txn_ref && `อ้างอิง ${t.txn_ref}`, t.slip && `สลิป ${t.slip}`].filter(Boolean).join(" · ")}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-xs text-slate-500">{t.staff || "—"}</td>
+                                                <td className="px-3 py-2 text-right font-bold tabular-nums text-slate-800">{money(t.amount)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr className="border-t-2 border-slate-200 bg-slate-50/60">
+                                            <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                                รวม{txnMethod === "all" ? "" : ` (${PAYMENT_METHOD_LABEL[txnMethod] || txnMethod})`} {filteredTxns.length} รายการ
+                                            </td>
+                                            <td className="px-3 py-2 text-right font-black tabular-nums text-emerald-700">{money(filteredTxnTotal)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        )}
+                        <p className="text-[11px] text-slate-400">💡 เลือก &quot;โอน&quot; แล้วกระทบทีละรายการกับสมุดบัญชี/แอปธนาคาร — ยอดรวมตรงนี้ต้องเท่ากับที่กระทบยอดด้านบน</p>
+                    </div>
+                )}
             </div>
 
             {/* Counter info */}

@@ -40,6 +40,29 @@ export interface EODSummary {
     };
 }
 
+/** รายการรับเงินราย transaction ของวัน (payment_logs + นิรนาม) — ไว้กระทบกับบัญชี/สลิป */
+export interface DayTxn {
+    id: string;
+    source: "invoice" | "anon";
+    ref: string;              // inv_id หรือ รหัสเคสนิรนาม
+    time: string | null;      // paid_at
+    patient: string;          // ชื่อคนไข้ หรือ "นิรนาม"
+    method: string;           // cash / transfer / qr_promptpay / credit_card
+    amount: number;
+    bank: string | null;      // ธนาคาร (โอน)
+    txn_ref: string | null;   // เลขอ้างอิงธุรกรรม
+    slip: string | null;      // เลขสลิป
+    staff: string | null;     // ผู้รับเงิน
+}
+
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
+    cash: "เงินสด",
+    transfer: "โอน",
+    qr_promptpay: "QR/พร้อมเพย์",
+    credit_card: "บัตรเครดิต",
+    other: "อื่นๆ",
+};
+
 export interface PendingVisit {
     vn: string;
     hn: string;
