@@ -426,7 +426,8 @@ export async function completeTreatment(
     const invId = `INV-${Date.now().toString().slice(-6)}-${po.vn.slice(-4)}`;
     const invoiceStatus = paid >= total ? "paid" : paid > 0 ? "partial" : "issued";
     const { error: invErr } = await supabase.from("invoice_headers").insert({
-        id: invId, clinic_id: clinicId, vn: po.vn, hn: po.hn, invoice_date: invoiceDate,
+        // ปิดบิลพรีออเดอร์ไม่รองรับย้อนหลัง → bill_date = invoice_date = วันนี้เสมอ (mig 119)
+        id: invId, clinic_id: clinicId, vn: po.vn, hn: po.hn, invoice_date: invoiceDate, bill_date: invoiceDate,
         subtotal, discount_amount: discount, total_amount: total,
         paid_amount: paid, status: invoiceStatus,
     });

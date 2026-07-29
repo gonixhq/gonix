@@ -27,6 +27,7 @@ interface Invoice {
     vn: string;
     hn: string;
     invoice_date: string;
+    bill_date?: string | null;
     subtotal?: number | null;
     discount_amount?: number | null;
     tax_amount?: number | null;
@@ -501,10 +502,22 @@ export default function InvoiceDetailClient({
                         </div>
                     </div>
 
-                    {/* Meta */}
+                    {/* Meta — แยก วันที่บนใบเสร็จ (พิมพ์) ออกจาก วันลงบัญชี (การเงิน) ให้เห็นชัดว่าย้อนหลังไหม */}
                     <div className="gonix-card-premium p-4 space-y-1.5 text-xs">
+                        {(() => {
+                            const backdated = !!invoice.bill_date && invoice.bill_date !== invoice.invoice_date;
+                            return (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-slate-500">วันที่บนใบเสร็จ</span>
+                                    <span className="font-semibold text-slate-700 tabular-nums inline-flex items-center gap-1.5">
+                                        {backdated && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ย้อนหลัง</span>}
+                                        {new Date(invoice.bill_date || invoice.invoice_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                                    </span>
+                                </div>
+                            );
+                        })()}
                         <div className="flex justify-between">
-                            <span className="text-slate-500">วันที่ออก</span>
+                            <span className="text-slate-500">วันลงบัญชี (ปิดยอด)</span>
                             <span className="font-semibold text-slate-700 tabular-nums">
                                 {new Date(invoice.invoice_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
                             </span>

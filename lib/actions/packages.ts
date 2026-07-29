@@ -523,9 +523,12 @@ export async function purchasePackage(input: PurchasePackageInput) {
         let invoiceId = input.invoice_id || null;
         if (!invoiceId) {
             const newInvId = `INV-${Date.now().toString().slice(-6)}-${input.hn.slice(-4)}`;
+            // ⚠️ ขายคอสตรงยัง "ไม่รองรับออกย้อนหลัง" (เฟสนี้ทำเฉพาะ checkout ห้องยา)
+            //    → bill_date = invoice_date = วันนี้เสมอ (ตั้งชัดเจน ไม่ปล่อยว่าง)
+            const pkgToday = bangkokDate();
             const { error: invErr } = await supabase.from("invoice_headers").insert({
                 id: newInvId, clinic_id: profile.clinic_id, hn: input.hn,
-                invoice_date: bangkokDate(), subtotal: amount, total_amount: amount,
+                invoice_date: pkgToday, bill_date: pkgToday, subtotal: amount, total_amount: amount,
                 paid_amount: amount, status: "paid", issued_by: staffRow?.id || null,
             });
             if (invErr) return { success: false, error: `สร้างใบเสร็จไม่สำเร็จ: ${invErr.message}` };

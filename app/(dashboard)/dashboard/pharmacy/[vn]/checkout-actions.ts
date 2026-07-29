@@ -32,6 +32,7 @@ export interface CheckoutInput {
     discounts?: DiscountEntry[];      // breakdown ส่วนลดทุกก้อน
     campaignId?: string | null;
     campaignLabel?: string | null;
+    billDate?: string;                // วันที่พิมพ์บนใบเสร็จ (YYYY-MM-DD) — ย้อนหลังได้เฉพาะ owner/admin
 }
 
 export async function completeCheckout(input: CheckoutInput) {
@@ -72,6 +73,28 @@ export async function completeCheckout(input: CheckoutInput) {
             if (shorts.length > 0) {
                 return { error: `สต๊อก vial ไม่พอ — กรุณารับเข้าสต๊อกให้ครบก่อนปิดบิล:\n${shorts.join("\n")}` };
             }
+        }
+
+        // 0b. วันที่บนใบเสร็จ (bill_date) — validate "ก่อน" เขียนอะไร
+        //     invoice_date (posting/การเงิน) = วันนี้เสมอ · bill_date = วันที่พิมพ์ (ย้อนหลังได้เฉพาะ owner/admin)
+        const today = bangkokDate();                 // Asia/Bangkok (ไม่ใช่ UTC)
+        let billDate = today;
+        if (input.billDate && input.billDate !== today) {
+            if (input.billDate > today) {
+                return { error: "วันที่บนใบเสร็จต้องไม่เกินวันนี้ (ห้ามลงวันที่อนาคต)" };
+            }
+            // ย้อนหลัง → default-deny: อนุญาตเฉพาะ owner/admin เท่านั้น (role อื่นห้ามทั้งหมด)
+            const { data: { user: bdUser } } = await supabase.auth.getUser();
+            const { data: prof } = bdUser
+                ? await supabase.from("profiles").select("role").eq("id", bdUser.id).maybeSingle()
+                : { data: null };
+            const role = (prof?.role as string) || "";
+            if (role !== "owner" && role !== "admin") {
+                return { error: "ออกใบเสร็จย้อนหลังได้เฉพาะเจ้าของ/ผู้จัดการ (owner/admin) เท่านั้น" };
+            }
+            billDate = input.billDate;
+            // audit row สร้างโดย DB trigger (trg_log_backdated_bill) ในทรานแซกชันเดียวกับ invoice
+            // → atomic: บิลย้อนหลัง + audit เกิด/ล้มพร้อมกันเสมอ (ไม่ต้อง insert เองที่ app)
         }
 
         // 1. Mark visit as completed
@@ -136,7 +159,8 @@ export async function completeCheckout(input: CheckoutInput) {
                 clinic_id: clinicId,
                 vn,
                 hn,
-                invoice_date: bangkokDate(),
+                invoice_date: today,     // posting/การเงิน = วันนี้เสมอ (คีย์ EOD/รายงาน/commission)
+                bill_date: billDate,     // วันที่พิมพ์ (= วันนี้ หรือย้อนหลัง)
                 subtotal,
                 discount_amount: discount,
                 total_amount: total,
@@ -150,6 +174,7 @@ export async function completeCheckout(input: CheckoutInput) {
             console.error("Invoice header error:", invErr);
             throw new Error(`สร้างใบแจ้งหนี้ไม่สำเร็จ: ${invErr.message}`);
         }
+
 
         // 5. Create invoice_items (เก็บ id กลับมาเพื่อผูกส่วนลดรายรายการ)
         let itemIds: string[] = [];

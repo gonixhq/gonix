@@ -209,7 +209,8 @@ function ReceiptCopy({
                     </div>
                     <div className="flex gap-2">
                         <span className="text-slate-500 w-14 shrink-0">วันที่:</span>
-                        <span>{thaiDate(inv.invoice_date || inv.created_at)} · {thaiTime(inv.created_at)}</span>
+                        {/* วันที่พิมพ์ = bill_date · โชว์เวลาสร้างเฉพาะบิลปกติ (ไม่ใช่ย้อนหลัง) · ไม่มี badge บนใบเสร็จคนไข้ */}
+                        <span>{thaiDate(inv.bill_date || inv.invoice_date || inv.created_at)}{(!inv.bill_date || inv.bill_date === inv.invoice_date) ? ` · ${thaiTime(inv.created_at)}` : ""}</span>
                     </div>
                     <div className="flex gap-2">
                         <span className="text-slate-500 w-14 shrink-0">VN:</span>
@@ -372,7 +373,7 @@ export default async function InvoicePrintPage({
 
     const [invRes, itemsRes, paymentsRes] = await Promise.all([
         supabase.from("invoice_headers").select(`
-            id, vn, hn, invoice_date, subtotal, discount_amount, tax_amount,
+            id, vn, hn, invoice_date, bill_date, subtotal, discount_amount, tax_amount,
             total_amount, paid_amount, balance_due, status, created_at,
             clinic_id,
             patients!inner(prefix, first_name, last_name, phone, thai_id_card, address_detail),

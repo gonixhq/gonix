@@ -90,6 +90,7 @@ export default function CheckoutForm({
     services = [],
     inventoryDrugs = [],
     injections = [],
+    canBackdate = false,
 }: {
     visit: Visit;
     drugOrders: DrugOrder[];
@@ -97,6 +98,7 @@ export default function CheckoutForm({
     services?: ServiceCatalogItem[];
     inventoryDrugs?: InventoryDrug[];
     injections?: Injection[];
+    canBackdate?: boolean;
 }) {
     const router = useRouter();
     const p = Array.isArray(visit.patients) ? visit.patients[0] : (visit.patients || visit.patient);
@@ -123,6 +125,9 @@ export default function CheckoutForm({
     // Billing
     const [discount, setDiscount] = useState<number>(0);
     const [discountReason, setDiscountReason] = useState("");
+    // ออกใบเสร็จย้อนหลัง (เฉพาะ owner/admin) — ว่าง = วันนี้
+    const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+    const [billDate, setBillDate] = useState("");
     // แคมเปญ/โค้ดโปรฯ (ตรวจเงื่อนไขฝั่ง server)
     const [promoCode, setPromoCode] = useState("");
     const [promo, setPromo] = useState<ValidatedCampaign | null>(null);
@@ -432,6 +437,7 @@ export default function CheckoutForm({
                 discounts,
                 campaignId: promo?.campaign_id || null,
                 campaignLabel: promo ? `${promo.code} · ${promo.name}` : null,
+                billDate: canBackdate && billDate && billDate !== todayStr ? billDate : undefined,
             });
 
             if (res.error) throw new Error(res.error);
@@ -856,6 +862,20 @@ export default function CheckoutForm({
                                 ฿{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                         </div>
+
+                        {/* ออกใบเสร็จย้อนหลัง (เฉพาะ owner/admin) */}
+                        {canBackdate && (
+                            <div className="pt-3 border-t border-slate-200/60 space-y-1.5">
+                                <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    วันที่บนใบเสร็จ (ออกย้อนหลัง)
+                                    {billDate && billDate !== todayStr && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ย้อนหลัง</span>}
+                                </Label>
+                                <Input type="date" value={billDate} max={todayStr} onChange={e => setBillDate(e.target.value)} className="h-9" />
+                                <p className="text-[10px] text-slate-400">
+                                    ว่าง = วันนี้ · การเงิน/ปิดยอด/สต๊อก ยังนับที่<b>วันนี้</b>เสมอ (แค่วันที่บนกระดาษย้อนหลัง) · บันทึก audit ทุกครั้ง
+                                </p>
+                            </div>
+                        )}
 
                         {/* Payment method */}
                         <div className="pt-3 border-t border-slate-200/60 space-y-2">

@@ -73,6 +73,11 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     // การฉีดที่หมอบันทึก → เด้งขึ้นบิลอัตโนมัติ (P06)
     const injections = await getVisitInjections(vn);
 
+    // ออกใบเสร็จย้อนหลังได้เฉพาะ owner/admin (default-deny role อื่น)
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: prof } = user ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle() : { data: null };
+    const canBackdate = prof?.role === "owner" || prof?.role === "admin";
+
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-24">
             <CheckoutForm
@@ -82,6 +87,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
                 services={services}
                 inventoryDrugs={drugs || []}
                 injections={injections}
+                canBackdate={canBackdate}
             />
         </div>
     );
