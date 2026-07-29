@@ -62,10 +62,21 @@ interface LineItem {
     segment?: string | null;  // แผนกรายได้ (จาก source)
     max_discount_pct?: number | null;  // เพดานส่วนลด (เฉพาะคอส) — null = ไม่จำกัด
     line_discount?: number;   // ส่วนลดเฉพาะรายการนี้ (บาท)
+    // ── ของฉีด (injectable): ขายเป็น "ก้อน" ไม่ใช่ต่อหน่วย ──
+    // qty = จำนวนที่ฉีด (ยูนิต/cc/shot → ตัดสต๊อก vial) · block_price = ราคาขายก้อน (คิดเงิน)
+    block_price?: number;     // ราคาก้อน (เฉพาะ injectable) — เป็น source of truth ของยอด ไม่ผูกกับ qty
+    unit_label?: string;      // u / cc / shot (แสดงข้าง qty)
 }
 
 let uidCounter = 0;
 const uid = () => `item-${Date.now()}-${++uidCounter}`;
+
+/** ยอดเต็มของรายการ (ก่อนส่วนลด):
+ *  ของฉีดขายเป็นก้อน → ใช้ block_price ตรงๆ (ไม่ผูก qty×unit_price) · อื่นๆ = qty × ต่อหน่วย */
+const lineGross = (it: LineItem) =>
+    it.item_type === "injectable" && it.block_price != null && it.block_price >= 0
+        ? it.block_price
+        : it.qty * it.unit_price;
 
 interface InventoryDrug {
     id: string;
@@ -241,14 +252,21 @@ export default function CheckoutForm({
         });
 
         // การฉีดที่หมอบันทึก (P06) → เด้งขึ้นบิลอัตโนมัติ (item_type='injectable' → ตัด vial)
+        // qty = จำนวนจริง (ตัดสต๊อก) · block_price = ราคาก้อนที่หมอตั้ง (null → fallback ราคา/หน่วย×qty)
         (injections || []).forEach((inj) => {
+            const q = Number(inj.qty || 1);
+            const block = inj.sale_price != null
+                ? Number(inj.sale_price)
+                : (Number(inj.sell_price || 0) > 0 ? Number(inj.sell_price) * q : 0);
             initialItems.push({
                 id: uid(),
                 item_type: "injectable",
                 item_ref_id: inj.item_id,
                 item_name: `${inj.item_name}${inj.brand ? ` (${inj.brand})` : ""}${inj.site ? ` @ ${inj.site}` : ""}`,
-                qty: Number(inj.qty || 1),
-                unit_price: Number(inj.sell_price || 0),
+                qty: q,
+                unit_price: q > 0 ? block / q : 0,
+                block_price: block,
+                unit_label: inj.unit_label || undefined,
                 segment: "aesthetic",
             });
         });
@@ -258,12 +276,12 @@ export default function CheckoutForm({
 
     // Calculations
     const subtotal = useMemo(
-        () => items.reduce((s, i) => s + (i.qty * i.unit_price), 0),
+        () => items.reduce((s, i) => s + lineGross(i), 0),
         [items]
     );
     // ส่วนลดรายรายการ (line discount) + แคมเปญ + ลดเองท้ายบิล
     const lineDiscountTotal = useMemo(
-        () => items.reduce((s, i) => s + Math.min(Number(i.line_discount) || 0, i.qty * i.unit_price), 0),
+        () => items.reduce((s, i) => s + Math.min(Number(i.line_discount) || 0, lineGross(i)), 0),
         [items]
     );
     const promoDiscount = promo?.discount_amount || 0;
@@ -278,7 +296,7 @@ export default function CheckoutForm({
         try {
             const res = await validateCampaignCode({
                 code, hn: visit.hn,
-                items: items.map(i => ({ item_type: i.item_type, line_total: i.qty * i.unit_price - (Number(i.line_discount) || 0) })),
+                items: items.map(i => ({ item_type: i.item_type, line_total: lineGross(i) - (Number(i.line_discount) || 0) })),
             });
             if (!res.ok) { setPromo(null); setPromoErr(res.error); return; }
             setPromo(res); setPromoErr("");
@@ -300,7 +318,7 @@ export default function CheckoutForm({
     const hasCappedPackage = useMemo(() => items.some(i => i.item_type === "package" && i.max_discount_pct != null), [items]);
     const discountCeiling = useMemo(
         () => items.reduce((s, i) => {
-            const lineTotal = i.qty * i.unit_price;
+            const lineTotal = lineGross(i);
             const cap = i.item_type === "package" ? i.max_discount_pct : null;
             return s + (cap == null ? lineTotal : lineTotal * (cap / 100));
         }, 0),
@@ -332,7 +350,7 @@ export default function CheckoutForm({
         );
     };
 
-    function updateItem(id: string, field: "qty" | "unit_price" | "line_discount", value: string) {
+    function updateItem(id: string, field: "qty" | "unit_price" | "line_discount" | "block_price", value: string) {
         const num = parseFloat(value);
         setItems(prev =>
             prev.map(it => it.id === id ? { ...it, [field]: isNaN(num) ? 0 : Math.max(0, num) } : it)
@@ -382,14 +400,15 @@ export default function CheckoutForm({
 
         try {
             const lines: InvoiceItemInput[] = items.map(it => {
-                const gross = it.qty * it.unit_price;
+                const gross = lineGross(it);
                 const lineDisc = Math.min(Number(it.line_discount) || 0, gross);
                 return {
                     item_type: it.item_type,
                     item_ref_id: it.item_ref_id,
                     item_name: it.item_name,
                     qty: it.qty,
-                    unit_price: it.unit_price,
+                    // ของฉีด: unit_price = ราคาก้อน ÷ จำนวน (ให้ qty × unit_price = ยอดก้อน สำหรับบันทึก)
+                    unit_price: it.qty > 0 ? gross / it.qty : it.unit_price,
                     // line_total = "ราคาเต็ม" เสมอ (ก่อนหักส่วนลด) — ส่วนลดเก็บแยกที่ discount_amount
                     // เพราะส่วนลดอาจมาจากแต้ม/กิฟต์วอยเชอร์ ซึ่งไม่ควรทำให้ฐานค่ามือลดลง
                     line_total: gross,
@@ -401,7 +420,7 @@ export default function CheckoutForm({
             // breakdown ส่วนลดทุกก้อน → invoice_discounts (foundation ของ report/audit)
             const discounts: DiscountEntry[] = [];
             items.forEach((it, idx) => {
-                const lineDisc = Math.min(Number(it.line_discount) || 0, it.qty * it.unit_price);
+                const lineDisc = Math.min(Number(it.line_discount) || 0, lineGross(it));
                 if (lineDisc > 0) {
                     discounts.push({
                         inv_item_index: idx, discount_type: "manual",
@@ -703,18 +722,37 @@ export default function CheckoutForm({
                                                         {it.qty}
                                                     </div>
                                                 ) : (
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        step="1"
-                                                        value={it.qty}
-                                                        onChange={e => updateItem(it.id, "qty", e.target.value)}
-                                                        className="h-8 text-right text-sm tabular-nums"
-                                                    />
+                                                    <div className="flex items-center gap-1">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            value={it.qty}
+                                                            onChange={e => updateItem(it.id, "qty", e.target.value)}
+                                                            className="h-8 text-right text-sm tabular-nums"
+                                                        />
+                                                        {it.item_type === "injectable" && it.unit_label && (
+                                                            <span className="text-[10px] text-slate-400 shrink-0">{it.unit_label}</span>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-1 py-1">
-                                                {fieldsLocked ? (
+                                                {it.item_type === "injectable" ? (
+                                                    // ของฉีดขายเป็น "ก้อน" — แก้ราคาก้อนตรงๆ (ไม่ใช่ต่อหน่วย)
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            value={it.block_price ?? 0}
+                                                            onChange={e => updateItem(it.id, "block_price", e.target.value)}
+                                                            title="ราคาขายก้อน (รวม) — ไม่ใช่ราคาต่อหน่วย"
+                                                            className="h-8 text-right text-sm tabular-nums font-semibold text-violet-700"
+                                                        />
+                                                        <span className="pointer-events-none absolute -bottom-3 right-0 text-[9px] text-violet-400">ก้อน</span>
+                                                    </div>
+                                                ) : fieldsLocked ? (
                                                     <div className="h-8 px-2.5 rounded bg-slate-50 border border-slate-200 flex items-center justify-end text-sm font-semibold text-slate-700 tabular-nums">
                                                         ฿{it.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </div>
@@ -744,10 +782,10 @@ export default function CheckoutForm({
                                             <td className="px-3 py-2 text-right font-bold text-slate-800 tabular-nums">
                                                 {(Number(it.line_discount) || 0) > 0 && (
                                                     <div className="text-[10px] font-normal text-slate-400 line-through">
-                                                        ฿{(it.qty * it.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                        ฿{lineGross(it).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </div>
                                                 )}
-                                                ฿{Math.max(0, it.qty * it.unit_price - (Number(it.line_discount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                ฿{Math.max(0, lineGross(it) - (Number(it.line_discount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </td>
                                             <td className="px-1 py-2 text-center">
                                                 <button

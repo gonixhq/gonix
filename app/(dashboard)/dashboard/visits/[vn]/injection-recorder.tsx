@@ -16,6 +16,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
     const [rows, setRows] = useState<any[]>([]);
     const [itemId, setItemId] = useState("");
     const [qty, setQty] = useState("");
+    const [price, setPrice] = useState("");
     const [site, setSite] = useState("");
     const [err, setErr] = useState("");
     const [pending, start] = useTransition();
@@ -35,10 +36,12 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
         if (!itemId) { setErr("เลือกสินค้าที่ฉีด"); return; }
         const q = parseFloat(qty);
         if (!(q > 0)) { setErr("กรอกจำนวน"); return; }
+        const p = price.trim() ? parseFloat(price) : null;
+        if (p != null && !(p >= 0)) { setErr("ราคาไม่ถูกต้อง"); return; }
         start(async () => {
-            const res = await saveVisitInjection({ vn, item_id: itemId, qty: q, site: site.trim() || undefined });
+            const res = await saveVisitInjection({ vn, item_id: itemId, qty: q, sale_price: p, site: site.trim() || undefined });
             if (!res.success) { setErr(res.error || "บันทึกไม่สำเร็จ"); return; }
-            setItemId(""); setQty(""); setSite("");
+            setItemId(""); setQty(""); setPrice(""); setSite("");
             await reload(); router.refresh();
         });
     }
@@ -64,6 +67,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
                                 <span className="font-semibold text-slate-800">{r.item_name}</span>
                                 {r.brand && <span className="text-xs text-slate-500"> · {r.brand}{r.model_variant ? ` ${r.model_variant}` : ""}</span>}
                                 <span className="text-slate-600"> — {r.qty} {r.unit_label || ""}</span>
+                                {r.sale_price != null && <span className="font-semibold text-violet-700"> = ฿{Number(r.sale_price).toLocaleString()}</span>}
                                 {r.site && <span className="text-xs text-slate-500"> @ {r.site}</span>}
                             </div>
                             <button onClick={() => remove(r.id)} disabled={pending} className="text-slate-300 hover:text-rose-600 shrink-0"><Trash2 className="h-4 w-4" /></button>
@@ -72,22 +76,30 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto] gap-2">
-                <select value={itemId} onChange={e => setItemId(e.target.value)} className="h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
+            <div className="space-y-2">
+                <select value={itemId} onChange={e => setItemId(e.target.value)} className="w-full h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
                     <option value="">— เลือกสินค้าฉีด —</option>
                     {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.item_name}{p.brand ? ` (${p.brand})` : ""} · เหลือ {Number(p.stock_qty || 0).toLocaleString()}</option>
+                        <option key={p.id} value={p.id}>{p.item_name}{p.brand ? ` (${p.brand})` : ""} · เหลือ {Number(p.stock_qty || 0).toLocaleString()} {p.capacity_unit_label || p.unit || ""}</option>
                     ))}
                 </select>
-                <div className="flex items-center gap-1">
-                    <input type="number" min={0} value={qty} onChange={e => setQty(e.target.value)} placeholder="จำนวน" className="w-20 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
-                    <span className="text-xs text-slate-500 w-8">{capLabel}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr_auto] gap-2">
+                    <div className="flex items-center gap-1">
+                        <input type="number" min={0} value={qty} onChange={e => setQty(e.target.value)} placeholder="จำนวน" className="w-20 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
+                        <span className="text-xs text-slate-500 w-8">{capLabel}</span>
+                        <span className="text-slate-300">→</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-500">฿</span>
+                        <input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} placeholder="ราคาขาย" className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
+                    </div>
+                    <input value={site} onChange={e => setSite(e.target.value)} placeholder="จุดที่ฉีด (เช่น หน้าผาก, หางตา)" className="h-9 rounded-lg border border-slate-200 px-2 text-sm" />
+                    <Button onClick={add} disabled={pending} className="h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white gap-1">
+                        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} เพิ่ม
+                    </Button>
                 </div>
-                <input value={site} onChange={e => setSite(e.target.value)} placeholder="จุดที่ฉีด (เช่น หน้าผาก, หางตา)" className="h-9 rounded-lg border border-slate-200 px-2 text-sm" />
-                <Button onClick={add} disabled={pending} className="h-9 rounded-lg bg-violet-600 hover:bg-violet-700 text-white gap-1">
-                    {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} เพิ่ม
-                </Button>
             </div>
+            <p className="text-[11px] text-slate-500">💡 <b>จำนวน</b> = ตัดสต๊อกจริง (u/cc/shot) · <b>ราคาขาย</b> = ราคาก้อน (เว้นว่างได้ ให้เคาน์เตอร์ใส่ตอนคิดเงิน)</p>
             {err && <p className="text-xs text-rose-600">{err}</p>}
         </div>
     );

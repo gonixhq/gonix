@@ -202,7 +202,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     }, []);
 
     async function handleSave() {
-        if (!itemName || !unit || !sellPrice) {
+        // ของฉีด: หน่วยนับ = หน่วยความจุ เสมอ (ช่องหน่วยนับถูกซ่อน) → บังคับให้ตรงตอนบันทึก
+        const effectiveUnit = deductionType === "injectable_vial" ? capacityUnitLabel : unit;
+        if (!itemName || !effectiveUnit || !sellPrice) {
             setError("กรุณากรอก ชื่อแสดง (Item Name), หน่วยนับ (Unit) และ ราคาขาย (Price)");
             return;
         }
@@ -221,7 +223,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
             if (isEdit) {
                 const res = await updateInventoryItem({
                     id: item.id,
-                    item_name: itemName, category, segment, unit,
+                    item_name: itemName, category, segment, unit: effectiveUnit,
                     purchase_unit: purchaseUnit || null, track_group: trackGroup || null,
                     units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
                     deduction_type: deductionType || null,
@@ -249,7 +251,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 item_name: itemName,
                 category,
                 segment,
-                unit,
+                unit: effectiveUnit,
                 purchase_unit: purchaseUnit || null,
                 track_group: trackGroup || null,
                 units_per_pack: unitsPerPack ? parseFloat(unitsPerPack) : null,
@@ -362,7 +364,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <Input value={tradeName} onChange={e => setTradeName(e.target.value)} placeholder="Tylenol" className={inputCls} />
                     </FieldRow>
 
-                    <FieldRow label="หน่วยนับ" required>
+                    {/* ของฉีด: หน่วยนับ = หน่วยความจุ อัตโนมัติ (ซ่อนช่องนี้ ไม่ให้งง) */}
+                    <FieldRow label="หน่วยนับ" required hidden={deductionType === "injectable_vial"}>
                         <Input list="unit-options" value={unit} onChange={e => setUnit(e.target.value)} placeholder="พิมพ์ หรือเลือก ▼" className={inputCls} />
                         <datalist id="unit-options">
                             {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
@@ -371,7 +374,12 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
 
                     {/* ประเภทการตัดสต๊อก (P01) — ตัวสลับหลักว่าของชิ้นนี้ตัดสต๊อกแบบไหน */}
                     <FieldRow label="ประเภทการตัดสต๊อก" required colSpan={2}>
-                        <select value={deductionType} onChange={e => setDeductionType(e.target.value)} className={selectCls}>
+                        <select value={deductionType} onChange={e => {
+                            const v = e.target.value;
+                            setDeductionType(v);
+                            // สลับเป็นของฉีด → หน่วยนับตามหน่วยความจุ (u/cc/shot) อัตโนมัติ
+                            if (v === "injectable_vial" && !unit) setUnit(capacityUnitLabel);
+                        }} className={selectCls}>
                             <option value="injectable_vial">💉 เวชภัณฑ์ฉีด — เปิดขวดแล้วแบ่งใช้ (Botox/Filler/HIFU) · track lot</option>
                             <option value="unit_piece">📦 นับชิ้น — ตัดทีละชิ้นตอนใช้ (ยาเม็ด/อุปกรณ์)</option>
                             <option value="consumable_periodic">🧴 วัสดุสิ้นเปลือง — ไม่ตัดต่อเคส นับเป็นรอบ (สำลี/แอลกอฮอล์)</option>
@@ -389,21 +397,25 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                                 <Input list="model-options" value={modelVariant} onChange={e => setModelVariant(e.target.value)} placeholder="เช่น Voluma, Volbella" className={inputCls} />
                                 <datalist id="model-options">{modelOptions.map(m => <option key={m} value={m} />)}</datalist>
                             </FieldRow>
-                            <FieldRow label="หน่วยใหญ่ (ขวด/ตลับ)">
-                                <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น ขวด, vial, ตลับ" className={inputCls} />
-                            </FieldRow>
-                            <FieldRow label="หน่วยความจุ">
-                                <select value={capacityUnitLabel} onChange={e => setCapacityUnitLabel(e.target.value)} className={selectCls}>
+                            <FieldRow label="หน่วยที่ตัดสต๊อก" required>
+                                {/* หน่วยจริงที่นับ/ตัด (u/cc/shot) — sync ไป unit ด้วย ผู้ใช้ไม่ต้องกรอกซ้ำ */}
+                                <select value={capacityUnitLabel} onChange={e => { setCapacityUnitLabel(e.target.value); setUnit(e.target.value); }} className={selectCls}>
                                     <option value="unit">unit (ยูนิต — Botox)</option>
                                     <option value="shot">shot (HIFU/RF)</option>
-                                    <option value="ml">ml (Filler)</option>
+                                    <option value="ml">ml / cc (Filler)</option>
                                 </select>
                             </FieldRow>
-                            <FieldRow label={`ความจุ/ขวด (${capacityUnitLabel} ต่อขวด)`} colSpan={2}>
-                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100 (Botox 100u), 1 (Filler 1ml), 20000 (HIFU)" className={inputCls} />
+                            <FieldRow label="ชื่อภาชนะ (ขวด/กล่อง/ตลับ)">
+                                <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น ขวด, กล่อง, ตลับ" className={inputCls} />
                             </FieldRow>
-                            <div className="col-span-2 text-[11px] text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                                💡 เลข lot + วันหมดอายุจะ<b>บังคับกรอกตอนรับเข้าสต๊อก</b> (ขวดหลายขนาดระบุความจุต่อล็อตได้)
+                            <FieldRow label={`ความจุ/${purchaseUnit || "ขวด"} — ค่าตั้งต้น (${capacityUnitLabel} ต่อ ${purchaseUnit || "ขวด"})`} colSpan={2}>
+                                <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100 (Botox 100u), 2 (Filler 2cc), 20000 (HIFU) — เว้นว่างได้" className={inputCls} />
+                            </FieldRow>
+                            <div className="col-span-2 text-[11px] text-slate-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 space-y-1">
+                                {unitsPerPack && Number(unitsPerPack) > 0 && (
+                                    <div>📦 1 {purchaseUnit || "ขวด"} = <b>{Number(unitsPerPack).toLocaleString()} {capacityUnitLabel}</b> · ตัดสต๊อก/ขายเป็น <b>{capacityUnitLabel}</b> (รับเข้า 1 {purchaseUnit || "ขวด"} ระบบบวก {Number(unitsPerPack).toLocaleString()} {capacityUnitLabel} ให้เอง)</div>
+                                )}
+                                <div>💡 เลข lot + วันหมดอายุจะ<b>บังคับกรอกตอนรับเข้าสต๊อก</b> (ขวดหลายขนาดระบุความจุต่อล็อตได้)</div>
                             </div>
                         </>
                     )}
@@ -442,7 +454,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </div>
                         </>
                     )}
-                    <FieldRow label="รูปแบบ">
+                    <FieldRow label="รูปแบบ" hidden={deductionType === "injectable_vial"}>
                         <select
                             value={dosageCustom ? "__custom__" : (DOSAGE_FORM_OPTIONS.some(o => o.value === dosageForm) ? dosageForm : "")}
                             onChange={e => {
@@ -457,11 +469,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         </select>
                     </FieldRow>
 
-                    <FieldRow label="พิมพ์รูปแบบ" colSpan={2} hidden={!dosageCustom}>
+                    <FieldRow label="พิมพ์รูปแบบ" colSpan={2} hidden={!dosageCustom || deductionType === "injectable_vial"}>
                         <Input value={dosageForm} onChange={e => setDosageForm(e.target.value)} placeholder="พิมพ์รูปแบบเอง" className={inputCls} />
                     </FieldRow>
 
-                    <FieldRow label="ความแรง" colSpan={2}>
+                    <FieldRow label="ความแรง" colSpan={2} hidden={deductionType === "injectable_vial"}>
                         <div className="grid grid-cols-[1fr_140px] gap-2">
                             <Input value={strengthValue} onChange={e => setStrengthValue(e.target.value)} placeholder="500" className={`${inputCls} font-mono`} />
                             <select value={strengthUnit} onChange={e => setStrengthUnit(e.target.value)} className={selectCls}>
