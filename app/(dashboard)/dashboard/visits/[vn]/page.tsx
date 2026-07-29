@@ -65,7 +65,7 @@ export default async function VisitDetailPage({
         try { labOrders = JSON.parse(visit.soap_a); } catch { labOrders = []; }
     }
 
-    // Fetch ICD-10 description if diagnosis exists
+    // Fetch ICD-10 description if diagnosis exists · fall back to free-text diagnosis
     let icd10Name: string | null = null;
     if (visit.icd10_primary) {
         const { data: icd } = await supabase
@@ -75,6 +75,7 @@ export default async function VisitDetailPage({
             .maybeSingle();
         if (icd) icd10Name = icd.description_th || icd.description_en || null;
     }
+    if (!visit.icd10_primary && visit.diagnosis_text) icd10Name = visit.diagnosis_text;
 
     return (
         <VisitDetailClient

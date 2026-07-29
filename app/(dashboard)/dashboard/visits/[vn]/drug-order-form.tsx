@@ -53,6 +53,7 @@ interface DrugOrderFormProps {
     vn: string;
     hn: string;
     defaultIcd10?: string;
+    defaultDiagnosisText?: string;   // คำวินิจฉัยพิมพ์เอง (free-text) ที่บันทึกไว้
     allergens?: string[];   // รายการสารก่อภูมิแพ้ของผู้ป่วย (ชื่อยา/สาร) สำหรับ cross-check
 }
 
@@ -77,7 +78,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [] }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [] }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -85,11 +86,13 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
     const [error, setError] = useState("");
 
     // ICD-10 search
-    const [icd10Query, setIcd10Query] = useState(defaultIcd10);
+    const [icd10Query, setIcd10Query] = useState(defaultIcd10 || defaultDiagnosisText);
     const [icd10Results, setIcd10Results] = useState<Icd10Result[]>([]);
     const [showIcd10, setShowIcd10] = useState(false);
     const [selectedIcd10, setSelectedIcd10] = useState<Icd10Result | null>(null);
     const [savingIcd10, setSavingIcd10] = useState(false);
+    // คำวินิจฉัยพิมพ์เอง (free-text) ที่บันทึกไว้แล้ว
+    const [diagnosisText, setDiagnosisText] = useState(defaultDiagnosisText);
 
     // Drug formula presets
     const [presets, setPresets] = useState<DrugPreset[]>([]);
@@ -143,19 +146,33 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
             .select("code, description_en, description_th")
             .or(`code.ilike.%${q}%,description_en.ilike.%${q}%,description_th.ilike.%${q}%`)
             .limit(8);
-        if (data && data.length > 0) { setIcd10Results(data); setShowIcd10(true); }
-        else { setIcd10Results([]); setShowIcd10(false); }
+        setIcd10Results(data && data.length > 0 ? data : []);
+        setShowIcd10(true);   // เปิด dropdown เสมอ (มีตัวเลือก "พิมพ์เอง" ท้ายลิสต์)
     }, [supabase]);
 
     async function selectIcd10(item: Icd10Result) {
         setSelectedIcd10(item);
+        setDiagnosisText("");
         setIcd10Query(`${item.code} — ${item.description_th || item.description_en}`);
         setShowIcd10(false);
-        // Save to visits immediately
+        // Save to visits immediately — มีรหัสแล้ว ล้าง free-text ทิ้ง
         setSavingIcd10(true);
-        await supabase.from("visits").update({ icd10_primary: item.code }).eq("vn", vn);
+        await supabase.from("visits").update({ icd10_primary: item.code, diagnosis_text: null }).eq("vn", vn);
         setSavingIcd10(false);
         // refresh เพื่อให้ปุ่ม "สิ้นสุดการตรวจ" เห็นค่า ICD ล่าสุด (summary อ่านจาก server)
+        router.refresh();
+    }
+
+    /** บันทึกคำวินิจฉัยแบบพิมพ์เอง (ไม่มีในรหัส ICD) → visits.diagnosis_text */
+    async function saveFreeTextDiagnosis() {
+        const text = icd10Query.trim();
+        if (text.length < 2) return;
+        setShowIcd10(false);
+        setSelectedIcd10(null);
+        setDiagnosisText(text);
+        setSavingIcd10(true);
+        await supabase.from("visits").update({ icd10_primary: null, diagnosis_text: text }).eq("vn", vn);
+        setSavingIcd10(false);
         router.refresh();
     }
 
@@ -346,7 +363,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
                         className="pr-10"
                     />
                     {savingIcd10 && <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
-                    {selectedIcd10 && !savingIcd10 && <CheckCircle className="absolute right-3 top-2.5 h-4 w-4 text-emerald-600" />}
+                    {(selectedIcd10 || diagnosisText) && !savingIcd10 && <CheckCircle className="absolute right-3 top-2.5 h-4 w-4 text-emerald-600" />}
                     {showIcd10 && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-50 max-h-56 overflow-y-auto">
                             {icd10Results.map(item => (
@@ -359,9 +376,23 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", allergens = [
                                     </div>
                                 </button>
                             ))}
+                            {/* พิมพ์เอง — สำหรับโรคที่ไม่มีในรหัส ICD-10 */}
+                            {icd10Query.trim().length >= 2 && (
+                                <button type="button" onClick={saveFreeTextDiagnosis}
+                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-amber-50 border-t bg-amber-50/40 flex gap-2 items-center">
+                                    <Plus className="h-4 w-4 text-amber-600 shrink-0" />
+                                    <span className="text-slate-700">ใช้ <b className="text-amber-700">&ldquo;{icd10Query.trim()}&rdquo;</b> เป็นคำวินิจฉัย (พิมพ์เอง ไม่มีในรหัส ICD)</span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
+                {diagnosisText && !selectedIcd10 && (
+                    <p className="mt-1.5 text-xs text-amber-700 flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-amber-100 font-semibold">วินิจฉัยเอง</span>
+                        <span className="text-slate-600">{diagnosisText}</span>
+                    </p>
+                )}
             </div>
 
             {/* ── Drug Prescription ────────────────────────────── */}

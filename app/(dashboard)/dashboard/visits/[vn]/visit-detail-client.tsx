@@ -35,7 +35,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
     // Completion indicators (✓ บนแท็บที่กรอกแล้ว)
     const doneSoap = !!(visit.soap_o || visit.soap_p);
-    const doneDx = !!(visit.icd10_primary || (drugs && drugs.length > 0));
+    const doneDx = !!(visit.icd10_primary || visit.diagnosis_text || (drugs && drugs.length > 0));
     const doneLab = !!(labOrders && labOrders.length > 0);
     const doneMedCert = !!medCert;
 
@@ -252,6 +252,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 patientName: `${patient.prefix || ""}${patient.first_name} ${patient.last_name}`,
                                 icd10: visit.icd10_primary || null,
                                 icd10Name: icd10Name || null,
+                                diagnosisText: visit.diagnosis_text || null,
                                 soap_o: visit.soap_o || null,
                                 soap_p: visit.soap_p || null,
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -484,6 +485,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 vn={vn}
                                 hn={patient.hn}
                                 defaultIcd10={visit.icd10_primary || ""}
+                                defaultDiagnosisText={visit.diagnosis_text || ""}
                                 allergens={[
                                     ...allergies.map((a) => a.allergen_name),
                                     ...(patient.allergy_summary
