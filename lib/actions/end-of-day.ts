@@ -19,11 +19,15 @@ async function computePaymentBreakdown(
     const next = new Date(`${date}T00:00:00+07:00`); next.setDate(next.getDate() + 1);
     const endISO = next.toISOString();
     const { data: payLogs } = await supabase
-        .from("payment_logs").select("payment_method, amount")
+        .from("payment_logs").select("payment_method, amount, invoice_headers(status)")
         .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO);
 
     const agg: Record<string, { amount: number; count: number }> = {};
     for (const p of payLogs || []) {
+        // ไม่นับบิลที่ยกเลิก/คืนเงิน (payment_log ยังอยู่ แต่บิลถูก void/refund แล้ว)
+        const ih = (p as { invoice_headers?: { status?: string } | { status?: string }[] }).invoice_headers;
+        const st = Array.isArray(ih) ? ih[0]?.status : ih?.status;
+        if (st === "voided" || st === "refunded") continue;
         const m = (p.payment_method as string) || "other";
         if (!agg[m]) agg[m] = { amount: 0, count: 0 };
         agg[m].amount += Number(p.amount || 0); agg[m].count += 1;
@@ -68,9 +72,13 @@ export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
 
     const invIds = [...new Set((logs || []).map(l => l.inv_id).filter(Boolean) as string[])];
     const invHn = new Map<string, string>();
+    const voidedInv = new Set<string>();   // บิลที่ยกเลิก/คืนเงิน — ไม่แสดงในรายการรับเงิน
     if (invIds.length) {
-        const { data: invs } = await supabase.from("invoice_headers").select("id, hn").in("id", invIds);
-        for (const iv of invs || []) invHn.set(iv.id as string, iv.hn as string);
+        const { data: invs } = await supabase.from("invoice_headers").select("id, hn, status").in("id", invIds);
+        for (const iv of invs || []) {
+            invHn.set(iv.id as string, iv.hn as string);
+            if (iv.status === "voided" || iv.status === "refunded") voidedInv.add(iv.id as string);
+        }
     }
     const hns = [...new Set([...invHn.values()])];
     const hnName = new Map<string, string>();
@@ -85,7 +93,7 @@ export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
         for (const s of st || []) staffName.set(s.id as string, s.full_name as string);
     }
 
-    const rows: DayTxn[] = (logs || []).map(l => {
+    const rows: DayTxn[] = (logs || []).filter(l => !(l.inv_id && voidedInv.has(l.inv_id as string))).map(l => {
         const hn = l.inv_id ? invHn.get(l.inv_id as string) : undefined;
         return {
             id: l.id as string, source: "invoice" as const, ref: (l.inv_id as string) || "",
