@@ -205,7 +205,14 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                         <Plus className="h-4 w-4" /> รับยาเข้า
                     </Button>
                     <Button
-                        onClick={() => setShowAdjust(true)}
+                        onClick={() => {
+                            // ของฉีด (รายขวด): ยอด = Σ ความจุขวดจริง → ปรับตรงๆ จะโดน sync ทับ ต้องใช้ "รับยาเข้า"
+                            if (isInjectable) {
+                                toast.error("ของฉีด (รายขวด) ปรับยอดตรงๆ ไม่ได้ — ยอดคิดจากขวดจริง กด \"รับยาเข้า\" เพื่อคีย์ขวด/ความจุ");
+                                return;
+                            }
+                            setShowAdjust(true);
+                        }}
                         variant="outline"
                         className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50"
                     >
@@ -255,7 +262,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                                 </span>
                             )}
                             {isInjectable && (
-                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-fuchsia-100 text-fuchsia-700">💉 ของฉีด (vial)</span>
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-fuchsia-100 text-fuchsia-700">💉 ของฉีด (รายขวด)</span>
                             )}
                             {item.is_active === false && (
                                 <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700">ปิดใช้งาน</span>
@@ -423,7 +430,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                 <div className="gonix-card-premium overflow-hidden">
                     <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
                         <Package className="h-4 w-4 text-violet-700" />
-                        <h2 className="text-sm font-bold text-slate-800">ขวด/vial (เปิด-ปิด ราย-ขวด)</h2>
+                        <h2 className="text-sm font-bold text-slate-800">ขวดในสต๊อก (เปิด-ปิด รายขวด)</h2>
                         <span className="text-xs text-slate-400">
                             (เปิด {vials.filter(v => v.status === "open").length} · ยังไม่เปิด {vials.filter(v => v.status === "unopened").length})
                         </span>
@@ -459,7 +466,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                                                     {v.status === "open" && !cartridgeExempt && (
                                                         <button
                                                             onClick={() => {
-                                                                if (!confirm(`ทิ้งเศษ vial นี้? (เหลือ ${Number(v.capacity_remaining).toLocaleString()} ${capLabel} จะบันทึกเป็น waste)`)) return;
+                                                                if (!confirm(`ทิ้งเศษขวดนี้? (เหลือ ${Number(v.capacity_remaining).toLocaleString()} ${capLabel} จะบันทึกเป็นของเสีย)`)) return;
                                                                 startTransition(async () => {
                                                                     const r = await discardVial(v.id);
                                                                     if (!r.success) toast.error(r.error || "ทิ้งไม่สำเร็จ");

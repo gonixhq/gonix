@@ -640,6 +640,21 @@ export async function usePackageSession(input: UsePackageSessionInput) {
 
         const sessionNo = pp.used_sessions + 1;
 
+        // กันสต๊อกติดลบ: ถ้าคอสตัดวัสดุต่อครั้ง → เช็คสต๊อกให้พอ "ก่อน" บันทึกครั้ง
+        // (ไม่งั้นตัดก่อนรับของ ยอดติดลบ) · บังคับให้ "รับเข้า" ก่อนใช้คอส
+        const { data: consumeCfg } = await supabase.from("service_packages")
+            .select("consume_item_id, consume_qty_per_session")
+            .eq("id", pp.package_id).maybeSingle();
+        const preConsumeQty = Number(consumeCfg?.consume_qty_per_session || 0);
+        if (consumeCfg?.consume_item_id && preConsumeQty > 0) {
+            const { data: cItem } = await supabase.from("inventory")
+                .select("item_name, stock_qty").eq("id", consumeCfg.consume_item_id).eq("clinic_id", pp.clinic_id).maybeSingle();
+            const have = Number(cItem?.stock_qty || 0);
+            if (have < preConsumeQty) {
+                return { success: false, error: `สต๊อก "${cItem?.item_name || "วัสดุ"}" ไม่พอ — มี ${have.toLocaleString()} ต้องใช้ ${preConsumeQty.toLocaleString()} · กรุณา "รับเข้า" ก่อนใช้คอส` };
+            }
+        }
+
         const { data: staffRow } = await supabase
             .from("staff").select("id").eq("profile_id", user.id).maybeSingle();
 
@@ -675,7 +690,7 @@ export async function usePackageSession(input: UsePackageSessionInput) {
             if (cfg?.consume_item_id && consumeQty > 0) {
                 const { data: item } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.consume_item_id).eq("clinic_id", pp.clinic_id).maybeSingle();
                 if (item) {
-                    const bal = Number(item.stock_qty || 0) - consumeQty;
+                    const bal = Math.max(0, Number(item.stock_qty || 0) - consumeQty);   // กันติดลบ (safety net)
                     await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", cfg.consume_item_id);
                     await deductFEFO(supabase, pp.clinic_id as string, cfg.consume_item_id as string, consumeQty);
                     await supabase.from("stock_card").insert({

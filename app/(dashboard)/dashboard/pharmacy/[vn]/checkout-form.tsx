@@ -35,7 +35,7 @@ const ITEM_TYPE_LABEL: Record<string, string> = {
     procedure: "ค่าหัตถการ",
     service: "ค่าบริการ",
     supply: "ค่าวัสดุ",
-    injectable: "ฉีด (vial)",
+    injectable: "ฉีด (ขวด)",
     package: "คอสบริการ",
     other: "อื่นๆ",
 };
