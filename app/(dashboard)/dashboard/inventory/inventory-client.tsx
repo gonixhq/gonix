@@ -11,6 +11,7 @@ import {
     PackageCheck, ClipboardCheck,
 } from "lucide-react";
 import { PermissionGate } from "@/components/ui/permission-button";
+import { SEGMENT_LABEL, SEGMENT_STYLE } from "@/lib/segments";
 
 interface InventoryItem {
     id: string;
@@ -18,6 +19,7 @@ interface InventoryItem {
     item_name: string;
     generic_name: string | null;
     category: string;
+    segment: string | null;
     dosage_form: string | null;
     strength: string | null;
     unit: string;
@@ -69,7 +71,7 @@ const CATEGORY_COLOR: Record<string, string> = {
     other: "bg-slate-100 text-slate-700",
 };
 
-type Filter = "all" | "drug" | "supply" | "low" | "expiry" | "inactive";
+type Filter = "all" | "aesthetic" | "medical" | "product" | "drug" | "supply" | "low" | "expiry" | "inactive";
 
 interface ExpiringLotUI { item_id: string; item_name: string; lot_no: string | null; expiry_date: string; qty_remaining: number; days_left: number; }
 
@@ -98,6 +100,12 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
 
     const totalActive = useMemo(() => items.filter(i => i.is_active).length, [items]);
     const drugCount = useMemo(() => items.filter(i => i.is_active && i.category === "drug").length, [items]);
+    // นับตามแผนก (segment) — ความงาม / การแพทย์ / ขายของ
+    const segCount = useMemo(() => {
+        const c = { aesthetic: 0, medical: 0, product: 0 };
+        items.forEach(i => { if (i.is_active && i.segment && i.segment in c) c[i.segment as keyof typeof c]++; });
+        return c;
+    }, [items]);
     // มูลค่าสต๊อก (Inventory Value) — คิดจากต้นทุน (cost) ไม่ใช่ราคาขาย
     const totalValue = useMemo(
         () => items.filter(i => i.is_active).reduce((s, i) => s + Number(i.cost_price || 0) * Number(i.stock_qty || 0), 0),
@@ -109,6 +117,8 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
             // Active filter
             if (filter === "inactive" && it.is_active) return false;
             if (filter !== "inactive" && !it.is_active) return false;
+            // Segment filter (แผนก: ความงาม/การแพทย์/ขายของ)
+            if ((filter === "aesthetic" || filter === "medical" || filter === "product") && it.segment !== filter) return false;
             // Category filter
             if (filter === "drug" && it.category !== "drug") return false;
             if (filter === "supply" && it.category !== "supply") return false;
@@ -236,6 +246,16 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                     <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด ({totalActive})</FilterChip>
+                    {segCount.aesthetic > 0 && (
+                        <FilterChip active={filter === "aesthetic"} onClick={() => setFilter("aesthetic")} color="rose">✨ ความงาม ({segCount.aesthetic})</FilterChip>
+                    )}
+                    {segCount.medical > 0 && (
+                        <FilterChip active={filter === "medical"} onClick={() => setFilter("medical")} color="blue">🩺 การแพทย์ ({segCount.medical})</FilterChip>
+                    )}
+                    {segCount.product > 0 && (
+                        <FilterChip active={filter === "product"} onClick={() => setFilter("product")} color="amber">🛒 ขายของ ({segCount.product})</FilterChip>
+                    )}
+                    <span className="w-px self-stretch bg-slate-200 mx-0.5" />
                     <FilterChip active={filter === "drug"} onClick={() => setFilter("drug")} color="amber">ยา ({drugCount})</FilterChip>
                     <FilterChip active={filter === "supply"} onClick={() => setFilter("supply")} color="indigo">เวชภัณฑ์</FilterChip>
                     {lowStockCount > 0 && (
@@ -270,7 +290,7 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                                 <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                     <th className="text-left px-4 py-2.5">รหัส</th>
                                     <th className="text-left px-4 py-2.5">ชื่อรายการ</th>
-                                    <th className="text-left px-4 py-2.5">หมวด</th>
+                                    <th className="text-left px-4 py-2.5">แผนก / หมวด</th>
                                     <th className="text-right px-4 py-2.5">คงเหลือ</th>
                                     <th className="text-left px-4 py-2.5">วันหมดอายุ</th>
                                     <th className="text-right px-4 py-2.5">ราคาขาย</th>
@@ -302,9 +322,16 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                                                 )}
                                             </td>
                                             <td className="px-4 py-2.5">
-                                                <Badge className={`border-0 text-[10px] font-bold uppercase tracking-wider ${CATEGORY_COLOR[it.category] || CATEGORY_COLOR.other}`}>
-                                                    {CATEGORY_LABEL[it.category] || it.category}
-                                                </Badge>
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    {it.segment && SEGMENT_LABEL[it.segment] && (
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.bg || "bg-slate-100"} ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.text || "text-slate-600"}`}>
+                                                            {SEGMENT_LABEL[it.segment]}
+                                                        </span>
+                                                    )}
+                                                    <Badge className={`border-0 text-[10px] font-bold uppercase tracking-wider ${CATEGORY_COLOR[it.category] || CATEGORY_COLOR.other}`}>
+                                                        {CATEGORY_LABEL[it.category] || it.category}
+                                                    </Badge>
+                                                </div>
                                             </td>
                                             <td className="px-4 py-2.5 text-right">
                                                 <div className={`font-bold tabular-nums ${isLow ? "text-red-700" : "text-slate-800"}`}>
@@ -411,7 +438,7 @@ function FilterChip({
     active: boolean;
     onClick: () => void;
     children: React.ReactNode;
-    color?: "teal" | "amber" | "indigo" | "red" | "slate" | "orange";
+    color?: "teal" | "amber" | "indigo" | "red" | "slate" | "orange" | "rose" | "blue";
 }) {
     const colorMap = {
         teal: "bg-blue-600 text-white shadow-sm shadow-blue-500/20",
@@ -420,6 +447,8 @@ function FilterChip({
         red: "bg-red-600 text-white shadow-sm shadow-red-500/20",
         orange: "bg-orange-600 text-white shadow-sm shadow-orange-500/20",
         slate: "bg-slate-700 text-white shadow-sm",
+        rose: "bg-rose-600 text-white shadow-sm shadow-rose-500/20",
+        blue: "bg-blue-600 text-white shadow-sm shadow-blue-500/20",
     };
     return (
         <button
