@@ -120,7 +120,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     // --- Section 1: Basic Info ---
     const [itemName, setItemName] = useState(item?.item_name || "");
     const [category, setCategory] = useState(item?.category || "drug");
-    const [segment, setSegment] = useState(item?.segment || "product");
+    const [segment, setSegment] = useState(item?.segment || "medical");
     const [unit, setUnit] = useState(item?.unit || "");
     const [purchaseUnit, setPurchaseUnit] = useState(item?.purchase_unit || "");
     const [trackGroup, setTrackGroup] = useState(item?.track_group || "");
@@ -356,7 +356,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     <FieldRow label="รหัส">
                         <Input value={codePreview} disabled className={`${inputCls} bg-slate-100 text-slate-500 border-dashed font-mono`} />
                     </FieldRow>
-                    <FieldRow label="หมวดหมู่">
+                    <FieldRow label="หมวดหมู่" hint="ชนิดสินค้า: ยา = มีฉลาก/วิธีใช้ · เวชภัณฑ์ = อุปกรณ์/วัสดุ (คุมรหัส DRG/SUP)">
                         <select className={selectCls} value={category} onChange={e => setCategory(e.target.value)}>
                             <option value="drug">ยา (Drug)</option>
                             <option value="supply">เวชภัณฑ์ (Supply)</option>
@@ -366,11 +366,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         </select>
                     </FieldRow>
 
-                    <FieldRow label="แผนก (รายได้)">
+                    <FieldRow label="แผนก (รายได้)" hint="รายได้เข้าแผนกไหน (ไว้แยกรายงาน) — คนละเรื่องกับชนิดสินค้า เช่น 'ยา' ก็อยู่แผนก 'การแพทย์' ได้">
                         <select className={selectCls} value={segment} onChange={e => setSegment(e.target.value)}>
+                            <option value="medical">การแพทย์ (โรคทั่วไป)</option>
+                            <option value="aesthetic">ความงาม</option>
                             <option value="product">ของใช้ทั่วไป (สำลี/น้ำเกลือ/เข็ม)</option>
-                            <option value="medical">การแพทย์ (Medical)</option>
-                            <option value="aesthetic">ความงาม (Aesthetic)</option>
                         </select>
                     </FieldRow>
 
