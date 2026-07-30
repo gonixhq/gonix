@@ -66,6 +66,18 @@ const CATEGORY_LABEL: Record<string, string> = {
     other: "อื่นๆ",
 };
 
+const PRODUCT_TYPE_LABEL: Record<string, string> = {
+    botox: "Botox", filler: "Filler", skinbooster: "Skinbooster",
+    biostimulator: "Biostimulator", meso: "Meso", fat_dissolve: "สลายไขมัน",
+    weight_loss: "Weight Loss", iv_drip: "IV Drip / Vitamin", other: "อื่นๆ",
+};
+
+const DEDUCTION_LABEL: Record<string, string> = {
+    injectable_vial: "เวชภัณฑ์ฉีด (เปิดขวดแบ่งใช้)",
+    unit_piece: "นับชิ้น (ตัดต่อชิ้น)",
+    consumable_periodic: "วัสดุสิ้นเปลือง (นับเป็นรอบ)",
+};
+
 const EDIT_INPUT = "w-full h-10 rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200";
 
 function fmtDateTime(d: string): string {
@@ -141,6 +153,35 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
     // มูลค่าสต๊อก (Inventory Value) — คิดจากต้นทุน (cost) ไม่ใช่ราคาขาย
     const stockValue = Number(item.cost_price || 0) * Number(item.stock_qty || 0);
 
+    // ข้อมูลรายการแบบปรับตามชนิด — โชว์เฉพาะฟิลด์ที่มีค่า (ไม่ขึ้น "—" ว่างๆ)
+    const infoFields: { label: string; value: string }[] = [];
+    const pushF = (label: string, value: unknown) => {
+        const v = value == null ? "" : String(value).trim();
+        if (v) infoFields.push({ label, value: v });
+    };
+    pushF("ชื่อสามัญ", item.generic_name);
+    pushF("ชื่อการค้า", item.trade_name);
+    pushF("ชื่อไทย", item.item_name_th);
+    if (isInjectable) {
+        pushF("แบรนด์", item.brand);
+        pushF("ประเภทหัตถการ", item.product_type ? (PRODUCT_TYPE_LABEL[item.product_type] || item.product_type) : "");
+        pushF("รุ่น / variant", item.model_variant);
+        if (Number(item.units_per_pack) > 0)
+            pushF("ความจุ/ภาชนะ", `${Number(item.units_per_pack).toLocaleString()} ${capLabel} / ${item.purchase_unit || "ขวด"}`);
+    } else {
+        pushF("รูปแบบ", item.dosage_form);
+        pushF("ความแรง", item.strength);
+        pushF("วิธีใช้ (default)", item.sig_text_default);
+        pushF("ประเภทฉลาก", item.label_type);
+    }
+    pushF("หน่วยนับ", item.unit);
+    if (item.purchase_unit && item.purchase_unit !== item.unit)
+        pushF("หน่วยซื้อ", `${item.purchase_unit}${Number(item.units_per_pack) > 0 ? ` (×${Number(item.units_per_pack).toLocaleString()})` : ""}`);
+    pushF("วิธีตัดสต๊อก", item.deduction_type ? (DEDUCTION_LABEL[item.deduction_type] || item.deduction_type) : "");
+    pushF("ผู้ขาย / Supplier", item.supplier);
+    pushF("ที่เก็บ", item.location);
+    const hasDF = Number(item.df_doctor) > 0 || Number(item.df_nurse) > 0 || Number(item.df_assistant) > 0;
+
     return (
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
             {/* Sub-header */}
@@ -199,44 +240,66 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                             <Package className="h-4 w-4 text-blue-700" />
                             <h2 className="text-sm font-bold text-slate-800">ข้อมูลรายการ</h2>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">ชื่อสามัญ</div>
-                                <div className="font-semibold">{item.generic_name || "—"}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">หมวด</div>
-                                <div className="font-semibold">{CATEGORY_LABEL[item.category] || item.category}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">รูปแบบ</div>
-                                <div className="font-semibold">{item.dosage_form || "—"}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">ความแรง</div>
-                                <div className="font-semibold">{item.strength || "—"}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">หน่วย</div>
-                                <div className="font-semibold">{item.unit}</div>
-                            </div>
-                            <div>
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider">หน่วยซื้อ</div>
-                                <div className="font-semibold">{item.purchase_unit || item.unit} (×{item.conversion_factor || 1})</div>
-                            </div>
-                            {item.indication && (
-                                <div className="col-span-2">
-                                    <div className="text-[11px] text-slate-500 uppercase tracking-wider">ข้อบ่งใช้</div>
-                                    <div className="text-sm text-slate-700">{item.indication}</div>
-                                </div>
+
+                        {/* Badges สรุปประเภท/แผนก/สถานะ */}
+                        <div className="flex flex-wrap gap-1.5 mb-4">
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-700">
+                                {CATEGORY_LABEL[item.category] || item.category}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-600">
+                                แผนก: {SEGMENT_LABEL[item.segment] || item.segment || "—"}
+                            </span>
+                            {isInjectable && item.product_type && (
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-violet-100 text-violet-700">
+                                    {PRODUCT_TYPE_LABEL[item.product_type] || item.product_type}
+                                </span>
                             )}
-                            {item.warning_label && (
-                                <div className="col-span-2">
-                                    <div className="text-[11px] text-red-600 uppercase tracking-wider font-bold">⚠ คำเตือน</div>
-                                    <div className="text-sm text-red-700 font-semibold">{item.warning_label}</div>
-                                </div>
+                            {isInjectable && (
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-fuchsia-100 text-fuchsia-700">💉 ของฉีด (vial)</span>
+                            )}
+                            {item.is_active === false && (
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700">ปิดใช้งาน</span>
                             )}
                         </div>
+
+                        {/* ฟิลด์ปรับตามชนิด — โชว์เฉพาะที่มีค่า */}
+                        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                            {infoFields.map(f => (
+                                <div key={f.label}>
+                                    <dt className="text-[11px] text-slate-500 uppercase tracking-wider">{f.label}</dt>
+                                    <dd className="font-semibold text-slate-800">{f.value}</dd>
+                                </div>
+                            ))}
+                        </dl>
+
+                        {/* ค่ามือ (DF) — โชว์เมื่อมีตั้งไว้ */}
+                        {hasDF && (
+                            <div className="mt-4 pt-3 border-t border-slate-200/60">
+                                <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5">ค่ามือ (DF) ต่อหน่วย</div>
+                                <div className="flex flex-wrap gap-2 text-sm">
+                                    {Number(item.df_doctor) > 0 && <span className="px-2 py-1 rounded-lg bg-cyan-50 text-cyan-700 font-semibold">หมอ ฿{Number(item.df_doctor).toLocaleString()}</span>}
+                                    {Number(item.df_nurse) > 0 && <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold">พยาบาล ฿{Number(item.df_nurse).toLocaleString()}</span>}
+                                    {Number(item.df_assistant) > 0 && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-semibold">ผู้ช่วย ฿{Number(item.df_assistant).toLocaleString()}</span>}
+                                </div>
+                            </div>
+                        )}
+
+                        {(item.indication || item.warning_label) && (
+                            <div className="mt-4 pt-3 border-t border-slate-200/60 space-y-2">
+                                {item.indication && (
+                                    <div>
+                                        <div className="text-[11px] text-slate-500 uppercase tracking-wider">ข้อบ่งใช้</div>
+                                        <div className="text-sm text-slate-700">{item.indication}</div>
+                                    </div>
+                                )}
+                                {item.warning_label && (
+                                    <div>
+                                        <div className="text-[11px] text-red-600 uppercase tracking-wider font-bold">⚠ คำเตือน</div>
+                                        <div className="text-sm text-red-700 font-semibold">{item.warning_label}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* History */}
