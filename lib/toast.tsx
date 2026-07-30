@@ -73,9 +73,15 @@ export function Toaster() {
     const dismiss = (id: number) => setItems(prev => prev.filter(x => x.id !== id));
     if (items.length === 0 || typeof document === "undefined") return null;
     // portal ไป body → หนีทุก stacking context / overflow ของ layout (ไม่โดน navbar บัง)
-    // top-[84px] = ดันลงมาใต้ top navbar
+    // ใช้ inline style กับตำแหน่ง/z-index → ไม่พึ่ง Tailwind JIT (lib/ อาจไม่ถูกสแกน)
     return createPortal(
-        <div className="fixed top-[84px] left-1/2 -translate-x-1/2 z-[99999] flex flex-col gap-2 w-[min(92vw,460px)] pointer-events-none">
+        <div
+            className="flex flex-col gap-2"
+            style={{
+                position: "fixed", top: 84, left: "50%", transform: "translateX(-50%)",
+                zIndex: 99999, width: "min(92vw, 460px)", pointerEvents: "none",
+            }}
+        >
             {items.map(t => <ToastCard key={t.id} item={t} onClose={() => dismiss(t.id)} />)}
         </div>,
         document.body,
