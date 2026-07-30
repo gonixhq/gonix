@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -214,10 +215,11 @@ function ConfirmUseModal({
                 note: note || undefined,
             });
             if (result.success) {
+                toast.success("บันทึกการใช้คอสแล้ว");
                 onClose();
                 onSuccess();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };
@@ -317,10 +319,11 @@ function SellPackageModal({
                 note: note || undefined,
             });
             if (result.success) {
+                toast.success("ขายคอสแล้ว — ออกใบเสร็จอัตโนมัติ");
                 onClose();
                 onSuccess();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };

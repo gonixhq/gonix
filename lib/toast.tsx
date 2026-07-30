@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,10 +71,13 @@ export function Toaster() {
         return () => { listeners.delete(l); };
     }, []);
     const dismiss = (id: number) => setItems(prev => prev.filter(x => x.id !== id));
-    if (items.length === 0) return null;
-    return (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 w-[min(92vw,460px)] pointer-events-none">
+    if (items.length === 0 || typeof document === "undefined") return null;
+    // portal ไป body → หนีทุก stacking context / overflow ของ layout (ไม่โดน navbar บัง)
+    // top-[84px] = ดันลงมาใต้ top navbar
+    return createPortal(
+        <div className="fixed top-[84px] left-1/2 -translate-x-1/2 z-[99999] flex flex-col gap-2 w-[min(92vw,460px)] pointer-events-none">
             {items.map(t => <ToastCard key={t.id} item={t} onClose={() => dismiss(t.id)} />)}
-        </div>
+        </div>,
+        document.body,
     );
 }

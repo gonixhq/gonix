@@ -4,6 +4,7 @@ import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -414,10 +415,11 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                 consume_qty_per_session: form.consume_qty_per_session ? Number(form.consume_qty_per_session) : null,
             });
             if (result.success) {
+                toast.success("บันทึกคอสแล้ว");
                 router.refresh();
                 onClose();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };

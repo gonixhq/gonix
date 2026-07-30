@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Loader2, CalendarPlus, Search, CheckCircle } from "lucide-react";
 import { createAppointment } from "@/lib/actions/appointments";
+import { toast } from "@/lib/toast";
 import { getOnDutyDoctors, type OnDutyDoctor } from "@/lib/actions/doctor-shifts";
 import { bangkokDate } from "@/lib/utils/date";
 
@@ -92,8 +93,8 @@ export default function NewAppointmentModal({ onClose, doctors }: Props) {
     }, []);
 
     async function handleSubmit() {
-        if (!selectedPatient) { setError("กรุณาเลือกผู้ป่วย"); return; }
-        if (!apptDate || !apptStart) { setError("กรุณาระบุวันและเวลา"); return; }
+        if (!selectedPatient) { toast.error("กรุณาเลือกผู้ป่วย"); return; }
+        if (!apptDate || !apptStart) { toast.error("กรุณาระบุวันและเวลา"); return; }
 
         setSaving(true);
         setError("");
@@ -109,9 +110,10 @@ export default function NewAppointmentModal({ onClose, doctors }: Props) {
                 doctor_id: doctorId || undefined,
             });
             setSaved(true);
+            toast.success("สร้างนัดหมายแล้ว");
             setTimeout(() => onClose(), 1500);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+            toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
         } finally {
             setSaving(false);
         }

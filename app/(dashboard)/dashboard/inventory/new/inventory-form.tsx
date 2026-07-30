@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { updateInventoryItem } from "@/lib/actions/inventory";
+import { toast } from "@/lib/toast";
 import { Section, FieldRow, SubHeader as SubHeaderBase, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
 import { FileText, Tag, CircleDollarSign, Save, Loader2, CheckCircle, X, Sparkles, Sun, Sunrise, Sunset, Moon } from "lucide-react";
 
@@ -205,7 +206,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
         // ของฉีด: หน่วยนับ = หน่วยความจุ เสมอ (ช่องหน่วยนับถูกซ่อน) → บังคับให้ตรงตอนบันทึก
         const effectiveUnit = deductionType === "injectable_vial" ? capacityUnitLabel : unit;
         if (!itemName || !effectiveUnit || !sellPrice) {
-            setError("กรุณากรอก ชื่อแสดง (Item Name), หน่วยนับ (Unit) และ ราคาขาย (Price)");
+            toast.error("กรุณากรอก ชื่อแสดง (Item Name), หน่วยนับ (Unit) และ ราคาขาย (Price)");
             return;
         }
 
@@ -241,6 +242,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 });
                 if (!res.success) throw new Error(res.error || "บันทึกไม่สำเร็จ");
                 setSaved(true);
+                toast.success("บันทึกสินค้าแล้ว");
                 setTimeout(() => { setSaved(false); router.push(`/dashboard/inventory/${item.id}`); router.refresh(); }, 1200);
                 return;
             }
@@ -307,13 +309,14 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
             }
 
             setSaved(true);
+            toast.success("เพิ่มสินค้าใหม่แล้ว");
             setTimeout(() => {
                 setSaved(false);
                 router.push("/dashboard/inventory");
                 router.refresh();
             }, 1500);
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึก");
+            toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึก");
         } finally {
             setLoading(false);
         }

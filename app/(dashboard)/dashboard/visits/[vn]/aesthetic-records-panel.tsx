@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil, History } from "lucide-react";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import FaceChartCanvas from "./face-chart-canvas";
 import InjectionRecorder from "./injection-recorder";
@@ -101,10 +102,11 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
             setSavingNotes(false);
             if (result.success) {
                 setNotesSaved(true);
+                toast.success("บันทึกบันทึกหัตถการแล้ว");
                 setTimeout(() => setNotesSaved(false), 2000);
                 router.refresh();
             } else {
-                alert(result.error || "บันทึกไม่สำเร็จ");
+                toast.error(result.error || "บันทึกไม่สำเร็จ");
             }
         });
     }

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -176,10 +177,11 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
             if (result.success) {
                 setUsages([]);
                 setShowHistory(false);
+                toast.success("ยกเลิกการใช้ครั้งล่าสุดแล้ว");
                 onRefresh();
                 router.refresh();
             } else {
-                alert(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };
@@ -408,7 +410,7 @@ function UseSessionModal({
                 onSuccess();
                 router.refresh();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };
@@ -479,7 +481,7 @@ function RefundModal({
 
     const handleConfirm = () => {
         if (!reason.trim()) {
-            setError("กรุณาระบุเหตุผล");
+            toast.error("กรุณาระบุเหตุผล");
             return;
         }
         setError(null);
@@ -490,7 +492,7 @@ function RefundModal({
                 onSuccess();
                 router.refresh();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };
@@ -590,7 +592,7 @@ function SellPackageModal({
                 onSuccess();
                 router.refresh();
             } else {
-                setError(result.error || "เกิดข้อผิดพลาด");
+                toast.error(result.error || "เกิดข้อผิดพลาด");
             }
         });
     };

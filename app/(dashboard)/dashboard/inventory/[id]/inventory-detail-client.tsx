@@ -12,6 +12,7 @@ import {
     TrendingUp, TrendingDown, CheckCircle, AlertCircle, Pencil, Clock, Ban, Trash2,
 } from "lucide-react";
 import { receiveStock, receiveVials, adjustStock, updateInventoryItem, updateLot, deleteLot, setInventoryActive, deleteInventoryItem, discardVial } from "@/lib/actions/inventory";
+import { toast } from "@/lib/toast";
 import { SEGMENT_LABEL } from "@/lib/segments";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,8 +99,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
         setError(null);
         startTransition(async () => {
             const res = await updateLot({ id: lotEdit.id, lot_no: lotEdit.lot_no, expiry_date: lotEdit.expiry_date || null, qty_remaining: Number(lotEdit.qty_remaining) || 0 });
-            if (!res.success) { setError(res.error || "บันทึกล็อตไม่สำเร็จ"); return; }
-            setLotEdit(null); setSuccess("✓ บันทึกล็อตแล้ว");
+            if (!res.success) { toast.error(res.error || "บันทึกล็อตไม่สำเร็จ"); return; }
+            setLotEdit(null); toast.success("บันทึกล็อตแล้ว");
             setTimeout(() => router.refresh(), 600);
         });
     }
@@ -107,8 +108,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
         if (!confirm("ลบล็อตนี้? (สต๊อกจะถูกลดตามจำนวนคงเหลือของล็อต)")) return;
         startTransition(async () => {
             const res = await deleteLot(id);
-            if (!res.success) { setError(res.error || "ลบล็อตไม่สำเร็จ"); return; }
-            setSuccess("✓ ลบล็อตแล้ว");
+            if (!res.success) { toast.error(res.error || "ลบล็อตไม่สำเร็จ"); return; }
+            toast.success("ลบล็อตแล้ว");
             setTimeout(() => router.refresh(), 600);
         });
     }
@@ -119,8 +120,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
         setError(null);
         startTransition(async () => {
             const res = await setInventoryActive(item.id, next);
-            if (!res.success) { setError(res.error || "ทำรายการไม่สำเร็จ"); return; }
-            setSuccess(next ? "✓ เปิดใช้งานแล้ว" : "✓ ปิดใช้งานแล้ว");
+            if (!res.success) { toast.error(res.error || "ทำรายการไม่สำเร็จ"); return; }
+            toast.success(next ? "✓ เปิดใช้งานแล้ว" : "✓ ปิดใช้งานแล้ว");
             setTimeout(() => router.refresh(), 700);
         });
     }
@@ -130,8 +131,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
         setError(null);
         startTransition(async () => {
             const res = await deleteInventoryItem(item.id);
-            if (!res.success) { setError(res.error || "ลบไม่สำเร็จ"); return; }
-            setSuccess("✓ ลบถาวรแล้ว — กำลังกลับไปหน้าคลัง");
+            if (!res.success) { toast.error(res.error || "ลบไม่สำเร็จ"); return; }
+            toast.success("ลบถาวรแล้ว — กำลังกลับไปหน้าคลัง");
             setTimeout(() => router.push("/dashboard/inventory"), 900);
         });
     }
@@ -398,8 +399,8 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                                                                 if (!confirm(`ทิ้งเศษ vial นี้? (เหลือ ${Number(v.capacity_remaining).toLocaleString()} ${capLabel} จะบันทึกเป็น waste)`)) return;
                                                                 startTransition(async () => {
                                                                     const r = await discardVial(v.id);
-                                                                    if (!r.success) setError(r.error || "ทิ้งไม่สำเร็จ");
-                                                                    else { setSuccess(`ทิ้งเศษ ${r.wasteQty} ${capLabel} แล้ว`); router.refresh(); }
+                                                                    if (!r.success) toast.error(r.error || "ทิ้งไม่สำเร็จ");
+                                                                    else { toast.success(`ทิ้งเศษ ${r.wasteQty} ${capLabel} แล้ว`); router.refresh(); }
                                                                 });
                                                             }}
                                                             disabled={pending}
@@ -526,7 +527,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                     requireLotExpiry={item.deduction_type === "injectable_vial"}
                     onClose={() => setShowReceive(false)}
                     onSuccess={(qty) => {
-                        setSuccess(`✓ รับเข้าสต๊อก ${qty} ${item.unit} สำเร็จ`);
+                        toast.success(`รับเข้าสต๊อก ${qty} ${item.unit} สำเร็จ`);
                         setShowReceive(false);
                         startTransition(() => router.refresh());
                     }}
@@ -543,7 +544,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                     currentStock={Number(item.stock_qty || 0)}
                     onClose={() => setShowAdjust(false)}
                     onSuccess={() => {
-                        setSuccess(`✓ ปรับสต๊อกสำเร็จ`);
+                        toast.success(`ปรับสต๊อกสำเร็จ`);
                         setShowAdjust(false);
                         startTransition(() => router.refresh());
                     }}

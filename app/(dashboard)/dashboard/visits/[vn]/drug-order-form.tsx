@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { Save, Loader2, CheckCircle, Plus, Trash2, Search, Pill, FlaskConical, ChevronDown } from "lucide-react";
+import { toast } from "@/lib/toast";
 
 interface DrugItem {
     id: string;
@@ -337,10 +338,11 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
             if (insertErr) throw insertErr;
 
             setSaved(true);
+            toast.success("บันทึกการสั่งยาแล้ว");
             setOrderLines([]);
             router.refresh();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+            toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
         } finally {
             setLoading(false);
         }

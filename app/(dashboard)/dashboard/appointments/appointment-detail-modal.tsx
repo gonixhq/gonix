@@ -7,6 +7,7 @@ import {
     CheckCircle, XCircle, Ban, UserCheck, ExternalLink,
 } from "lucide-react";
 import { updateAppointment, updateAppointmentStatus } from "@/lib/actions/appointments";
+import { toast } from "@/lib/toast";
 
 interface Doctor {
     id: string;
@@ -80,10 +81,11 @@ export default function AppointmentDetailModal({
         setError("");
         try {
             await updateAppointment(appt.id, { appt_date: date, appt_start: startT, duration_min: duration, appt_type: apptType, doctor_id: doctorId || null, note });
+            toast.success("บันทึกนัดหมายแล้ว");
             onSaved();
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+            toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
         } finally { setSaving(false); }
     }
 
@@ -92,10 +94,11 @@ export default function AppointmentDetailModal({
         setError("");
         try {
             await updateAppointmentStatus(appt.id, status);
+            toast.success("อัปเดตสถานะนัดหมายแล้ว");
             onSaved();
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "เปลี่ยนสถานะไม่สำเร็จ");
+            toast.error(err instanceof Error ? err.message : "เปลี่ยนสถานะไม่สำเร็จ");
         } finally { setBusy(false); }
     }
 

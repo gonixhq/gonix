@@ -11,6 +11,7 @@ import {
     Banknote, QrCode, CreditCard, RotateCcw, Ban, FileText, User as UserIcon,
 } from "lucide-react";
 import { voidInvoice, refundInvoice, addPayment } from "@/lib/actions/invoices";
+import { toast } from "@/lib/toast";
 
 interface Patient {
     prefix?: string | null;
@@ -166,9 +167,10 @@ export default function InvoiceDetailClient({
                 note: addPayNote || undefined,
             });
             if (!res.success) {
-                setError(res.error || "บันทึกไม่สำเร็จ");
+                toast.error(res.error || "บันทึกไม่สำเร็จ");
                 return;
             }
+            toast.success("บันทึกการชำระเงินแล้ว");
             setShowAddPayment(false);
             setAddPayAmount("");
             setAddPayNote("");
@@ -201,9 +203,10 @@ export default function InvoiceDetailClient({
         startTransition(async () => {
             const res = await voidInvoice(invoice.id, reason.trim() || undefined);
             if (!res.success) {
-                setError(res.error || "ยกเลิกไม่สำเร็จ");
+                toast.error(res.error || "ยกเลิกไม่สำเร็จ");
                 return;
             }
+            toast.success("ยกเลิกใบเสร็จแล้ว — คืนสต๊อกให้อัตโนมัติ");
             setShowVoidConfirm(false);
             router.refresh();
         });
@@ -214,9 +217,10 @@ export default function InvoiceDetailClient({
         startTransition(async () => {
             const res = await refundInvoice(invoice.id, reason.trim() || undefined);
             if (!res.success) {
-                setError(res.error || "คืนเงินไม่สำเร็จ");
+                toast.error(res.error || "คืนเงินไม่สำเร็จ");
                 return;
             }
+            toast.success("คืนเงินใบเสร็จแล้ว");
             setShowRefundConfirm(false);
             router.refresh();
         });
