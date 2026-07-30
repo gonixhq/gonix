@@ -360,7 +360,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <select className={selectCls} value={category} onChange={e => setCategory(e.target.value)}>
                             <option value="drug">ยา (Drug)</option>
                             <option value="supply">เวชภัณฑ์ (Supply)</option>
-                            <option value="service">บริการ (Service)</option>
+                            {/* "บริการ" เอาออกจากคลังสินค้า — สร้างบริการที่ "รายการบริการ & ราคา" แทน
+                                (โชว์เฉพาะของเก่าที่เคยตั้ง category=service ไว้ ให้แก้ได้ไม่พัง) */}
+                            {category === "service" && <option value="service">บริการ (Service) — เลิกใช้ ให้ย้ายไปหน้าบริการ</option>}
                         </select>
                     </FieldRow>
 
