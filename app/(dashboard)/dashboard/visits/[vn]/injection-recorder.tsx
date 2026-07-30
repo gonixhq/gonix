@@ -9,12 +9,28 @@ import { getInjectableProducts, getVisitInjections, saveVisitInjection, deleteVi
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// ตำแหน่งที่ฉีดที่พบบ่อย (dropdown) — เลือกเร็ว ไม่ต้องพิมพ์
-const SITE_OPTIONS = [
-    "หน้าผาก", "ระหว่างคิ้ว (Glabella)", "หางตา (Crow's feet)", "ทั้งหน้าบน (ผาก+คิ้ว+หางตา)",
-    "แก้ม", "ร่องแก้ม", "ใต้ตา (Tear trough)", "คาง", "กราม (Masseter)",
-    "ริมฝีปาก", "จมูก", "ขมับ", "คอ",
-];
+// ตัวเลือก "จุด/โซนที่ฉีด" ปรับตามชนิดสินค้า:
+//  Botox (unit) → ขายเป็นโซน Upper/Lower/Full Face · Filler (ml) → ตามตำแหน่งกายวิภาค · HIFU (shot) → โซน
+function siteOptions(unit: string): string[] {
+    if (unit === "ml" || unit === "cc") {
+        return [
+            "ร่องแก้ม (Nasolabial)", "แก้ม (Cheek)", "คาง (Chin)", "ริมฝีปาก (Lips)",
+            "ใต้ตา (Tear trough)", "จมูก (Nose)", "ขมับ (Temple)", "กราม (Jawline)",
+            "หน้าผาก (Forehead)", "ระหว่างคิ้ว (Glabella)",
+        ];
+    }
+    if (unit === "shot") {
+        return ["Full Face", "Upper Face", "Lower Face", "หน้า + คอ (Face + Neck)", "คอ (Neck)", "ใต้คาง (Submental)"];
+    }
+    // unit/u (Botox) และอื่นๆ → ขายเป็นโซน
+    return ["Upper Face", "Lower Face", "Full Face"];
+}
+
+// ป้ายช่องจุดฉีด — Botox/HIFU = โซน · Filler = ตำแหน่ง
+function siteLabel(unit: string): string {
+    if (unit === "ml" || unit === "cc") return "4. ตำแหน่ง";
+    return "4. โซน";
+}
 
 // ค่าที่ใช้บ่อยตามหน่วย → กดเลือกเร็ว ไม่ต้องพิมพ์
 function qtyPresets(unit: string): number[] {
@@ -52,6 +68,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
     function pickProduct(id: string) {
         setErr("");
         setItemId(id);
+        setSite(""); setCustomSite("");   // ตัวเลือกจุด/โซนต่างกันตามสินค้า → รีเซ็ต
         setTimeout(() => qtyRef.current?.focus(), 50);   // เด้งไปช่องจำนวนอัตโนมัติ
     }
 
@@ -151,10 +168,10 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
                                 placeholder="ก้อน (เว้นว่างได้)" className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 w-14 shrink-0">4. จุดที่ฉีด</span>
+                            <span className="text-xs text-slate-500 shrink-0 whitespace-nowrap">{siteLabel(capLabel)}</span>
                             <select value={site} onChange={e => setSite(e.target.value)} className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
                                 <option value="">— เลือก —</option>
-                                {SITE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                {siteOptions(capLabel).map(s => <option key={s} value={s}>{s}</option>)}
                                 <option value="__custom__">อื่นๆ (พิมพ์เอง)</option>
                             </select>
                         </div>
