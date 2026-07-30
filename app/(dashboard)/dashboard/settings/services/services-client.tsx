@@ -355,7 +355,7 @@ function ServiceFormModal({
                                 <select value={segment} onChange={e => setSegment(e.target.value)} className={FORM_SELECT_CLS}>
                                     <option value="medical">การแพทย์ (Medical)</option>
                                     <option value="aesthetic">ความงาม (Aesthetic)</option>
-                                    <option value="product">ขายของ (Product)</option>
+                                    <option value="product">ของใช้ทั่วไป (Product)</option>
                                 </select>
                             </FieldRow>
 

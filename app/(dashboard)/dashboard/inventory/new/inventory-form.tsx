@@ -368,7 +368,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
 
                     <FieldRow label="แผนก (รายได้)">
                         <select className={selectCls} value={segment} onChange={e => setSegment(e.target.value)}>
-                            <option value="product">ขายของ (Product)</option>
+                            <option value="product">ของใช้ทั่วไป (สำลี/น้ำเกลือ/เข็ม)</option>
                             <option value="medical">การแพทย์ (Medical)</option>
                             <option value="aesthetic">ความงาม (Aesthetic)</option>
                         </select>

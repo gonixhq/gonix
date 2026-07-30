@@ -4,13 +4,13 @@ export type Segment = "medical" | "aesthetic" | "product";
 export const SEGMENTS: { key: Segment; label: string; labelEn: string }[] = [
     { key: "medical", label: "การแพทย์", labelEn: "Medical" },
     { key: "aesthetic", label: "ความงาม", labelEn: "Aesthetic" },
-    { key: "product", label: "ขายของ", labelEn: "Product" },
+    { key: "product", label: "ของใช้ทั่วไป", labelEn: "Product" },
 ];
 
 export const SEGMENT_LABEL: Record<string, string> = {
     medical: "การแพทย์",
     aesthetic: "ความงาม",
-    product: "ขายของ",
+    product: "ของใช้ทั่วไป",
 };
 
 /** สี (tailwind) ต่อแผนก — ใช้กับ badge/แท่งสัดส่วน */

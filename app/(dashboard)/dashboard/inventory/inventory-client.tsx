@@ -100,7 +100,7 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
 
     const totalActive = useMemo(() => items.filter(i => i.is_active).length, [items]);
     const drugCount = useMemo(() => items.filter(i => i.is_active && i.category === "drug").length, [items]);
-    // นับตามแผนก (segment) — ความงาม / การแพทย์ / ขายของ
+    // นับตามแผนก (segment) — ความงาม / การแพทย์ / ของใช้ทั่วไป
     const segCount = useMemo(() => {
         const c = { aesthetic: 0, medical: 0, product: 0 };
         items.forEach(i => { if (i.is_active && i.segment && i.segment in c) c[i.segment as keyof typeof c]++; });
@@ -117,7 +117,7 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
             // Active filter
             if (filter === "inactive" && it.is_active) return false;
             if (filter !== "inactive" && !it.is_active) return false;
-            // Segment filter (แผนก: ความงาม/การแพทย์/ขายของ)
+            // Segment filter (แผนก: ความงาม/การแพทย์/ของใช้ทั่วไป)
             if ((filter === "aesthetic" || filter === "medical" || filter === "product") && it.segment !== filter) return false;
             // Category filter
             if (filter === "drug" && it.category !== "drug") return false;
@@ -253,7 +253,7 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                         <FilterChip active={filter === "medical"} onClick={() => setFilter("medical")} color="blue">🩺 การแพทย์ ({segCount.medical})</FilterChip>
                     )}
                     {segCount.product > 0 && (
-                        <FilterChip active={filter === "product"} onClick={() => setFilter("product")} color="amber">🛒 ขายของ ({segCount.product})</FilterChip>
+                        <FilterChip active={filter === "product"} onClick={() => setFilter("product")} color="amber">🧴 ของใช้ทั่วไป ({segCount.product})</FilterChip>
                     )}
                     <span className="w-px self-stretch bg-slate-200 mx-0.5" />
                     <FilterChip active={filter === "drug"} onClick={() => setFilter("drug")} color="amber">ยา ({drugCount})</FilterChip>
