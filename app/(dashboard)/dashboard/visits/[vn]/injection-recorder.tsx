@@ -15,8 +15,8 @@ function siteOptions(unit: string): string[] {
     if (unit === "ml" || unit === "cc") {
         return [
             "ร่องแก้ม (Nasolabial)", "แก้ม (Cheek)", "คาง (Chin)", "ริมฝีปาก (Lips)",
-            "ใต้ตา (Tear trough)", "จมูก (Nose)", "ขมับ (Temple)", "กราม (Jawline)",
-            "หน้าผาก (Forehead)", "ระหว่างคิ้ว (Glabella)",
+            "ใต้ตา (Tear trough)", "เปลือกตา (Eyelid)", "จมูก (Nose)", "ขมับ (Temple)",
+            "กราม (Jawline)", "หน้าผาก (Forehead)", "ระหว่างคิ้ว (Glabella)",
         ];
     }
     if (unit === "shot") {
