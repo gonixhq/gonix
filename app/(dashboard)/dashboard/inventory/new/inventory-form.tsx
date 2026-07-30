@@ -163,16 +163,17 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [sigTextDefault, setSigTextDefault] = useState(item?.sig_text_default || "");
 
     // --- Section 3: Price, Stock & Fees ---
-    const [sellPrice, setSellPrice] = useState(item?.sell_price != null ? String(item.sell_price) : "");
-    const [costPrice, setCostPrice] = useState(item?.cost_price != null ? String(item.cost_price) : "0");
-    const [stockQty, setStockQty] = useState(item?.stock_qty != null ? String(item.stock_qty) : "0");
-    const [minStock, setMinStock] = useState(item?.min_stock != null ? String(item.min_stock) : "0");
+    // ตัวเลข: 0/ว่าง → เก็บเป็น "" (ช่องว่าง + placeholder "0") ไม่ต้องลบเลข 0 ก่อนพิมพ์
+    const [sellPrice, setSellPrice] = useState(item?.sell_price ? String(item.sell_price) : "");
+    const [costPrice, setCostPrice] = useState(item?.cost_price ? String(item.cost_price) : "");
+    const [stockQty, setStockQty] = useState(item?.stock_qty ? String(item.stock_qty) : "");
+    const [minStock, setMinStock] = useState(item?.min_stock ? String(item.min_stock) : "");
     const [autoCutStock, setAutoCutStock] = useState(item ? (item.auto_cut_stock ? "true" : "false") : "true");
     const [expiryDate, setExpiryDate] = useState(item?.expiry_date ? String(item.expiry_date).slice(0, 10) : "");
     const [lotNo, setLotNo] = useState("");
-    const [dfDoctor, setDfDoctor] = useState(item?.df_doctor != null ? String(item.df_doctor) : "0");
-    const [dfNurse, setDfNurse] = useState(item?.df_nurse != null ? String(item.df_nurse) : "0");
-    const [dfAssistant, setDfAssistant] = useState(item?.df_assistant != null ? String(item.df_assistant) : "0");
+    const [dfDoctor, setDfDoctor] = useState(item?.df_doctor ? String(item.df_doctor) : "");
+    const [dfNurse, setDfNurse] = useState(item?.df_nurse ? String(item.df_nurse) : "");
+    const [dfAssistant, setDfAssistant] = useState(item?.df_assistant ? String(item.df_assistant) : "");
     const [location, setLocation] = useState(item?.location || "");
     const [supplier, setSupplier] = useState(item?.supplier || "");
     const [note, setNote] = useState(item?.note || "");
@@ -609,7 +610,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
                     </FieldRow>
                     <FieldRow label="ต้นทุน (฿)">
-                        <Input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} className={`${inputCls} tabular-nums`} />
+                        <Input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
                     </FieldRow>
                     <FieldRow label="คงเหลือ">
                         {isEdit ? (
@@ -618,11 +619,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                                 <span className="text-[11px] text-slate-400">แก้สต๊อกที่ปุ่ม &quot;รับยาเข้า / ปรับสต๊อก&quot; (มี audit แยก)</span>
                             </div>
                         ) : (
-                            <Input type="number" value={stockQty} onChange={e => setStockQty(e.target.value)} className={`${inputCls} text-blue-600 font-bold tabular-nums`} />
+                            <Input type="number" value={stockQty} onChange={e => setStockQty(e.target.value)} placeholder="0" className={`${inputCls} text-blue-600 font-bold tabular-nums`} />
                         )}
                     </FieldRow>
                     <FieldRow label="แจ้งเตือนต่ำสุด">
-                        <Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} className={`${inputCls} tabular-nums`} />
+                        <Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
                     </FieldRow>
                     <FieldRow label="ตัดสต๊อกอัตโนมัติ">
                         <select className={selectCls} value={autoCutStock} onChange={e => setAutoCutStock(e.target.value)}>
@@ -642,13 +643,13 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
 
                     <SubHeader label="ค่าธรรมเนียม (Doctor Fee)" />
                     <FieldRow label="DF แพทย์ (฿)">
-                        <Input type="number" value={dfDoctor} onChange={e => setDfDoctor(e.target.value)} className={`${inputCls} tabular-nums`} />
+                        <Input type="number" value={dfDoctor} onChange={e => setDfDoctor(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
                     </FieldRow>
                     <FieldRow label="DF พยาบาล (฿)">
-                        <Input type="number" value={dfNurse} onChange={e => setDfNurse(e.target.value)} className={`${inputCls} tabular-nums`} />
+                        <Input type="number" value={dfNurse} onChange={e => setDfNurse(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
                     </FieldRow>
                     <FieldRow label="DF ผู้ช่วย (฿)" colSpan={2}>
-                        <Input type="number" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} className={`${inputCls} tabular-nums max-w-[280px]`} />
+                        <Input type="number" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums max-w-[280px]`} />
                     </FieldRow>
 
                     <SubHeader label="ข้อมูลเพิ่มเติม" />
