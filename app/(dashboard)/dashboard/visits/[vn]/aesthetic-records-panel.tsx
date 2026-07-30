@@ -62,7 +62,7 @@ type View = "face_chart" | "notes" | "history";
 
 export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
     const router = useRouter();
-    const [view, setView] = useState<View>("face_chart");
+    const [view, setView] = useState<View>("notes");
     const [pastVisits, setPastVisits] = useState<PastAestheticVisit[] | null>(null);
     const [loadingPast, setLoadingPast] = useState(false);
     function openHistory() {
@@ -127,8 +127,11 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
             {/* บันทึกการฉีด structured (ตัดสต๊อก + ขึ้นบิลอัตโนมัติ) */}
             <InjectionRecorder vn={vn} />
 
-            {/* View tabs */}
+            {/* View tabs — 1. บันทึกหัตถการ (default) → 2. แผนผังใบหน้า → ประวัติ */}
             <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-100/70 border border-slate-200/60">
+                <ViewTab active={view === "notes"} onClick={() => setView("notes")} icon={FileText}>
+                    บันทึกหัตถการ
+                </ViewTab>
                 <ViewTab active={view === "face_chart"} onClick={() => setView("face_chart")} icon={Pencil}>
                     แผนผังใบหน้า
                     {(initial.face_chart?.strokes?.length || 0) + (initial.face_chart?.pins?.length || 0) > 0 && (
@@ -136,9 +139,6 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                             {(initial.face_chart?.strokes?.length || 0) + (initial.face_chart?.pins?.length || 0)}
                         </span>
                     )}
-                </ViewTab>
-                <ViewTab active={view === "notes"} onClick={() => setView("notes")} icon={FileText}>
-                    บันทึกหัตถการ
                 </ViewTab>
                 <ViewTab active={view === "history"} onClick={openHistory} icon={History}>
                     ประวัติย้อนหลัง
