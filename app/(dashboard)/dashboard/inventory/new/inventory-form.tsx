@@ -75,6 +75,19 @@ const STRENGTH_UNIT_OPTIONS = [
     "(none)",
 ];
 
+// ประเภทหัตถการของฉีด (mig 122) — คุมจุดฉีด dropdown + รายงานแยกประเภท
+const PRODUCT_TYPE_OPTIONS = [
+    { value: "botox", label: "Botox (โบทูลินัม)" },
+    { value: "filler", label: "Filler (ฟิลเลอร์)" },
+    { value: "skinbooster", label: "Skinbooster" },
+    { value: "biostimulator", label: "Biostimulator (Sculptra/Radiesse)" },
+    { value: "meso", label: "Meso (เมโส)" },
+    { value: "fat_dissolve", label: "สลายไขมัน (FAT)" },
+    { value: "weight_loss", label: "Weight Loss" },
+    { value: "iv_drip", label: "IV Drip / Vitamin" },
+    { value: "other", label: "อื่นๆ" },
+];
+
 const LABEL_TYPE_OPTIONS = [
     { value: "ยาทั่วไป", label: "ยาทั่วไป (OTC)" },
     { value: "ยาอันตราย", label: "ยาอันตราย" },
@@ -120,6 +133,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [brand, setBrand] = useState(item?.brand || "");
     const [modelVariant, setModelVariant] = useState(item?.model_variant || "");
     const [capacityUnitLabel, setCapacityUnitLabel] = useState(item?.capacity_unit_label || "unit");
+    const [productType, setProductType] = useState(item?.product_type || "");   // ประเภทหัตถการ (mig 122)
     const [brandOptions, setBrandOptions] = useState<string[]>([]);
     const [modelOptions, setModelOptions] = useState<string[]>([]);
     const [genericName, setGenericName] = useState(item?.generic_name || "");
@@ -230,6 +244,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     deduction_type: deductionType || null,
                     brand: brand || null, model_variant: modelVariant || null,
                     capacity_unit_label: deductionType === "injectable_vial" ? capacityUnitLabel : null,
+                    product_type: deductionType === "injectable_vial" ? (productType || null) : null,
                     generic_name: genericName, trade_name: tradeName, strength,
                     dosage_form: dosageForm.trim(),
                     item_name_th: itemNameTh, indication, storage_info: storageInfo,
@@ -261,6 +276,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 brand: brand || null,
                 model_variant: modelVariant || null,
                 capacity_unit_label: deductionType === "injectable_vial" ? capacityUnitLabel : null,
+                product_type: deductionType === "injectable_vial" ? (productType || null) : null,
                 generic_name: genericName || null,
                 trade_name: tradeName || null,
                 strength: strength || null,
@@ -392,6 +408,13 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     {/* ── ฉีด: แบรนด์/รุ่น/ขนาดขวด (lot/expiry บังคับตอนรับเข้า) ── */}
                     {deductionType === "injectable_vial" && (
                         <>
+                            <FieldRow label="ประเภทหัตถการ" colSpan={2}>
+                                {/* คุมจุดฉีด dropdown ในหน้าหมอ + รายงานแยกประเภท (แยกจากแผนก/รายได้) */}
+                                <select value={productType} onChange={e => setProductType(e.target.value)} className={selectCls}>
+                                    <option value="">— เลือกประเภท —</option>
+                                    {PRODUCT_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                            </FieldRow>
                             <FieldRow label="แบรนด์">
                                 <Input list="brand-options" value={brand} onChange={e => setBrand(e.target.value)} placeholder="เช่น Allergan, Galderma" className={inputCls} />
                                 <datalist id="brand-options">{brandOptions.map(b => <option key={b} value={b} />)}</datalist>

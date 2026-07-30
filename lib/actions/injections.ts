@@ -14,13 +14,15 @@ async function ctx() {
     return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
 }
 
-/** รายการสินค้าฉีด (deduction_type=injectable_vial) — ให้หมอเลือกตอนบันทึก */
+/** รายการสินค้าฉีดฝั่งความงาม (injectable_vial + segment=aesthetic) — ให้หมอเลือกตอนบันทึก
+ *  กรอง segment='aesthetic' → ยาฉีดโรคทั่วไป (medical) ไม่โผล่ในหน้าความงาม */
 export async function getInjectableProducts() {
     try {
         const { supabase, clinicId } = await ctx();
         const { data } = await supabase.from("inventory")
-            .select("id, item_name, brand, model_variant, capacity_unit_label, sell_price, stock_qty, unit")
-            .eq("clinic_id", clinicId).eq("deduction_type", "injectable_vial").eq("is_active", true)
+            .select("id, item_name, brand, model_variant, capacity_unit_label, product_type, sell_price, stock_qty, unit")
+            .eq("clinic_id", clinicId).eq("deduction_type", "injectable_vial")
+            .eq("segment", "aesthetic").eq("is_active", true)
             .order("item_name");
         return data || [];
     } catch {

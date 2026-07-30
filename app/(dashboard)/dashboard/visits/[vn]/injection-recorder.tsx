@@ -9,25 +9,38 @@ import { getInjectableProducts, getVisitInjections, saveVisitInjection, deleteVi
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// ตัวเลือก "จุด/โซนที่ฉีด" ปรับตามชนิดสินค้า:
-//  Botox (unit) → ขายเป็นโซน Upper/Lower/Full Face · Filler (ml) → ตามตำแหน่งกายวิภาค · HIFU (shot) → โซน
-function siteOptions(unit: string): string[] {
-    if (unit === "ml" || unit === "cc") {
-        return [
-            "ร่องแก้ม (Nasolabial)", "แก้ม (Cheek)", "คาง (Chin)", "ริมฝีปาก (Lips)",
-            "ใต้ตา (Tear trough)", "เปลือกตา (Eyelid)", "จมูก (Nose)", "ขมับ (Temple)",
-            "กราม (Jawline)", "หน้าผาก (Forehead)", "ระหว่างคิ้ว (Glabella)",
-        ];
-    }
-    if (unit === "shot") {
-        return ["Full Face", "Upper Face", "Lower Face", "หน้า + คอ (Face + Neck)", "คอ (Neck)", "ใต้คาง (Submental)"];
-    }
-    // unit/u (Botox) และอื่นๆ → ขายเป็นโซน
-    return ["Upper Face", "Lower Face", "Full Face"];
+// ตัวเลือก "จุด/โซนที่ฉีด" ตาม "ประเภทหัตถการ" (product_type จาก mig 122)
+const FILLER_SITES = [
+    "ร่องแก้ม (Nasolabial)", "แก้ม (Cheek)", "คาง (Chin)", "ริมฝีปาก (Lips)",
+    "ใต้ตา (Tear trough)", "เปลือกตา (Eyelid)", "จมูก (Nose)", "ขมับ (Temple)",
+    "กราม (Jawline)", "หน้าผาก (Forehead)", "ระหว่างคิ้ว (Glabella)",
+];
+const SITE_BY_TYPE: Record<string, string[]> = {
+    botox: ["Upper Face", "Lower Face", "Full Face"],
+    filler: FILLER_SITES,
+    skinbooster: ["Full Face", "แก้ม 2 ข้าง", "ใต้ตา", "รอบปาก", "คอ (Neck)", "หลังมือ (Hands)"],
+    biostimulator: ["แก้ม (Cheek)", "ขมับ (Temple)", "กราม (Jawline)", "คาง (Chin)", "Full Face"],
+    meso: ["Full Face", "ใต้ตา", "คอ (Neck)", "หนังศีรษะ (Scalp)", "เฉพาะจุด"],
+    fat_dissolve: ["ใต้คาง (Double chin)", "กราม", "แก้ม", "หน้าท้อง", "ต้นแขน", "ต้นขา"],
+    weight_loss: ["หน้าท้อง", "ต้นแขน", "ต้นขา", "สะโพก"],
+    iv_drip: ["IV (หลอดเลือดดำ)"],
+};
+const ZONE_TYPES = new Set(["botox", "skinbooster", "biostimulator", "meso"]);
+
+// เลือกจาก product_type ก่อน · ถ้าไม่มี fallback เดาจากหน่วย (u→โซน, ml→filler, shot→HIFU)
+function siteOptions(productType: string | null, unit: string): string[] {
+    if (productType && SITE_BY_TYPE[productType]) return SITE_BY_TYPE[productType];
+    if (unit === "ml" || unit === "cc") return FILLER_SITES;
+    if (unit === "shot") return ["Full Face", "Upper Face", "Lower Face", "หน้า + คอ (Face + Neck)", "คอ (Neck)", "ใต้คาง (Submental)"];
+    return SITE_BY_TYPE.botox;
 }
 
-// ป้ายช่องจุดฉีด — Botox/HIFU = โซน · Filler = ตำแหน่ง
-function siteLabel(unit: string): string {
+// ป้ายช่อง — โซน (botox/skinbooster/...) vs ตำแหน่ง (filler/fat) vs จุด (iv/weight)
+function siteLabel(productType: string | null, unit: string): string {
+    if (productType === "iv_drip" || productType === "weight_loss") return "4. จุดฉีด";
+    if (productType && ZONE_TYPES.has(productType)) return "4. โซน";
+    if (productType === "filler" || productType === "fat_dissolve") return "4. ตำแหน่ง";
+    // fallback ตามหน่วย
     if (unit === "ml" || unit === "cc") return "4. ตำแหน่ง";
     return "4. โซน";
 }
@@ -63,6 +76,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
 
     const sel = products.find(p => p.id === itemId);
     const capLabel = sel?.capacity_unit_label || sel?.unit || "u";
+    const prodType = sel?.product_type || null;
     const effectiveSite = site === "__custom__" ? customSite.trim() : site;
 
     function pickProduct(id: string) {
@@ -168,10 +182,10 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
                                 placeholder="ก้อน (เว้นว่างได้)" className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500 shrink-0 whitespace-nowrap">{siteLabel(capLabel)}</span>
+                            <span className="text-xs text-slate-500 shrink-0 whitespace-nowrap">{siteLabel(prodType, capLabel)}</span>
                             <select value={site} onChange={e => setSite(e.target.value)} className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
                                 <option value="">— เลือก —</option>
-                                {siteOptions(capLabel).map(s => <option key={s} value={s}>{s}</option>)}
+                                {siteOptions(prodType, capLabel).map(s => <option key={s} value={s}>{s}</option>)}
                                 <option value="__custom__">อื่นๆ (พิมพ์เอง)</option>
                             </select>
                         </div>
