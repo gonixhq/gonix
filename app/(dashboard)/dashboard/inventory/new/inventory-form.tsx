@@ -603,8 +603,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
             </Section>
             )}
 
-            {/* ═══════════ SECTION 3: ราคา สต๊อก ค่าธรรมเนียม ═══════════ */}
-            <Section title="ราคา สต๊อก และค่าธรรมเนียม" icon={CircleDollarSign} color="emerald">
+            {/* ═══════════ SECTION 3: ราคา สต๊อก ═══════════ */}
+            <Section title="ราคา และสต๊อก" icon={CircleDollarSign} color="emerald">
                     <SubHeader label="ราคาและสต๊อก" />
                     <FieldRow label="ราคาขาย (฿)" required>
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
@@ -641,16 +641,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <p className="text-[11px] text-slate-400">เลขล็อต + วันหมดอายุนี้จะถูกบันทึกเป็น &quot;ล็อตตั้งต้น&quot; ของยอดคงเหลือ — รับเข้าล็อตใหม่ภายหลังได้ที่หน้าสินค้า</p>
                     </FieldRow>
 
-                    <SubHeader label="ค่าธรรมเนียม (Doctor Fee)" />
-                    <FieldRow label="DF แพทย์ (฿)">
-                        <Input type="number" value={dfDoctor} onChange={e => setDfDoctor(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
-                    </FieldRow>
-                    <FieldRow label="DF พยาบาล (฿)">
-                        <Input type="number" value={dfNurse} onChange={e => setDfNurse(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
-                    </FieldRow>
-                    <FieldRow label="DF ผู้ช่วย (฿)" colSpan={2}>
-                        <Input type="number" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums max-w-[280px]`} />
-                    </FieldRow>
+                    {/* ค่าธรรมเนียม (DF ต่อหน่วย) เอาออกจากหน้าคลัง — คลินิกคิด commission เป็น % ของยอดขาย
+                        (state dfDoctor/Nurse/Assistant คงไว้ → payload ส่งค่าเดิม ไม่ลบข้อมูลของเก่า) */}
 
                     <SubHeader label="ข้อมูลเพิ่มเติม" />
                     <FieldRow label="ที่จัดเก็บ">

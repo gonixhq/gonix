@@ -180,7 +180,6 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
     pushF("วิธีตัดสต๊อก", item.deduction_type ? (DEDUCTION_LABEL[item.deduction_type] || item.deduction_type) : "");
     pushF("ผู้ขาย / Supplier", item.supplier);
     pushF("ที่เก็บ", item.location);
-    const hasDF = Number(item.df_doctor) > 0 || Number(item.df_nurse) > 0 || Number(item.df_assistant) > 0;
 
     return (
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
@@ -279,17 +278,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                             ))}
                         </dl>
 
-                        {/* ค่ามือ (DF) — โชว์เมื่อมีตั้งไว้ */}
-                        {hasDF && (
-                            <div className="mt-4 pt-3 border-t border-slate-200/60">
-                                <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-1.5">ค่ามือ (DF) ต่อหน่วย</div>
-                                <div className="flex flex-wrap gap-2 text-sm">
-                                    {Number(item.df_doctor) > 0 && <span className="px-2 py-1 rounded-lg bg-cyan-50 text-cyan-700 font-semibold">หมอ ฿{Number(item.df_doctor).toLocaleString()}</span>}
-                                    {Number(item.df_nurse) > 0 && <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold">พยาบาล ฿{Number(item.df_nurse).toLocaleString()}</span>}
-                                    {Number(item.df_assistant) > 0 && <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-semibold">ผู้ช่วย ฿{Number(item.df_assistant).toLocaleString()}</span>}
-                                </div>
-                            </div>
-                        )}
+                        {/* ค่ามือ (DF ต่อหน่วย) เอาออกจากหน้าคลัง — คิด commission เป็น % ของยอดขาย */}
 
                         {(item.indication || item.warning_label) && (
                             <div className="mt-4 pt-3 border-t border-slate-200/60 space-y-2">
