@@ -343,6 +343,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const inputCls = FORM_INPUT_CLS;
     const selectCls = FORM_SELECT_CLS;
 
+    // ฉลากยา/รูปแบบ/ความแรง = เฉพาะ "ยา" ที่ไม่ใช่แผนกของใช้ทั่วไป และไม่ใช่ของฉีด
+    // → เวชภัณฑ์ / ของใช้ทั่วไป (สำลี/น้ำเกลือ) ไม่โชว์ฉลากยา
+    const showDrugLabel = category === "drug" && segment !== "product" && deductionType !== "injectable_vial";
+
     return (
         <div className="space-y-5 pb-24 max-w-5xl mx-auto">
             {error && (
@@ -379,10 +383,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         <Input value={itemName} onChange={e => setItemName(e.target.value)} placeholder="เช่น Paracetamol 500mg" className={inputCls} />
                     </FieldRow>
 
-                    <FieldRow label="ชื่อสามัญ">
+                    <FieldRow label="ชื่อสามัญ" hidden={!showDrugLabel}>
                         <Input value={genericName} onChange={e => setGenericName(e.target.value)} placeholder="Paracetamol" className={inputCls} />
                     </FieldRow>
-                    <FieldRow label="ชื่อการค้า">
+                    <FieldRow label="ชื่อการค้า" hidden={!showDrugLabel}>
                         <Input value={tradeName} onChange={e => setTradeName(e.target.value)} placeholder="Tylenol" className={inputCls} />
                     </FieldRow>
 
@@ -483,7 +487,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </div>
                         </>
                     )}
-                    <FieldRow label="รูปแบบ" hidden={deductionType === "injectable_vial"}>
+                    <FieldRow label="รูปแบบ" hidden={!showDrugLabel}>
                         <select
                             value={dosageCustom ? "__custom__" : (DOSAGE_FORM_OPTIONS.some(o => o.value === dosageForm) ? dosageForm : "")}
                             onChange={e => {
@@ -498,11 +502,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         </select>
                     </FieldRow>
 
-                    <FieldRow label="พิมพ์รูปแบบ" colSpan={2} hidden={!dosageCustom || deductionType === "injectable_vial"}>
+                    <FieldRow label="พิมพ์รูปแบบ" colSpan={2} hidden={!dosageCustom || !showDrugLabel}>
                         <Input value={dosageForm} onChange={e => setDosageForm(e.target.value)} placeholder="พิมพ์รูปแบบเอง" className={inputCls} />
                     </FieldRow>
 
-                    <FieldRow label="ความแรง" colSpan={2} hidden={deductionType === "injectable_vial"}>
+                    <FieldRow label="ความแรง" colSpan={2} hidden={!showDrugLabel}>
                         <div className="grid grid-cols-[1fr_140px] gap-2">
                             <Input value={strengthValue} onChange={e => setStrengthValue(e.target.value)} placeholder="500" className={`${inputCls} font-mono`} />
                             <select value={strengthUnit} onChange={e => setStrengthUnit(e.target.value)} className={selectCls}>
@@ -517,8 +521,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     </FieldRow>
             </Section>
 
-            {/* ═══════════ SECTION 2: ข้อมูลฉลากยา (ซ่อนสำหรับเวชภัณฑ์ฉีด — ไม่มี SIG/ฉลากยา) ═══════════ */}
-            {deductionType !== "injectable_vial" && (
+            {/* ═══════════ SECTION 2: ข้อมูลฉลากยา (เฉพาะ "ยา" — เวชภัณฑ์/ของใช้ทั่วไป/ของฉีด ไม่มี SIG/ฉลากยา) ═══════════ */}
+            {showDrugLabel && (
             <Section title="ข้อมูลฉลากยา" icon={Tag} color="amber">
                     <SubHeader label="ข้อมูลทั่วไป" />
                     <FieldRow label="ชื่อภาษาไทย">
