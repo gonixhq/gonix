@@ -261,7 +261,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                                 </span>
                             )}
                             {isInjectable && (
-                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-fuchsia-100 text-fuchsia-700">💉 ของฉีด (รายขวด)</span>
+                                <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-fuchsia-100 text-fuchsia-700">ของฉีด (รายขวด)</span>
                             )}
                             {item.is_active === false && (
                                 <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-700">ปิดใช้งาน</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ interface InventoryItem {
     generic_name: string | null;
     category: string;
     segment: string | null;
+    deduction_type: string | null;
     dosage_form: string | null;
     strength: string | null;
     unit: string;
@@ -78,6 +79,7 @@ interface ExpiringLotUI { item_id: string; item_name: string; lot_no: string | n
 export default function InventoryClient({ items, expiring = [] }: { items: InventoryItem[]; expiring?: ExpiringLotUI[] }) {
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<Filter>("all");
+    const [groupByDept, setGroupByDept] = useState(false);
 
     const lowStockCount = useMemo(
         () => items.filter(i => i.is_active && i.min_stock > 0 && Number(i.stock_qty) <= Number(i.min_stock)).length,
@@ -139,6 +141,105 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
             return true;
         });
     }, [items, search, filter]);
+
+    // จัดกลุ่มตามแผนก (ความงาม → การแพทย์ → ของใช้ทั่วไป → ไม่ระบุ) พร้อมยอดรวมต่อกลุ่ม
+    const groups = useMemo(() => {
+        if (!groupByDept) return [{ key: "all", label: "", items: filtered }];
+        const order = ["aesthetic", "medical", "product", "other"];
+        const map: Record<string, InventoryItem[]> = {};
+        filtered.forEach(it => {
+            const k = it.segment && ["aesthetic", "medical", "product"].includes(it.segment) ? it.segment : "other";
+            (map[k] ||= []).push(it);
+        });
+        return order.filter(k => map[k]?.length).map(k => ({
+            key: k, label: k === "other" ? "ไม่ระบุแผนก" : (SEGMENT_LABEL[k] || k), items: map[k],
+        }));
+    }, [filtered, groupByDept]);
+
+    const renderRow = (it: InventoryItem) => {
+        const isLow = it.min_stock > 0 && Number(it.stock_qty) <= Number(it.min_stock);
+        const exp = expiryStatus(it.expiry_date);
+        const isConsumable = it.deduction_type === "consumable_periodic";  // วัสดุสิ้นเปลือง (นับเป็นรอบ)
+        return (
+            <tr
+                key={it.id}
+                className={`border-t border-slate-100 hover:bg-blue-50/40 transition-colors cursor-pointer ${!it.is_active ? "opacity-50" : ""}`}
+                onClick={() => window.location.href = `/dashboard/inventory/${it.id}`}
+            >
+                <td className="px-4 py-2.5">
+                    <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{it.item_code || "—"}</span>
+                </td>
+                <td className="px-4 py-2.5">
+                    <div className="font-bold text-slate-800">
+                        {it.item_name}
+                        {it.strength && <span className="text-slate-500 font-normal ml-1">{it.strength}</span>}
+                    </div>
+                    {it.generic_name && <div className="text-[11px] text-slate-500">{it.generic_name}</div>}
+                </td>
+                <td className="px-4 py-2.5">
+                    <div className="flex flex-col gap-1 items-start">
+                        {it.segment && SEGMENT_LABEL[it.segment] && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.bg || "bg-slate-100"} ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.text || "text-slate-600"}`}>
+                                {SEGMENT_LABEL[it.segment]}
+                            </span>
+                        )}
+                        <Badge className={`border-0 text-[10px] font-bold uppercase tracking-wider ${CATEGORY_COLOR[it.category] || CATEGORY_COLOR.other}`}>
+                            {CATEGORY_LABEL[it.category] || it.category}
+                        </Badge>
+                    </div>
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                    <div className={`font-bold tabular-nums ${isLow ? "text-red-700" : "text-slate-800"}`}>
+                        {Number(it.stock_qty || 0).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">{it.unit}</span>
+                    </div>
+                    {isConsumable && (
+                        <div className="text-[10px] text-slate-400 font-semibold mt-0.5">นับเป็นรอบ</div>
+                    )}
+                    {isLow && (
+                        <div className="text-[10px] text-red-600 font-bold inline-flex items-center gap-0.5 mt-0.5">
+                            <AlertTriangle className="h-2.5 w-2.5" /> ต่ำ (ขั้นต่ำ {it.min_stock})
+                        </div>
+                    )}
+                </td>
+                <td className="px-4 py-2.5">
+                    {it.expiry_date ? (() => {
+                        const dateCls = exp.kind === "expired" || exp.kind === "critical" ? "text-red-700 font-bold"
+                            : exp.kind === "urgent" ? "text-orange-700 font-bold"
+                                : exp.kind === "watch" ? "text-yellow-700 font-bold" : "text-slate-600";
+                        const tagCls = exp.kind === "expired" || exp.kind === "critical" ? "text-red-600"
+                            : exp.kind === "urgent" ? "text-orange-600" : "text-yellow-600";
+                        return (
+                            <div>
+                                <div className={`text-[13px] tabular-nums ${dateCls}`}>
+                                    {new Date(it.expiry_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                                </div>
+                                {exp.kind === "expired" && (
+                                    <div className="text-[10px] text-red-600 font-bold inline-flex items-center gap-0.5">
+                                        <CalendarClock className="h-2.5 w-2.5" /> หมดแล้ว {Math.abs(exp.days)} วัน
+                                    </div>
+                                )}
+                                {isExpiryAlert(exp.kind) && exp.kind !== "expired" && (
+                                    <div className={`text-[10px] font-bold inline-flex items-center gap-0.5 ${tagCls}`}>
+                                        <CalendarClock className="h-2.5 w-2.5" /> เหลือ {exp.days} วัน
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })() : (
+                        <span className="text-[11px] text-slate-300">—</span>
+                    )}
+                </td>
+                <td className="px-4 py-2.5 text-right font-bold tabular-nums text-slate-800">
+                    {Number(it.sell_price) > 0
+                        ? `฿${Number(it.sell_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                        : <span className="text-slate-300 font-normal">—</span>}
+                </td>
+                <td className="px-4 py-2.5 text-center">
+                    {it.is_active ? <CheckCircle className="h-4 w-4 text-emerald-500 mx-auto" /> : <EyeOff className="h-4 w-4 text-slate-400 mx-auto" />}
+                </td>
+            </tr>
+        );
+    };
 
     return (
         <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
@@ -244,31 +345,36 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                         className="pl-10 h-10 rounded-xl focus:ring-blue-500/10 focus:border-blue-500"
                     />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                     <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด ({totalActive})</FilterChip>
                     {segCount.aesthetic > 0 && (
-                        <FilterChip active={filter === "aesthetic"} onClick={() => setFilter("aesthetic")} color="rose">✨ ความงาม ({segCount.aesthetic})</FilterChip>
+                        <FilterChip active={filter === "aesthetic"} onClick={() => setFilter("aesthetic")} color="rose">ความงาม ({segCount.aesthetic})</FilterChip>
                     )}
                     {segCount.medical > 0 && (
-                        <FilterChip active={filter === "medical"} onClick={() => setFilter("medical")} color="blue">🩺 การแพทย์ ({segCount.medical})</FilterChip>
+                        <FilterChip active={filter === "medical"} onClick={() => setFilter("medical")} color="blue">การแพทย์ ({segCount.medical})</FilterChip>
                     )}
                     {segCount.product > 0 && (
-                        <FilterChip active={filter === "product"} onClick={() => setFilter("product")} color="amber">🧴 ของใช้ทั่วไป ({segCount.product})</FilterChip>
+                        <FilterChip active={filter === "product"} onClick={() => setFilter("product")} color="amber">ของใช้ทั่วไป ({segCount.product})</FilterChip>
                     )}
                     <span className="w-px self-stretch bg-slate-200 mx-0.5" />
                     <FilterChip active={filter === "drug"} onClick={() => setFilter("drug")} color="amber">ยา ({drugCount})</FilterChip>
                     <FilterChip active={filter === "supply"} onClick={() => setFilter("supply")} color="indigo">เวชภัณฑ์</FilterChip>
                     {lowStockCount > 0 && (
                         <FilterChip active={filter === "low"} onClick={() => setFilter("low")} color="red">
-                            ⚠ สต๊อกต่ำ ({lowStockCount})
+                            สต๊อกต่ำ ({lowStockCount})
                         </FilterChip>
                     )}
                     {expiryCount.total > 0 && (
                         <FilterChip active={filter === "expiry"} onClick={() => setFilter("expiry")} color="orange">
-                            ⏰ ใกล้/หมดอายุ ({expiryCount.total})
+                            ใกล้/หมดอายุ ({expiryCount.total})
                         </FilterChip>
                     )}
                     <FilterChip active={filter === "inactive"} onClick={() => setFilter("inactive")} color="slate">ปิดใช้งาน</FilterChip>
+                    <span className="w-px self-stretch bg-slate-200 mx-0.5" />
+                    <button type="button" onClick={() => setGroupByDept(v => !v)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${groupByDept ? "bg-slate-700 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                        จัดกลุ่มตามแผนก
+                    </button>
                 </div>
             </div>
 
@@ -298,96 +404,19 @@ export default function InventoryClient({ items, expiring = [] }: { items: Inven
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(it => {
-                                    const isLow = it.min_stock > 0 && Number(it.stock_qty) <= Number(it.min_stock);
-                                    const exp = expiryStatus(it.expiry_date);
-                                    return (
-                                        <tr
-                                            key={it.id}
-                                            className={`border-t border-slate-100 hover:bg-blue-50/40 transition-colors cursor-pointer ${!it.is_active ? "opacity-50" : ""}`}
-                                            onClick={() => window.location.href = `/dashboard/inventory/${it.id}`}
-                                        >
-                                            <td className="px-4 py-2.5">
-                                                <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                                                    {it.item_code || "—"}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                <div className="font-bold text-slate-800">
-                                                    {it.item_name}
-                                                    {it.strength && <span className="text-slate-500 font-normal ml-1">{it.strength}</span>}
-                                                </div>
-                                                {it.generic_name && (
-                                                    <div className="text-[11px] text-slate-500">{it.generic_name}</div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                <div className="flex flex-col gap-1 items-start">
-                                                    {it.segment && SEGMENT_LABEL[it.segment] && (
-                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.bg || "bg-slate-100"} ${SEGMENT_STYLE[it.segment as keyof typeof SEGMENT_STYLE]?.text || "text-slate-600"}`}>
-                                                            {SEGMENT_LABEL[it.segment]}
-                                                        </span>
-                                                    )}
-                                                    <Badge className={`border-0 text-[10px] font-bold uppercase tracking-wider ${CATEGORY_COLOR[it.category] || CATEGORY_COLOR.other}`}>
-                                                        {CATEGORY_LABEL[it.category] || it.category}
-                                                    </Badge>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-2.5 text-right">
-                                                <div className={`font-bold tabular-nums ${isLow ? "text-red-700" : "text-slate-800"}`}>
-                                                    {Number(it.stock_qty || 0).toLocaleString()} <span className="text-[11px] text-slate-500 font-normal">{it.unit}</span>
-                                                </div>
-                                                {isLow && (
-                                                    <div className="text-[10px] text-red-600 font-bold inline-flex items-center gap-0.5 mt-0.5">
-                                                        <AlertTriangle className="h-2.5 w-2.5" /> Low (min {it.min_stock})
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5">
-                                                {it.expiry_date ? (() => {
-                                                    const dateCls =
-                                                        exp.kind === "expired" || exp.kind === "critical" ? "text-red-700 font-bold"
-                                                            : exp.kind === "urgent" ? "text-orange-700 font-bold"
-                                                            : exp.kind === "watch" ? "text-yellow-700 font-bold"
-                                                            : "text-slate-600";
-                                                    const tagCls =
-                                                        exp.kind === "expired" || exp.kind === "critical" ? "text-red-600"
-                                                            : exp.kind === "urgent" ? "text-orange-600"
-                                                            : "text-yellow-600";
-                                                    return (
-                                                        <div>
-                                                            <div className={`text-[13px] tabular-nums ${dateCls}`}>
-                                                                {new Date(it.expiry_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
-                                                            </div>
-                                                            {exp.kind === "expired" && (
-                                                                <div className="text-[10px] text-red-600 font-bold inline-flex items-center gap-0.5">
-                                                                    <CalendarClock className="h-2.5 w-2.5" /> หมดแล้ว {Math.abs(exp.days)} วัน
-                                                                </div>
-                                                            )}
-                                                            {isExpiryAlert(exp.kind) && exp.kind !== "expired" && (
-                                                                <div className={`text-[10px] font-bold inline-flex items-center gap-0.5 ${tagCls}`}>
-                                                                    <CalendarClock className="h-2.5 w-2.5" /> เหลือ {exp.days} วัน
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })() : (
-                                                    <span className="text-[11px] text-slate-300">—</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-2.5 text-right font-bold tabular-nums text-slate-800">
-                                                ฿{Number(it.sell_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </td>
-                                            <td className="px-4 py-2.5 text-center">
-                                                {it.is_active ? (
-                                                    <CheckCircle className="h-4 w-4 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <EyeOff className="h-4 w-4 text-slate-400 mx-auto" />
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                {groups.map(g => (
+                                    <Fragment key={g.key}>
+                                        {g.label && (
+                                            <tr className="bg-slate-100/70">
+                                                <td colSpan={7} className="px-4 py-1.5">
+                                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{g.label}</span>
+                                                    <span className="text-[11px] text-slate-400 ml-2">({g.items.length} รายการ)</span>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {g.items.map(renderRow)}
+                                    </Fragment>
+                                ))}
                             </tbody>
                         </table>
                     </div>

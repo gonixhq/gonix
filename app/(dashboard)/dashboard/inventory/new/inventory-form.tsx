@@ -402,9 +402,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             // สลับเป็นของฉีด → หน่วยนับตามหน่วยความจุ (u/cc/shot) อัตโนมัติ
                             if (v === "injectable_vial" && !unit) setUnit(capacityUnitLabel);
                         }} className={selectCls}>
-                            <option value="injectable_vial">💉 เวชภัณฑ์ฉีด — เปิดขวดแล้วแบ่งใช้ (Botox/Filler/HIFU) · track lot</option>
-                            <option value="unit_piece">📦 นับชิ้น — ตัดทีละชิ้นตอนใช้ (ยาเม็ด/อุปกรณ์)</option>
-                            <option value="consumable_periodic">🧴 วัสดุสิ้นเปลือง — ไม่ตัดต่อเคส นับเป็นรอบ (สำลี/แอลกอฮอล์)</option>
+                            <option value="injectable_vial">เวชภัณฑ์ฉีด — เปิดขวดแล้วแบ่งใช้ (Botox/Filler/HIFU) · track lot</option>
+                            <option value="unit_piece">นับชิ้น — ตัดทีละชิ้นตอนใช้ (ยาเม็ด/อุปกรณ์)</option>
+                            <option value="consumable_periodic">วัสดุสิ้นเปลือง — ไม่ตัดต่อเคส นับเป็นรอบ (สำลี/แอลกอฮอล์)</option>
                         </select>
                     </FieldRow>
 
@@ -442,9 +442,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </FieldRow>
                             <div className="col-span-2 text-[11px] text-slate-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 space-y-1">
                                 {unitsPerPack && Number(unitsPerPack) > 0 && (
-                                    <div>📦 1 {purchaseUnit || "ขวด"} = <b>{Number(unitsPerPack).toLocaleString()} {capacityUnitLabel}</b> · ตัดสต๊อก/ขายเป็น <b>{capacityUnitLabel}</b> (รับเข้า 1 {purchaseUnit || "ขวด"} ระบบบวก {Number(unitsPerPack).toLocaleString()} {capacityUnitLabel} ให้เอง)</div>
+                                    <div>1 {purchaseUnit || "ขวด"} = <b>{Number(unitsPerPack).toLocaleString()} {capacityUnitLabel}</b> · ตัดสต๊อก/ขายเป็น <b>{capacityUnitLabel}</b> (รับเข้า 1 {purchaseUnit || "ขวด"} ระบบบวก {Number(unitsPerPack).toLocaleString()} {capacityUnitLabel} ให้เอง)</div>
                                 )}
-                                <div>💡 เลข lot + วันหมดอายุจะ<b>บังคับกรอกตอนรับเข้าสต๊อก</b> (ขวดหลายขนาดระบุความจุต่อล็อตได้)</div>
+                                <div>เลข lot + วันหมดอายุจะ<b>บังคับกรอกตอนรับเข้าสต๊อก</b> (ขวดหลายขนาดระบุความจุต่อล็อตได้)</div>
                             </div>
                         </>
                     )}
@@ -479,7 +479,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                                 </select>
                             </FieldRow>
                             <div className="col-span-2 text-[11px] text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                                🧴 ไม่ตัดสต๊อกต่อเคส — นับจริงเป็นรอบที่หน้า &quot;นับสต๊อก&quot; (Stock Count)
+                                ไม่ตัดสต๊อกต่อเคส — นับจริงเป็นรอบที่หน้า &quot;นับสต๊อก&quot; (Stock Count)
                             </div>
                         </>
                     )}

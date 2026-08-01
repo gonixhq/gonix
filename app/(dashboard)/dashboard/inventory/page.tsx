@@ -12,7 +12,7 @@ export default async function InventoryPage() {
     const [{ data: items }, expiring] = await Promise.all([
         supabase
             .from("inventory")
-            .select("id, item_code, item_name, generic_name, category, segment, dosage_form, strength, unit, stock_qty, min_stock, cost_price, sell_price, is_active, expiry_date")
+            .select("id, item_code, item_name, generic_name, category, segment, deduction_type, dosage_form, strength, unit, stock_qty, min_stock, cost_price, sell_price, is_active, expiry_date")
             .order("item_name", { ascending: true }),
         getExpiringSoon(30),
     ]);
