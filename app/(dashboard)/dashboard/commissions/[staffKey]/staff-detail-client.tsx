@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
     ChevronLeft, ChevronRight, Printer, Calendar, FileText,
-    CheckCircle, Wallet, Stethoscope, Heart, User, Lock, Unlock,
+    CheckCircle, Wallet, Stethoscope, Heart, User, Lock, Unlock, Download,
 } from "lucide-react";
 import type { CommissionEntry } from "@/lib/actions/commissions";
 import { approveCommission, unapproveCommission } from "@/lib/actions/commissions";
@@ -104,6 +104,18 @@ export default function StaffDetailClient({
         byDate[e.invoice_date].push(e);
     });
 
+    function exportCsv() {
+        const headers = ["วันที่", "เลขใบเสร็จ", "เคส(VN)", "ลูกค้า", "รายการ", "จำนวน", "DF/หน่วย", "ยอดขาย", "ค่ามือ"];
+        const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+        const rows = entries.map(e => [e.invoice_date, e.inv_id, e.vn || "", e.patient_name || "", e.item_name, e.qty, e.df_rate, e.sale_amount ?? "", e.commission_amount]);
+        const csv = "﻿" + [headers, ...rows, [], ["", "", "", "", "", "", "", "รวม", total]].map(r => r.map(esc).join(",")).join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `ค่ามือ-${staffName}-${month}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    }
+
     return (
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
             {/* Sub-header */}
@@ -127,6 +139,11 @@ export default function StaffDetailClient({
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     </Link>
+                    {entries.length > 0 && (
+                        <button onClick={exportCsv} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                            <Download className="h-4 w-4" /> Excel
+                        </button>
+                    )}
                     <Link href={`/print/commissions/${month}/${staffId}-${role}`} target="_blank">
                         <Button size="sm" className="rounded-lg h-9 gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white">
                             <Printer className="h-4 w-4" /> พิมพ์ PDF

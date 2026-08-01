@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
     Wallet, Calendar, Printer, CheckCircle, Loader2, X, FileText,
-    User, Stethoscope, Heart, ChevronLeft, ChevronRight, Trash2,
+    User, Stethoscope, Heart, ChevronLeft, ChevronRight, Trash2, Download,
 } from "lucide-react";
 import { recordCommissionPayout, deleteCommissionPayout, type StaffCommissionSummary } from "@/lib/actions/commissions";
 import RewardsTabs from "@/components/layout/rewards-tabs";
@@ -64,6 +64,18 @@ export default function CommissionsClient({
     const totalAll = commissions.reduce((s, c) => s + c.total_amount, 0);
     const totalPaid = commissions.filter(c => c.is_paid).reduce((s, c) => s + (c.paid_amount || 0), 0);
     const totalUnpaid = commissions.filter(c => !c.is_paid).reduce((s, c) => s + c.total_amount, 0);
+
+    function exportCsv() {
+        const headers = ["งวด", "พนักงาน", "บทบาท", "จำนวนรายการ", "ยอดค่ามือ", "อนุมัติ", "จ่ายแล้ว"];
+        const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+        const rows = commissions.map(c => [month, c.staff_name, ROLE_LABEL[c.role] || c.role, c.entries_count, c.total_amount, c.is_approved ? "อนุมัติแล้ว" : "", c.is_paid ? "จ่ายแล้ว" : ""]);
+        const csv = "﻿" + [headers, ...rows, [], ["", "", "", "", "รวม", totalAll]].map(r => r.map(esc).join(",")).join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `ค่ามือ-${month}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    }
     const byRole = commissions.reduce<Record<string, number>>((acc, c) => {
         acc[c.role] = (acc[c.role] || 0) + c.total_amount;
         return acc;
@@ -87,8 +99,19 @@ export default function CommissionsClient({
                     </div>
                 </div>
 
-                {/* Month nav */}
-                <div className="flex items-center gap-1.5">
+                {/* Month nav + export */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {commissions.length > 0 && (
+                        <>
+                            <button onClick={exportCsv} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                                <Download className="h-4 w-4" /> Excel
+                            </button>
+                            <Link href={`/print/commissions/${month}`} target="_blank" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50">
+                                <Printer className="h-4 w-4" /> PDF รวม
+                            </Link>
+                            <span className="w-px h-6 bg-slate-200 mx-0.5" />
+                        </>
+                    )}
                     <Link href={`/dashboard/commissions?month=${shiftMonth(month, -1)}`}>
                         <Button variant="outline" size="sm" className="rounded-lg h-9 w-9 p-0">
                             <ChevronLeft className="h-4 w-4" />
