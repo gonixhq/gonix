@@ -523,7 +523,7 @@ export async function purchasePackage(input: PurchasePackageInput) {
         let invoiceId = input.invoice_id || null;
         if (!invoiceId) {
             const newInvId = `INV-${Date.now().toString().slice(-6)}-${input.hn.slice(-4)}`;
-            // ⚠️ ขายคอสตรงยัง "ไม่รองรับออกย้อนหลัง" (เฟสนี้ทำเฉพาะ checkout ห้องยา)
+            // ขายคอสตรงยัง "ไม่รองรับออกย้อนหลัง" (เฟสนี้ทำเฉพาะ checkout ห้องยา)
             //    → bill_date = invoice_date = วันนี้เสมอ (ตั้งชัดเจน ไม่ปล่อยว่าง)
             const pkgToday = bangkokDate();
             const { error: invErr } = await supabase.from("invoice_headers").insert({

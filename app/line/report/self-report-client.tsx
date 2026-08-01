@@ -10,9 +10,9 @@ import type { Severity } from "@/lib/actions/follow-up";
 declare global { interface Window { liff: any } }
 
 const OPTIONS: { key: Severity; label: string; desc: string; cls: string }[] = [
-    { key: "green", label: "ปกติดี 🟢", desc: "ไม่มีอาการผิดปกติ", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
-    { key: "yellow", label: "มีอาการเล็กน้อย 🟡", desc: "บวม แดง ปวดพอทน", cls: "border-amber-300 bg-amber-50 text-amber-700" },
-    { key: "red", label: "อาการรุนแรง 🔴", desc: "ปวดมาก บวมมาก แพ้ยา", cls: "border-rose-300 bg-rose-50 text-rose-700" },
+    { key: "green", label: "ปกติดี ", desc: "ไม่มีอาการผิดปกติ", cls: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+    { key: "yellow", label: "มีอาการเล็กน้อย ", desc: "บวม แดง ปวดพอทน", cls: "border-amber-300 bg-amber-50 text-amber-700" },
+    { key: "red", label: "อาการรุนแรง ", desc: "ปวดมาก บวมมาก แพ้ยา", cls: "border-rose-300 bg-rose-50 text-rose-700" },
 ];
 
 export default function SelfReportClient({ liffId, clinicId }: { liffId: string; clinicId: string }) {
@@ -74,7 +74,7 @@ export default function SelfReportClient({ liffId, clinicId }: { liffId: string;
                                     </p>
                                     {clinicPhone && (
                                         <a href={`tel:${clinicPhone}`} className="block w-full h-12 rounded-xl bg-rose-600 text-white font-bold leading-[3rem]">
-                                            📞 โทรหาคลินิก {clinicPhone}
+                                            โทรหาคลินิก {clinicPhone}
                                         </a>
                                     )}
                                     <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl border border-slate-300 text-slate-600 font-bold mt-1">ปิดหน้าต่าง</button>
@@ -83,7 +83,7 @@ export default function SelfReportClient({ liffId, clinicId }: { liffId: string;
                                 <div className="text-center space-y-3">
                                     <CheckCircle2 className="h-14 w-14 text-emerald-500 mx-auto" />
                                     <h1 className="text-lg font-black text-slate-800">ส่งข้อมูลแล้ว</h1>
-                                    <p className="text-sm text-slate-500">คลินิกได้รับอาการของคุณแล้ว {sev !== "green" ? "ทีมงานจะติดต่อกลับโดยเร็วค่ะ" : "ขอบคุณค่ะ 🙏"}</p>
+                                    <p className="text-sm text-slate-500">คลินิกได้รับอาการของคุณแล้ว {sev !== "green" ? "ทีมงานจะติดต่อกลับโดยเร็วค่ะ" : "ขอบคุณค่ะ "}</p>
                                     <button onClick={() => window.liff?.closeWindow?.()} className="w-full h-11 rounded-xl bg-slate-800 text-white font-bold mt-2">ปิดหน้าต่าง</button>
                                 </div>
                             )

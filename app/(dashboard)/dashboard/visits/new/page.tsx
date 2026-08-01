@@ -292,7 +292,7 @@ export default function NewVisitPage() {
                                     <div className="flex items-start gap-2 text-sm">
                                         <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                                         <div>
-                                            <span className="font-bold text-red-700">⚠ แพ้: </span>
+                                            <span className="font-bold text-red-700">แพ้: </span>
                                             <span className="text-red-800 font-semibold">{allergyText}</span>
                                         </div>
                                     </div>
@@ -369,7 +369,7 @@ export default function NewVisitPage() {
                         <input value={caseReferralCode} onChange={e => setCaseReferralCode(e.target.value.toUpperCase())}
                             placeholder="รหัสลูกค้าแนะนำ (RFxxxxx)" className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm mt-2 font-mono focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
                     )}
-                    {!caseSource && <p className="text-[11px] text-rose-500 mt-1.5">⚠ ต้องเลือกที่มาของเคสก่อนเปิด visit</p>}
+                    {!caseSource && <p className="text-[11px] text-rose-500 mt-1.5">ต้องเลือกที่มาของเคสก่อนเปิด visit</p>}
                 </div>
             </div>
 
@@ -384,7 +384,7 @@ export default function NewVisitPage() {
                     rows={2}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none" />
                 <p className="text-[11px] text-slate-500">
-                    💡 พยาบาลจะซักประวัติเต็มในขั้นตอนต่อไป
+                    พยาบาลจะซักประวัติเต็มในขั้นตอนต่อไป
                 </p>
             </div>
 

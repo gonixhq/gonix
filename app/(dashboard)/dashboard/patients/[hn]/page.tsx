@@ -263,7 +263,7 @@ export default async function PatientDetailPage({
                         <AlertTriangle className="h-5 w-5 text-red-800" />
                     </div>
                     <div className="flex-1">
-                        <div className="text-sm font-bold text-red-900 mb-1">🚫 ผู้ป่วยถูกระงับการเข้ารับบริการ</div>
+                        <div className="text-sm font-bold text-red-900 mb-1">ผู้ป่วยถูกระงับการเข้ารับบริการ</div>
                         {patient.block_reason && (
                             <div className="text-sm text-red-800">เหตุผล: {patient.block_reason}</div>
                         )}

@@ -85,7 +85,7 @@ export async function submitScheduleForApproval(month: string) {
 
     await supabase.from("schedule_approval_log").insert({ clinic_id: clinicId, period_month: month, action: "submit", actor_id: userId, actor_name: name });
     // แจ้งเตือน owner ทาง LINE ว่ามีตารางเวรรออนุมัติ (best-effort)
-    await notifyOwners(supabase, clinicId, `🗓️ มีตารางเวรเดือน ${month} รออนุมัติ (${count} เวร) จาก ${name || "พนักงาน"} — เปิดระบบเพื่ออนุมัติ`);
+    await notifyOwners(supabase, clinicId, `มีตารางเวรเดือน ${month} รออนุมัติ (${count} เวร) จาก ${name || "พนักงาน"} — เปิดระบบเพื่ออนุมัติ`);
     revalidatePath("/dashboard/doctor-schedule");
     return { success: true, count };
 }
@@ -108,8 +108,8 @@ export async function decideSchedulePeriod(month: string, approve: boolean, note
     // แจ้งเตือนผู้ส่ง (best-effort)
     if (cur.submitted_by) {
         await notifyProfileIds(supabase, [cur.submitted_by], approve
-            ? `✅ ตารางเวรเดือน ${month} ได้รับการอนุมัติแล้ว`
-            : `❌ ตารางเวรเดือน ${month} ถูกปฏิเสธ${note ? ` — เหตุผล: ${note}` : ""} กรุณาแก้ไขและส่งใหม่`);
+            ? `ตารางเวรเดือน ${month} ได้รับการอนุมัติแล้ว`
+            : `ตารางเวรเดือน ${month} ถูกปฏิเสธ${note ? ` — เหตุผล: ${note}` : ""} กรุณาแก้ไขและส่งใหม่`);
     }
     revalidatePath("/dashboard/doctor-schedule");
     return { success: true };

@@ -716,7 +716,7 @@ export default function CheckoutForm({
                                             </td>
                                             <td className="px-3 py-2 text-slate-800 font-medium">
                                                 {it.item_name}
-                                                {fieldsLocked && <span className="ml-1.5 text-[10px] text-slate-400 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ">🔒</span>}
+                                                {fieldsLocked && <span className="ml-1.5 text-[10px] text-slate-400 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
                                             </td>
                                             <td className="px-1 py-1">
                                                 {fieldsLocked ? (
@@ -1002,7 +1002,7 @@ export default function CheckoutForm({
 
                             {isDeposit && (
                                 <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
-                                    <span className="text-base leading-none">⚠</span>
+                                    <span className="text-base leading-none"></span>
                                     <span><strong>มัดจำ</strong> — ค้างชำระ <strong>฿{outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> · ใบเสร็จจะมี status <strong>&ldquo;ค้างชำระ&rdquo;</strong> รับเพิ่มได้ที่หน้าการเงิน</span>
                                 </div>
                             )}

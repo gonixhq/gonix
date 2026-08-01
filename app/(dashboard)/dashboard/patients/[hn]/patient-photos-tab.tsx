@@ -125,7 +125,7 @@ export default function PatientPhotosTab({ hn, visits, clinicName, consent = fal
                             {consent ? "ได้รับความยินยอมให้ใช้ภาพแล้ว" : "ยังไม่ได้รับความยินยอมให้ใช้ภาพ"}
                         </div>
                         <div className="text-[11px] text-slate-500">
-                            {consent ? "นำภาพออก/ดาวน์โหลดได้ (มีบันทึกใน Log)" : "🔒 การนำภาพออก/ดาวน์โหลดถูกล็อกเพื่อ PDPA"}
+                            {consent ? "นำภาพออก/ดาวน์โหลดได้ (มีบันทึกใน Log)" : "การนำภาพออก/ดาวน์โหลดถูกล็อกเพื่อ PDPA"}
                         </div>
                     </div>
                 </div>

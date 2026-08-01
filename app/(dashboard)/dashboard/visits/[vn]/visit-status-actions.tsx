@@ -95,7 +95,7 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
     }
 
     const nextStatus = hasDrugs ? "waiting_medicine" : "waiting_payment";
-    const nextLabel = hasDrugs ? "รอรับยา 💊" : "รอชำระเงิน 💳";
+    const nextLabel = hasDrugs ? "รอรับยา " : "รอชำระเงิน ";
 
     async function handleConfirm() {
         setLoading(true);

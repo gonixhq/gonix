@@ -132,7 +132,7 @@ export function VitalsTrend({ vitals }: { vitals: VitalRow[] }) {
                     lines={[bmiLine]} first={bmiFL.f} last={bmiFL.l} invert
                 />
             </div>
-            <p className="text-[11px] text-slate-400 mt-3">🔴 BP ตัวบน · 🔵 BP ตัวล่าง — เรียงจากเก่า→ใหม่ (ซ้าย→ขวา)</p>
+            <p className="text-[11px] text-slate-400 mt-3">BP ตัวบน · BP ตัวล่าง — เรียงจากเก่า→ใหม่ (ซ้าย→ขวา)</p>
         </div>
     );
 }

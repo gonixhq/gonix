@@ -398,7 +398,7 @@ function ResultScreen({ code, expiresAt, clinicId, L, lang }: {
                 </div>
             )}
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-left">
-                <p className="text-xs text-amber-800 leading-relaxed"><b>⏱ {L.expiryNote(expThai)}</b><br />{L.keepNote}</p>
+                <p className="text-xs text-amber-800 leading-relaxed"><b>{L.expiryNote(expThai)}</b><br />{L.keepNote}</p>
             </div>
             <p className="text-[11px] text-slate-400">{L.smsNote}</p>
         </div>

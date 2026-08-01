@@ -198,7 +198,7 @@ export default function SettingsPage() {
                                     {codeCopied ? <><CheckCircle className="h-4 w-4 text-emerald-600" /> คัดลอกแล้ว</> : <><Copy className="h-4 w-4" /> คัดลอกรหัส</>}
                                 </Button>
                                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                                    📌 ส่งรหัสนี้ให้พนักงานใหม่กรอกตอน signup เพื่อเข้าเป็นพนักงานคลินิก
+                                    ส่งรหัสนี้ให้พนักงานใหม่กรอกตอน signup เพื่อเข้าเป็นพนักงานคลินิก
                                 </p>
                             </div>
                         </div>
@@ -213,14 +213,14 @@ export default function SettingsPage() {
                                     onClick={() => setLanguage("th")}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all ${language === "th" ? "bg-blue-50 border-blue-300 text-blue-800 ring-2 ring-blue-500/20" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}
                                 >
-                                    <span className="text-2xl mb-1">🇹🇭</span>
+                                    <span className="text-2xl mb-1"></span>
                                     <span className="text-sm font-bold">ภาษาไทย</span>
                                 </button>
                                 <button
                                     onClick={() => setLanguage("en")}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all ${language === "en" ? "bg-blue-50 border-blue-300 text-blue-800 ring-2 ring-blue-500/20" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"}`}
                                 >
-                                    <span className="text-2xl mb-1">🇬🇧</span>
+                                    <span className="text-2xl mb-1"></span>
                                     <span className="text-sm font-bold">English</span>
                                 </button>
                             </div>

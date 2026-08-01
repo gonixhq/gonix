@@ -249,7 +249,7 @@ function ConfirmUseModal({
                             </span>
                         </div>
                     </div>
-                    <p className="mt-2 text-[11px] text-amber-600">⚠ ตัดแล้วย้อนกลับยาก — ตรวจสอบจำนวนครั้งให้ถูกต้อง</p>
+                    <p className="mt-2 text-[11px] text-amber-600">ตัดแล้วย้อนกลับยาก — ตรวจสอบจำนวนครั้งให้ถูกต้อง</p>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>
@@ -437,7 +437,7 @@ function SellPackageModal({
 
                 <div className="p-5 border-t border-slate-100 flex items-center justify-between gap-2">
                     <p className="text-xs text-slate-500">
-                        ⚠ การขายนี้ยังไม่ผ่านใบเสร็จ <br />
+                        การขายนี้ยังไม่ผ่านใบเสร็จ <br />
                         <span className="text-[10px]">ต้องลงรายการชำระแยกที่ห้องการเงิน</span>
                     </p>
                     <div className="flex items-center gap-2">

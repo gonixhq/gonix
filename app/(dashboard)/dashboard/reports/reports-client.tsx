@@ -300,16 +300,16 @@ export default function ReportsClient({
     const revDelta = pctChange(summary.totalRevenue, prevSummary.totalRevenue);
     const topItem = summary.topItems[0];
     const execText = [
-        `📊 สรุปกิจการ ${formatDateThai(startDate)}–${formatDateThai(endDate)}${seg !== "all" ? ` · ${SEG_LABEL[seg]}` : ""}`,
+        `สรุปกิจการ ${formatDateThai(startDate)}–${formatDateThai(endDate)}${seg !== "all" ? ` · ${SEG_LABEL[seg]}` : ""}`,
         ``,
-        `💰 รายรับ: ฿${fmt(summary.totalRevenue)}${revDelta !== null ? ` (${revDelta >= 0 ? "▲" : "▼"}${Math.abs(revDelta)}% เทียบช่วงก่อน)` : ""}`,
-        `🧾 ใบเสร็จ: ${fmt(summary.invoiceCount)} ใบ · Visit: ${fmt(summary.totalVisits)}`,
-        `🆕 ลูกค้าใหม่: ${fmt(summary.newPatients)} ราย`,
-        `⏳ ค้างชำระ: ฿${fmt(summary.outstanding)}`,
-        topItem ? `🏆 ขายดีสุด: ${topItem.name} (฿${fmt(topItem.amount)})` : ``,
-        goal.monthTarget > 0 ? `🎯 เป้าเดือนนี้: ทำได้ ${goal.monthPct}% (฿${fmt(goal.monthActual)}/฿${fmt(goal.monthTarget)})` : ``,
-        churnCustomers.length > 0 ? `⚠️ ลูกค้าเสี่ยงหายที่ควรติดตาม: ${churnCustomers.length} ราย` : ``,
-        `🔮 คาดการณ์ ${forecast.nextMonthLabel}: ~฿${fmt(forecast.predicted)}`,
+        `รายรับ: ฿${fmt(summary.totalRevenue)}${revDelta !== null ? ` (${revDelta >= 0 ? "▲" : "▼"}${Math.abs(revDelta)}% เทียบช่วงก่อน)` : ""}`,
+        `ใบเสร็จ: ${fmt(summary.invoiceCount)} ใบ · Visit: ${fmt(summary.totalVisits)}`,
+        `ลูกค้าใหม่: ${fmt(summary.newPatients)} ราย`,
+        `ค้างชำระ: ฿${fmt(summary.outstanding)}`,
+        topItem ? `ขายดีสุด: ${topItem.name} (฿${fmt(topItem.amount)})` : ``,
+        goal.monthTarget > 0 ? `เป้าเดือนนี้: ทำได้ ${goal.monthPct}% (฿${fmt(goal.monthActual)}/฿${fmt(goal.monthTarget)})` : ``,
+        churnCustomers.length > 0 ? `ลูกค้าเสี่ยงหายที่ควรติดตาม: ${churnCustomers.length} ราย` : ``,
+        `คาดการณ์ ${forecast.nextMonthLabel}: ~฿${fmt(forecast.predicted)}`,
     ].filter(Boolean).join("\n");
 
     function sendExec() {
@@ -1293,7 +1293,7 @@ export default function ReportsClient({
                             <span className="text-xs text-slate-400">{churnCustomers.length} ราย</span>
                             {churnCustomers.length > 0 && <button onClick={exportChurn} className="ml-auto text-xs font-bold text-[#2B54F0] inline-flex items-center gap-1"><Download className="h-3.5 w-3.5" /> Export</button>}
                         </div>
-                        {churnCustomers.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีลูกค้ากลุ่มเสี่ยงหาย 👍</p> : (
+                        {churnCustomers.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีลูกค้ากลุ่มเสี่ยงหาย </p> : (
                             <div className="overflow-x-auto max-h-80">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60 sticky top-0"><tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

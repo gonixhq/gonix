@@ -650,7 +650,7 @@ export default function DoctorScheduleClient({
                             </div>
                         )}
                         <div className="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-400">
-                            {selectMode ? "💡 คลิกช่องวันเพื่อเลือก/ยกเลิก แล้วกดเพิ่มหรือลบเวรในแถบด้านบน" : "💡 คลิกที่ช่องวันในปฏิทินเพื่อเพิ่มหรือแก้เวรของวันนั้น"}
+                            {selectMode ? "คลิกช่องวันเพื่อเลือก/ยกเลิก แล้วกดเพิ่มหรือลบเวรในแถบด้านบน" : "คลิกที่ช่องวันในปฏิทินเพื่อเพิ่มหรือแก้เวรของวันนั้น"}
                         </div>
                     </div>
 
@@ -739,7 +739,7 @@ export default function DoctorScheduleClient({
                             })}
                         </div>
                     )}
-                    <p className="text-[11px] text-slate-400">💡 คลิกที่วันเพื่อเข้าไปเพิ่ม/แก้เวรของวันนั้น</p>
+                    <p className="text-[11px] text-slate-400">คลิกที่วันเพื่อเข้าไปเพิ่ม/แก้เวรของวันนั้น</p>
                 </>
             )}
 

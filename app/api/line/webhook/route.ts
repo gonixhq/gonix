@@ -15,10 +15,10 @@ async function tryLinkAffiliate(text: string, userId: string): Promise<boolean> 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = data as any;
     if (error || !r?.ok) {
-        await pushLineText(userId, "❌ รหัสผูกไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่จากคลินิก");
+        await pushLineText(userId, "รหัสผูกไม่ถูกต้องหรือหมดอายุ กรุณาขอรหัสใหม่จากคลินิก");
         return true;
     }
-    await pushLineText(userId, `✅ ผูกบัญชีสำเร็จ\nคุณ ${r.name} จะได้รับแจ้งเตือนสรุปยอดค่าคอมทุกครั้งที่คลินิกปิดยอด 🎉`);
+    await pushLineText(userId, `ผูกบัญชีสำเร็จ\nคุณ ${r.name} จะได้รับแจ้งเตือนสรุปยอดค่าคอมทุกครั้งที่คลินิกปิดยอด `);
     return true;
 }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         if (ev.type === "follow" && ev.source?.userId) {
             await pushLineText(
                 ev.source.userId,
-                `ยินดีต้อนรับ 🌿\nผูกบัญชีเพื่อรับแจ้งเตือนนัดหมาย/ผลตรวจ และดูข้อมูลของคุณ:\nhttps://liff.line.me/${liffId}\n\n(เซลล์ฟรีแลนซ์: พิมพ์รหัสผูก AFF-xxxx ที่ได้รับจากคลินิกเพื่อรับแจ้งยอด)`
+                `ยินดีต้อนรับ \nผูกบัญชีเพื่อรับแจ้งเตือนนัดหมาย/ผลตรวจ และดูข้อมูลของคุณ:\nhttps://liff.line.me/${liffId}\n\n(เซลล์ฟรีแลนซ์: พิมพ์รหัสผูก AFF-xxxx ที่ได้รับจากคลินิกเพื่อรับแจ้งยอด)`
             );
         }
     }

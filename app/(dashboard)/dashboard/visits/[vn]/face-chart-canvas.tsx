@@ -350,7 +350,7 @@ export default function FaceChartCanvas({ vn, initial }: Props) {
 
             {/* Helper text */}
             <p className="text-xs text-slate-500 text-center">
-                💡 Tip: ใช้ stylus/Apple Pencil บน iPad ได้ทันที — ลากนิ้วเพื่อวาด · กดปุ่ม &ldquo;ปักหมุด&rdquo; แล้วแตะบนภาพเพื่อเพิ่มจุด
+                Tip: ใช้ stylus/Apple Pencil บน iPad ได้ทันที — ลากนิ้วเพื่อวาด · กดปุ่ม &ldquo;ปักหมุด&rdquo; แล้วแตะบนภาพเพื่อเพิ่มจุด
             </p>
 
             {pinModal && (

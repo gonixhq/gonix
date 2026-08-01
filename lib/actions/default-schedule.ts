@@ -228,7 +228,7 @@ export async function applyDefaultSchedule(month: string, staffId?: string) {
     const perStaff = new Map<string, number>();
     for (const r of rows) perStaff.set(r.staff_id, (perStaff.get(r.staff_id) || 0) + 1);
     for (const [sid, n] of perStaff) {
-        await notifyStaffIds(supabase, [sid], `📅 ตารางเวรเดือน ${month} ของคุณถูกจัดแล้ว ${n} เวร (เวรประจำ) — ตรวจสอบได้ในระบบ`);
+        await notifyStaffIds(supabase, [sid], `ตารางเวรเดือน ${month} ของคุณถูกจัดแล้ว ${n} เวร (เวรประจำ) — ตรวจสอบได้ในระบบ`);
     }
 
     revalidatePath("/dashboard/doctor-schedule");

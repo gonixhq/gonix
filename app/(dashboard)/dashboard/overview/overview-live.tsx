@@ -108,7 +108,7 @@ export function WaitBadge({ since, thresholdMin = 15 }: { since: string | null; 
             }`}
             title={over ? `รอเกิน ${thresholdMin} นาที` : "เวลารอ"}
         >
-            ⏱ {label}
+            {label}
         </span>
     );
 }

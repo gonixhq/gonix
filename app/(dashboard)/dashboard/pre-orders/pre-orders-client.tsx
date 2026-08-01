@@ -260,7 +260,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
 
                             {dupes && dupes.length > 0 ? (
                                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 space-y-2">
-                                    <div className="text-xs font-bold text-amber-900">⚠️ พบคนไข้เดิมที่ข้อมูลตรงกัน {dupes.length} ราย — ใช่คนเดียวกันไหม?</div>
+                                    <div className="text-xs font-bold text-amber-900">พบคนไข้เดิมที่ข้อมูลตรงกัน {dupes.length} ราย — ใช่คนเดียวกันไหม?</div>
                                     <div className="space-y-1">
                                         {dupes.map((p: PO) => (
                                             <button key={p.hn} type="button" onClick={() => pickPatient(p)}

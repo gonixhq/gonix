@@ -139,7 +139,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     </p>
                     <div className="mt-5 pt-5 border-t border-slate-100">
                         <p className="text-xs text-slate-500">{clinic.clinic_name}</p>
-                        {clinic.phone && <p className="text-xs text-slate-500 mt-1">📞 {clinic.phone}</p>}
+                        {clinic.phone && <p className="text-xs text-slate-500 mt-1">{clinic.phone}</p>}
                     </div>
                 </div>
             </div>

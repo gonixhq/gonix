@@ -90,7 +90,7 @@ export default async function PatientSummaryPrintPage({ params }: { params: Prom
 
                 {/* Allergy */}
                 <div className="sec mb-3">
-                    <div className="text-[14px] font-bold bg-red-100 px-2 py-1 rounded">⚠️ ประวัติการแพ้</div>
+                    <div className="text-[14px] font-bold bg-red-100 px-2 py-1 rounded">ประวัติการแพ้</div>
                     <div className="text-[13px] mt-1 px-2">
                         {allergies.length === 0 && !patient.allergy_summary ? (
                             <span className="text-slate-500">ไม่มีประวัติแพ้</span>

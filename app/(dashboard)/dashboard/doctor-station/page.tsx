@@ -416,7 +416,7 @@ export default async function DoctorStationPage() {
                                         <span className="tabular-nums">{v.visit_time?.slice(0, 5) || "—"} น.</span>
                                         {v.visit_date && v.visit_date !== today && (
                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[10px]">
-                                                ⌚ ค้างจากวันก่อน
+                                                ค้างจากวันก่อน
                                             </span>
                                         )}
                                     </div>

@@ -32,7 +32,7 @@ export default async function AnonCasePage({ params }: { params: Promise<{ id: s
         return (
             <div className="max-w-md mx-auto text-center py-20 px-4">
                 <div className="h-14 w-14 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">🔒</span>
+                    <span className="text-2xl"></span>
                 </div>
                 <h1 className="text-lg font-bold text-slate-800 mb-1">เคสนี้ยังไม่ถูกเปิด</h1>
                 <p className="text-sm text-slate-500 mb-4">

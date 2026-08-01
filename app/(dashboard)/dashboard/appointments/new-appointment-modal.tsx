@@ -231,12 +231,12 @@ export default function NewAppointmentModal({ onClose, doctors }: Props) {
                             </select>
                             {doctorNotOnDuty && (
                                 <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                                    ⚠️ แพทย์ท่านนี้ไม่ได้ลงเวรวันที่ {apptDate} — นัดได้แต่โปรดตรวจสอบ
+                                    แพทย์ท่านนี้ไม่ได้ลงเวรวันที่ {apptDate} — นัดได้แต่โปรดตรวจสอบ
                                 </p>
                             )}
                             {timeOutsideShift && (
                                 <p className="text-[11px] text-amber-600 flex items-center gap-1">
-                                    ⚠️ เวลานัด {apptStart} อยู่นอกช่วงเวร ({selectedOnDuty?.earliest}–{selectedOnDuty?.latest})
+                                    เวลานัด {apptStart} อยู่นอกช่วงเวร ({selectedOnDuty?.earliest}–{selectedOnDuty?.latest})
                                 </p>
                             )}
                         </div>

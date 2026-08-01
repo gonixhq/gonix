@@ -123,7 +123,7 @@ export default function PendingApprovalClient({
                     {!isRejected && (
                         <div className="rounded-xl bg-blue-50/60 border border-blue-100/60 p-4">
                             <p className="text-xs text-blue-900/70 leading-relaxed">
-                                💡 <strong>ติดต่อแอดมิน:</strong> ถ้ารอนาน กรุณาแจ้งเจ้าของคลินิก/แอดมิน
+                                <strong>ติดต่อแอดมิน:</strong> ถ้ารอนาน กรุณาแจ้งเจ้าของคลินิก/แอดมิน
                                 ว่าคุณส่งคำขอด้วยอีเมล <strong>{email}</strong> เพื่อให้รีบตรวจสอบ
                             </p>
                         </div>

@@ -235,7 +235,7 @@ export default async function PatientCardPrintPage({
                             <Row label="กรุ๊ปเลือด" value={patient.blood_group || "—"} mono />
                             <div className="flex items-baseline gap-2 leading-snug">
                                 <span className={`shrink-0 w-24 ${chronicText ? "text-red-700 font-bold" : "text-slate-600"}`}>
-                                    {chronicText ? "⚠ โรคประจำตัว" : "โรคประจำตัว"}
+                                    {chronicText ? "โรคประจำตัว" : "โรคประจำตัว"}
                                 </span>
                                 <span className={`flex-1 ${chronicText ? "text-red-700 font-bold" : "font-medium"}`}>
                                     {chronicText || "ไม่มี"}
@@ -243,7 +243,7 @@ export default async function PatientCardPrintPage({
                             </div>
                             <div className="flex items-baseline gap-2 leading-snug">
                                 <span className={`shrink-0 w-24 ${allergyText ? "text-red-700 font-bold" : "text-slate-600"}`}>
-                                    {allergyText ? "⚠ ประวัติแพ้" : "ประวัติแพ้"}
+                                    {allergyText ? "ประวัติแพ้" : "ประวัติแพ้"}
                                 </span>
                                 <span className={`flex-1 ${allergyText ? "text-red-700 font-bold" : "font-medium"}`}>
                                     {allergyText || "ไม่มี"}

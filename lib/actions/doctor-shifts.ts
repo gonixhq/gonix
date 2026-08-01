@@ -303,7 +303,7 @@ export async function addShift(input: {
     if (error) throw error;
 
     // แจ้งเตือนพนักงานทาง LINE (best-effort)
-    await notifyStaffIds(supabase, [input.doctor_staff_id], `📅 มีเวรใหม่ ${input.shift_date} เวลา ${input.start_time}–${input.end_time}${input.note ? ` (${input.note})` : ""}`);
+    await notifyStaffIds(supabase, [input.doctor_staff_id], `มีเวรใหม่ ${input.shift_date} เวลา ${input.start_time}–${input.end_time}${input.note ? ` (${input.note})` : ""}`);
 
     revalidatePath("/dashboard/doctor-schedule");
     revalidatePath("/dashboard/overview");
@@ -360,7 +360,7 @@ export async function addShiftBulk(input: {
         const { error } = await supabase.from("doctor_shifts").insert(rows);
         if (error) throw error;
         // แจ้งเตือนพนักงานทาง LINE (best-effort)
-        await notifyStaffIds(supabase, [input.doctor_staff_id], `📅 มีเวรใหม่ ${rows.length} วัน เวลา ${input.start_time}–${input.end_time} (${useDates[0]}${rows.length > 1 ? ` … ${useDates[useDates.length - 1]}` : ""})`);
+        await notifyStaffIds(supabase, [input.doctor_staff_id], `มีเวรใหม่ ${rows.length} วัน เวลา ${input.start_time}–${input.end_time} (${useDates[0]}${rows.length > 1 ? ` … ${useDates[useDates.length - 1]}` : ""})`);
     }
 
     revalidatePath("/dashboard/doctor-schedule");

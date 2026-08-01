@@ -250,7 +250,7 @@ function CompareSlider({ before, after }: { before: AestheticPhoto; after: Aesth
                 <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-emerald-500 text-white text-xs font-bold shadow-md">AFTER</div>
             </div>
             <p className="text-xs text-center text-slate-500">
-                💡 ลาก slider ตรงกลางเพื่อเปรียบเทียบ — แสดง Before (ซ้าย) vs After (ขวา)
+                ลาก slider ตรงกลางเพื่อเปรียบเทียบ — แสดง Before (ซ้าย) vs After (ขวา)
             </p>
         </div>
     );

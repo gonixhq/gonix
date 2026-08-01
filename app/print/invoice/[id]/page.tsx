@@ -323,13 +323,13 @@ function ReceiptCopy({
                     )}
                     {refunds.length > 0 && (
                         <div className="text-[9.5px] text-rose-700">
-                            <span className="font-semibold">⚠ คืนเงิน: </span>
+                            <span className="font-semibold">คืนเงิน: </span>
                             ฿{Math.abs(refunds.reduce((s, r) => s + Number(r.amount), 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                     )}
                     {balance > 0 && (
                         <div className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 inline-block">
-                            ⚠ ค้างชำระ ฿{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            ค้างชำระ ฿{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                     )}
                 </div>
@@ -452,7 +452,7 @@ export default async function InvoicePrintPage({
                     className="px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold flex items-center gap-2"
                     id="print-now-btn"
                 >
-                    🖨 พิมพ์ / บันทึก PDF
+                    พิมพ์ / บันทึก PDF
                 </button>
             </div>
 
@@ -495,7 +495,7 @@ export default async function InvoicePrintPage({
                     position: relative;
                 }
                 .receipt-cut-line::before {
-                    content: "✂ ตัดตามรอยปะ";
+                    content: "ตัดตามรอยปะ";
                     position: absolute;
                     top: -8px;
                     left: 50%;

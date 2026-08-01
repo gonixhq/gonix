@@ -294,7 +294,7 @@ export interface DiscountDaySummary {
 /**
  * สรุปส่วนลดของวัน (ใช้ในหน้าปิดยอด) + ยอดส่วนลดรายพนักงาน
  *
- * ⚠️ ยึด invoice_headers.discount_amount เป็น "ยอดจริง" (source of truth ของเงินที่ลดไปจริง)
+ * ยึด invoice_headers.discount_amount เป็น "ยอดจริง" (source of truth ของเงินที่ลดไปจริง)
  * แล้วใช้ invoice_discounts มาแยกประเภท/รายพนักงาน — ส่วนที่ breakdown ไม่ครบ
  * (บิลเก่าก่อนระบบ breakdown / ลดโดยไม่ได้ระบุที่มา) จะโผล่เป็น "ไม่ระบุที่มา"
  * เพื่อให้ยอดรวมตรงกับหัวบิลเสมอ ไม่ตกหล่น

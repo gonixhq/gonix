@@ -201,7 +201,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
                 </div>
             )}
 
-            <p className="text-[11px] text-slate-500">💡 คลิกสินค้า → กดจำนวน → เลือกจุด → เพิ่ม (Enter ก็ได้) · สินค้าค้างไว้ ฉีดจุดถัดไปต่อได้เลย</p>
+            <p className="text-[11px] text-slate-500">คลิกสินค้า → กดจำนวน → เลือกจุด → เพิ่ม (Enter ก็ได้) · สินค้าค้างไว้ ฉีดจุดถัดไปต่อได้เลย</p>
             {err && <p className="text-xs text-rose-600">{err}</p>}
         </div>
     );

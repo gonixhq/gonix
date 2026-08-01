@@ -46,7 +46,7 @@ export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditR
             {canEditReview && <ReviewUrlSetter initial={reviewUrl} />}
 
             {tasks.length === 0 ? (
-                <div className="gonix-card-premium p-10 text-center text-slate-400">ไม่มีคิวติดตามผล{date === today ? "วันนี้" : "วันนี้"} 🎉</div>
+                <div className="gonix-card-premium p-10 text-center text-slate-400">ไม่มีคิวติดตามผล{date === today ? "วันนี้" : "วันนี้"} </div>
             ) : (
                 <div className="space-y-3">
                     {tasks.map(t => <TaskCard key={t.id} task={t} today={today} reviewUrl={reviewUrl} onChanged={() => router.refresh()} />)}
@@ -69,7 +69,7 @@ function TaskCard({ task, today, reviewUrl, onChanged }: { task: FollowUpTask; t
         start(async () => { await updateFollowUpStatus(task.id, "done", note.trim() || undefined); onChanged(); });
     }
     function copyReview() {
-        const msg = `ขอบคุณที่ไว้วางใจใช้บริการค่ะ 🙏 รบกวนรีวิวให้กำลังใจเราหน่อยนะคะ${reviewUrl ? `\n${reviewUrl}` : ""}`;
+        const msg = `ขอบคุณที่ไว้วางใจใช้บริการค่ะ รบกวนรีวิวให้กำลังใจเราหน่อยนะคะ${reviewUrl ? `\n${reviewUrl}` : ""}`;
         navigator.clipboard.writeText(msg);
         logFollowUpAction(task.id, "review_sent");
         alert("คัดลอกข้อความขอรีวิวแล้ว");

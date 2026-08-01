@@ -142,7 +142,7 @@ export async function updatePatient(hn: string, updates: Record<string, unknown>
 
 /**
  * Delete patient + all related data (cascade).
- * ⚠️ Owner role only. Used for cleanup of test/erroneous records.
+ * Owner role only. Used for cleanup of test/erroneous records.
  */
 export async function deletePatient(hn: string, confirmText: string) {
     const supabase = await createClient();
@@ -202,7 +202,7 @@ export async function deletePatient(hn: string, confirmText: string) {
                 .delete().eq("converted_to_hn", hn);
         } catch {}
 
-        // 🔒 บันทึก HN ลง deleted_hn_log ก่อนลบ (กัน HN ถูก reuse)
+        // บันทึก HN ลง deleted_hn_log ก่อนลบ (กัน HN ถูก reuse)
         try {
             await supabase.from("deleted_hn_log").insert({
                 hn,

@@ -33,9 +33,9 @@ export default async function AffiliateDetailPage({ params, searchParams }: { pa
     const affOptions = affiliates.map(a => ({ id: a.id, name: a.name }));
     const branchName = affiliate.branch_id ? (branches.find(b => b.id === affiliate.branch_id)?.name || null) : null;
     const badgeMeta = quality.badge === "gold"
-        ? { label: "คุณภาพสูง 🥇", cls: "bg-amber-100 text-amber-700 border-amber-300" }
+        ? { label: "คุณภาพสูง ", cls: "bg-amber-100 text-amber-700 border-amber-300" }
         : quality.badge === "silver"
-            ? { label: "คุณภาพดี 🥈", cls: "bg-slate-100 text-slate-600 border-slate-300" }
+            ? { label: "คุณภาพดี ", cls: "bg-slate-100 text-slate-600 border-slate-300" }
             : null;
 
     const wht = Math.round(total * 0.03 * 100) / 100;

@@ -173,7 +173,7 @@ export default function PreRegisterPicker({ open, onClose, onPick }: Props) {
                             </p>
                             {!search && (
                                 <p className="text-xs text-slate-400 mt-2">
-                                    📲 ส่งลิงก์ลงทะเบียนให้ผู้ป่วยกรอกผ่าน LINE OA / เว็บไซต์ก่อนมาถึงคลินิก
+                                    ส่งลิงก์ลงทะเบียนให้ผู้ป่วยกรอกผ่าน LINE OA / เว็บไซต์ก่อนมาถึงคลินิก
                                 </p>
                             )}
                         </div>
@@ -272,7 +272,7 @@ export default function PreRegisterPicker({ open, onClose, onPick }: Props) {
                 {/* Footer */}
                 <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
                     <p className="text-xs text-slate-500">
-                        📲 ส่งลิงก์ <code className="text-blue-700 bg-blue-50 px-1 rounded">/register</code> ให้ผู้ป่วยลงทะเบียนล่วงหน้า
+                        ส่งลิงก์ <code className="text-blue-700 bg-blue-50 px-1 rounded">/register</code> ให้ผู้ป่วยลงทะเบียนล่วงหน้า
                     </p>
                     <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg">ปิด</Button>
                 </div>

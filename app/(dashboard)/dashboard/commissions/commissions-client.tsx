@@ -216,7 +216,7 @@ export default function CommissionsClient({
                                                     </Badge>
                                                 ) : c.is_approved ? (
                                                     <Badge className="border-0 bg-violet-100 text-violet-700 text-[10px] font-bold uppercase">
-                                                        🔒 อนุมัติแล้ว
+                                                        อนุมัติแล้ว
                                                     </Badge>
                                                 ) : (
                                                     <Badge className="border-0 bg-amber-100 text-amber-700 text-[10px] font-bold uppercase">

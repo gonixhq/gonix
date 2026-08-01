@@ -58,7 +58,7 @@ export async function runForgotCheckoutReminders(): Promise<{ reminded: number; 
         const lineId = lineByProf.get(profByStaff.get(id) || "");
         if (!lineId) { skipped++; continue; }
         const end = endByStaff.get(id);
-        const r = await pushLineText(lineId, `⏰ ยังไม่ได้เช็คเอาท์\nคุณเลิกงานตามตารางเวรเวลา ${end} แล้ว แต่ยังไม่ได้กดออกงาน\nกรุณากดออกงานเพื่อบันทึกเวลาทำงานให้ถูกต้อง 🙏`);
+        const r = await pushLineText(lineId, `ยังไม่ได้เช็คเอาท์\nคุณเลิกงานตามตารางเวรเวลา ${end} แล้ว แต่ยังไม่ได้กดออกงาน\nกรุณากดออกงานเพื่อบันทึกเวลาทำงานให้ถูกต้อง `);
         if (r.ok) reminded++; else skipped++;
     }
     return { reminded, skipped };

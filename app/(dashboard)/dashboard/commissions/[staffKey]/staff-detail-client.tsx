@@ -189,7 +189,7 @@ export default function StaffDetailClient({
                         </div>
                         <div className="text-[11px] text-slate-500">
                             {isApproved
-                                ? `อนุมัติเมื่อ ${approvedAt ? new Date(approvedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : "—"}${approvedAmount != null && Math.abs((approvedAmount || 0) - total) > 0.01 ? ` · ⚠ ยอด live ตอนนี้ ฿${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} (ต่างจากที่ล็อก)` : ""}`
+                                ? `อนุมัติเมื่อ ${approvedAt ? new Date(approvedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : "—"}${approvedAmount != null && Math.abs((approvedAmount || 0) - total) > 0.01 ? ` · ยอด live ตอนนี้ ฿${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} (ต่างจากที่ล็อก)` : ""}`
                                 : "อนุมัติเพื่อล็อกยอดก่อนจ่าย — Payroll จะดึงเฉพาะยอดที่อนุมัติ"}
                         </div>
                     </div>

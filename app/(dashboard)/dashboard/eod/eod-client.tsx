@@ -373,7 +373,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
 
                         {/* recon note */}
                         {summary.already_closed ? (
-                            summary.closed_recon?.recon_note && <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">📝 {summary.closed_recon.recon_note}</p>
+                            summary.closed_recon?.recon_note && <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">{summary.closed_recon.recon_note}</p>
                         ) : (overShort != null && Math.abs(overShort) >= 0.01 && (
                             <input value={reconNote} onChange={(e) => setReconNote(e.target.value)}
                                 placeholder="หมายเหตุ (อธิบายเงินขาด/เกิน)"
@@ -483,7 +483,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                 </table>
                             </div>
                         )}
-                        <p className="text-[11px] text-slate-400">💡 เลือก &quot;โอน&quot; แล้วกระทบทีละรายการกับสมุดบัญชี/แอปธนาคาร — ยอดรวมตรงนี้ต้องเท่ากับที่กระทบยอดด้านบน</p>
+                        <p className="text-[11px] text-slate-400">เลือก &quot;โอน&quot; แล้วกระทบทีละรายการกับสมุดบัญชี/แอปธนาคาร — ยอดรวมตรงนี้ต้องเท่ากับที่กระทบยอดด้านบน</p>
                     </div>
                 )}
             </div>

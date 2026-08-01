@@ -12,7 +12,7 @@ export default function PrintTrigger() {
 
     return (
         <div className="no-print mb-4 flex items-center justify-between p-3 bg-slate-100 rounded-lg sticky top-0 z-10">
-            <p className="text-sm text-slate-600">📄 สรุปข้อมูลผู้ป่วย</p>
+            <p className="text-sm text-slate-600">สรุปข้อมูลผู้ป่วย</p>
             <div className="flex gap-2">
                 <button onClick={() => window.history.back()}
                     className="px-4 py-2 text-sm rounded-lg bg-white border border-slate-300 hover:bg-slate-50">
@@ -20,7 +20,7 @@ export default function PrintTrigger() {
                 </button>
                 <button onClick={() => window.print()}
                     className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold">
-                    🖨️ พิมพ์ / บันทึก PDF
+                    พิมพ์ / บันทึก PDF
                 </button>
             </div>
         </div>

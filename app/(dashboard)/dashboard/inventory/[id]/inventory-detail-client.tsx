@@ -139,7 +139,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
     }
 
     function hardDelete() {
-        if (!confirm(`ลบถาวร "${item.item_name}"?\n\n⚠️ ลบออกจากระบบจริง กู้คืนไม่ได้\n(ลบได้เฉพาะสินค้าที่ไม่เคยมีในบิล/ใบสั่งยา/kit)`)) return;
+        if (!confirm(`ลบถาวร "${item.item_name}"?\n\nลบออกจากระบบจริง กู้คืนไม่ได้\n(ลบได้เฉพาะสินค้าที่ไม่เคยมีในบิล/ใบสั่งยา/kit)`)) return;
         setError(null);
         startTransition(async () => {
             const res = await deleteInventoryItem(item.id);
@@ -290,7 +290,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
                                 )}
                                 {item.warning_label && (
                                     <div>
-                                        <div className="text-[11px] text-red-600 uppercase tracking-wider font-bold">⚠ คำเตือน</div>
+                                        <div className="text-[11px] text-red-600 uppercase tracking-wider font-bold">คำเตือน</div>
                                         <div className="text-sm text-red-700 font-semibold">{item.warning_label}</div>
                                     </div>
                                 )}
@@ -958,7 +958,7 @@ function AdjustModal({
                 </div>
 
                 <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                    ⚠ การปรับสต๊อกจะบันทึก audit log — ผู้ตรวจสอบจะดูได้ภายหลัง
+                    การปรับสต๊อกจะบันทึก audit log — ผู้ตรวจสอบจะดูได้ภายหลัง
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

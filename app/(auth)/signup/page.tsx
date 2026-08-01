@@ -162,7 +162,7 @@ export default function SignupPage() {
                             </div>
                             <div className="rounded-xl p-4 text-left" style={{ background: "rgba(0,255,204,0.1)", border: "1px solid rgba(0,255,204,0.25)" }}>
                                 <p className="text-xs text-white/80 leading-relaxed">
-                                    💡 <strong>ขั้นต่อไป:</strong> หากอีเมลของคุณต้องยืนยัน กรุณาเช็คอินบ็อกซ์
+                                    <strong>ขั้นต่อไป:</strong> หากอีเมลของคุณต้องยืนยัน กรุณาเช็คอินบ็อกซ์
                                     และคลิก confirmation link ก่อน เพื่อให้บัญชีพร้อมรับการอนุมัติ
                                 </p>
                             </div>

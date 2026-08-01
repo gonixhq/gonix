@@ -22,7 +22,7 @@ export function QueueFunnel({ buckets }: { buckets: FunnelBucket[] }) {
                     <h2 className="text-base font-bold text-slate-800">สถานะคิววันนี้</h2>
                     {totalOverdue > 0 && (
                         <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 ring-1 ring-red-300 animate-pulse">
-                            ⚠ รอเกิน 15 นาที {totalOverdue} ราย
+                            รอเกิน 15 นาที {totalOverdue} ราย
                         </span>
                     )}
                 </div>

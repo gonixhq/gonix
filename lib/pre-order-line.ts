@@ -30,16 +30,16 @@ export async function notifyLineUid(uid: string | null | undefined, text: string
 // ── Templates ──
 export const PRE_ORDER_MSG = {
     depositReceived: (amount: number, expiresAt: string, receiptNo?: string | null) =>
-        `✅ รับมัดจำเรียบร้อย ${baht(amount)}\n` +
+        `รับมัดจำเรียบร้อย ${baht(amount)}\n` +
         (receiptNo ? `เลขที่ใบรับมัดจำ: ${receiptNo}\n` : "") +
         `มัดจำใช้ได้ถึง ${thDate(expiresAt)}\n\n` +
         `กรุณาเข้ารับบริการภายในวันที่กำหนด หากเลยกำหนดยอดมัดจำจะถูกเก็บเป็นเครดิตในระบบครับ/ค่ะ`,
 
     scheduled: (when?: string | null) =>
-        `📅 ยืนยันนัดหมายเรียบร้อย${when ? `\nวันที่นัด: ${thDate(when)}` : ""}\n\nแล้วพบกันที่คลินิกนะคะ 🙏`,
+        `ยืนยันนัดหมายเรียบร้อย${when ? `\nวันที่นัด: ${thDate(when)}` : ""}\n\nแล้วพบกันที่คลินิกนะคะ `,
 
     expiryWarning: (days: number, expiresAt: string, balance: number) =>
-        `⏰ แจ้งเตือน: มัดจำของคุณจะหมดอายุในอีก ${days} วัน (${thDate(expiresAt)})\n` +
+        `แจ้งเตือน: มัดจำของคุณจะหมดอายุในอีก ${days} วัน (${thDate(expiresAt)})\n` +
         `ยอดมัดจำคงเหลือ ${baht(balance)}\n\n` +
         `กรุณาติดต่อคลินิกเพื่อนัดหมายเข้ารับบริการค่ะ`,
 
@@ -56,8 +56,8 @@ export const PRE_ORDER_MSG = {
             : resolution === "convert_to_credit" ? `\nยอดมัดจำถูกเก็บเป็นเครดิตสำหรับใช้ครั้งถัดไปค่ะ` : ""),
 
     completed: (total: number, applied: number, paidExtra: number, invId: string) =>
-        `🧾 ใบเสร็จ ${invId}\nยอดรวม ${baht(total)}\n` +
+        `ใบเสร็จ ${invId}\nยอดรวม ${baht(total)}\n` +
         (applied > 0 ? `หักมัดจำ ${baht(applied)}\n` : "") +
         (paidExtra > 0 ? `ชำระเพิ่ม ${baht(paidExtra)}\n` : "") +
-        `\nขอบคุณที่ใช้บริการค่ะ 🙏`,
+        `\nขอบคุณที่ใช้บริการค่ะ `,
 };

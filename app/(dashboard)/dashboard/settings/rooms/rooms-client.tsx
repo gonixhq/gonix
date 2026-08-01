@@ -158,7 +158,7 @@ export default function RoomsClient({
                                                                 className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-amber-50 text-amber-700 border border-amber-200"
                                                                 title={`Staff ID ${sid} ไม่พบในระบบ — กรุณาแก้ไขห้องและเลือกหมอใหม่`}
                                                             >
-                                                                ⚠ ไม่พบ
+                                                                ไม่พบ
                                                             </span>
                                                         );
                                                     }

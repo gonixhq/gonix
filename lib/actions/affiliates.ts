@@ -928,12 +928,12 @@ function payoutMessage(name: string, periodMonth: string, patientCount: number, 
     const [y, m] = periodMonth.split("-").map(Number);
     const monthTh = new Date(y, m - 1, 1).toLocaleDateString("th-TH", { year: "numeric", month: "long" });
     const f = (n: number) => `฿${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    let msg = `📊 สรุปค่าคอมมิชชั่น\nเรียน คุณ${name}\n\nงวด: ${monthTh}\nลูกค้าที่พามา (สะสม): ${patientCount} ราย\n\nยอดค่าคอม: ${f(gross)}\nหัก ณ ที่จ่าย 3%: ${f(wht)}\nยอดสุทธิที่จะได้รับ: ${f(net)}`;
+    let msg = `สรุปค่าคอมมิชชั่น\nเรียน คุณ${name}\n\nงวด: ${monthTh}\nลูกค้าที่พามา (สะสม): ${patientCount} ราย\n\nยอดค่าคอม: ${f(gross)}\nหัก ณ ที่จ่าย 3%: ${f(wht)}\nยอดสุทธิที่จะได้รับ: ${f(net)}`;
     if (payDate) {
         const d = new Date(payDate + "T00:00:00");
-        msg += `\n\n💰 กำหนดโอน: ${d.toLocaleDateString("th-TH", { dateStyle: "long" })}`;
+        msg += `\n\nกำหนดโอน: ${d.toLocaleDateString("th-TH", { dateStyle: "long" })}`;
     }
-    msg += `\n\nขอบคุณที่ร่วมงานกันครับ 🙏`;
+    msg += `\n\nขอบคุณที่ร่วมงานกันครับ `;
     return msg;
 }
 

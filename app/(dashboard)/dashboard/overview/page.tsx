@@ -427,7 +427,7 @@ export default async function DashboardPage({
                 </div>
                 {notCheckedIn.length > 0 && (
                     <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700">
-                        ⚠️ เข้าเวรอยู่แต่ยังไม่ check-in ห้อง: {notCheckedIn.join(", ")}
+                        เข้าเวรอยู่แต่ยังไม่ check-in ห้อง: {notCheckedIn.join(", ")}
                     </div>
                 )}
                 {onDuty.length === 0 ? (
@@ -654,7 +654,7 @@ export default async function DashboardPage({
                                                 {name}
                                                 {noShows >= 2 && (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-700 shrink-0" title="เคยไม่มาตามนัดหลายครั้ง — ควรโทรย้ำ">
-                                                        ⚠ เสี่ยงไม่มา ×{noShows}
+                                                        เสี่ยงไม่มา ×{noShows}
                                                     </span>
                                                 )}
                                             </div>

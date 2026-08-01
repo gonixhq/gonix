@@ -490,7 +490,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                     )}
                 </div>
 
-                {/* ⚠️ เตือนยาที่ตรงกับประวัติแพ้ */}
+                {/* เตือนยาที่ตรงกับประวัติแพ้ */}
                 {allergens.length > 0 && (() => {
                     const conflicts = orderLines
                         .map((l) => ({ line: l, allergen: allergyConflict(l.item_name, l.generic_name, allergens) }))
@@ -498,7 +498,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                     if (conflicts.length === 0) return null;
                     return (
                         <div className="rounded-xl bg-red-50 border-2 border-red-300 p-3 mb-2 flex items-start gap-2">
-                            <span className="text-lg leading-none">⚠️</span>
+                            <span className="text-lg leading-none"></span>
                             <div className="text-sm text-red-800">
                                 <div className="font-bold">เตือน: มียาที่ตรงกับประวัติแพ้ของผู้ป่วย!</div>
                                 <ul className="mt-1 space-y-0.5">
@@ -537,7 +537,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                                         <div className="font-medium flex items-center gap-1.5">
                                             {line.item_name}
                                             {allergyConflict(line.item_name, line.generic_name, allergens) && (
-                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">⚠ แพ้</span>
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">แพ้</span>
                                             )}
                                         </div>
                                         {line.generic_name && <div className="text-xs text-slate-400">{line.generic_name}</div>}

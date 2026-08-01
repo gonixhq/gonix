@@ -521,7 +521,7 @@ function ApproveModal({ profile, onClose }: { profile: PendingProfile; onClose: 
             {error && <ErrorBox text={error} />}
             <RoleSelect value={finalRole} onChange={setFinalRole} />
             {profile.requested_role && profile.requested_role !== finalRole && (
-                <p className="text-xs text-amber-600 mt-1">⚠️ ต่างจากที่ผู้สมัครขอไว้ ({ROLE_LABEL[profile.requested_role]})</p>
+                <p className="text-xs text-amber-600 mt-1">ต่างจากที่ผู้สมัครขอไว้ ({ROLE_LABEL[profile.requested_role]})</p>
             )}
             <ModalActions onClose={onClose} onConfirm={handle} pending={pending} accent="emerald" confirmText="ยืนยันอนุมัติ" Icon={CheckCircle2} />
         </ModalShell>

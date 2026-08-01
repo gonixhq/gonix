@@ -129,7 +129,7 @@ export default function NotificationBell() {
                                     <Bell className="h-6 w-6 text-emerald-400" />
                                 </div>
                                 <p className="text-sm font-medium text-slate-600">ไม่มีแจ้งเตือน</p>
-                                <p className="text-xs text-slate-400 mt-0.5">ทุกอย่างเรียบร้อยดี 👍</p>
+                                <p className="text-xs text-slate-400 mt-0.5">ทุกอย่างเรียบร้อยดี </p>
                             </div>
                         ) : (
                             <div className="divide-y divide-slate-50">

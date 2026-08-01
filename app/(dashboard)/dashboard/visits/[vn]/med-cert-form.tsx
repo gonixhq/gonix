@@ -230,7 +230,7 @@ export default function MedCertForm({ vn, hn, initial }: MedCertFormProps) {
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={mySig} alt="signature" className="h-14 object-contain mt-2 bg-white border border-slate-200 rounded-lg px-2" />
                                 ) : (
-                                    <p className="text-[11px] text-amber-600 mt-1.5">⚠ ยังไม่มีลายเซ็น — อัปโหลดรูป PNG พื้นหลังโปร่ง (ครอปเฉพาะลายเซ็น &lt; 350KB) แล้วจะ render ลง PDF อัตโนมัติ</p>
+                                    <p className="text-[11px] text-amber-600 mt-1.5">ยังไม่มีลายเซ็น — อัปโหลดรูป PNG พื้นหลังโปร่ง (ครอปเฉพาะลายเซ็น &lt; 350KB) แล้วจะ render ลง PDF อัตโนมัติ</p>
                                 )}
                             </div>
                         )}

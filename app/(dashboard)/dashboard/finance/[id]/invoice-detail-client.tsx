@@ -415,7 +415,7 @@ export default function InvoiceDetailClient({
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-semibold text-slate-800">
-                                                    {isRefund ? "🔄 คืนเงิน" : PAYMENT_METHOD_LABEL[p.payment_method] || p.payment_method}
+                                                    {isRefund ? "คืนเงิน" : PAYMENT_METHOD_LABEL[p.payment_method] || p.payment_method}
                                                 </div>
                                                 <div className="text-xs text-slate-500 mt-0.5">
                                                     {new Date(p.paid_at).toLocaleString("th-TH", {
@@ -741,7 +741,7 @@ export default function InvoiceDetailClient({
                             <div className="text-[11px] text-slate-500 text-right">{reason.trim().length} / 5+ ตัวอักษร</div>
                         </div>
                         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                            ⚠ ระบบจะบันทึก payment log ยอดลบ + audit log (ผู้กระทำ + เหตุผล)
+                            ระบบจะบันทึก payment log ยอดลบ + audit log (ผู้กระทำ + เหตุผล)
                         </div>
                         <div className="flex items-center justify-end gap-2 pt-1">
                             <Button variant="outline" onClick={() => setShowRefundConfirm(false)} disabled={pending} className="rounded-xl">ยกเลิก</Button>

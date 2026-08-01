@@ -150,7 +150,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
 
                 {visitType === "aesthetic" && (
                     <div className="mt-6 pt-5 border-t">
-                        <h3 className="text-sm font-semibold text-primary mb-4">✨ บันทึกหัตถการเสริมความงาม</h3>
+                        <h3 className="text-sm font-semibold text-primary mb-4">บันทึกหัตถการเสริมความงาม</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <Label htmlFor="procedure_name">ชื่อหัตถการ / โปรแกรม</Label>

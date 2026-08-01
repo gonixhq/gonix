@@ -144,7 +144,7 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
                                             </span>
                                             {isCarryOver && (
                                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[10px]">
-                                                    ⌚ ค้างจากวันก่อน
+                                                    ค้างจากวันก่อน
                                                 </span>
                                             )}
                                         </div>

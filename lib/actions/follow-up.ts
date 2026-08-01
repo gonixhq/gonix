@@ -213,7 +213,7 @@ export async function escalateFollowUp(taskId: string, note?: string) {
                 if (prof?.line_user_id) {
                     const { data: pat } = await supabase.from("patients").select("first_name, last_name, phone").eq("hn", task.hn).eq("clinic_id", clinicId).maybeSingle();
                     const pname = pat ? `${pat.first_name || ""} ${pat.last_name || ""}`.trim() : task.hn;
-                    const msg = `🚨 แจ้งเตือนเคสติดตามผล\nคนไข้: ${pname} (HN ${task.hn})\nบริการ: ${task.service_name || "-"}\n${note ? `อาการ: ${note}\n` : ""}แจ้งโดย: ${actorName}\nกรุณาตรวจสอบด่วน`;
+                    const msg = `แจ้งเตือนเคสติดตามผล\nคนไข้: ${pname} (HN ${task.hn})\nบริการ: ${task.service_name || "-"}\n${note ? `อาการ: ${note}\n` : ""}แจ้งโดย: ${actorName}\nกรุณาตรวจสอบด่วน`;
                     const r = await pushLineText(prof.line_user_id as string, msg);
                     lineOk = r.ok; lineErr = r.ok ? null : (r.error || "ส่ง LINE ไม่สำเร็จ");
                 }
@@ -302,7 +302,7 @@ export async function submitSelfReport(idToken: string, clinicId: string, severi
                 .in("role", ["owner", "admin"]).not("line_user_id", "is", null);
             const targets = (recipients || []).map(r => r.line_user_id as string).filter(Boolean);
             const pname = `${pat.first_name || ""} ${pat.last_name || ""}`.trim() || pat.hn;
-            const msg = `📩 คนไข้รายงานอาการเอง (${severity === "red" ? "ด่วน 🔴" : "ผิดปกติ 🟡"})\nคนไข้: ${pname} (HN ${pat.hn})\nอาการ: ${note || "-"}\nกรุณาติดต่อกลับ`;
+            const msg = `คนไข้รายงานอาการเอง (${severity === "red" ? "ด่วน " : "ผิดปกติ "})\nคนไข้: ${pname} (HN ${pat.hn})\nอาการ: ${note || "-"}\nกรุณาติดต่อกลับ`;
 
             if (targets.length === 0) {
                 // ไม่มี owner/admin ผูก LINE → alert ไม่ถึงใครเลย (config gap — surface ที่ dashboard)

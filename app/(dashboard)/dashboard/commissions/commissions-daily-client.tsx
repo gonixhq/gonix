@@ -143,7 +143,7 @@ export default function CommissionsDailyClient({ data, date }: { data: DailyComm
                     </div>
                 </>
             )}
-            <p className="text-[11px] text-slate-400">💡 ยอดรายวันม้วนขึ้นเป็นยอดเดือน — อนุมัติ + จ่ายจริงทีเดียวสิ้นเดือนที่หน้า &quot;รายเดือน&quot;</p>
+            <p className="text-[11px] text-slate-400">ยอดรายวันม้วนขึ้นเป็นยอดเดือน — อนุมัติ + จ่ายจริงทีเดียวสิ้นเดือนที่หน้า &quot;รายเดือน&quot;</p>
         </div>
     );
 }

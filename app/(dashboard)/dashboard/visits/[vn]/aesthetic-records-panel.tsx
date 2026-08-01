@@ -204,7 +204,7 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                         className="w-full text-[15px] rounded-xl border-2 border-slate-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none leading-relaxed"
                     />
                     <p className="text-xs text-slate-500">
-                        💡 แนะนำให้บันทึก: ชนิดยา/วัสดุ, Lot No, Expiry, จำนวน, จุดที่ฉีด, ผลข้างเคียง, คำแนะนำหลังทำ
+                        แนะนำให้บันทึก: ชนิดยา/วัสดุ, Lot No, Expiry, จำนวน, จุดที่ฉีด, ผลข้างเคียง, คำแนะนำหลังทำ
                     </p>
                 </div>
             )}

@@ -447,7 +447,7 @@ function UseSessionModal({
                     </div>
 
                     <p className="text-[11px] text-slate-500 mt-2">
-                        ⚠ การตัดครั้งนี้ไม่ได้ผูกกับ visit ใดๆ — ถ้าตัดจาก Doctor Room จะผูกกับ visit อัตโนมัติ
+                        การตัดครั้งนี้ไม่ได้ผูกกับ visit ใดๆ — ถ้าตัดจาก Doctor Room จะผูกกับ visit อัตโนมัติ
                     </p>
 
                     {error && (
@@ -525,7 +525,7 @@ function RefundModal({
                         />
                     </div>
                     <p className="text-[11px] text-slate-500 mt-2">
-                        ⚠ สถานะจะเปลี่ยนเป็น &ldquo;คืนเงินแล้ว&rdquo; — ไม่สามารถตัดครั้งได้อีก<br />
+                        สถานะจะเปลี่ยนเป็น &ldquo;คืนเงินแล้ว&rdquo; — ไม่สามารถตัดครั้งได้อีก<br />
                         การจ่ายเงินคืนต้องทำที่ห้องการเงินแยก
                     </p>
                     {error && (

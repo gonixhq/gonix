@@ -217,7 +217,7 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                         )}
 
                         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
-                            ⚠ ยกเลิกแล้วจะกู้คืนไม่ได้ — Visit จะถูกตั้ง status เป็น <strong>cancelled</strong>
+                            ยกเลิกแล้วจะกู้คืนไม่ได้ — Visit จะถูกตั้ง status เป็น <strong>cancelled</strong>
                         </div>
 
                         <div className="flex items-center justify-end gap-2 pt-1">

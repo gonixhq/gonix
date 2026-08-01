@@ -73,7 +73,7 @@ export default function LoyaltyCard({ hn, visitCount }: Props) {
                         </span>
                     </div>
                     <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r ${tierStyle.gradient} text-white text-[11px] font-bold shadow-sm`}>
-                        ⭐ {current.name}
+                        {current.name}
                     </div>
                 </div>
 
@@ -411,7 +411,7 @@ function AdjustModal({ hn, onClose }: { hn: string; onClose: () => void }) {
     return (
         <ModalShell title="ปรับคะแนน (Admin)" onClose={onClose}>
             <div className="mb-3 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800">
-                💡 ใส่ค่า <strong>บวก (+)</strong> เพื่อเพิ่ม, <strong>ลบ (-)</strong> เพื่อลดคะแนน
+                ใส่ค่า <strong>บวก (+)</strong> เพื่อเพิ่ม, <strong>ลบ (-)</strong> เพื่อลดคะแนน
             </div>
             {error && <div className="mb-3 px-3 py-2 rounded bg-red-50 text-red-700 text-sm flex items-center gap-2"><AlertCircle className="h-4 w-4" />{error}</div>}
             <div className="space-y-3">

@@ -741,7 +741,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     <div className={`text-center px-3 py-1.5 rounded-lg text-sm font-bold ${
                         triageLevel === "emergency" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
                     }`}>
-                        {triageLevel === "emergency" ? "🚨 ฉุกเฉิน" : "⚠ เร่งด่วน"}
+                        {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
                     </div>
                 )}
                 <div className="text-xs text-slate-500 text-center">
@@ -881,7 +881,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             <Input type="date" value={vitals.lmp_date}
                                 onChange={e => setVital("lmp_date", e.target.value)}
                                 className="h-9 rounded-lg max-w-[200px]" />
-                            <span className="text-[11px] text-pink-700">⚠ สำคัญสำหรับการสั่งยา/X-ray</span>
+                            <span className="text-[11px] text-pink-700">สำคัญสำหรับการสั่งยา/X-ray</span>
                         </div>
                     </div>
                 )}
@@ -926,7 +926,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             <option value="">— เลือกห้องตรวจ —</option>
                             {rooms.map((r) => {
                                 const doctorPart = r.doctor_name
-                                    ? ` · 🟢 ${r.doctor_name} (อยู่ห้อง)`
+                                    ? ` · ${r.doctor_name} (อยู่ห้อง)`
                                     : r.assigned_doctors && r.assigned_doctors.length > 0
                                         ? ` · ${r.assigned_doctors.map(d => d.name).join(", ")}`
                                         : " · ยังไม่มีหมอ";
@@ -939,7 +939,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             })}
                         </select>
                         {rooms.length === 0 && (
-                            <p className="text-[11px] text-amber-700">⚠ ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
+                            <p className="text-[11px] text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
                         )}
                     </div>
                 </div>

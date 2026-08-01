@@ -313,7 +313,7 @@ function ReceiptHalf({ copyLabel, copyLabelEn, isOriginal, data, clinic, branch 
                 {data.paid ? (
                     <div className="text-[9.5px]"><span className="font-semibold text-slate-700">ชำระโดย: </span>{PAYMENT_METHOD_LABEL[data.payment_method || ""] || data.payment_method || "-"} ฿{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                 ) : (
-                    <div className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 inline-block">⚠ ค้างชำระ ฿{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="text-[9.5px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 inline-block">ค้างชำระ ฿{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                 )}
             </div>
 
