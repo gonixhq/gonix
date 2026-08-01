@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, FileText, Save, Loader2, CheckCircle, Pencil, History } from "lucide-react";
 import { toast } from "@/lib/toast";
@@ -9,7 +9,6 @@ import FaceChartCanvas from "./face-chart-canvas";
 import InjectionRecorder from "./injection-recorder";
 import { FaceChartRender } from "@/app/print/visits/[vn]/face-chart-render";
 import { saveTreatmentNotes, getPastAestheticRecords } from "@/lib/actions/aesthetic";
-import { listActiveServices } from "@/lib/actions/services";
 import type { AestheticRecords, PastAestheticVisit } from "@/lib/aesthetic-types";
 
 interface Props {
@@ -18,45 +17,6 @@ interface Props {
     initial: AestheticRecords;
 }
 
-// หัตถการ/ยี่ห้อที่ใช้บ่อย — กดแล้วแทรกบรรทัด (___ = ช่องให้หมอเติมเลข)
-const QUICK_GROUPS: { group: string; items: { label: string; template: string }[] }[] = [
-    {
-        group: "โบทูลินัม",
-        items: [
-            { label: "Botox (Allergan)", template: "Botox Allergan ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Dysport", template: "Dysport ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Xeomin", template: "Xeomin ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Nabota", template: "Nabota ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Botulax", template: "Botulax ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Innotox", template: "Innotox ___ u บริเวณ ___ (Lot ___ / Exp ___)" },
-        ],
-    },
-    {
-        group: "ฟิลเลอร์",
-        items: [
-            { label: "Juvederm", template: "Filler Juvederm ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Restylane", template: "Filler Restylane ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Neuramis", template: "Filler Neuramis ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Belotero", template: "Filler Belotero ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-        ],
-    },
-    {
-        group: "อื่นๆ",
-        items: [
-            { label: "HIFU", template: "HIFU ___ shot บริเวณ ___" },
-            { label: "Ultraformer", template: "Ultraformer ___ shot บริเวณ ___" },
-            { label: "Ulthera", template: "Ulthera ___ shot บริเวณ ___" },
-            { label: "Thermage", template: "Thermage ___ shot บริเวณ ___" },
-            { label: "Meso", template: "Mesotherapy ___ บริเวณ ___" },
-            { label: "ร้อยไหม", template: "ร้อยไหม ___ เส้น บริเวณ ___" },
-            { label: "Laser", template: "Laser ___ บริเวณ ___" },
-            { label: "Rejuran", template: "Rejuran ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "Profhilo", template: "Profhilo ___ ml บริเวณ ___ (Lot ___ / Exp ___)" },
-            { label: "PRP", template: "PRP ___ บริเวณ ___" },
-            { label: "Vitamin IV", template: "Vitamin IV/Drip: ___" },
-        ],
-    },
-];
 
 type View = "face_chart" | "notes" | "history";
 
@@ -75,25 +35,7 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
     const [notes, setNotes] = useState(initial.treatment_notes || "");
     const [savingNotes, setSavingNotes] = useState(false);
     const [notesSaved, setNotesSaved] = useState(false);
-    // รายการความงามที่คลินิกขายจริง (segment=aesthetic จาก service_catalog)
-    const [catalogItems, setCatalogItems] = useState<string[]>([]);
-    useEffect(() => {
-        listActiveServices().then(list => {
-            const names = Array.from(new Set(
-                (list || [])
-                    .filter(s => s.segment === "aesthetic" && s.is_active !== false)
-                    .map(s => (s.service_name || "").trim())
-                    .filter(n => !!n)
-            ));
-            setCatalogItems(names);
-        }).catch(() => { });
-    }, []);
     const [, startTransition] = useTransition();
-
-    function insertProcedure(tpl: string) {
-        setNotes(prev => (prev.trim() ? prev.replace(/\s*$/, "") + "\n" : "") + "- " + tpl + "\n");
-        setNotesSaved(false);
-    }
 
     function handleSaveNotes() {
         setSavingNotes(true);
@@ -167,34 +109,6 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                                     <Save className="h-4 w-4" />}
                             {notesSaved ? "บันทึกแล้ว" : "บันทึก"}
                         </Button>
-                    </div>
-                    <div className="space-y-1.5">
-                        <p className="text-xs font-semibold text-slate-500">
-                            {catalogItems.length > 0 ? "แตะเพื่อแทรกรายการที่คลินิกให้บริการ (แล้วเติมตัวเลข):" : "แตะเพื่อแทรกหัตถการ/ยี่ห้อที่ใช้บ่อย (แล้วเติมตัวเลข):"}
-                        </p>
-                        {catalogItems.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                                {catalogItems.map(name => (
-                                    <button key={name} type="button"
-                                        onClick={() => insertProcedure(`${name} จำนวน ___ (Lot ___ / Exp ___)`)}
-                                        className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                                        + {name}
-                                    </button>
-                                ))}
-                            </div>
-                        ) : (
-                            QUICK_GROUPS.map(g => (
-                                <div key={g.group} className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-[11px] text-slate-400 w-16 shrink-0">{g.group}</span>
-                                    {g.items.map(p => (
-                                        <button key={p.label} type="button" onClick={() => insertProcedure(p.template)}
-                                            className="px-2.5 py-1 rounded-lg text-[13px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors">
-                                            + {p.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            ))
-                        )}
                     </div>
                     <textarea
                         value={notes}

@@ -116,7 +116,7 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
         <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 space-y-3">
             <div className="flex items-center gap-2">
                 <Syringe className="h-4 w-4 text-violet-700" />
-                <h3 className="text-sm font-bold text-violet-900">บันทึกการฉีด (ตัดสต๊อก + ขึ้นบิลอัตโนมัติ)</h3>
+                <h3 className="text-sm font-bold text-violet-900">บันทึกการฉีด</h3>
             </div>
 
             {/* รายการที่บันทึกแล้ว */}
