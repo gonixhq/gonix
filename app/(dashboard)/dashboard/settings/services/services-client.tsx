@@ -15,7 +15,7 @@ import {
 import {
     createService, updateService, deleteService, backfillMissingCodes, type ServiceInput,
 } from "@/lib/actions/services";
-import { Wand2, FileText, Package } from "lucide-react";
+import { Wand2, FileText, Package, HandCoins } from "lucide-react";
 import { HorizontalForm, Section, FieldRow, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
 
 export default function ServicesClient({ initialServices, inventory }: { initialServices: ServiceCatalogItem[]; inventory: InventoryPick[] }) {
@@ -301,6 +301,10 @@ function ServiceFormModal({
     const [kitId, setKitId] = useState(initial?.inventory_item_id || "");
     const [consumeQty, setConsumeQty] = useState(initial?.consume_qty?.toString() || "1");
     const [segment, setSegment] = useState(initial?.segment || "medical");
+    const [dfDoctor, setDfDoctor] = useState(initial?.df_doctor ? String(initial.df_doctor) : "");
+    const [dfNurse, setDfNurse] = useState(initial?.df_nurse ? String(initial.df_nurse) : "");
+    const [dfAssistant, setDfAssistant] = useState(initial?.df_assistant ? String(initial.df_assistant) : "");
+    const [dfMode, setDfMode] = useState(initial?.df_mode || "baht");   // 'baht' | 'percent'
     const [submitting, setSubmitting] = useState(false);
 
     async function handleSave() {
@@ -317,6 +321,10 @@ function ServiceFormModal({
             inventory_item_id: kitId || null,
             consume_qty: kitId ? (parseFloat(consumeQty) || 1) : null,
             segment,
+            df_doctor: parseFloat(dfDoctor) || 0,
+            df_nurse: parseFloat(dfNurse) || 0,
+            df_assistant: parseFloat(dfAssistant) || 0,
+            df_mode: dfMode,
         });
         setSubmitting(false);
     }
@@ -411,6 +419,26 @@ function ServiceFormModal({
                                     placeholder="รายละเอียดเพิ่มเติม..."
                                     className="w-full text-[16px] rounded-lg border border-slate-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                                 />
+                            </FieldRow>
+                        </Section>
+
+                        <Section title="ค่ามือ (DF) ต่อเคส" icon={HandCoins} color="emerald">
+                            <FieldRow label="วิธีคิด DF" colSpan={2} hint={dfMode === "percent" ? "% ของราคาเต็ม (ก่อนส่วนลด) ต่อรายการ" : "บาทต่อเคส × จำนวน"}>
+                                <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit text-sm">
+                                    <button type="button" onClick={() => setDfMode("baht")}
+                                        className={`px-4 py-1.5 font-semibold transition-colors ${dfMode === "baht" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>บาท (฿)</button>
+                                    <button type="button" onClick={() => setDfMode("percent")}
+                                        className={`px-4 py-1.5 font-semibold transition-colors ${dfMode === "percent" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>เปอร์เซ็นต์ (%)</button>
+                                </div>
+                            </FieldRow>
+                            <FieldRow label={`DF หมอ (${dfMode === "percent" ? "%" : "฿"})`} hint="คิดให้หมอที่เข้าเคส (เว้นว่าง=ไม่มี)">
+                                <Input type="number" min="0" value={dfDoctor} onChange={e => setDfDoctor(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
+                            </FieldRow>
+                            <FieldRow label={`DF พยาบาล (${dfMode === "percent" ? "%" : "฿"})`}>
+                                <Input type="number" min="0" value={dfNurse} onChange={e => setDfNurse(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
+                            </FieldRow>
+                            <FieldRow label={`DF ผู้ช่วย (${dfMode === "percent" ? "%" : "฿"})`} colSpan={2}>
+                                <Input type="number" min="0" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums max-w-[280px]`} />
                             </FieldRow>
                         </Section>
 

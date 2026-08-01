@@ -17,7 +17,7 @@ export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("item_type")
@@ -42,7 +42,7 @@ export async function listAllServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode")
             .eq("clinic_id", profile.clinic_id)
             .order("is_active", { ascending: false })
             .order("item_type")
@@ -66,6 +66,10 @@ export interface ServiceInput {
     consume_qty?: number | null;
     segment?: string | null;   // แผนกรายได้ medical/aesthetic/product
     follow_up_days?: string | null;   // รอบติดตามผล "1,7,14"
+    df_doctor?: number | null;      // ค่ามือหมอต่อเคส (บาท หรือ %)
+    df_nurse?: number | null;       // ค่ามือพยาบาลต่อเคส
+    df_assistant?: number | null;   // ค่ามือผู้ช่วยต่อเคส
+    df_mode?: string | null;        // 'baht' | 'percent'
 }
 
 /** รายการในคลังสำหรับเลือกผูกเป็น kit (ตัด stock) */
@@ -146,6 +150,10 @@ export async function createService(input: ServiceInput) {
                 inventory_item_id: input.inventory_item_id || null,
                 consume_qty: input.consume_qty ?? 1,
                 segment: input.segment || "medical",
+                df_doctor: input.df_doctor ?? 0,
+                df_nurse: input.df_nurse ?? 0,
+                df_assistant: input.df_assistant ?? 0,
+                df_mode: input.df_mode || "baht",
             })
             .select("id")
             .single();
@@ -235,6 +243,10 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
         if (input.inventory_item_id !== undefined) update.inventory_item_id = input.inventory_item_id || null;
         if (input.consume_qty !== undefined) update.consume_qty = input.consume_qty ?? 1;
         if (input.segment !== undefined) update.segment = input.segment || "medical";
+        if (input.df_doctor !== undefined) update.df_doctor = input.df_doctor ?? 0;
+        if (input.df_nurse !== undefined) update.df_nurse = input.df_nurse ?? 0;
+        if (input.df_assistant !== undefined) update.df_assistant = input.df_assistant ?? 0;
+        if (input.df_mode !== undefined) update.df_mode = input.df_mode || "baht";
 
         const { error } = await supabase
             .from("service_catalog")

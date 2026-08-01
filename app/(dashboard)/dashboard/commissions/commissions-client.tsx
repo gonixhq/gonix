@@ -74,12 +74,18 @@ export default function CommissionsClient({
             <RewardsTabs />
             {/* Sub-header */}
             <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-                <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">
-                    <Wallet className="h-4 w-4 text-blue-700" />
-                    <span className="font-bold text-blue-700">ค่า DF / Commission</span>
-                    <span className="text-slate-300">·</span>
-                    <span><span className="font-bold text-slate-700 tabular-nums">{commissions.length}</span> พนักงาน</span>
-                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">
+                        <Wallet className="h-4 w-4 text-blue-700" />
+                        <span className="font-bold text-blue-700">ค่า DF / Commission</span>
+                        <span className="text-slate-300">·</span>
+                        <span><span className="font-bold text-slate-700 tabular-nums">{commissions.length}</span> พนักงาน</span>
+                    </p>
+                    <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
+                        <span className="px-4 py-1.5 font-semibold bg-blue-600 text-white">รายเดือน</span>
+                        <Link href="/dashboard/commissions?view=daily" className="px-4 py-1.5 font-semibold bg-white text-slate-600 hover:bg-slate-50">รายวัน</Link>
+                    </div>
+                </div>
 
                 {/* Month nav */}
                 <div className="flex items-center gap-1.5">

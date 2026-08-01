@@ -17,6 +17,10 @@ export interface ServiceCatalogItem {
     consume_qty: number | null;         // จำนวนที่ตัดต่อครั้ง
     segment?: string | null;            // แผนกรายได้ medical/aesthetic/product
     follow_up_days?: string | null;     // รอบติดตามผล "1,7,14"
+    df_doctor?: number | null;          // ค่ามือหมอต่อเคส (บาท หรือ %)
+    df_nurse?: number | null;           // ค่ามือพยาบาลต่อเคส
+    df_assistant?: number | null;       // ค่ามือผู้ช่วยต่อเคส
+    df_mode?: string | null;            // 'baht' | 'percent'
 }
 
 export interface InventoryPick {

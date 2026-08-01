@@ -185,6 +185,95 @@ export async function getCommissionsByPeriod(periodMonth: string): Promise<Staff
     }
 }
 
+export interface DailyCommissionEntry {
+    staff_id: string; staff_name: string; role: string;
+    item_name: string; qty: number; commission_amount: number;
+    vn: string | null; inv_id: string; patient_name: string; sale_amount: number;
+    is_split?: boolean; split_percent?: number;
+}
+export interface DailyCommissionResult {
+    date: string; total: number;
+    byStaff: { staff_id: string; staff_name: string; role: string; total: number; count: number }[];
+    entries: DailyCommissionEntry[];
+}
+
+/** สรุปค่ามือ/คอมมิชชั่น "รายวัน" (แต่ละเคส/บิลของวันนั้น) — ม้วนขึ้นเดือนใช้ payout เดิม */
+export async function getCommissionDaily(date: string): Promise<DailyCommissionResult> {
+    try {
+        const { supabase, clinicId } = await getCtx();
+        // 1. entries ของวันนั้น (view มี invoice_date)
+        const { data } = await supabase.from("v_commission_summary").select("*")
+            .eq("clinic_id", clinicId).eq("invoice_date", date);
+        const raw = (data || []) as CommissionEntry[];
+
+        // 2. apply split (แบ่งค่ามือให้ถูกคน)
+        const itemIds = [...new Set(raw.map(e => e.item_id).filter(Boolean))];
+        const splitMap = new Map<string, { staff_id: string; percent: number }[]>();
+        if (itemIds.length) {
+            const { data: splitRows } = await supabase.from("commission_splits")
+                .select("inv_item_id, role, staff_id, percent").eq("clinic_id", clinicId).in("inv_item_id", itemIds);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (splitRows || []).forEach((s: any) => {
+                const k = `${s.inv_item_id}|${s.role}`;
+                if (!splitMap.has(k)) splitMap.set(k, []);
+                splitMap.get(k)!.push({ staff_id: s.staff_id, percent: Number(s.percent) });
+            });
+        }
+        const attributed: CommissionEntry[] = [];
+        for (const e of raw) {
+            const splits = splitMap.get(`${e.item_id}|${e.role}`);
+            if (splits && splits.length) {
+                for (const sp of splits) attributed.push({ ...e, staff_id: sp.staff_id, commission_amount: Math.round(Number(e.commission_amount) * sp.percent) / 100, is_split: true, split_percent: sp.percent });
+            } else attributed.push(e);
+        }
+
+        // 3. enrich: ชื่อ staff / ชื่อลูกค้า / ยอดขาย
+        const staffIds = [...new Set(attributed.map(e => e.staff_id).filter(Boolean))];
+        const invIds = [...new Set(attributed.map(e => e.inv_id).filter(Boolean))];
+        const itIds = [...new Set(attributed.map(e => e.item_id).filter(Boolean))];
+        const [staffRes, invRes, itemsRes] = await Promise.all([
+            staffIds.length ? supabase.from("staff").select("id, profiles!inner(full_name)").in("id", staffIds) : Promise.resolve({ data: [] }),
+            invIds.length ? supabase.from("invoice_headers").select("id, hn").in("id", invIds) : Promise.resolve({ data: [] }),
+            itIds.length ? supabase.from("invoice_items").select("id, line_total").in("id", itIds) : Promise.resolve({ data: [] }),
+        ]);
+        const staffNames: Record<string, string> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (staffRes.data || []).forEach((s: any) => { const p = Array.isArray(s.profiles) ? s.profiles[0] : s.profiles; staffNames[s.id] = p?.full_name || "—"; });
+        const hnByInv: Record<string, string> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (invRes.data || []).forEach((r: any) => { hnByInv[r.id] = r.hn; });
+        const lineTotalById: Record<string, number> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (itemsRes.data || []).forEach((r: any) => { lineTotalById[r.id] = Number(r.line_total || 0); });
+        const hns = [...new Set(Object.values(hnByInv).filter(Boolean))];
+        const nameByHn: Record<string, string> = {};
+        if (hns.length) {
+            const { data: pats } = await supabase.from("patients").select("hn, first_name, last_name").in("hn", hns);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (pats || []).forEach((p: any) => { nameByHn[p.hn] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.hn; });
+        }
+
+        const entries: DailyCommissionEntry[] = attributed.map(e => ({
+            staff_id: e.staff_id, staff_name: staffNames[e.staff_id] || "—", role: e.role,
+            item_name: e.item_name, qty: Number(e.qty), commission_amount: Number(e.commission_amount || 0),
+            vn: e.vn, inv_id: e.inv_id, patient_name: nameByHn[hnByInv[e.inv_id]] ?? "—",
+            sale_amount: lineTotalById[e.item_id] ?? 0, is_split: e.is_split, split_percent: e.split_percent,
+        })).sort((a, b) => (a.staff_name < b.staff_name ? -1 : a.staff_name > b.staff_name ? 1 : (a.vn || "").localeCompare(b.vn || "")));
+
+        const g: Record<string, { staff_id: string; staff_name: string; role: string; total: number; count: number }> = {};
+        entries.forEach(e => {
+            const k = `${e.staff_id}|${e.role}`;
+            if (!g[k]) g[k] = { staff_id: e.staff_id, staff_name: e.staff_name, role: e.role, total: 0, count: 0 };
+            g[k].total += e.commission_amount; g[k].count += 1;
+        });
+        const byStaff = Object.values(g).sort((a, b) => b.total - a.total);
+        const total = entries.reduce((s, e) => s + e.commission_amount, 0);
+        return { date, total, byStaff, entries };
+    } catch {
+        return { date, total: 0, byStaff: [], entries: [] };
+    }
+}
+
 /**
  * ดึงรายละเอียดของ staff คนเดียวในเดือนนั้น (สำหรับ print PDF)
  */
