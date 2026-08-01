@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { listAffiliates, getAffiliateLedger } from "./affiliates";
 
 export interface CommissionEntry {
     staff_id: string;
@@ -259,6 +260,50 @@ export async function getCommissionDaily(date: string): Promise<DailyCommissionR
             vn: e.vn, inv_id: e.inv_id, patient_name: nameByHn[hnByInv[e.inv_id]] ?? "—",
             sale_amount: lineTotalById[e.item_id] ?? 0, is_split: e.is_split, split_percent: e.split_percent,
         })).sort((a, b) => (a.staff_name < b.staff_name ? -1 : a.staff_name > b.staff_name ? 1 : (a.vn || "").localeCompare(b.vn || "")));
+
+        // ── ผสาน: เซลล์ (affiliate, % ต่อบิลของวันนั้น) ──
+        try {
+            const periodMonth = date.slice(0, 7);
+            const affs = (await listAffiliates()).filter(a => a.is_active);
+            for (const aff of affs) {
+                const led = await getAffiliateLedger(aff.id, periodMonth);
+                for (const de of led.entries.filter(e => e.invoice_date === date)) {
+                    entries.push({
+                        staff_id: `aff:${aff.id}`, staff_name: aff.name, role: "affiliate",
+                        item_name: `ค่าคอมเซลล์ (${de.pct}%)`, qty: 1, commission_amount: Number(de.commission || 0),
+                        vn: null, inv_id: de.inv_id, patient_name: de.patient_name || de.hn,
+                        sale_amount: Number(de.sale_amount || 0),
+                    });
+                }
+            }
+        } catch { /* best-effort — ไม่ให้ affiliate ทำ DF report พัง */ }
+
+        // ── ผสาน: ผู้แนะนำ (referral, รางวัลเงินสดที่จ่าย/claim วันนั้น) ──
+        try {
+            const startISO = new Date(`${date}T00:00:00+07:00`).toISOString();
+            const nx = new Date(`${date}T00:00:00+07:00`); nx.setDate(nx.getDate() + 1);
+            const endISO = nx.toISOString();
+            const { data: refs } = await supabase.from("patient_referrals")
+                .select("referrer_hn, referred_hn, reward_amount, reward_status, claimed_at")
+                .eq("clinic_id", clinicId).eq("reward_status", "cash")
+                .gte("claimed_at", startISO).lt("claimed_at", endISO);
+            const refRows = (refs || []) as { referrer_hn: string; referred_hn: string; reward_amount: number }[];
+            if (refRows.length) {
+                const refHns = [...new Set(refRows.flatMap(r => [r.referrer_hn, r.referred_hn]).filter(Boolean))];
+                const nameMap: Record<string, string> = {};
+                const { data: rpats } = await supabase.from("patients").select("hn, first_name, last_name").in("hn", refHns);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (rpats || []).forEach((p: any) => { nameMap[p.hn] = `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.hn; });
+                for (const r of refRows) {
+                    entries.push({
+                        staff_id: `ref:${r.referrer_hn}`, staff_name: nameMap[r.referrer_hn] || r.referrer_hn, role: "referral",
+                        item_name: `รางวัลแนะนำ: ${nameMap[r.referred_hn] || r.referred_hn}`, qty: 1,
+                        commission_amount: Number(r.reward_amount || 0), vn: null, inv_id: "",
+                        patient_name: nameMap[r.referred_hn] || r.referred_hn, sale_amount: 0,
+                    });
+                }
+            }
+        } catch { /* best-effort */ }
 
         const g: Record<string, { staff_id: string; staff_name: string; role: string; total: number; count: number }> = {};
         entries.forEach(e => {

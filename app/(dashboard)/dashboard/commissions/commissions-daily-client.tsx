@@ -6,11 +6,13 @@ import { CalendarDays, Coins, Users, TrendingUp } from "lucide-react";
 import type { DailyCommissionResult } from "@/lib/actions/commissions";
 
 const ROLE_LABEL: Record<string, string> = {
-    doctor: "หมอ", nurse: "พยาบาล", assistant: "ผู้ช่วย", sales: "เซลล์",
+    doctor: "หมอ", nurse: "พยาบาล", assistant: "ผู้ช่วย",
+    sales: "เซลล์คอส", affiliate: "เซลล์", referral: "ผู้แนะนำ",
 };
 const ROLE_COLOR: Record<string, string> = {
     doctor: "bg-cyan-100 text-cyan-700", nurse: "bg-emerald-100 text-emerald-700",
     assistant: "bg-amber-100 text-amber-700", sales: "bg-violet-100 text-violet-700",
+    affiliate: "bg-fuchsia-100 text-fuchsia-700", referral: "bg-pink-100 text-pink-700",
 };
 const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
@@ -102,7 +104,8 @@ export default function CommissionsDailyClient({ data, date }: { data: DailyComm
                                             </td>
                                             <td className="px-4 py-2">
                                                 {e.vn ? <Link href={`/dashboard/finance/${e.inv_id}`} className="font-mono text-xs text-blue-600 hover:underline">{e.vn}</Link>
-                                                    : <span className="font-mono text-xs text-slate-400">คอส</span>}
+                                                    : e.inv_id ? <Link href={`/dashboard/finance/${e.inv_id}`} className="font-mono text-xs text-blue-600 hover:underline">บิล</Link>
+                                                        : <span className="font-mono text-xs text-slate-400">—</span>}
                                             </td>
                                             <td className="px-4 py-2 text-slate-700">{e.patient_name}</td>
                                             <td className="px-4 py-2 text-slate-700">{e.item_name} {e.qty > 1 && <span className="text-slate-400">×{e.qty}</span>}</td>
