@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, Coins, Users, TrendingUp } from "lucide-react";
+import { CalendarDays, Coins, Users, TrendingUp, Download, Printer } from "lucide-react";
 import type { DailyCommissionResult } from "@/lib/actions/commissions";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,6 +20,18 @@ export default function CommissionsDailyClient({ data, date }: { data: DailyComm
     const router = useRouter();
     const fmtDate = new Date(date + "T00:00:00").toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+    function exportCsv() {
+        const headers = ["วันที่", "ผู้รับ", "บทบาท", "เคส/บิล", "ลูกค้า", "รายการ", "ยอดขาย", "ค่ามือ"];
+        const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+        const rows = data.entries.map(e => [date, e.staff_name, ROLE_LABEL[e.role] || e.role, e.vn || e.inv_id || "", e.patient_name, e.item_name, e.sale_amount, e.commission_amount]);
+        const csv = "﻿" + [headers, ...rows, [], ["", "", "", "", "", "", "รวมค่ามือ", data.total]].map(r => r.map(esc).join(",")).join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `ค่ามือรายวัน-${date}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    }
+
     return (
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
             {/* Header + toggle */}
@@ -28,9 +40,21 @@ export default function CommissionsDailyClient({ data, date }: { data: DailyComm
                     <Coins className="h-5 w-5 text-emerald-700" />
                     <h1 className="text-lg font-bold text-slate-800">ค่ามือ/คอมมิชชั่น — รายวัน</h1>
                 </div>
-                <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
-                    <Link href="/dashboard/commissions" className="px-4 py-1.5 font-semibold bg-white text-slate-600 hover:bg-slate-50">รายเดือน</Link>
-                    <span className="px-4 py-1.5 font-semibold bg-emerald-600 text-white">รายวัน</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {data.entries.length > 0 && (
+                        <>
+                            <button onClick={exportCsv} className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-semibold border border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                                <Download className="h-4 w-4" /> Excel
+                            </button>
+                            <Link href={`/print/commissions/daily/${date}`} target="_blank" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50">
+                                <Printer className="h-4 w-4" /> PDF
+                            </Link>
+                        </>
+                    )}
+                    <div className="flex rounded-xl border border-slate-200 overflow-hidden text-sm">
+                        <Link href="/dashboard/commissions" className="px-4 py-1.5 font-semibold bg-white text-slate-600 hover:bg-slate-50">รายเดือน</Link>
+                        <span className="px-4 py-1.5 font-semibold bg-emerald-600 text-white">รายวัน</span>
+                    </div>
                 </div>
             </div>
 
