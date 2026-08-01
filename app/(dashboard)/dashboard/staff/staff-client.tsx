@@ -425,7 +425,7 @@ function StaffRow({
                         title={lineLinked ? "ผูก LINE แล้ว — แก้ไข/ยกเลิก" : "ผูก LINE (สำหรับแจ้งเตือน)"}
                     >
                         <MessageCircle className="h-3.5 w-3.5" />
-                        {lineLinked ? "LINE ✓" : "LINE"}
+                        {lineLinked ? "LINE " : "LINE"}
                     </Button>
                     <Button
                         size="sm"

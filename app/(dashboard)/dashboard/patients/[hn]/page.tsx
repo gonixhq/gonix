@@ -198,7 +198,7 @@ export default async function PatientDetailPage({
                                         >
                                             <Activity className="h-3 w-3" />
                                             {c.disease_name}
-                                            {c.is_controlled && <span className="text-emerald-600">✓</span>}
+                                            {c.is_controlled && <span className="text-emerald-600"></span>}
                                         </span>
                                     ))}
                                 </div>
@@ -354,7 +354,7 @@ export default async function PatientDetailPage({
                                 <InfoRow icon={MapPin} label="ที่อยู่" value={patient.address_detail || "—"} />
                                 {fullAddress && <InfoRow icon={MapPin} label="ตำบล/อำเภอ/จังหวัด" value={fullAddress} />}
                                 {patient.line_id_handle && <InfoRow icon={User} label="LINE" value={patient.line_id_handle} mono />}
-                                {patient.line_user_id && <InfoRow icon={User} label="LINE" value="เชื่อมบัญชีแล้ว ✓" />}
+                                {patient.line_user_id && <InfoRow icon={User} label="LINE" value="เชื่อมบัญชีแล้ว " />}
                             </div>
                         </div>
 
@@ -363,8 +363,8 @@ export default async function PatientDetailPage({
                             <div className="p-5 space-y-3.5 text-sm">
                                 <InfoRow icon={Heart} label="สิทธิ์" value={nhsoLabel[patient.nhso_rights] || "ไม่ระบุ"} />
                                 {patient.nhso_main_hospital && <InfoRow icon={Stethoscope} label="รพ.หลัก" value={patient.nhso_main_hospital} />}
-                                <InfoRow icon={ShieldCheck} label="PDPA" value={patient.pdpa_consent ? "✓ ยินยอมแล้ว" : "✗ ยังไม่ยินยอม"} />
-                                <InfoRow icon={ShieldCheck} label="Review Consent" value={patient.review_consent ? "✓ ยินยอมเผยแพร่ผล" : "✗ ไม่ยินยอม"} />
+                                <InfoRow icon={ShieldCheck} label="PDPA" value={patient.pdpa_consent ? " ยินยอมแล้ว" : " ยังไม่ยินยอม"} />
+                                <InfoRow icon={ShieldCheck} label="Review Consent" value={patient.review_consent ? " ยินยอมเผยแพร่ผล" : " ไม่ยินยอม"} />
                             </div>
                         </div>
 

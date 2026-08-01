@@ -317,10 +317,10 @@ export default function ReportsClient({
         (async () => {
             const r = await sendExecSummaryToMyLine(execText);
             setExecSending(false);
-            setExecMsg(r.success ? "ส่งเข้า LINE ของคุณแล้ว ✓" : (r.error || "ส่งไม่สำเร็จ"));
+            setExecMsg(r.success ? "ส่งเข้า LINE ของคุณแล้ว " : (r.error || "ส่งไม่สำเร็จ"));
         })();
     }
-    function copyExec() { navigator.clipboard.writeText(execText); setExecMsg("คัดลอกข้อความแล้ว ✓"); setTimeout(() => setExecMsg(null), 1500); }
+    function copyExec() { navigator.clipboard.writeText(execText); setExecMsg("คัดลอกข้อความแล้ว "); setTimeout(() => setExecMsg(null), 1500); }
     function exportChurn() {
         if (churnCustomers.length === 0) return;
         const lines = ["ชื่อ,HN,เบอร์โทร,อีเมล,กลุ่ม,ซื้อล่าสุด(วันก่อน),จำนวนครั้ง,ยอดใช้จ่าย"];

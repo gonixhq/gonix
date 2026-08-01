@@ -535,7 +535,7 @@ function DetailDrawer({ po, services, minDeposit, canDecide, canExtend, canManag
                                 <div key={it.id} className="flex items-center justify-between text-sm rounded-lg bg-slate-50 px-3 py-2">
                                     <div><div>{svcName(it.service_id)} ×{it.qty}</div>
                                         {it.doctor_decision && <div className={`text-[11px] ${it.doctor_decision === "approve" ? "text-emerald-600" : "text-rose-600"}`}>
-                                            {it.doctor_decision === "approve" ? "✓ อนุมัติ" : `✗ ปฏิเสธ: ${it.decision_reason || ""}`}</div>}</div>
+                                            {it.doctor_decision === "approve" ? " อนุมัติ" : ` ปฏิเสธ: ${it.decision_reason || ""}`}</div>}</div>
                                     <div className="tabular-nums font-semibold">฿{(Number(it.unit_price_snapshot) * it.qty).toLocaleString()}</div>
                                 </div>
                             ))}

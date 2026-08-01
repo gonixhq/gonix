@@ -50,7 +50,7 @@ export default function CheckinClient({
         start(async () => {
             const c = coords ? { lat: coords.lat, lng: coords.lng } : undefined;
             const res = kind === "in" ? await clockIn(c) : await clockOut(c);
-            if (res?.success) { setMsg({ type: "ok", text: kind === "in" ? "เข้างานสำเร็จ ✓" : "เลิกงานสำเร็จ ✓" }); router.refresh(); }
+            if (res?.success) { setMsg({ type: "ok", text: kind === "in" ? "เข้างานสำเร็จ " : "เลิกงานสำเร็จ " }); router.refresh(); }
             else setMsg({ type: "err", text: res?.error || "ทำรายการไม่สำเร็จ" });
         });
     }
@@ -60,7 +60,7 @@ export default function CheckinClient({
         setMsg(null);
         start(async () => {
             const res = await setClinicLocation(coords.lat, coords.lng, radius);
-            if (res.success) { setMsg({ type: "ok", text: "บันทึกพิกัดคลินิกแล้ว ✓" }); router.refresh(); }
+            if (res.success) { setMsg({ type: "ok", text: "บันทึกพิกัดคลินิกแล้ว " }); router.refresh(); }
             else setMsg({ type: "err", text: res.error || "บันทึกไม่สำเร็จ" });
         });
     }

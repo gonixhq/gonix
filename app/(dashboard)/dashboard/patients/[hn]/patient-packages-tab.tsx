@@ -715,7 +715,7 @@ function SellPackageModal({
 
                 <div className="p-5 border-t border-slate-100 flex items-center justify-between gap-2">
                     <p className="text-xs text-emerald-600 font-medium">
-                        ✓ ออกใบเสร็จอัตโนมัติ <br />
+                         ออกใบเสร็จอัตโนมัติ <br />
                         <span className="text-[10px] text-slate-500">+ เข้าระบบการเงิน/รายรับ/ปิดยอด</span>
                     </p>
                     <div className="flex items-center gap-2">

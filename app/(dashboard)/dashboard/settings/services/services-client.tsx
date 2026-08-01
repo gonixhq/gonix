@@ -66,7 +66,7 @@ export default function ServicesClient({ initialServices, inventory }: { initial
                 setError(res.error || "ลบไม่สำเร็จ");
                 return;
             }
-            setSuccess(`✓ ปิดการใช้งาน "${s.service_name}" แล้ว`);
+            setSuccess(` ปิดการใช้งาน "${s.service_name}" แล้ว`);
             setConfirmDelete(null);
             router.refresh();
         });
@@ -90,7 +90,7 @@ export default function ServicesClient({ initialServices, inventory }: { initial
                                 const res = await backfillMissingCodes();
                                 if (!res.success) setError(res.error || "เติมรหัสไม่สำเร็จ");
                                 else {
-                                    setSuccess(`✓ เติมรหัสให้ ${res.updated} รายการ`);
+                                    setSuccess(` เติมรหัสให้ ${res.updated} รายการ`);
                                     router.refresh();
                                 }
                             })}
@@ -240,7 +240,7 @@ export default function ServicesClient({ initialServices, inventory }: { initial
                             setError(res.error || "Error");
                             return false;
                         }
-                        setSuccess(editing ? `✓ บันทึกการแก้ไข "${data.service_name}" แล้ว` : `✓ สร้าง "${data.service_name}" สำเร็จ`);
+                        setSuccess(editing ? ` บันทึกการแก้ไข "${data.service_name}" แล้ว` : ` สร้าง "${data.service_name}" สำเร็จ`);
                         setShowForm(false);
                         router.refresh();
                         return true;

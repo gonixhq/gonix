@@ -290,7 +290,7 @@ export default async function VisitPrintPage({
                                                 const pp = Array.isArray(u.patient_packages) ? u.patient_packages[0] : u.patient_packages;
                                                 return (
                                                     <div key={`pkg-${i}`} className="flex items-baseline gap-2">
-                                                        <span className="text-slate-500 shrink-0">✓</span>
+                                                        <span className="text-slate-500 shrink-0"></span>
                                                         <span className="flex-1">
                                                             <span className="font-semibold">{pp?.package_name || "คอส"}</span>
                                                             <span className="text-slate-600"> — ตัดครั้งที่ {u.session_no}/{pp?.total_sessions || "?"}</span>

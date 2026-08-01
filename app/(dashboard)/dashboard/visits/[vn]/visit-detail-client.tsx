@@ -33,7 +33,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     const showMedCertTab = !isAesthetic;        // ใบรับรองไม่ใช่กับ aesthetic
     const defaultTab = isAesthetic ? "aesthetic" : "soap";
 
-    // Completion indicators (✓ บนแท็บที่กรอกแล้ว)
+    // Completion indicators ( บนแท็บที่กรอกแล้ว)
     const doneSoap = !!(visit.soap_o || visit.soap_p);
     const doneDx = !!(visit.icd10_primary || visit.diagnosis_text || (drugs && drugs.length > 0));
     const doneLab = !!(labOrders && labOrders.length > 0);

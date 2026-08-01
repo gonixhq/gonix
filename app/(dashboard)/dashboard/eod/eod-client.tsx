@@ -105,7 +105,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                 setError(res.error || "เกิดข้อผิดพลาด");
                 return;
             }
-            setSuccess(`✓ ปิดยอดวันที่ ${formatDate(summary.close_date)} สำเร็จ — Counter ถูก reset แล้ว`);
+            setSuccess(` ปิดยอดวันที่ ${formatDate(summary.close_date)} สำเร็จ — Counter ถูก reset แล้ว`);
             setShowConfirm(false);
             // เด้งหน้าพิมพ์ใบสรุปปิดกะ
             window.open(`/print/eod/${summary.close_date}`, "_blank");
@@ -123,7 +123,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                 setError(res.error || "ยกเลิกการปิดยอดไม่สำเร็จ");
                 return;
             }
-            setSuccess("✓ ยกเลิกการปิดยอดแล้ว — ตรวจสอบยอดให้ครบแล้วกดปิดยอดอีกครั้ง");
+            setSuccess(" ยกเลิกการปิดยอดแล้ว — ตรวจสอบยอดให้ครบแล้วกดปิดยอดอีกครั้ง");
             setTimeout(() => router.refresh(), 1200);
         });
     }
@@ -362,7 +362,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                 <div className={cn("flex items-center justify-between rounded-lg px-3 py-2 mt-1",
                                     isOk ? "bg-emerald-50" : os > 0 ? "bg-amber-50" : "bg-rose-50")}>
                                     <span className={cn("text-sm font-bold", isOk ? "text-emerald-700" : os > 0 ? "text-amber-700" : "text-rose-700")}>
-                                        {isOk ? "✓ ตรงพอดี" : os > 0 ? "เงินเกิน" : "เงินขาด"}
+                                        {isOk ? " ตรงพอดี" : os > 0 ? "เงินเกิน" : "เงินขาด"}
                                     </span>
                                     <span className={cn("text-base font-black tabular-nums", isOk ? "text-emerald-700" : os > 0 ? "text-amber-700" : "text-rose-700")}>
                                         {os > 0 ? "+" : ""}{money(os)}

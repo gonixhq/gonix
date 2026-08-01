@@ -273,7 +273,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     {selectedAddress && (
                         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs">
                             <span className="text-blue-800">
-                                ✓ ที่อยู่: ต.{selectedAddress.subdistrict_name} อ.{selectedAddress.district_name} จ.{selectedAddress.province_name} <strong>{selectedAddress.postal_code}</strong>
+                                 ที่อยู่: ต.{selectedAddress.subdistrict_name} อ.{selectedAddress.district_name} จ.{selectedAddress.province_name} <strong>{selectedAddress.postal_code}</strong>
                             </span>
                             <button type="button" onClick={clearTambon} className="text-blue-600 hover:underline inline-flex items-center gap-1">
                                 <X className="h-3 w-3" /> ล้าง

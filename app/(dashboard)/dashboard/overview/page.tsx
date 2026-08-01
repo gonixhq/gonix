@@ -561,7 +561,7 @@ export default async function DashboardPage({
                             && (!showFinance || alerts.outstanding === 0)
                             && (!showFinance || expiringPackages.count === 0) && (
                             <div className="rounded-xl bg-emerald-50/70 border border-emerald-200/60 p-4 text-center">
-                                <div className="text-sm font-bold text-emerald-800 mb-1">✓ ไม่มีรายการเร่งด่วน</div>
+                                <div className="text-sm font-bold text-emerald-800 mb-1"> ไม่มีรายการเร่งด่วน</div>
                                 <div className="text-xs text-emerald-700">ระบบทำงานปกติ</div>
                             </div>
                         )}

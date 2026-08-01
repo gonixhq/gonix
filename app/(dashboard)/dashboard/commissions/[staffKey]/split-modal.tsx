@@ -99,7 +99,7 @@ export default function SplitModal({
                         </button>
 
                         <div className={`mt-3 text-sm font-bold text-right ${Math.abs(sum - 100) < 0.01 ? "text-emerald-600" : "text-rose-600"}`}>
-                            รวม {sum}% {Math.abs(sum - 100) < 0.01 ? "✓" : "(ต้อง = 100)"}
+                            รวม {sum}% {Math.abs(sum - 100) < 0.01 ? "" : "(ต้อง = 100)"}
                         </div>
                         {err && <p className="text-xs text-rose-600 mt-1">{err}</p>}
 

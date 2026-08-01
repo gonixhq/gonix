@@ -60,7 +60,7 @@ export default function ReferralsClient({ referrals }: { referrals: ClinicReferr
                                     <td className="px-4 py-2.5">
                                         <Link href={`/dashboard/patients/${r.referred_hn}`} className="text-slate-700 hover:text-[#2B54F0]">{r.referred_name}</Link>
                                     </td>
-                                    <td className="px-3 py-2.5 text-center">{r.has_sales ? <span className="text-emerald-600 text-xs font-bold">✓ แล้ว</span> : <span className="text-slate-300 text-xs">ยัง</span>}</td>
+                                    <td className="px-3 py-2.5 text-center">{r.has_sales ? <span className="text-emerald-600 text-xs font-bold"> แล้ว</span> : <span className="text-slate-300 text-xs">ยัง</span>}</td>
                                     <td className="px-3 py-2.5 text-center">
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS[r.reward_status]?.cls || ""}`}>{STATUS[r.reward_status]?.label}</span>
                                         {r.reward_status === "points" && r.reward_points > 0 && <span className="text-[10px] text-slate-400 ml-1">{r.reward_points}แต้ม</span>}

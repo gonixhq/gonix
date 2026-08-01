@@ -106,7 +106,7 @@ export default function CheckoutAppointmentForm({ vn, hn }: Props) {
                     <h2 className="text-sm font-bold text-cyan-900">นัดหมายครั้งต่อไป</h2>
                     {existing.length > 0 && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
-                            ✓ นัดแล้ว {existing.length}
+                             นัดแล้ว {existing.length}
                         </span>
                     )}
                 </div>

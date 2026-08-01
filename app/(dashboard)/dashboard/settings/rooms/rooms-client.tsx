@@ -61,7 +61,7 @@ export default function RoomsClient({
                 setError(res.error || "ลบไม่สำเร็จ");
                 return;
             }
-            setSuccess(`✓ ปิดการใช้งานห้อง "${room.room_name}" แล้ว`);
+            setSuccess(` ปิดการใช้งานห้อง "${room.room_name}" แล้ว`);
             setConfirmDelete(null);
             router.refresh();
         });
@@ -241,7 +241,7 @@ export default function RoomsClient({
                             setError(res.error || "Error");
                             return false;
                         }
-                        setSuccess(editing ? `✓ บันทึกการแก้ไขห้อง "${data.room_name}" แล้ว` : `✓ สร้างห้อง "${data.room_name}" สำเร็จ`);
+                        setSuccess(editing ? ` บันทึกการแก้ไขห้อง "${data.room_name}" แล้ว` : ` สร้างห้อง "${data.room_name}" สำเร็จ`);
                         setShowForm(false);
                         router.refresh();
                         return true;

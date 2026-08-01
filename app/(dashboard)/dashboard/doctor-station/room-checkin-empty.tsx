@@ -29,7 +29,7 @@ export default function RoomCheckinEmpty({ doctorName, rolePrefix, rooms }: Prop
                 setError(res.error || "Check-in ไม่สำเร็จ");
                 return;
             }
-            setSuccess(`✓ เข้าห้อง "${roomName}" สำเร็จ`);
+            setSuccess(` เข้าห้อง "${roomName}" สำเร็จ`);
             setTimeout(() => router.refresh(), 800);
         });
     }

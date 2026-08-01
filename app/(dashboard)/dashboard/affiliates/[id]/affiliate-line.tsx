@@ -29,7 +29,7 @@ export default function AffiliateLine({ affiliateId, linked, month }: { affiliat
         const payDate = prompt("กำหนดวันโอน (YYYY-MM-DD) — เว้นว่างได้:", "") || undefined;
         start(async () => {
             const r = await notifyAffiliatePayout(affiliateId, month, payDate ? { payDate } : undefined);
-            setMsg(r.success ? "ส่งสรุปยอดทาง LINE แล้ว ✓" : (r.error || "ส่งไม่สำเร็จ"));
+            setMsg(r.success ? "ส่งสรุปยอดทาง LINE แล้ว " : (r.error || "ส่งไม่สำเร็จ"));
         });
     }
     function copy() {

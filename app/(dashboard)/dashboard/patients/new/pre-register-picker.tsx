@@ -223,7 +223,7 @@ export default function PreRegisterPicker({ open, onClose, onPick }: Props) {
                                                         </span>
                                                     )}
                                                     {item.pdpa_consent && (
-                                                        <span className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider">✓ PDPA</span>
+                                                        <span className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider"> PDPA</span>
                                                     )}
                                                 </div>
 

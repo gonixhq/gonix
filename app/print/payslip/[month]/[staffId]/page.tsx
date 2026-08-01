@@ -154,7 +154,7 @@ export default async function PayslipPrintPage({
 
                 {staff.is_paid && staff.paid_at && (
                     <div className="mt-3 inline-block border-2 border-emerald-500 text-emerald-600 rounded px-3 py-1 text-[12px] font-bold" style={{ transform: "rotate(-2deg)" }}>
-                        ✓ จ่ายแล้ว · {new Date(staff.paid_at).toLocaleDateString("th-TH", { dateStyle: "medium" })}
+                         จ่ายแล้ว · {new Date(staff.paid_at).toLocaleDateString("th-TH", { dateStyle: "medium" })}
                     </div>
                 )}
 

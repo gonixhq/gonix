@@ -133,7 +133,7 @@ export default function InventoryDetailClient({ item, history, editLogs, lots, v
         startTransition(async () => {
             const res = await setInventoryActive(item.id, next);
             if (!res.success) { toast.error(res.error || "ทำรายการไม่สำเร็จ"); return; }
-            toast.success(next ? "✓ เปิดใช้งานแล้ว" : "✓ ปิดใช้งานแล้ว");
+            toast.success(next ? " เปิดใช้งานแล้ว" : " ปิดใช้งานแล้ว");
             setTimeout(() => router.refresh(), 700);
         });
     }

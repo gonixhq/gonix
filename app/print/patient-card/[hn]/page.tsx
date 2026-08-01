@@ -200,7 +200,7 @@ export default async function PatientCardPrintPage({
                         </div>
                         {patient.pdpa_consent && (
                             <div className="mt-1.5 inline-block px-2 py-0.5 border border-emerald-700 text-emerald-700 font-semibold text-[10px]">
-                                ✓ PDPA Consent
+                                 PDPA Consent
                             </div>
                         )}
                     </div>
