@@ -103,6 +103,14 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
     // แถบหัวข้อ (มีสีพื้น) + กล่องเนื้อหา (มีกรอบ) → แยกส่วนที่ 1/2 ให้ชัด ไม่ต่อกันเป็นพืด
     const sectionBar = { background: "#e8edf3", fontWeight: 700, padding: "4px 10px", border: "1px solid #94a3b8", borderRadius: "6px 6px 0 0", marginTop: "12px", fontSize: "13.5px" } as const;
     const sectionBox = { border: "1px solid #94a3b8", borderTop: "none", borderRadius: "0 0 6px 6px", padding: "9px 11px" } as const;
+    // แถวประวัติสุขภาพ (จัด 3 คอลัมน์ตรงกัน: ข้อ+ชื่อ | ☐ไม่มี ☐มี(ระบุ) | เส้นจุด)
+    const hxRow = (num: string, label: string, has?: boolean, specify?: string) => (
+        <>
+            <div style={{ whiteSpace: "nowrap" }}>{num} {label}</div>
+            <div style={{ whiteSpace: "nowrap" }}><Box /> {th ? "ไม่มี" : "No"} &nbsp;&nbsp; <Box on={has} /> {th ? "มี (ระบุ)" : "Yes (specify)"}</div>
+            <div style={{ borderBottom: "1px dotted #999", minHeight: "1.15em" }}>{specify || ""}</div>
+        </>
+    );
     const title = th
         ? (driving ? "ใบรับรองแพทย์สำหรับใบอนุญาตขับรถ" : "ใบรับรองแพทย์ (Medical Certificate)")
         : "MEDICAL CERTIFICATE";
@@ -124,18 +132,18 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>{th ? "สถานที่อยู่ (ที่สามารถติดต่อได้)" : "Residential Address"}</span> {d.fullAddress || dots(60)}</div>
                 <div style={lbl}>{th ? "ข้าพเจ้าขอใบรับรองสุขภาพ โดยมีประวัติสุขภาพดังนี้:" : "I do apply for a medical certificate with my health history as follows:"}</div>
-                <div className="pl-3">1. {th ? "โรคประจำตัว" : "Personal chronic disease"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {d.hasChronic ? d.patient?.disease_summary : dots(24)}</div>
-                <div className="pl-3">2. {th ? "อุบัติเหตุและการผ่าตัด" : "Accident or Surgery"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {dots(22)}</div>
-                <div className="pl-3">3. {th ? "เคยเข้ารับการรักษาในโรงพยาบาล" : "Hospital Admission"}: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {dots(18)}</div>
-                {driving ? <>
-                    <div className="pl-3">4. {th ? "โรคลมชัก" : "Seizure"} *: <Box /> {th ? "ไม่มี" : "No"} <Box /> {th ? "มี (ระบุ)" : "Yes (specify)"} {dots(24)}</div>
-                    <div className="pl-3" style={{ fontSize: "10.5px", color: "#555" }}>* {th
-                        ? "หมายเหตุ: ในกรณีมีโรคลมชัก ให้แนบประวัติการรักษาจากแพทย์ผู้รักษาว่าท่านปลอดจากอาการชักมากกว่า 1 ปี เพื่ออนุญาตให้ขับรถได้"
-                        : "Note: Seizure — treatment history produced by the doctor in charge must be accompanied to certify that no attack experienced within 1 year."}</div>
-                    <div className="pl-3">5. {th ? "ประวัติสำคัญอื่น ๆ" : "Other significant history"}: {d.patient?.past_history || dots(40)}</div>
-                </> : (
-                    <div className="pl-3">4. {th ? "ประวัติสุขภาพอื่นที่สำคัญ" : "Other significant health history"}: {d.patient?.past_history || dots(40)}</div>
-                )}
+                <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr", columnGap: "12px", rowGap: "6px", alignItems: "baseline", paddingLeft: "6px" }}>
+                    {hxRow("1.", th ? "โรคประจำตัว" : "Personal chronic disease", d.hasChronic || undefined, d.hasChronic ? d.patient?.disease_summary : "")}
+                    {hxRow("2.", th ? "อุบัติเหตุ และ ผ่าตัด" : "Accident or Surgery")}
+                    {hxRow("3.", th ? "เคยเข้ารับการรักษาในโรงพยาบาล" : "Hospital Admission")}
+                    {driving && hxRow("4.", th ? "โรคลมชัก *" : "Seizure *")}
+                    {driving
+                        ? hxRow("5.", th ? "ประวัติอื่นที่สำคัญ" : "Other significant history", d.patient?.past_history ? true : undefined, d.patient?.past_history || "")
+                        : hxRow("4.", th ? "ประวัติสุขภาพอื่นที่สำคัญ" : "Other significant health history", d.patient?.past_history ? true : undefined, d.patient?.past_history || "")}
+                </div>
+                {driving && <div style={{ fontSize: "10.5px", color: "#555" }}>* {th
+                    ? "ในกรณีมีโรคลมชัก ให้แนบประวัติการรักษาจากแพทย์ผู้รักษาว่าท่านปลอดจากอาการชักมากกว่า 1 ปี เพื่ออนุญาตให้ขับรถได้"
+                    : "Note: Seizure — treatment history from the attending doctor must be attached certifying no attack within 1 year."}</div>}
                 <div className="mt-2 flex justify-end">
                     <div className="text-center" style={{ minWidth: "300px" }}>
                         <div>{th ? "ลงชื่อ" : "Signature"} …………………………………… {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
