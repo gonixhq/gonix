@@ -54,7 +54,7 @@ function qtyPresets(unit: string): number[] {
 
 /** บันทึกการฉีดแบบ structured (สินค้า/จำนวน/จุด) — ตัดสต๊อกจริงตอนคิดเงินตามบิล
  *  UX เร็ว: chip สินค้า → preset จำนวน → dropdown จุด → Enter/เพิ่ม (สินค้าค้างไว้ฉีดจุดถัดไปต่อได้) */
-export default function InjectionRecorder({ vn }: { vn: string }) {
+export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded?: (line: string) => void }) {
     const router = useRouter();
     const [products, setProducts] = useState<any[]>([]);
     const [rows, setRows] = useState<any[]>([]);
@@ -93,9 +93,12 @@ export default function InjectionRecorder({ vn }: { vn: string }) {
         if (!(q > 0)) { setErr("กรอกจำนวน"); return; }
         const p = price.trim() ? parseFloat(price) : null;
         if (p != null && !(p >= 0)) { setErr("ราคาไม่ถูกต้อง"); return; }
+        // ข้อความสรุปสำหรับแทรกลงกล่อง "บันทึกการรักษาเพิ่มเติม" อัตโนมัติ
+        const line = `${sel?.item_name || ""}${sel?.brand ? ` (${sel.brand})` : ""} — ${q} ${capLabel}${effectiveSite ? ` @ ${effectiveSite}` : ""}${p != null && p > 0 ? ` = ฿${p.toLocaleString()}` : ""}`;
         start(async () => {
             const res = await saveVisitInjection({ vn, item_id: itemId, qty: q, sale_price: p, site: effectiveSite || undefined });
             if (!res.success) { setErr(res.error || "บันทึกไม่สำเร็จ"); return; }
+            onAdded?.(line);
             // เก็บสินค้าไว้ (ฉีดหลายจุดต่อได้เร็ว) เคลียร์แค่ จำนวน/ราคา/จุด
             setQty(""); setPrice(""); setSite(""); setCustomSite("");
             await reload(); router.refresh();

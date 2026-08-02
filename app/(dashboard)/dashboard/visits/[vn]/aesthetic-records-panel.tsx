@@ -37,6 +37,12 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
     const [notesSaved, setNotesSaved] = useState(false);
     const [, startTransition] = useTransition();
 
+    // เพิ่มการฉีดจาก recorder → แทรกบรรทัดสรุปลงกล่องบันทึกอัตโนมัติ (ยังไม่บันทึก รอกด "บันทึก")
+    function appendInjectionNote(line: string) {
+        setNotes(prev => (prev.trim() ? prev.replace(/\s*$/, "") + "\n" : "") + "- " + line);
+        setNotesSaved(false);
+    }
+
     function handleSaveNotes() {
         setSavingNotes(true);
         startTransition(async () => {
@@ -66,8 +72,8 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                 </div>
             </div>
 
-            {/* บันทึกการฉีด structured (ตัดสต๊อก + ขึ้นบิลอัตโนมัติ) */}
-            <InjectionRecorder vn={vn} />
+            {/* บันทึกการฉีด structured — แทรกบรรทัดสรุปลงกล่องบันทึกอัตโนมัติ */}
+            <InjectionRecorder vn={vn} onAdded={appendInjectionNote} />
 
             {/* View tabs — 1. บันทึกหัตถการ (default) → 2. แผนผังใบหน้า → ประวัติ */}
             <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-slate-100/70 border border-slate-200/60">
