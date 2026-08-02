@@ -100,6 +100,9 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
     const driving = d.isDriving;
     const name = th ? d.nameTh : (d.nameEn || d.nameTh);
     const lbl = { fontWeight: 700 } as const;
+    // แถบหัวข้อ (มีสีพื้น) + กล่องเนื้อหา (มีกรอบ) → แยกส่วนที่ 1/2 ให้ชัด ไม่ต่อกันเป็นพืด
+    const sectionBar = { background: "#e8edf3", fontWeight: 700, padding: "4px 10px", border: "1px solid #94a3b8", borderRadius: "6px 6px 0 0", marginTop: "12px", fontSize: "13.5px" } as const;
+    const sectionBox = { border: "1px solid #94a3b8", borderTop: "none", borderRadius: "0 0 6px 6px", padding: "9px 11px" } as const;
     const title = th
         ? (driving ? "ใบรับรองแพทย์สำหรับใบอนุญาตขับรถ" : "ใบรับรองแพทย์ (Medical Certificate)")
         : "MEDICAL CERTIFICATE";
@@ -112,9 +115,12 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             <div className="text-right" style={{ fontSize: "10.5px" }}>{th ? "เลขที่ตรวจ / Ref No" : "Ref No"}: {d.vn}</div>
 
             {/* ส่วนที่ 1 */}
-            <div className="mt-2" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 1 ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
-            <div className="mt-1 space-y-1">
-                <div><span style={lbl}>{th ? "ข้าพเจ้า" : "Name (Mr./Mrs./Miss)"}</span> {name} <span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
+            <div style={sectionBar}>{th ? "ส่วนที่ 1  ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
+            <div style={sectionBox} className="space-y-1.5">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", columnGap: "16px", alignItems: "baseline" }}>
+                    <div><span style={lbl}>{th ? "ข้าพเจ้า" : "Name (Mr./Mrs./Miss)"}</span> {name}</div>
+                    <div><span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
+                </div>
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
                 <div><span style={lbl}>{th ? "สถานที่อยู่ (ที่สามารถติดต่อได้)" : "Residential Address"}</span> {d.fullAddress || dots(60)}</div>
                 <div style={lbl}>{th ? "ข้าพเจ้าขอใบรับรองสุขภาพ โดยมีประวัติสุขภาพดังนี้:" : "I do apply for a medical certificate with my health history as follows:"}</div>
@@ -140,8 +146,8 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             </div>
 
             {/* ส่วนที่ 2 */}
-            <div className="mt-2" style={{ fontWeight: 700 }}>{th ? "ส่วนที่ 2 ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
-            <div className="mt-1 space-y-1">
+            <div style={sectionBar}>{th ? "ส่วนที่ 2  ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
+            <div style={sectionBox} className="space-y-1.5">
                 <div><span style={lbl}>{th ? "สถานที่ตรวจ:" : "Place of examination:"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"} {th && <><span style={lbl}> วันที่</span> {fmtDate(d.visit?.visit_date, "th")}</>}</div>
                 <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical Practice License No."}</span> {d.doctorLicense || "…………"}</div>
                 <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
