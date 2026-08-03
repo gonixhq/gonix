@@ -62,7 +62,11 @@ export default async function VisitPrintPage({
             .select("subdistrict_name, district_name, province_name, postal_code")
             .eq("subdistrict_code", patient.subdistrict_code).maybeSingle();
         if (addr) {
-            fullAddress = `${fullAddress ? fullAddress + " " : ""}ต.${addr.subdistrict_name} อ.${addr.district_name} จ.${addr.province_name} ${addr.postal_code}`.trim();
+            const sub = String(addr.subdistrict_name || "").replace(/^(ตำบล|แขวง)\s*/, "").trim();
+            const dist = String(addr.district_name || "").replace(/^(อำเภอ|เขต)\s*/, "").trim();
+            const prov = String(addr.province_name || "").replace(/^จังหวัด\s*/, "").trim();
+            const bkk = prov.includes("กรุงเทพ");
+            fullAddress = `${fullAddress ? fullAddress + " " : ""}${bkk ? "แขวง" : "ต."}${sub} ${bkk ? "เขต" : "อ."}${dist} ${bkk ? "" : "จ."}${prov} ${addr.postal_code || ""}`.trim();
         }
     }
 
@@ -144,6 +148,105 @@ export default async function VisitPrintPage({
     const referHospital = referrals[0]?.destination_hospital || "";
     const patientName = `${patient?.prefix || ""} ${patient?.first_name || ""} ${patient?.last_name || ""}`.trim();
 
+    // ── Section ใช้ร่วมทั้ง general/aesthetic ──
+    const patientSection = (
+        <ColumnSection title="ผู้ป่วย" subtitle="Patient">
+            <div className="text-[18px] font-bold leading-tight mb-1.5">{patientName}</div>
+            <div className="text-[13px] space-y-1">
+                <Row label="เพศ / อายุ" value={`${genderLabel[patient?.gender] || "—"} · ${age(patient?.dob)}`} />
+                <Row label="เลขบัตรประชาชน" value={patient?.thai_id_card || "—"} mono />
+                <Row label="โทรศัพท์" value={patient?.phone || "—"} mono />
+            </div>
+        </ColumnSection>
+    );
+
+    const vitalsSection = (
+        <ColumnSection title="สัญญาณชีพ" subtitle="Vital Signs">
+            <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-[13px]">
+                <VitalRow label="BP" value={vs?.bp_systolic && vs?.bp_diastolic ? `${vs.bp_systolic}/${vs.bp_diastolic}` : "—"} unit="mmHg" />
+                <VitalRow label="Pulse" value={vs?.pulse_rate ?? "—"} unit="/min" />
+                <VitalRow label="Temp" value={vs?.temperature ?? "—"} unit="°C" />
+                <VitalRow label="O₂Sat" value={vs?.o2_saturation ?? "—"} unit="%" />
+                <VitalRow label="BW" value={vs?.weight_kg ?? "—"} unit="kg" />
+                <VitalRow label="Height" value={vs?.height_cm ?? "—"} unit="cm" />
+                <VitalRow label="BMI" value={bmi ?? "—"} unit="" />
+            </div>
+        </ColumnSection>
+    );
+
+    const ccSection = (
+        <ColumnSection title={isAesthetic ? "เหตุผลที่มา" : "อาการสำคัญ"} subtitle={isAesthetic ? "Reason for Visit" : "Chief Complaint"}>
+            <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
+                {visit.chief_complaint || "—"}
+            </p>
+        </ColumnSection>
+    );
+
+    const diagnosisSection = (
+        <ColumnSection title="การวินิจฉัย" subtitle="Diagnosis">
+            <div className="space-y-1 text-[13px]">
+                {visit.icd10_primary && (
+                    <div>
+                        <span className="font-bold">หลัก </span>
+                        <span className="font-mono font-bold">{visit.icd10_primary}</span>
+                        {icdMap[visit.icd10_primary] && <span> — {icdMap[visit.icd10_primary]}</span>}
+                    </div>
+                )}
+                {Array.isArray(visit.icd10_secondary) && visit.icd10_secondary.map((code: string) => (
+                    <div key={code}>
+                        <span className="font-semibold text-slate-600">รอง </span>
+                        <span className="font-mono font-bold">{code}</span>
+                        {icdMap[code] && <span> — {icdMap[code]}</span>}
+                    </div>
+                ))}
+                {!visit.icd10_primary && (!visit.icd10_secondary || visit.icd10_secondary.length === 0) && (
+                    <span className="text-slate-400 italic">—</span>
+                )}
+            </div>
+        </ColumnSection>
+    );
+
+    const peSection = (
+        <ColumnSection title="การตรวจร่างกาย" subtitle="Physical Exam">
+            <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
+                {visit.soap_o || visit.soap_s || "—"}
+            </p>
+        </ColumnSection>
+    );
+
+    const followReferSection = (
+        <ColumnSection title="นัดหมาย / ส่งต่อ" subtitle="Follow-up & Refer">
+            <div className="text-[13px] space-y-1">
+                {visit.soap_p && (
+                    <p className="leading-relaxed whitespace-pre-wrap mb-1.5">{visit.soap_p}</p>
+                )}
+                {certificates.length > 0 && (
+                    <div>
+                        <span className="font-semibold">ใบรับรองแพทย์ </span>
+                        {certificates.map((c, i) => (
+                            <span key={i}>
+                                {i > 0 && ", "}
+                                {c.cert_type === "sick_leave" ? "ใบลาป่วย" : c.cert_type === "fit_for_work" ? "ใบรับรองความปกติ" : c.cert_type}
+                                {c.rest_days && ` (พัก ${c.rest_days} วัน)`}
+                            </span>
+                        ))}
+                    </div>
+                )}
+                {referHospital && (
+                    <div>
+                        <span className="font-semibold">ส่งต่อ </span>→ {referHospital}
+                    </div>
+                )}
+                <div>
+                    <span className="font-semibold">นัดติดตาม </span>
+                    {hasFollowUp && followUps[0]
+                        ? `${new Date(followUps[0].appt_date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}${followUps[0].appt_start ? " " + followUps[0].appt_start.slice(0, 5) + " น." : ""}`
+                        : "ไม่นัด"}
+                </div>
+            </div>
+        </ColumnSection>
+    );
+
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}>
@@ -217,183 +320,108 @@ export default async function VisitPrintPage({
                     </div>
                 </div>
 
-                {/* ════════ MAIN GRID — 2 COLUMNS ════════ */}
-                <div className="grid grid-cols-2 mt-3" style={{ gap: 0 }}>
-                    {/* ── LEFT COLUMN — Patient & Vitals ── */}
-                    <div className="pr-5" style={{ borderRight: "1px solid #cbd5e1" }}>
-
-                        <ColumnSection title="ผู้ป่วย" subtitle="Patient">
-                            <div className="text-[18px] font-bold leading-tight mb-1.5">{patientName}</div>
-                            <div className="text-[13px] space-y-1">
-                                <Row label="เพศ / อายุ" value={`${genderLabel[patient?.gender] || "—"} · ${age(patient?.dob)}`} />
-                                <Row label="เลขบัตรประชาชน" value={patient?.thai_id_card || "—"} mono />
-                                <Row label="โทรศัพท์" value={patient?.phone || "—"} mono />
-                            </div>
-                        </ColumnSection>
-
-                        {/* Aesthetic: แสดง Face Chart ในคอลัมน์ซ้าย (ใหญ่กว่า) */}
-                        {isAesthetic && (facePins.length > 0 || (aestheticRecords?.face_chart?.strokes?.length || 0) > 0) && (
-                            <ColumnSection title="แผนผังใบหน้า" subtitle="Face Chart">
-                                <FaceChartRender data={aestheticRecords.face_chart as FaceChartData} width={300} />
-                                {facePins.length > 0 && (
-                                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-                                        {facePins.map((p, i) => (
-                                            <div key={i} className="flex items-baseline gap-1.5">
-                                                <span className="font-mono font-bold shrink-0">#{i + 1}</span>
-                                                <span className="flex-1 truncate">{p.label || <span className="text-slate-400 italic">—</span>}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </ColumnSection>
-                        )}
-                    </div>
-
-                    {/* ── RIGHT COLUMN — Clinical ── */}
-                    <div className="pl-5">
-                        <ColumnSection title="สัญญาณชีพ" subtitle="Vital Signs">
-                            <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-[13px]">
-                                <VitalRow label="BP" value={vs?.bp_systolic && vs?.bp_diastolic ? `${vs.bp_systolic}/${vs.bp_diastolic}` : "—"} unit="mmHg" />
-                                <VitalRow label="Pulse" value={vs?.pulse_rate ?? "—"} unit="/min" />
-                                <VitalRow label="Temp" value={vs?.temperature ?? "—"} unit="°C" />
-                                <VitalRow label="O₂Sat" value={vs?.o2_saturation ?? "—"} unit="%" />
-                                <VitalRow label="BW" value={vs?.weight_kg ?? "—"} unit="kg" />
-                                <VitalRow label="Height" value={vs?.height_cm ?? "—"} unit="cm" />
-                                <VitalRow label="BMI" value={bmi ?? "—"} unit="" />
-                            </div>
-                        </ColumnSection>
-
-                        <ColumnSection title={isAesthetic ? "เหตุผลที่มา" : "อาการสำคัญ"} subtitle={isAesthetic ? "Reason for Visit" : "Chief Complaint"}>
-                            <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
-                                {visit.chief_complaint || "—"}
-                            </p>
-                        </ColumnSection>
-
-                        {/* === AESTHETIC-specific sections === */}
-                        {isAesthetic ? (
-                            <>
-                                <ColumnSection title="หัตถการที่ทำ" subtitle="Procedures Done">
-                                    {procedureItems.length === 0 && packageUsages.length === 0 ? (
-                                        <span className="text-slate-400 italic text-[13px]">—</span>
-                                    ) : (
-                                        <div className="space-y-1 text-[13px]">
-                                            {procedureItems.map((it, i) => (
-                                                <div key={i} className="flex items-baseline gap-2">
-                                                    <span className="text-slate-500 shrink-0">•</span>
-                                                    <span className="flex-1">{it.item_name}</span>
-                                                    {Number(it.qty) > 1 && (
-                                                        <span className="text-[11px] text-slate-600 font-mono">×{it.qty}</span>
-                                                    )}
+                {/* ════════ MAIN CONTENT ════════ */}
+                {isAesthetic ? (
+                    /* ── ความงาม: 2 คอลัมน์ (ผู้ป่วย + แผนผังใบหน้า ซ้าย · คลินิก ขวา) ── */
+                    <div className="grid grid-cols-2 mt-3" style={{ gap: 0 }}>
+                        <div className="pr-5" style={{ borderRight: "1px solid #cbd5e1" }}>
+                            {patientSection}
+                            {(facePins.length > 0 || (aestheticRecords?.face_chart?.strokes?.length || 0) > 0) && (
+                                <ColumnSection title="แผนผังใบหน้า" subtitle="Face Chart">
+                                    <FaceChartRender data={aestheticRecords.face_chart as FaceChartData} width={300} />
+                                    {facePins.length > 0 && (
+                                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
+                                            {facePins.map((p, i) => (
+                                                <div key={i} className="flex items-baseline gap-1.5">
+                                                    <span className="font-mono font-bold shrink-0">#{i + 1}</span>
+                                                    <span className="flex-1 truncate">{p.label || <span className="text-slate-400 italic">—</span>}</span>
                                                 </div>
                                             ))}
-                                            {packageUsages.map((u, i) => {
-                                                const pp = Array.isArray(u.patient_packages) ? u.patient_packages[0] : u.patient_packages;
-                                                return (
-                                                    <div key={`pkg-${i}`} className="flex items-baseline gap-2">
-                                                        <span className="text-slate-500 shrink-0"></span>
-                                                        <span className="flex-1">
-                                                            <span className="font-semibold">{pp?.package_name || "คอส"}</span>
-                                                            <span className="text-slate-600"> — ตัดครั้งที่ {u.session_no}/{pp?.total_sessions || "?"}</span>
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
                                         </div>
                                     )}
                                 </ColumnSection>
+                            )}
+                        </div>
 
-                                <ColumnSection title="บันทึกหัตถการ" subtitle="Treatment Notes">
-                                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap">
-                                        {treatmentNotes || <span className="text-slate-400 italic">—</span>}
-                                    </p>
-                                </ColumnSection>
-
-                                {/* Face chart แสดงในคอลัมน์ซ้ายแทน */}
-
-                                {(beforePhotos.length > 0 || afterPhotos.length > 0) && (
-                                    <ColumnSection title="รูปก่อน-หลัง" subtitle="Before / After Photos">
-                                        <div className="flex items-center gap-4 text-[13px]">
-                                            <span><strong>ก่อน</strong> {beforePhotos.length} รูป</span>
-                                            <span className="text-slate-300">·</span>
-                                            <span><strong>หลัง</strong> {afterPhotos.length} รูป</span>
-                                            <span className="text-[11px] text-slate-500 italic">(ดูในระบบ)</span>
-                                        </div>
-                                    </ColumnSection>
-                                )}
-
-                                <ColumnSection title="นัดหมาย" subtitle="Follow-up">
-                                    <div className="text-[13px]">
-                                        {hasFollowUp && followUps[0]
-                                            ? <span><strong>{new Date(followUps[0].appt_date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}</strong>{followUps[0].appt_start ? " " + followUps[0].appt_start.slice(0, 5) + " น." : ""}{followUps[0].note ? ` — ${followUps[0].note}` : ""}</span>
-                                            : <span className="text-slate-400 italic">ไม่นัด</span>}
-                                    </div>
-                                </ColumnSection>
-                            </>
-                        ) : (
-                            <>
-                                {/* === GENERAL VISIT sections === */}
-                                <ColumnSection title="การวินิจฉัย" subtitle="Diagnosis">
+                        <div className="pl-5">
+                            {vitalsSection}
+                            {ccSection}
+                            <ColumnSection title="หัตถการที่ทำ" subtitle="Procedures Done">
+                                {procedureItems.length === 0 && packageUsages.length === 0 ? (
+                                    <span className="text-slate-400 italic text-[13px]">—</span>
+                                ) : (
                                     <div className="space-y-1 text-[13px]">
-                                        {visit.icd10_primary && (
-                                            <div>
-                                                <span className="font-bold">หลัก </span>
-                                                <span className="font-mono font-bold">{visit.icd10_primary}</span>
-                                                {icdMap[visit.icd10_primary] && <span> — {icdMap[visit.icd10_primary]}</span>}
-                                            </div>
-                                        )}
-                                        {Array.isArray(visit.icd10_secondary) && visit.icd10_secondary.map((code: string) => (
-                                            <div key={code}>
-                                                <span className="font-semibold text-slate-600">รอง </span>
-                                                <span className="font-mono font-bold">{code}</span>
-                                                {icdMap[code] && <span> — {icdMap[code]}</span>}
+                                        {procedureItems.map((it, i) => (
+                                            <div key={i} className="flex items-baseline gap-2">
+                                                <span className="text-slate-500 shrink-0">•</span>
+                                                <span className="flex-1">{it.item_name}</span>
+                                                {Number(it.qty) > 1 && (
+                                                    <span className="text-[11px] text-slate-600 font-mono">×{it.qty}</span>
+                                                )}
                                             </div>
                                         ))}
-                                        {!visit.icd10_primary && (!visit.icd10_secondary || visit.icd10_secondary.length === 0) && (
-                                            <span className="text-slate-400 italic">—</span>
-                                        )}
-                                    </div>
-                                </ColumnSection>
-
-                                <ColumnSection title="การตรวจร่างกาย" subtitle="Physical Exam">
-                                    <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
-                                        {visit.soap_o || visit.soap_s || "—"}
-                                    </p>
-                                </ColumnSection>
-
-                                <ColumnSection title="นัดหมาย / ส่งต่อ" subtitle="Follow-up & Refer">
-                                    <div className="text-[13px] space-y-1">
-                                        {visit.soap_p && (
-                                            <p className="leading-relaxed whitespace-pre-wrap mb-1.5">{visit.soap_p}</p>
-                                        )}
-                                        {certificates.length > 0 && (
-                                            <div>
-                                                <span className="font-semibold">ใบรับรองแพทย์ </span>
-                                                {certificates.map((c, i) => (
-                                                    <span key={i}>
-                                                        {i > 0 && ", "}
-                                                        {c.cert_type === "sick_leave" ? "ใบลาป่วย" : c.cert_type === "fit_for_work" ? "ใบรับรองความปกติ" : c.cert_type}
-                                                        {c.rest_days && ` (พัก ${c.rest_days} วัน)`}
+                                        {packageUsages.map((u, i) => {
+                                            const pp = Array.isArray(u.patient_packages) ? u.patient_packages[0] : u.patient_packages;
+                                            return (
+                                                <div key={`pkg-${i}`} className="flex items-baseline gap-2">
+                                                    <span className="text-slate-500 shrink-0"></span>
+                                                    <span className="flex-1">
+                                                        <span className="font-semibold">{pp?.package_name || "คอส"}</span>
+                                                        <span className="text-slate-600"> — ตัดครั้งที่ {u.session_no}/{pp?.total_sessions || "?"}</span>
                                                     </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {referHospital && (
-                                            <div>
-                                                <span className="font-semibold">ส่งต่อ </span>→ {referHospital}
-                                            </div>
-                                        )}
-                                        <div>
-                                            <span className="font-semibold">นัดติดตาม </span>
-                                            {hasFollowUp && followUps[0]
-                                                ? `${new Date(followUps[0].appt_date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}${followUps[0].appt_start ? " " + followUps[0].appt_start.slice(0, 5) + " น." : ""}`
-                                                : "ไม่นัด"}
-                                        </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </ColumnSection>
+
+                            <ColumnSection title="บันทึกหัตถการ" subtitle="Treatment Notes">
+                                <p className="text-[13px] leading-relaxed whitespace-pre-wrap">
+                                    {treatmentNotes || <span className="text-slate-400 italic">—</span>}
+                                </p>
+                            </ColumnSection>
+
+                            {(beforePhotos.length > 0 || afterPhotos.length > 0) && (
+                                <ColumnSection title="รูปก่อน-หลัง" subtitle="Before / After Photos">
+                                    <div className="flex items-center gap-4 text-[13px]">
+                                        <span><strong>ก่อน</strong> {beforePhotos.length} รูป</span>
+                                        <span className="text-slate-300">·</span>
+                                        <span><strong>หลัง</strong> {afterPhotos.length} รูป</span>
+                                        <span className="text-[11px] text-slate-500 italic">(ดูในระบบ)</span>
                                     </div>
                                 </ColumnSection>
-                            </>
-                        )}
+                            )}
+
+                            <ColumnSection title="นัดหมาย" subtitle="Follow-up">
+                                <div className="text-[13px]">
+                                    {hasFollowUp && followUps[0]
+                                        ? <span><strong>{new Date(followUps[0].appt_date).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}</strong>{followUps[0].appt_start ? " " + followUps[0].appt_start.slice(0, 5) + " น." : ""}{followUps[0].note ? ` — ${followUps[0].note}` : ""}</span>
+                                        : <span className="text-slate-400 italic">ไม่นัด</span>}
+                                </div>
+                            </ColumnSection>
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    /* ── ทั่วไป: แถบบน (ผู้ป่วย | สัญญาณชีพ) + เนื้อหาเต็มความกว้าง ── */
+                    <>
+                        <div className="grid grid-cols-2 mt-3" style={{ gap: 0 }}>
+                            <div className="pr-5" style={{ borderRight: "1px solid #cbd5e1" }}>
+                                {patientSection}
+                            </div>
+                            <div className="pl-5">
+                                {vitalsSection}
+                            </div>
+                        </div>
+
+                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid #000" }}>
+                            {ccSection}
+                            {diagnosisSection}
+                            {peSection}
+                            {followReferSection}
+                        </div>
+                    </>
+                )}
 
                 {/* ════════ PRESCRIPTIONS — FULL WIDTH (ไม่แสดงสำหรับ aesthetic) ════════ */}
                 {!isAesthetic && drugs.length > 0 && (
