@@ -298,7 +298,7 @@ function LayoutB({ d }: { d: any }) {
             <div className="text-right" style={{ fontSize: "11px" }}>เลขที่ / Ref No: {d.vn}</div>
 
             <div className="mt-3 space-y-1.5">
-                <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName} เป็นผู้ประกอบวิชาชีพเวชกรรม</div>
+                <div><span style={lbl}>ข้าพเจ้า</span> {withDocTitle(d.doctorName)} เป็นผู้ประกอบวิชาชีพเวชกรรม</div>
                 <div>ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว. {d.doctorLicense || "…………"} ปฏิบัติงาน ณ {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</div>
                 <div><span style={lbl}>ได้ทำการตรวจรักษาผู้ป่วยชื่อ</span> {d.nameTh}</div>
                 <div><span style={lbl}>อายุ</span> {calcAge(d.patient?.dob)} ปี <span style={lbl}>เลขประจำตัวผู้ป่วย (HN)</span> {d.hn || "…………"}</div>
@@ -324,7 +324,7 @@ function LayoutB({ d }: { d: any }) {
                         ? <img src={d.signatureUrl} alt="" className="h-12 object-contain mx-auto" style={{ marginBottom: "-6px" }} />
                         : <div className="h-10" />}
                     <div>ลงชื่อ ………………………………………… แพทย์ผู้ตรวจ</div>
-                    <div>( {d.doctorName} )</div>
+                    <div>( {withDocTitle(d.doctorName)} )</div>
                     <div style={{ fontSize: "11px" }}>วันที่ {fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), "th")}</div>
                 </div>
             </div>
@@ -351,7 +351,7 @@ function LayoutC({ d }: { d: any }) {
             <div className="text-right mt-1">วันที่ {fmtDate(d.visit?.visit_date, "th")}</div>
 
             <div className="mt-2 space-y-1.5">
-                <div><span style={lbl}>ข้าพเจ้า</span> {d.doctorName}</div>
+                <div><span style={lbl}>ข้าพเจ้า</span> {withDocTitle(d.doctorName)}</div>
                 <div>ซึ่งเป็นผู้ประกอบวิชาชีพ</div>
                 <div className="pl-3">{prof("เวชกรรม", true)}{prof("ทันตกรรม")}{prof("แพทย์แผนไทย")}{prof("แพทย์แผนไทยประยุกต์")}</div>
                 <div className="pl-3">{prof("เภสัชกรรม")}{prof("ผู้ประกอบโรคศิลปะ สาขาการแพทย์แผนจีน")}{prof("หมอพื้นบ้าน")}</div>
@@ -375,7 +375,7 @@ function LayoutC({ d }: { d: any }) {
 
             <div className="mt-6 flex justify-between items-end">
                 <SigBlock d={{ showDigital: false }} label="ผู้รับใบสั่ง" />
-                <SigBlock d={d} label="ผู้สั่งจ่าย" name={d.doctorName} />
+                <SigBlock d={d} label="ผู้สั่งจ่าย" name={withDocTitle(d.doctorName)} />
             </div>
 
             <div className="mt-6" style={{ fontSize: "10.5px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "4px" }}>
