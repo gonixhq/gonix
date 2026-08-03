@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import PrintTrigger from "./print-trigger";
 import { FaceChartRender } from "./face-chart-render";
 import type { FaceChartData } from "@/lib/aesthetic-types";
+import { ClinicMasthead } from "@/app/print/clinic-masthead";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function VisitPrintPage({
     const nurseName = nurse?.profiles?.full_name || nurse?.profiles?.[0]?.full_name;
 
     const { data: clinic } = await supabase
-        .from("tenants").select("clinic_name, clinic_name_en, phone, address_detail, license_number")
+        .from("tenants").select("clinic_name, clinic_name_en, company_name, company_name_en, phone, address_detail, license_number")
         .eq("id", visit.clinic_id).maybeSingle();
 
     let fullAddress = patient?.address_detail || "";
@@ -258,53 +259,15 @@ export default async function VisitPrintPage({
                 fontFamily: "'Noto Sans Thai', sans-serif",
                 color: "#000",
             }}>
-                {/* ════════ MASTHEAD ════════ */}
-                <div style={{ borderTop: "4px double #000", borderBottom: "2px solid #000", padding: "8px 0" }}>
-                    <div className="flex items-start justify-between gap-5">
-                        <div className="flex items-center gap-4">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src="/clinic-logo.png" alt="Clinic" className="h-20 w-20 object-contain shrink-0" />
-                            <div className="leading-tight">
-                                <div className="text-[18px] font-black text-black tracking-tight">
-                                    {clinic?.clinic_name || "—"}
-                                </div>
-                                {clinic?.clinic_name_en && (
-                                    <div className="text-[13px] font-semibold text-slate-800 mt-0.5">
-                                        {clinic.clinic_name_en}
-                                    </div>
-                                )}
-                                {clinic?.address_detail && (
-                                    <div className="text-[12px] text-slate-700 mt-1 leading-relaxed">
-                                        {clinic.address_detail}
-                                    </div>
-                                )}
-                                {clinic?.phone && (
-                                    <div className="text-[12px] text-slate-700">
-                                        โทรศัพท์ {clinic.phone}
-                                    </div>
-                                )}
-                                {clinic?.license_number && (
-                                    <div className="text-[12px] text-slate-700">
-                                        เลขที่ใบอนุญาต {clinic.license_number}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                            <div className="text-[10px] uppercase tracking-[0.3em] font-semibold text-slate-600">
-                                {isAesthetic ? "Aesthetic Treatment Record" : "Medical Record · OPD"}
-                            </div>
-                            <h1 className="text-[22px] font-black tracking-tight text-black leading-tight mt-1">
-                                {isAesthetic ? "บันทึกหัตถการความงาม" : "บันทึกการตรวจรักษา"}
-                            </h1>
-                            <div className="text-[13px] italic text-slate-700">
-                                {isAesthetic ? "Aesthetic / Cosmetic" : "ผู้ป่วยนอก (Outpatient)"}
-                            </div>
-                        </div>
-                    </div>
+                {/* ── หัวกระดาษ (component กลาง ใช้ร่วมกับใบรับรองแพทย์) ── */}
+                <ClinicMasthead clinic={clinic} />
+                <div className="text-center mt-2" style={{ fontSize: "16px", fontWeight: 900 }}>
+                    {isAesthetic ? "บันทึกหัตถการความงาม" : "บันทึกการตรวจรักษา"}
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · {isAesthetic ? "Aesthetic Record" : "Medical Record · OPD"}</span>
                 </div>
+                <div className="text-center" style={{ fontSize: "12px", color: "#475569", fontStyle: "italic" }}>{isAesthetic ? "Aesthetic / Cosmetic" : "ผู้ป่วยนอก (Outpatient)"}</div>
 
-                {/* ════════ METADATA BAR ════════ */}
+                {/* ── ข้อมูลผู้ป่วย / เวลา ── */}
                 <div className="flex items-center justify-between py-2 px-1 text-[12px]" style={{ borderBottom: "1px solid #000" }}>
                     <div className="flex items-center gap-4">
                         <span className="text-[14px]"><strong>HN</strong> <span className="font-mono font-bold">{patient?.hn}</span></span>
