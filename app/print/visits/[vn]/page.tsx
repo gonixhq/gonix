@@ -290,16 +290,6 @@ export default async function VisitPrintPage({
                             {(facePins.length > 0 || (aestheticRecords?.face_chart?.strokes?.length || 0) > 0) && (
                                 <ColumnSection title="แผนผังใบหน้า" subtitle="Face Chart">
                                     <FaceChartRender data={aestheticRecords.face_chart as FaceChartData} width={300} />
-                                    {facePins.length > 0 && (
-                                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-                                            {facePins.map((p, i) => (
-                                                <div key={i} className="flex items-baseline gap-1.5">
-                                                    <span className="font-mono font-bold shrink-0">#{i + 1}</span>
-                                                    <span className="flex-1 truncate">{p.label || <span className="text-slate-400 italic">—</span>}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
                                 </ColumnSection>
                             )}
                         </div>
