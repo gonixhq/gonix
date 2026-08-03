@@ -153,6 +153,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
     const th = lang === "th";
     const driving = d.isDriving;
     const name = th ? d.nameTh : (d.nameEn || d.nameTh);
+    const clinicName = th ? (d.clinic?.clinic_name || "ธนเวชคลินิกเวชกรรม") : (d.clinic?.clinic_name_en || d.clinic?.clinic_name || "Tanavej Clinic");
     const lbl = { fontWeight: 700 } as const;
     // แถบหัวข้อ (มีสีพื้น) + กล่องเนื้อหา (มีกรอบ) → แยกส่วนที่ 1/2 ให้ชัด ไม่ต่อกันเป็นพืด
     const sectionBar = { background: "#e8edf3", fontWeight: 700, padding: "4px 10px", border: "1px solid #94a3b8", borderRadius: "6px 6px 0 0", marginTop: "12px", fontSize: "13.5px" } as const;
@@ -215,7 +216,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             <div style={sectionBox} className="space-y-1.5">
                 {/* สถานที่ตรวจ (ซ้าย) + วันที่ (ชิดขวา) */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px" }}>
-                    <span><span style={lbl}>{th ? "สถานที่ตรวจ" : "Place of examination"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</span>
+                    <span><span style={lbl}>{th ? "สถานที่ตรวจ" : "Place of examination"}</span> {clinicName}</span>
                     <span style={{ whiteSpace: "nowrap" }}>{th
                         ? <><span style={lbl}>วันที่</span> {exam.d} <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y}</>
                         : <><span style={lbl}>Date</span> {fmtDate(d.visit?.visit_date, "en")}</>}</span>
@@ -225,12 +226,12 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <div><span style={lbl}>{th ? "ข้าพเจ้า นายแพทย์/แพทย์หญิง" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)}</div>
                 <div>
                     <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical License No."}</span> {d.doctorLicense || "…………"}
-                    &nbsp;&nbsp;<span style={lbl}>{th ? "สถานพยาบาลชื่อ" : "Clinic"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}
+                    &nbsp;&nbsp;<span style={lbl}>{th ? "สถานพยาบาลชื่อ" : "Clinic"}</span> {clinicName}
                 </div>
                 <div><span style={lbl}>{th ? "ที่อยู่" : "Address"}</span> {d.clinic?.address_detail || dots(66)}</div>
                 <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined"}</span> {name}</div>
                 <div>
-                    <span style={lbl}>{th ? "แล้วเมื่อวันที่" : "on"}</span> {exam.d}
+                    <span style={lbl}>{th ? "แล้วเมื่อวันที่" : "on"}</span> {th ? exam.d : fmtDate(d.visit?.visit_date, "en")}
                     {th && <> <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y} <span style={lbl}>มีรายละเอียดดังนี้</span></>}
                 </div>
 
