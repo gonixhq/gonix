@@ -142,7 +142,7 @@ export default async function VisitPrintPage({
 
     const startTime = visit.visit_time ? visit.visit_time.slice(0, 5) : "";
     const endTime = visit.completed_at
-        ? new Date(visit.completed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+        ? new Date(visit.completed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
         : "";
 
     const hasFollowUp = followUps.length > 0;
@@ -170,7 +170,6 @@ export default async function VisitPrintPage({
                 <VitalRow label="O₂Sat" value={vs?.o2_saturation ?? "—"} unit="%" />
                 <VitalRow label="BW" value={vs?.weight_kg ?? "—"} unit="kg" />
                 <VitalRow label="Height" value={vs?.height_cm ?? "—"} unit="cm" />
-                <VitalRow label="BMI" value={bmi ?? "—"} unit="" />
             </div>
         </ColumnSection>
     );
@@ -261,14 +260,13 @@ export default async function VisitPrintPage({
             }}>
                 {/* ── หัวกระดาษ (component กลาง ใช้ร่วมกับใบรับรองแพทย์) ── */}
                 <ClinicMasthead clinic={clinic} />
-                <div className="text-center mt-2" style={{ fontSize: "16px", fontWeight: 900 }}>
+                <div className="text-center mt-1" style={{ fontSize: "16px", fontWeight: 900 }}>
                     {isAesthetic ? "บันทึกหัตถการความงาม" : "บันทึกการตรวจรักษา"}
                     <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · {isAesthetic ? "Aesthetic Record" : "Medical Record · OPD"}</span>
                 </div>
-                <div className="text-center" style={{ fontSize: "12px", color: "#475569", fontStyle: "italic" }}>{isAesthetic ? "Aesthetic / Cosmetic" : "ผู้ป่วยนอก (Outpatient)"}</div>
 
                 {/* ── ข้อมูลผู้ป่วย / เวลา ── */}
-                <div className="flex items-center justify-between py-2 px-1 text-[12px]" style={{ borderBottom: "1px solid #000" }}>
+                <div className="flex items-center justify-between py-1.5 px-1 text-[12px]" style={{ borderBottom: "1px solid #000" }}>
                     <div className="flex items-center gap-4">
                         <span className="text-[14px]"><strong>HN</strong> <span className="font-mono font-bold">{patient?.hn}</span></span>
                         <span className="text-slate-400">·</span>
@@ -423,14 +421,14 @@ export default async function VisitPrintPage({
                 </div>
 
                 {/* ════════ SIGNATURES ════════ */}
-                <div className="mt-4 grid grid-cols-2 gap-12 text-[12px]">
+                <div className="mt-3 grid grid-cols-2 gap-12 text-[12px]">
                     <div className="text-center">
-                        <div style={{ borderBottom: "1px solid #000" }} className="h-6 mb-1" />
+                        <div style={{ borderBottom: "1px solid #000" }} className="h-5 mb-1" />
                         <div className="font-semibold">{nurseName ? `( ${nurseName} )` : "(........................................)"}</div>
                         <div className="text-[10px] italic text-slate-600">ผู้บันทึก / พยาบาล</div>
                     </div>
                     <div className="text-center">
-                        <div style={{ borderBottom: "1px solid #000" }} className="h-6 mb-1" />
+                        <div style={{ borderBottom: "1px solid #000" }} className="h-5 mb-1" />
                         <div className="font-semibold">{doctorName ? `( ${doctorName} )` : "(........................................)"}</div>
                         <div className="text-[10px] italic text-slate-600">แพทย์ผู้ตรวจรักษา</div>
                     </div>
@@ -464,7 +462,7 @@ function ColumnSection({
     title, subtitle, children,
 }: { title: string; subtitle: string; children: React.ReactNode }) {
     return (
-        <div className="mb-2">
+        <div className="mb-1.5">
             <div className="flex items-baseline gap-2 pb-0.5 mb-1" style={{ borderBottom: "1.5px solid #000" }}>
                 <h3 className="text-[12px] font-black tracking-wider text-black uppercase" style={{ letterSpacing: "0.05em" }}>
                     {title}
