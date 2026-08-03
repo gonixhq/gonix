@@ -133,6 +133,14 @@ function SignSlot({
     );
 }
 
+// เติมคำนำหน้า "นพ." ให้ชื่อแพทย์ (เว้นถ้ามีคำนำหน้าอยู่แล้ว เช่นเก็บชื่อหมอหญิงเป็น "พญ. ...")
+const DOC_TITLE_RE = /^(นพ|พญ|นายแพทย์|แพทย์หญิง|ทพ|ภก|ดร|นาย|นาง|นางสาว|น\.ส|ผศ|รศ|ศ)/;
+function withDocTitle(name?: string | null): string {
+    const n = (name || "").trim();
+    if (!n) return "……………………………";
+    return DOC_TITLE_RE.test(n) ? n : "นพ. " + n;
+}
+
 // แยกวันที่เป็น วัน / เดือน(ไทย) / พ.ศ. สำหรับช่องกรอกในฟอร์มราชการ
 function thDMY(dateStr?: string | null): { d: string; m: string; y: string } {
     if (!dateStr) return { d: "……", m: "…………", y: "………" };
@@ -208,22 +216,22 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             {/* ส่วนที่ 2 */}
             <div style={sectionBar}>{th ? "ส่วนที่ 2  ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
             <div style={sectionBox} className="space-y-1.5">
-                {/* สถานที่ตรวจ + วันที่ */}
-                <div>
-                    <span style={lbl}>{th ? "สถานที่ตรวจ" : "Place of examination"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}
-                    {th
-                        ? <>&nbsp;&nbsp;<span style={lbl}>วันที่</span> {exam.d} <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y}</>
-                        : <> &nbsp;<span style={lbl}>Date</span> {fmtDate(d.visit?.visit_date, "en")}</>}
+                {/* สถานที่ตรวจ (ซ้าย) + วันที่ (ชิดขวา) */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px" }}>
+                    <span><span style={lbl}>{th ? "สถานที่ตรวจ" : "Place of examination"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}</span>
+                    <span style={{ whiteSpace: "nowrap" }}>{th
+                        ? <><span style={lbl}>วันที่</span> {exam.d} <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y}</>
+                        : <><span style={lbl}>Date</span> {fmtDate(d.visit?.visit_date, "en")}</>}</span>
                 </div>
 
-                {/* (1) แพทย์ผู้ตรวจ + ผู้ถูกตรวจ */}
-                <div><span style={lbl}>{th ? "(1) ข้าพเจ้า นายแพทย์/แพทย์หญิง" : "(1) I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)}</div>
+                {/* แพทย์ผู้ตรวจ + ผู้ถูกตรวจ */}
+                <div><span style={lbl}>{th ? "ข้าพเจ้า นายแพทย์/แพทย์หญิง" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)}</div>
                 <div>
                     <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical License No."}</span> {d.doctorLicense || "…………"}
                     &nbsp;&nbsp;<span style={lbl}>{th ? "สถานพยาบาลชื่อ" : "Clinic"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}
                 </div>
                 <div><span style={lbl}>{th ? "ที่อยู่" : "Address"}</span> {d.clinic?.address_detail || dots(66)}</div>
-                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย นาย/นาง/นางสาว" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
+                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined"}</span> {name}</div>
                 <div>
                     <span style={lbl}>{th ? "แล้วเมื่อวันที่" : "on"}</span> {exam.d}
                     {th && <> <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y} <span style={lbl}>มีรายละเอียดดังนี้</span></>}
@@ -248,7 +256,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <div className="pl-4">{th ? "3. โรคเท้าช้างในระยะที่ปรากฏอาการเป็นที่รังเกียจแก่สังคม" : "(3) Symptomatic Elephantiasis"}</div>
                 <div className="pl-4">{th ? "4. อื่น ๆ (ถ้ามี)" : "(4) Other diseases (if any)"} {dots(40)}</div>
 
-                <div><span style={lbl}>{th ? "(2) สรุปความเห็นและข้อแนะนำของแพทย์" : "(2) Physician's Conclusion / Advice"}</span> {d.opinionText || dots(42)}</div>
+                <div><span style={lbl}>{th ? "สรุปความเห็นและข้อแนะนำของแพทย์" : "Physician's Conclusion / Advice"}</span> {d.opinionText || dots(44)}</div>
                 {!d.opinionText && <div>{dots(80)}</div>}
             </div>
 
@@ -257,7 +265,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                 <SignSlot
                     leftLabel={th ? "ลงชื่อ" : "Signature"}
                     rightLabel={th ? "แพทย์ผู้ตรวจร่างกาย" : "M.D."}
-                    name={th ? d.doctorName : (d.doctorNameEn || d.doctorName)}
+                    name={th ? withDocTitle(d.doctorName) : (d.doctorNameEn || d.doctorName)}
                     dateText={`${th ? "วันที่" : "Date"} ${fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), lang)}`}
                     sigUrl={d.showDigital ? d.signatureUrl : null}
                 />
