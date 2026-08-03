@@ -133,6 +133,15 @@ function SignSlot({
     );
 }
 
+// แยกวันที่เป็น วัน / เดือน(ไทย) / พ.ศ. สำหรับช่องกรอกในฟอร์มราชการ
+function thDMY(dateStr?: string | null): { d: string; m: string; y: string } {
+    if (!dateStr) return { d: "……", m: "…………", y: "………" };
+    const dt = new Date(String(dateStr).length <= 10 ? dateStr + "T00:00:00" : dateStr);
+    if (isNaN(dt.getTime())) return { d: "……", m: "…………", y: "………" };
+    const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    return { d: String(dt.getDate()), m: months[dt.getMonth()], y: String(dt.getFullYear() + 543) };
+}
+
 /* ───────────────────────── Layout A: แพทยสภา 2 ส่วน (ตรวจสุขภาพ / ใบขับขี่) ───────────────────────── */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
@@ -154,6 +163,8 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
     const title = th
         ? (driving ? "ใบรับรองแพทย์สำหรับใบอนุญาตขับรถ" : "ใบรับรองแพทย์ (Medical Certificate)")
         : "MEDICAL CERTIFICATE";
+
+    const exam = thDMY(d.visit?.visit_date);
 
     return (
         <div style={{ fontFamily: "'Sarabun', 'Noto Sans Thai', sans-serif", color: "#000", fontSize: "14px", lineHeight: 1.55 }}>
@@ -197,30 +208,48 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             {/* ส่วนที่ 2 */}
             <div style={sectionBar}>{th ? "ส่วนที่ 2  ของแพทย์ (To be filled by physician)" : "Part 2: To be filled by doctor"}</div>
             <div style={sectionBox} className="space-y-1.5">
-                <div><span style={lbl}>{th ? "สถานที่ตรวจ:" : "Place of examination:"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"} {th && <><span style={lbl}> วันที่</span> {fmtDate(d.visit?.visit_date, "th")}</>}</div>
-                <div><span style={lbl}>{th ? "ข้าพเจ้า" : "I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical Practice License No."}</span> {d.doctorLicense || "…………"}</div>
-                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
-                <div className="my-1 px-3 py-1.5 flex items-center justify-between" style={{ background: "#f8fafc", borderRadius: "6px", whiteSpace: "nowrap", fontSize: "13.5px" }}>
-                    <span><span style={lbl}>{th ? "น้ำหนัก" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}</span>
-                    <span><span style={lbl}>{th ? "ส่วนสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "ซม." : "cm"}</span>
-                    <span><span style={lbl}>{th ? "ความดัน" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}</span>
-                    <span><span style={lbl}>{th ? "ชีพจร" : "Pulse"}</span> {d.vit?.pulse_rate ?? "……"} {th ? "ครั้ง/นาที" : "/min"}</span>
+                {/* สถานที่ตรวจ + วันที่ */}
+                <div>
+                    <span style={lbl}>{th ? "สถานที่ตรวจ" : "Place of examination"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}
+                    {th
+                        ? <>&nbsp;&nbsp;<span style={lbl}>วันที่</span> {exam.d} <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y}</>
+                        : <> &nbsp;<span style={lbl}>Date</span> {fmtDate(d.visit?.visit_date, "en")}</>}
                 </div>
-                <div><span style={lbl}>{th ? "สภาพร่างกายทั่วไปอยู่ในเกณฑ์:" : "General Physical Condition:"}</span> <Box /> {th ? "ปกติ" : "Normal"} <Box /> {th ? "ผิดปกติ (ระบุ)" : "Abnormal (specify)"} {dots(20)}</div>
+
+                {/* (1) แพทย์ผู้ตรวจ + ผู้ถูกตรวจ */}
+                <div><span style={lbl}>{th ? "(1) ข้าพเจ้า นายแพทย์/แพทย์หญิง" : "(1) I, Dr."}</span> {th ? d.doctorName : (d.doctorNameEn || d.doctorName)}</div>
+                <div>
+                    <span style={lbl}>{th ? "ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ ว." : "Medical License No."}</span> {d.doctorLicense || "…………"}
+                    &nbsp;&nbsp;<span style={lbl}>{th ? "สถานพยาบาลชื่อ" : "Clinic"}</span> {d.clinic?.clinic_name || "คลินิกเวชกรรมธนเวช"}
+                </div>
+                <div><span style={lbl}>{th ? "ที่อยู่" : "Address"}</span> {d.clinic?.address_detail || dots(66)}</div>
+                <div><span style={lbl}>{th ? "ได้ตรวจร่างกาย นาย/นาง/นางสาว" : "have examined (Mr./Mrs./Miss)"}</span> {name}</div>
+                <div>
+                    <span style={lbl}>{th ? "แล้วเมื่อวันที่" : "on"}</span> {exam.d}
+                    {th && <> <span style={lbl}>เดือน</span> {exam.m} <span style={lbl}>พ.ศ.</span> {exam.y} <span style={lbl}>มีรายละเอียดดังนี้</span></>}
+                </div>
+
+                {/* vitals */}
+                <div style={{ whiteSpace: "nowrap" }}>
+                    <span style={lbl}>{th ? "น้ำหนักตัว" : "Weight"}</span> {d.vit?.weight_kg ?? "……"} {th ? "กก." : "kg"}
+                    &nbsp;&nbsp;<span style={lbl}>{th ? "ความสูง" : "Height"}</span> {d.vit?.height_cm ?? "……"} {th ? "เซนติเมตร" : "cm"}
+                    &nbsp;&nbsp;<span style={lbl}>{th ? "ความดันโลหิต" : "BP"}</span> {d.vit?.bp_systolic ? `${d.vit.bp_systolic}/${d.vit.bp_diastolic}` : "……"} {th ? "มม.ปรอท" : "mmHg"}
+                    &nbsp;&nbsp;<span style={lbl}>{th ? "ชีพจร" : "Pulse"}</span> {d.vit?.pulse_rate ?? "……"} {th ? "ครั้ง/นาที" : "/min"}
+                </div>
+                <div><span style={lbl}>{th ? "สภาพร่างกายทั่วไปอยู่ในเกณฑ์" : "General Physical Condition"}</span> <Box /> {th ? "ปกติ" : "Normal"} &nbsp;&nbsp; <Box /> {th ? "ผิดปกติ (ระบุ)" : "Abnormal (specify)"} {dots(22)}</div>
 
                 <div className="mt-1" style={{ textIndent: "1.5em" }}>
                     {th
-                        ? "ขอรับรองว่า บุคคลดังกล่าว ไม่เป็นผู้มีร่างกายทุพพลภาพจนไม่สามารถปฏิบัติหน้าที่ได้ ไม่ปรากฏอาการของโรคจิต หรือจิตฟั่นเฟือน หรือปัญญาอ่อน ไม่ปรากฏอาการของการติดยาเสพติดให้โทษ และอาการของโรคพิษสุราเรื้อรัง และไม่ปรากฏอาการและอาการแสดงของโรคต่อไปนี้:"
+                        ? "ขอรับรองว่า บุคคลดังกล่าว ไม่เป็นผู้มีร่างกายทุพพลภาพจนไม่สามารถปฏิบัติหน้าที่ได้ ไม่ปรากฏอาการของโรคจิต หรือจิตฟั่นเฟือน หรือปัญญาอ่อน ไม่ปรากฏอาการของการติดยาเสพติดให้โทษ และอาการของโรคพิษสุราเรื้อรัง และไม่ปรากฏอาการและอาการแสดงของโรคต่อไปนี้"
                         : "I hereby certify that the above person is capable to work/drive, free from physical disability, showing no symptoms of mental disability or mental retardation, nor drug addiction, nor chronic alcoholism, and no sign and symptom of the following diseases:"}
                 </div>
                 <div className="pl-4">{th ? "1. โรคเรื้อนในระยะติดต่อ หรือในระยะที่ปรากฏอาการเป็นที่รังเกียจแก่สังคม" : "(1) Leprosy at contagious or symptomatic stage"}</div>
                 <div className="pl-4">{th ? "2. วัณโรคในระยะอันตราย" : "(2) Contagious stage of Tuberculosis"}</div>
                 <div className="pl-4">{th ? "3. โรคเท้าช้างในระยะที่ปรากฏอาการเป็นที่รังเกียจแก่สังคม" : "(3) Symptomatic Elephantiasis"}</div>
-                {!driving && <div className="pl-4">{th ? "4. โรคอื่น ๆ (ถ้ามี)" : "(4) Other diseases (if any)"} {dots(30)}</div>}
+                <div className="pl-4">{th ? "4. อื่น ๆ (ถ้ามี)" : "(4) Other diseases (if any)"} {dots(40)}</div>
 
-                <div><span style={lbl}>{th ? "สรุปความเห็นและข้อแนะนำของแพทย์:" : "Physician's Conclusion / Advice:"}</span> {d.opinionText || dots(45)}</div>
-                <div>{dots(78)}</div>
-                <div>{dots(78)}</div>
+                <div><span style={lbl}>{th ? "(2) สรุปความเห็นและข้อแนะนำของแพทย์" : "(2) Physician's Conclusion / Advice"}</span> {d.opinionText || dots(42)}</div>
+                {!d.opinionText && <div>{dots(80)}</div>}
             </div>
 
             {/* ลายเซ็นแพทย์ */}
