@@ -409,7 +409,13 @@ export default async function MedCertPrintPage({ params, searchParams }: {
         const { data: addr } = await supabase.from("address_ref")
             .select("subdistrict_name, district_name, province_name, postal_code")
             .eq("subdistrict_code", patient.subdistrict_code).maybeSingle();
-        if (addr) fullAddress = `${fullAddress ? fullAddress + " " : ""}ต.${addr.subdistrict_name} อ.${addr.district_name} จ.${addr.province_name} ${addr.postal_code}`.trim();
+        if (addr) {
+            const sub = String(addr.subdistrict_name || "").replace(/^(ตำบล|แขวง)\s*/, "").trim();
+            const dist = String(addr.district_name || "").replace(/^(อำเภอ|เขต)\s*/, "").trim();
+            const prov = String(addr.province_name || "").replace(/^จังหวัด\s*/, "").trim();
+            const bkk = prov.includes("กรุงเทพ");
+            fullAddress = `${fullAddress ? fullAddress + " " : ""}${bkk ? "แขวง" : "ต."}${sub} ${bkk ? "เขต" : "อ."}${dist} ${bkk ? "" : "จ."}${prov} ${addr.postal_code || ""}`.trim();
+        }
     }
     // vitals: อ่านจาก visits ก่อน (หน้าซักประวัติเซฟลง visits ทุกครั้ง) แล้ว fallback ไป vital_signs
     const { data: vsRow } = await supabase.from("vital_signs").select("weight_kg, height_cm, bp_systolic, bp_diastolic, pulse_rate").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
