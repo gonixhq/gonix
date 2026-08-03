@@ -93,6 +93,46 @@ function SigBlock({ d, label, name }: { d: any; label: string; name?: string }) 
     );
 }
 
+// บล็อกลงชื่อแบบจุดประ: ชื่อ/วันที่ อยู่กึ่งกลาง "ใต้เส้นจุด" พอดี (ไม่เยื้องตามคำว่า ลงชื่อ/ผู้ขอ)
+function SignSlot({
+    leftLabel, rightLabel, name, dateText, sigUrl, lineWidth = 185,
+}: {
+    leftLabel: string;
+    rightLabel: string;
+    name?: string;
+    dateText?: string;
+    sigUrl?: string | null;
+    lineWidth?: number;
+}) {
+    return (
+        <div style={{ display: "inline-grid", gridTemplateColumns: `auto ${lineWidth}px auto`, columnGap: "6px", rowGap: "2px", alignItems: "end", justifyItems: "center" }}>
+            {/* ลายเซ็นดิจิทัล (ถ้าส่ง prop มา) วางเหนือเส้นจุด */}
+            {sigUrl !== undefined && (<>
+                <span />
+                {sigUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={sigUrl} alt="" style={{ height: "38px", objectFit: "contain", marginBottom: "-4px" }} />
+                    : <span style={{ height: "26px" }} />}
+                <span />
+            </>)}
+            {/* แถวเส้นเซ็น: ลงชื่อ | เส้นจุด | ผู้ขอ/แพทย์ */}
+            <span style={{ whiteSpace: "nowrap" }}>{leftLabel}</span>
+            <span style={{ width: "100%", borderBottom: "1px dotted #333" }}>&nbsp;</span>
+            <span style={{ whiteSpace: "nowrap" }}>{rightLabel}</span>
+            {/* ชื่อ กึ่งกลางใต้เส้นจุด */}
+            <span />
+            <span style={{ whiteSpace: "nowrap" }}>( {name || "………………………………"} )</span>
+            <span />
+            {/* วันที่ กึ่งกลางใต้เส้นจุด */}
+            {dateText !== undefined && (<>
+                <span />
+                <span style={{ fontSize: "11px", whiteSpace: "nowrap" }}>{dateText}</span>
+                <span />
+            </>)}
+        </div>
+    );
+}
+
 /* ───────────────────────── Layout A: แพทยสภา 2 ส่วน (ตรวจสุขภาพ / ใบขับขี่) ───────────────────────── */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
@@ -145,11 +185,12 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
                     ? "ในกรณีมีโรคลมชัก ให้แนบประวัติการรักษาจากแพทย์ผู้รักษาว่าท่านปลอดจากอาการชักมากกว่า 1 ปี เพื่ออนุญาตให้ขับรถได้"
                     : "Note: Seizure — treatment history from the attending doctor must be attached certifying no attack within 1 year."}</div>}
                 <div className="mt-2 flex justify-end">
-                    <div className="text-center" style={{ minWidth: "300px" }}>
-                        <div>{th ? "ลงชื่อ" : "Signature"} …………………………………… {th ? "ผู้ขอรับใบรับรอง" : "Applicant"}</div>
-                        <div>( {name} )</div>
-                        <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.visit?.visit_date, lang)}</div>
-                    </div>
+                    <SignSlot
+                        leftLabel={th ? "ลงชื่อ" : "Signature"}
+                        rightLabel={th ? "ผู้ขอรับใบรับรอง" : "Applicant"}
+                        name={name}
+                        dateText={`${th ? "วันที่" : "Date"} ${fmtDate(d.visit?.visit_date, lang)}`}
+                    />
                 </div>
             </div>
 
@@ -184,15 +225,13 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
 
             {/* ลายเซ็นแพทย์ */}
             <div className="mt-5 flex justify-end">
-                <div className="text-center" style={{ minWidth: "270px" }}>
-                    {d.showDigital
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={d.signatureUrl} alt="" className="h-10 object-contain mx-auto" style={{ marginBottom: "-4px" }} />
-                        : <div className="h-7" />}
-                    <div>{th ? "ลงชื่อ" : "Signature"} ………………………………… {th ? "แพทย์ผู้ตรวจร่างกาย" : "M.D."}</div>
-                    <div>( {th ? d.doctorName : (d.doctorNameEn || d.doctorName)} )</div>
-                    <div style={{ fontSize: "11px" }}>{th ? "วันที่" : "Date"} {fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), lang)}</div>
-                </div>
+                <SignSlot
+                    leftLabel={th ? "ลงชื่อ" : "Signature"}
+                    rightLabel={th ? "แพทย์ผู้ตรวจร่างกาย" : "M.D."}
+                    name={th ? d.doctorName : (d.doctorNameEn || d.doctorName)}
+                    dateText={`${th ? "วันที่" : "Date"} ${fmtDate(d.visit?.visit_date || (d.cert.issued_at ? String(d.cert.issued_at).slice(0, 10) : null), lang)}`}
+                    sigUrl={d.showDigital ? d.signatureUrl : null}
+                />
             </div>
 
             <div className="mt-2" style={{ fontSize: "9.5px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "3px" }}>
