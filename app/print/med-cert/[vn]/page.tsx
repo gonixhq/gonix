@@ -273,11 +273,10 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
 
             <div className="mt-2" style={{ fontSize: "9.5px", color: "#444", borderTop: "1px solid #ccc", paddingTop: "3px" }}>
                 {th ? (
-                    <>หมายเหตุ: ใบรับรองแพทย์ฉบับนี้ให้ใช้ได้ 1 เดือนนับแต่วันที่ตรวจร่างกาย{driving && " และใช้สำหรับใบอนุญาตขับรถ และปฏิบัติหน้าที่เป็นผู้ประจำรถ"}</>
+                    <>หมายเหตุ: ใบรับรองแพทย์ฉบับนี้ให้ใช้ได้ 1 เดือนนับแต่วันที่ตรวจร่างกาย</>
                 ) : (
-                    <>N.B. This certificate is valid within 1 month from the day of examination.{driving && " Valid for driving license and vehicle crew duty."}</>
+                    <>N.B. This certificate is valid within 1 month from the day of examination.</>
                 )}
-                {th && <div className="mt-1">แบบฟอร์มนี้ได้รับการรับรองจากมติคณะกรรมการแพทยสภาในการประชุมครั้งที่ {driving ? "6/2564 วันที่ 13 พฤษภาคม 2564" : "4/2561 วันที่ 19 เมษายน 2561"}</div>}
             </div>
 
             {d.cert.status !== "approved" && <div className="mt-2 text-center no-print" style={{ fontSize: "11px", color: "#e11d48", fontStyle: "italic" }}>* {th ? "ฉบับร่าง — ควร Approve ก่อนพิมพ์ใช้จริง" : "Draft — approve before official use"}</div>}
