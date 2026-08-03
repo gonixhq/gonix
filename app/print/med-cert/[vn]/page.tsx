@@ -57,6 +57,8 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
     const nameTh = clinic?.clinic_name || "ธนเวชคลินิกเวชกรรม";
     const nameEn = clinic?.clinic_name_en || "Tanavej Clinic";
     const company = clinic?.company_name as string | undefined;
+    const companyEn = clinic?.company_name_en as string | undefined;
+    const companyLine = en ? (companyEn || company) : company;
     return (
         <div className="flex items-center gap-3 pb-2" style={{ borderBottom: "2.5px solid #0891b2" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -67,7 +69,7 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
                 <div style={{ fontSize: "10.5px", color: "#4b5563", marginTop: "3px" }}>{en ? "License No: " : "เลขที่ใบอนุญาต "}{clinic?.license_number || "…………"}</div>
             </div>
             <div className="text-right shrink-0" style={{ fontSize: "10px", color: "#6b7280", lineHeight: 1.5, maxWidth: "46%" }}>
-                {company && !en && <div style={{ fontWeight: 500, color: "#4b5563" }}>{company}</div>}
+                {companyLine && <div style={{ fontWeight: 500, color: "#4b5563" }}>{companyLine}</div>}
                 <div style={{ marginTop: "1px" }}>{clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}</div>
                 {clinic?.phone && <div>{en ? "Tel: " : "โทร. "}{clinic.phone}</div>}
             </div>
@@ -183,7 +185,7 @@ function LayoutA({ d, lang }: { d: any; lang: "th" | "en" }) {
             <div style={sectionBar}>{th ? "ส่วนที่ 1  ของผู้ขอรับใบรับรองสุขภาพ (To be filled by applicant)" : "Part 1: To be filled by applicant"}</div>
             <div style={sectionBox} className="space-y-1.5">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr auto", columnGap: "16px", alignItems: "baseline" }}>
-                    <div><span style={lbl}>{th ? "ข้าพเจ้า" : "Name (Mr./Mrs./Miss)"}</span> {name}</div>
+                    <div><span style={lbl}>{th ? "ข้าพเจ้า" : "Name"}</span> {name}</div>
                     <div><span style={lbl}>{th ? "อายุ" : "Age"}</span> {calcAge(d.patient?.dob)} {th ? "ปี" : "years"}</div>
                 </div>
                 <div className="flex items-center gap-2"><span style={lbl}>{th ? "เลขประจำตัวประชาชน / ID Number:" : "National ID / Passport No.:"}</span> {th ? <IdBoxes id={d.patient?.thai_id_card} /> : fmtId(d.patient?.thai_id_card)}</div>
@@ -430,7 +432,7 @@ export default async function MedCertPrintPage({ params, searchParams }: {
 
     const clinicId = visit?.clinic_id as string | undefined;
     const { data: clinic } = clinicId
-        ? await supabase.from("tenants").select("clinic_name, clinic_name_en, company_name, address_detail, phone, license_number").eq("id", clinicId).maybeSingle()
+        ? await supabase.from("tenants").select("clinic_name, clinic_name_en, company_name, company_name_en, address_detail, phone, license_number").eq("id", clinicId).maybeSingle()
         : { data: null };
 
     // แพทย์: ใช้ผู้ที่ถูกเลือกในห้องตรวจ (visit.doctor_id) ก่อน แล้ว fallback ไปแพทย์ที่บันทึกในใบรับรอง
