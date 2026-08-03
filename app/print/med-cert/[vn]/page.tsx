@@ -61,10 +61,10 @@ function Masthead({ clinic, en }: { clinic: any; en?: boolean }) {
         <div className="flex items-center gap-3 pb-2" style={{ borderBottom: "2.5px solid #0891b2" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/clinic-logo.png" alt="" className="shrink-0" style={{ height: "66px", width: "66px", objectFit: "contain" }} />
-            <div className="min-w-0" style={{ flex: 1, lineHeight: 1.2 }}>
+            <div className="min-w-0" style={{ flex: 1, lineHeight: 1.45 }}>
                 <div style={{ fontSize: "20px", fontWeight: 700, color: "#0e7490", letterSpacing: "0.01em" }}>{en ? nameEn : nameTh}</div>
-                {!en && <div style={{ fontSize: "12px", fontWeight: 600, color: "#0891b2", letterSpacing: "0.02em" }}>{nameEn}</div>}
-                <div style={{ fontSize: "10.5px", color: "#4b5563", marginTop: "1px" }}>{en ? "License No: " : "เลขที่ใบอนุญาต "}{clinic?.license_number || "…………"}</div>
+                {!en && <div style={{ fontSize: "12px", fontWeight: 600, color: "#0891b2", letterSpacing: "0.02em", marginTop: "3px" }}>{nameEn}</div>}
+                <div style={{ fontSize: "10.5px", color: "#4b5563", marginTop: "3px" }}>{en ? "License No: " : "เลขที่ใบอนุญาต "}{clinic?.license_number || "…………"}</div>
             </div>
             <div className="text-right shrink-0" style={{ fontSize: "10px", color: "#6b7280", lineHeight: 1.5, maxWidth: "46%" }}>
                 {company && !en && <div style={{ fontWeight: 500, color: "#4b5563" }}>{company}</div>}
