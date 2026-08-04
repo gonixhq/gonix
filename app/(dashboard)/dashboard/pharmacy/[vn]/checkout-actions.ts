@@ -109,6 +109,30 @@ export async function completeCheckout(input: CheckoutInput) {
             // → atomic: บิลย้อนหลัง + audit เกิด/ล้มพร้อมกันเสมอ (ไม่ต้อง insert เองที่ app)
         }
 
+        // 0c. Pre-check: สต๊อกยาต้องพอก่อนปิดบิล (block — กันจ่ายเกินสต๊อก)
+        const drugBill = new Map<string, number>();
+        for (const it of items) {
+            if (it.item_type === "drug" && it.item_ref_id) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const ord = drugOrders.find((d: any) => d.id === it.item_ref_id);
+                const itemId = ord?.item_id;
+                if (itemId) drugBill.set(itemId, (drugBill.get(itemId) || 0) + Number(it.qty));
+            }
+        }
+        if (drugBill.size > 0) {
+            const { data: drugStock } = await supabase.from("inventory")
+                .select("id, item_name, stock_qty").in("id", [...drugBill.keys()]);
+            const shorts: string[] = [];
+            for (const inv of drugStock || []) {
+                const need = drugBill.get(inv.id as string) || 0;
+                const have = Number(inv.stock_qty || 0);
+                if (need > have + 0.001) shorts.push(`• ${inv.item_name}: มี ${have.toLocaleString()} / ต้องใช้ ${need.toLocaleString()}`);
+            }
+            if (shorts.length > 0) {
+                return { error: `สต๊อกยาไม่พอ — กรุณารับเข้าสต๊อกให้ครบก่อนปิดบิล:\n${shorts.join("\n")}` };
+            }
+        }
+
         // 1. Mark visit as completed
         const { error: visitError } = await supabase
             .from("visits")

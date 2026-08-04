@@ -273,15 +273,19 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
         if (ids.length === 0) return;
         const { data } = await supabase
             .from("inventory")
-            .select("id, item_name, generic_name, strength, unit, sell_price")
+            .select("id, item_name, generic_name, strength, unit, sell_price, stock_qty")
             .in("id", ids);
         if (!data) return;
+        const skipped: string[] = [];
         const newLines: OrderLine[] = preset.items.map((item: { inventory_id: string; qty?: number; sig_text?: string }) => {
             const inv = data.find(d => d.id === item.inventory_id);
             if (!inv) return null;
-            const qty = item.qty || 1;
+            const avail = inv.stock_qty ?? 0;
+            if (avail <= 0) { skipped.push(inv.item_name); return null; }
+            const qty = Math.min(item.qty || 1, avail);
             return {
                 inventoryId: inv.id,
+                stock_qty: avail,
                 item_name: inv.item_name,
                 generic_name: inv.generic_name || "",
                 qty,
@@ -291,6 +295,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                 total_cost: (inv.sell_price || 0) * qty,
             };
         }).filter(Boolean) as OrderLine[];
+        if (skipped.length > 0) toast.error(`ข้ามยาสต๊อกหมด: ${skipped.join(", ")}`);
         setOrderLines(prev => {
             const existingIds = prev.map(l => l.inventoryId);
             const toAdd = newLines.filter(l => !existingIds.includes(l.inventoryId));
