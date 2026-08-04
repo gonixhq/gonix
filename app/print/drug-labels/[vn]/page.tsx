@@ -70,11 +70,29 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
 
     const { data: drugOrders } = await supabase
         .from("drug_orders")
-        .select(`id, qty, unit, sig_text, inventory!inner ( item_name, generic_name, strength, indication, warning_label, label_type, expiry_date )`)
+        .select(`id, item_id, qty, unit, sig_text, inventory!inner ( item_name, generic_name, strength, indication, warning_label, label_type, expiry_date )`)
         .eq("vn", vn)
         .order("id");
 
     const drugs = drugOrders || [];
+
+    // วันหมดอายุ: อ่านจากล็อต (inventory_lots) ที่ยังมีของ เลือกวันใกล้สุด (FEFO)
+    // แม่นกว่า inventory.expiry_date ที่ sync เฉพาะตอนตัดสต๊อก (รับล็อตเข้าไม่ได้ sync)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const itemIds = [...new Set(drugs.map((d: any) => d.item_id).filter(Boolean))] as string[];
+    const expiryMap: Record<string, string> = {};
+    if (itemIds.length > 0) {
+        const { data: lots } = await supabase.from("inventory_lots")
+            .select("item_id, expiry_date")
+            .in("item_id", itemIds)
+            .gt("qty_remaining", 0)
+            .not("expiry_date", "is", null)
+            .order("expiry_date", { ascending: true });
+        for (const l of lots || []) {
+            const k = l.item_id as string;
+            if (!expiryMap[k]) expiryMap[k] = l.expiry_date as string;   // แถวแรก = ใกล้สุด (order asc)
+        }
+    }
 
     const [{ data: clinic }, { data: branch }] = await Promise.all([
         supabase.from("tenants").select("clinic_name, address_detail, phone, logo_url").eq("id", visit.clinic_id).maybeSingle(),
@@ -112,7 +130,8 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                     const warning = (inv?.warning_label || "").trim();
                     const labelType = (inv?.label_type || "").trim();
                     const dangerous = DANGEROUS.includes(labelType);
-                    const exp = dateThai(inv?.expiry_date);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const exp = dateThai(expiryMap[(d as any).item_id] || inv?.expiry_date);
                     const sig = (d.sig_text || "").trim() || "ใช้ตามแพทย์สั่ง";
                     return (
                         <div key={d.id} className={`label${i < drugs.length - 1 ? " label-break" : ""}`}>
