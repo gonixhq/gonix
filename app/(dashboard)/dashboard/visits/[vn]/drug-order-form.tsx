@@ -27,6 +27,7 @@ interface DrugItem {
 
 interface OrderLine {
     inventoryId: string;
+    stock_qty?: number;
     item_name: string;
     generic_name: string;
     qty: number;
@@ -232,9 +233,12 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
     }
 
     function addDrug(drug: DrugItem) {
+        const avail = drug.stock_qty ?? 0;
+        if (avail <= 0) { toast.error(`${drug.item_name} สต๊อกหมด (0) — เติมสต๊อกก่อนสั่งจ่าย`); return; }
         // ถ้ามียานี้แล้ว → เพิ่ม qty +1 แทนการ add ซ้ำ
         const existing = orderLines.findIndex(l => l.inventoryId === drug.id);
         if (existing >= 0) {
+            if (orderLines[existing].qty + 1 > avail) { toast.error(`${drug.item_name} มีสต๊อกแค่ ${avail} ${drug.unit || ""}`); return; }
             setOrderLines(prev => prev.map((l, i) => {
                 if (i !== existing) return l;
                 const newQty = l.qty + 1;
@@ -243,6 +247,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
         } else {
             setOrderLines(prev => [...prev, {
                 inventoryId: drug.id,
+                stock_qty: avail,
                 item_name: drug.item_name,
                 generic_name: drug.generic_name || "",
                 qty: 1,
@@ -295,10 +300,21 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
     }
 
     function updateLine(idx: number, field: string, value: string | number) {
+        if (field === "qty") {
+            const line = orderLines[idx];
+            if (line?.stock_qty != null && (value as number) > line.stock_qty) {
+                toast.error(`${line.item_name} มีสต๊อกแค่ ${line.stock_qty} ${line.unit || ""}`);
+            }
+        }
         setOrderLines(prev => prev.map((l, i) => {
             if (i !== idx) return l;
             const updated = { ...l, [field]: value };
-            if (field === "qty") updated.total_cost = (value as number) * updated.cost_per_unit;
+            if (field === "qty") {
+                let q = value as number;
+                if (l.stock_qty != null && q > l.stock_qty) q = l.stock_qty;
+                updated.qty = q;
+                updated.total_cost = q * updated.cost_per_unit;
+            }
             if (field === "cost_per_unit") updated.total_cost = (value as number) * updated.qty;
             return updated;
         }));
