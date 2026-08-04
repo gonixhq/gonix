@@ -695,10 +695,10 @@ const TIME_SLOTS = [
 ];
 
 const FREQUENCY_PRESETS = [
-    { label: "ทุก 4 ชม.", value: "q4h" },
-    { label: "ทุก 6 ชม.", value: "q6h" },
-    { label: "ทุก 8 ชม.", value: "q8h" },
-    { label: "ทุก 12 ชม.", value: "q12h" },
+    { label: "ทุก 4 ชม.", value: "ทุก 4 ชั่วโมง" },
+    { label: "ทุก 6 ชม.", value: "ทุก 6 ชั่วโมง" },
+    { label: "ทุก 8 ชม.", value: "ทุก 8 ชั่วโมง" },
+    { label: "ทุก 12 ชม.", value: "ทุก 12 ชั่วโมง" },
 ];
 
 function FrequencyPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
