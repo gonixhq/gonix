@@ -134,7 +134,8 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                     const exp = dateThai(expiryMap[(d as any).item_id] || inv?.expiry_date);
                     const sig = (d.sig_text || "").trim() || "ใช้ตามแพทย์สั่ง";
                     return (
-                        <div key={d.id} className={`label${i < drugs.length - 1 ? " label-break" : ""}`}>
+                        <div key={d.id} className={`page${i < drugs.length - 1 ? " page-break" : ""}`}>
+                            <div className="label">
                             {/* ── หัวคลินิก (บนสุด) — โลโก้จริง ── */}
                             <div style={{ display: "flex", alignItems: "center", gap: "2.5mm" }}>
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -192,6 +193,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                                     <IcWarn /> คำเตือน: {warning}
                                 </div>
                             )}
+                            </div>
                         </div>
                     );
                 })}
@@ -201,6 +203,14 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
             </p>
 
             <style>{`
+                .page {
+                    width: 60mm;
+                    height: 80mm;
+                    position: relative;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                }
+                .page-break { break-after: page; page-break-after: always; }
                 .label {
                     width: 80mm;
                     height: 60mm;
@@ -210,17 +220,21 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%) rotate(90deg);
                 }
-                .label-break { break-after: page; page-break-after: always; }
                 @media print {
                     .no-print { display: none !important; }
-                    @page { size: 80mm 60mm; margin: 0; }
+                    @page { size: 60mm 80mm; margin: 0; }
                     body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .label { margin: 0; }
+                    .page { margin: 0; }
                 }
                 @media screen {
                     body { background: #f1f5f9; }
-                    .label { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 16px auto; border: 1px solid #000; border-radius: 6px; }
+                    .page { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 16px auto; }
+                    .label { border: 1px solid #000; }
                 }
             `}</style>
         </>
