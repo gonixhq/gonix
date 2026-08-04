@@ -141,8 +141,10 @@ export default async function VisitPrintPage({
     };
 
     const startTime = visit.visit_time ? visit.visit_time.slice(0, 5) : "";
+    // completed_at เก็บเป็น UTC (new Date().toISOString()) → บวก 7 ชม. เป็นเวลาไทย
+    // ไม่พึ่ง Intl timeZone (บาง runtime ไม่มีข้อมูล tz เลย fallback เป็น UTC เงียบๆ)
     const endTime = visit.completed_at
-        ? new Date(visit.completed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
+        ? new Date(new Date(visit.completed_at).getTime() + 7 * 3600 * 1000).toISOString().slice(11, 16)
         : "";
 
     const hasFollowUp = followUps.length > 0;
