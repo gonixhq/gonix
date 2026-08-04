@@ -170,7 +170,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                                 )}
                             </div>
                             {(generic || indication) && (
-                                <div style={{ fontSize: "10px", color: "#555", fontStyle: "italic", lineHeight: 1.15 }}>
+                                <div style={{ fontSize: "10px", color: "#000", fontStyle: "italic", lineHeight: 1.15 }}>
                                     {generic}{generic && indication ? " · " : ""}{indication}
                                 </div>
                             )}
