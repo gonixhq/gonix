@@ -149,12 +149,11 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                             <div style={{ borderTop: "1.5px solid #000", margin: "2mm 0 1.5mm" }} />
 
                             {/* ── ผู้ป่วย ── */}
-                            <div style={{ fontSize: "11.5px" }}><span style={{ fontWeight: 700 }}>ชื่อ</span> {ptName}</div>
-                            <div style={{ fontSize: "10.5px", color: "#333", marginTop: "0.5mm" }}>
-                                <span style={{ fontWeight: 700 }}>อายุ</span> {ptAge}
-                                <span style={{ margin: "0 4px", color: "#bbb" }}>·</span>
+                            <div style={{ fontSize: "12px", lineHeight: 1.35 }}>
+                                <span style={{ fontWeight: 700 }}>ชื่อ</span> {ptName}
+                                <span style={{ margin: "0 5px", color: "#bbb" }}>·</span>
                                 <span style={{ fontWeight: 700 }}>HN</span> <span style={{ fontFamily: "monospace" }}>{visit.hn}</span>
-                                <span style={{ margin: "0 4px", color: "#bbb" }}>·</span>
+                                <span style={{ margin: "0 5px", color: "#bbb" }}>·</span>
                                 <span style={{ fontWeight: 700 }}>วันที่</span> {dateStr}
                             </div>
 
@@ -170,7 +169,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                                 )}
                             </div>
                             {(generic || indication) && (
-                                <div style={{ fontSize: "10px", color: "#000", fontStyle: "italic", lineHeight: 1.15 }}>
+                                <div style={{ fontSize: "12.5px", color: "#000", fontStyle: "italic", lineHeight: 1.2 }}>
                                     {generic}{generic && indication ? " · " : ""}{indication}
                                 </div>
                             )}
