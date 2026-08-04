@@ -277,7 +277,7 @@ export default async function VisitPrintPage({
                     <div className="flex items-center gap-3 text-slate-700">
                         <span>เวลา {startTime || "—"} น.</span>
                         <span className="text-slate-400">·</span>
-                        <span className="italic">{visitTypeLabel[visit.visit_type] || visit.visit_type}</span>
+                        <span className="italic">{isAesthetic ? "หัตถการความงาม" : (visitTypeLabel[visit.visit_type] || visit.visit_type)}</span>
                     </div>
                 </div>
 
@@ -419,7 +419,7 @@ export default async function VisitPrintPage({
                     </div>
                     <div className="text-center">
                         <div style={{ borderBottom: "1px solid #000" }} className="h-5 mb-1" />
-                        <div className="font-semibold">{doctorName ? `( ${doctorName} )` : "(........................................)"}</div>
+                        <div className="font-semibold">{doctorName ? `( ${withDocTitle(doctorName)} )` : "(........................................)"}</div>
                         <div className="text-[10px] italic text-slate-600">แพทย์ผู้ตรวจรักษา</div>
                     </div>
                 </div>
@@ -447,6 +447,14 @@ export default async function VisitPrintPage({
 }
 
 /* ═══════════════ Components ═══════════════ */
+
+// เติมคำนำหน้า "นพ." ให้ชื่อแพทย์ (เว้นถ้ามีคำนำหน้าแล้ว)
+const DOC_TITLE_RE = /^(นพ|พญ|นายแพทย์|แพทย์หญิง|ทพ|ภก|ดร|นาย|นาง|นางสาว|น\.ส|ผศ|รศ|ศ)/;
+function withDocTitle(name?: string | null): string {
+    const n = (name || "").trim();
+    if (!n) return "";
+    return DOC_TITLE_RE.test(n) ? n : "นพ. " + n;
+}
 
 function ColumnSection({
     title, subtitle, children,
