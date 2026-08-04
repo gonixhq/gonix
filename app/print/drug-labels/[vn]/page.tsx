@@ -33,6 +33,13 @@ function calcAge(dob?: string | null): string {
     return String(y);
 }
 
+// หน่วยยาเป็นไทย (คลังอาจเก็บเป็น Tablet/Capsule)
+function thUnit(u?: string | null): string {
+    const map: Record<string, string> = { tablet: "เม็ด", tab: "เม็ด", capsule: "แคปซูล", cap: "แคปซูล", bottle: "ขวด", ml: "มล.", sachet: "ซอง", tube: "หลอด", amp: "แอมป์", vial: "ขวด" };
+    const k = (u || "").trim().toLowerCase();
+    return map[k] || (u || "").trim();
+}
+
 // ประเภทยาที่ต้องมีเครื่องหมายเตือน
 const DANGEROUS = ["ยาอันตราย", "ยาควบคุมพิเศษ", "วัตถุออกฤทธิ์", "ยาเสพติด"];
 
@@ -159,7 +166,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                             <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", fontSize: "10.5px", color: "#333", marginTop: "auto", paddingTop: "1.5mm", borderTop: "1px dotted #bbb" }}>
                                 {exp && <span><span style={{ fontWeight: 700 }}>วันหมดอายุ</span> {exp}</span>}
                                 {labelType && !dangerous && <span><span style={{ fontWeight: 700 }}>ประเภท</span> {labelType}</span>}
-                                <span style={{ marginLeft: "auto", fontWeight: 700 }}>จำนวน {Number(d.qty || 0)} {d.unit || ""}</span>
+                                <span style={{ marginLeft: "auto", fontWeight: 700 }}>จำนวน {Number(d.qty || 0)} {thUnit(d.unit)}</span>
                             </div>
                             {warning && (
                                 <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#c0161d", marginTop: "1mm" }}>
