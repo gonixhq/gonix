@@ -643,7 +643,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     <FieldRow label="เลขล็อต (Lot)" hidden={isEdit}>
                         <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="ล็อตของยอดตั้งต้น" className={`${inputCls} font-mono`} />
                     </FieldRow>
-                    <FieldRow label="วันหมดอายุ (ล็อต)" hidden={isEdit}>
+                    <FieldRow label={isEdit ? "วันหมดอายุ (ตัวยา)" : "วันหมดอายุ (ล็อต)"}>
                         <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className={inputCls} />
                     </FieldRow>
                     <FieldRow label="" colSpan={2} hidden={isEdit}>
