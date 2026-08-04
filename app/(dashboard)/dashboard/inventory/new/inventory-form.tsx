@@ -343,9 +343,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const inputCls = FORM_INPUT_CLS;
     const selectCls = FORM_SELECT_CLS;
 
-    // ฉลากยา/รูปแบบ/ความแรง = เฉพาะ "ยา" ที่ไม่ใช่แผนกของใช้ทั่วไป และไม่ใช่ของฉีด
-    // → เวชภัณฑ์ / ของใช้ทั่วไป (สำลี/น้ำเกลือ) ไม่โชว์ฉลากยา
-    const showDrugLabel = category === "drug" && segment !== "product" && deductionType !== "injectable_vial";
+    // ฉลากยา/รูปแบบ/ความแรง = ผูกกับ "ชนิดสินค้า = ยา" เท่านั้น (ยกเว้นของฉีดแบบขวด)
+    // แผนกรายได้ไม่เกี่ยว — ยาที่อยู่แผนก "ของใช้ทั่วไป" ก็ต้องมีฉลากยา
+    // ถ้าเป็นสำลี/น้ำเกลือ ให้ตั้งชนิดสินค้าเป็น "เวชภัณฑ์" แล้วจะไม่โชว์ฉลากยาเอง
+    const showDrugLabel = category === "drug" && deductionType !== "injectable_vial";
 
     return (
         <div className="space-y-5 pb-24 max-w-5xl mx-auto">
