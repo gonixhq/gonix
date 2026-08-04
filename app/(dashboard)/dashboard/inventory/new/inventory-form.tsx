@@ -572,7 +572,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         {(doseQty || frequency || useType) && !sigTextDefault && (
                             <button
                                 type="button"
-                                onClick={() => setSigTextDefault(`รับประทานครั้งละ ${doseQty || "—"} ${frequency || ""} ${useType || ""}`.trim())}
+                                onClick={() => {
+                                    const u = sigDoseUnit(dosageForm, unit);
+                                    const appendU = u && !/[a-zA-Zก-๙]/.test(doseQty || "");
+                                    setSigTextDefault(`รับประทานครั้งละ ${doseQty || "—"}${appendU ? " " + u : ""} ${frequency || ""} ${useType || ""}`.replace(/\s+/g, " ").trim());
+                                }}
                                 className="text-[13px] text-cyan-600 hover:text-cyan-700 font-bold mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-cyan-50 hover:bg-cyan-100 transition-colors"
                             >
                                 <Sparkles className="h-3.5 w-3.5" />
@@ -700,6 +704,15 @@ const FREQUENCY_PRESETS = [
     { label: "ทุก 8 ชม.", value: "ทุก 8 ชั่วโมง" },
     { label: "ทุก 12 ชม.", value: "ทุก 12 ชั่วโมง" },
 ];
+
+// หน่วยขนาดยาสำหรับ SIG (ไทย) — เลือกจากรูปแบบยา ก่อน แล้ว fallback หน่วยนับ
+function sigDoseUnit(dosageForm: string, unit: string): string {
+    const FORM: Record<string, string> = { Tab: "เม็ด", Cap: "แคปซูล", Syr: "มล.", Susp: "มล.", Sol: "มล.", Drop: "หยด" };
+    if (FORM[dosageForm]) return FORM[dosageForm];
+    const u = (unit || "").trim().toLowerCase();
+    const UNIT: Record<string, string> = { tablet: "เม็ด", tab: "เม็ด", capsule: "แคปซูล", cap: "แคปซูล", bottle: "ขวด", ml: "มล.", drop: "หยด", sachet: "ซอง" };
+    return UNIT[u] || (unit || "").trim();
+}
 
 function FrequencyPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const slotKeys = TIME_SLOTS.map(s => s.key);
