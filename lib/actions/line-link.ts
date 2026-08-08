@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { randomUUID } from "crypto";
-import { verifyLineIdToken } from "@/lib/line";
+import { verifyLineIdToken, pushLineText } from "@/lib/line";
 
 /** ดึง client IP จาก proxy header (Vercel ตั้ง x-forwarded-for) — ใช้ทำ rate limit */
 async function clientIp(): Promise<string> {
@@ -81,5 +81,24 @@ export async function linkStaffLine(
     if (!r?.ok) {
         return { ok: false, error: r?.error === "token_invalid" ? "ลิงก์หมดอายุหรือถูกใช้ไปแล้ว — สร้างลิงก์ใหม่จากหน้าตั้งค่า" : "ผูกบัญชีไม่สำเร็จ" };
     }
+    return { ok: true };
+}
+
+/** ส่งข้อความทดสอบไป LINE ที่ผูกไว้ (เช็คว่าผูกสำเร็จ + push ทำงาน) */
+export async function sendTestStaffLine(): Promise<{ ok: boolean; error?: string }> {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "กรุณาเข้าสู่ระบบ" };
+    const { data: prof } = await supabase.from("profiles")
+        .select("line_user_id, clinic_id").eq("id", user.id).maybeSingle();
+    if (!prof?.line_user_id) return { ok: false, error: "บัญชีนี้ยังไม่ได้ผูก LINE — สร้างลิงก์แล้วเปิดในแอป LINE ก่อน" };
+    let clinicName = "คลินิก";
+    if (prof.clinic_id) {
+        const { data: c } = await supabase.from("tenants").select("clinic_name").eq("id", prof.clinic_id).maybeSingle();
+        if (c?.clinic_name) clinicName = c.clinic_name as string;
+    }
+    const msg = `[ทดสอบแจ้งเตือน] ${clinicName}\nระบบแจ้งเตือน LINE พร้อมใช้งานแล้ว\n(ส่งจากปุ่มทดสอบในหน้าตั้งค่า)`;
+    const r = await pushLineText(prof.line_user_id as string, msg);
+    if (!r.ok) return { ok: false, error: r.error || "ส่งไม่สำเร็จ — เช็ค LINE Messaging API (channel access token)" };
     return { ok: true };
 }

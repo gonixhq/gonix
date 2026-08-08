@@ -9,10 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/lib/i18n";
 import { SectionBanner } from "@/components/ui/section-banner";
-import { generateStaffLinkToken } from "@/lib/actions/line-link";
+import { generateStaffLinkToken, sendTestStaffLine } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send,
 } from "lucide-react";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -365,6 +365,16 @@ function StaffLineLinkCard() {
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState("");
     const [copied, setCopied] = useState(false);
+    const [testBusy, setTestBusy] = useState(false);
+    const [testMsg, setTestMsg] = useState("");
+    const [testOk, setTestOk] = useState(false);
+
+    async function test() {
+        setTestBusy(true); setTestMsg("");
+        const r = await sendTestStaffLine();
+        setTestBusy(false); setTestOk(!!r.ok);
+        setTestMsg(r.ok ? "ส่งแล้ว — เช็คใน LINE ของคุณ" : (r.error || "ส่งไม่สำเร็จ"));
+    }
 
     async function gen() {
         setBusy(true); setErr("");
@@ -398,6 +408,12 @@ function StaffLineLinkCard() {
                     </div>
                 )}
                 {err && <p className="text-xs text-rose-600">{err}</p>}
+                <div className="pt-3 border-t border-slate-100">
+                    <Button variant="outline" onClick={test} disabled={testBusy} className="w-full rounded-xl gap-2 text-sm">
+                        {testBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} ส่งข้อความทดสอบไป LINE
+                    </Button>
+                    {testMsg && <p className={`text-xs mt-2 ${testOk ? "text-emerald-600" : "text-rose-600"}`}>{testMsg}</p>}
+                </div>
             </div>
         </div>
     );
