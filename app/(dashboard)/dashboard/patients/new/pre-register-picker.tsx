@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import {
     X, Search, Loader2, UserCheck, Phone, IdCard, Calendar,
     Heart, AlertTriangle, MessageCircle, Globe, Smartphone,
-    ChevronRight, FileText,
+    ChevronRight, FileText, Copy, Check,
 } from "lucide-react";
 import {
     listPendingRegistrations, getPendingRegistration, rejectPendingRegistration,
 } from "@/lib/actions/pending-registrations";
+import { createClient } from "@/lib/supabase/client";
 
 interface PendingPreview {
     id: string;
@@ -52,8 +53,23 @@ export default function PreRegisterPicker({ open, onClose, onPick }: Props) {
     const [search, setSearch] = useState("");
     const [error, setError] = useState("");
     const [mounted, setMounted] = useState(false);
+    const [regUrl, setRegUrl] = useState("");
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => setMounted(true), []);
+    useEffect(() => {
+        (async () => {
+            try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const { data: prof } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).maybeSingle();
+                if (!prof?.clinic_id) return;
+                const { data: t } = await supabase.from("tenants").select("clinic_code").eq("id", prof.clinic_id).maybeSingle();
+                if (t?.clinic_code && typeof window !== "undefined") setRegUrl(`${window.location.origin}/register/${t.clinic_code}`);
+            } catch { /* ignore */ }
+        })();
+    }, []);
 
     const load = useCallback(async (q?: string) => {
         setLoading(true);
@@ -270,11 +286,16 @@ export default function PreRegisterPicker({ open, onClose, onPick }: Props) {
                 </div>
 
                 {/* Footer */}
-                <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
-                    <p className="text-xs text-slate-500">
-                        ส่งลิงก์ <code className="text-blue-700 bg-blue-50 px-1 rounded">/register</code> ให้ผู้ป่วยลงทะเบียนล่วงหน้า
-                    </p>
-                    <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg">ปิด</Button>
+                <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between gap-3">
+                    {regUrl ? (
+                        <button type="button" onClick={() => { navigator.clipboard.writeText(regUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="min-w-0 flex items-center gap-2 text-xs text-slate-600 hover:text-slate-900 group" title="คัดลอกลิงก์ลงทะเบียน">
+                            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-slate-600" />}
+                            <span className="truncate font-mono text-[11px]">{copied ? "คัดลอกลิงก์แล้ว!" : regUrl.replace(/^https?:\/\//, "")}</span>
+                        </button>
+                    ) : (
+                        <p className="text-xs text-slate-500">ส่งลิงก์ <code className="text-blue-700 bg-blue-50 px-1 rounded">/register</code> ให้ผู้ป่วยลงทะเบียนล่วงหน้า</p>
+                    )}
+                    <Button variant="outline" size="sm" onClick={onClose} className="rounded-lg shrink-0">ปิด</Button>
                 </div>
             </div>
         </div>,
