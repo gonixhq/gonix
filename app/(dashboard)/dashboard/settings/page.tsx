@@ -12,7 +12,7 @@ import { SectionBanner } from "@/components/ui/section-banner";
 import { generateStaffLinkToken, sendTestStaffLine } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode, Download,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode, Download, Printer,
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -440,6 +440,9 @@ function PatientLineQRCard() {
         <div className="gonix-card-premium overflow-hidden">
             <SectionBanner icon={QrCode} title="QR ผูก LINE คนไข้" description="ให้คนไข้สแกนเพื่อรับแจ้งเตือนนัดหมาย/ผลตรวจ" />
             <div className="p-5 space-y-4">
+                <a href="/print/line-poster" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#06C755] py-2.5 text-sm font-bold text-white hover:opacity-90">
+                    <Printer className="h-4 w-4" /> พิมพ์โปสเตอร์ QR (A4)
+                </a>
                 <div className="text-xs text-slate-500 leading-relaxed">ขั้นตอนของคนไข้: <b>1)</b> แอด LINE OA คลินิกเป็นเพื่อน <b>2)</b> สแกน/กดลิงก์ผูกบัญชี <b>3)</b> กรอก HN + เบอร์ 4 ตัวท้าย</div>
                 <div className="rounded-xl border border-slate-200 p-4">
                     <div className="text-sm font-bold text-slate-700">QR แอดเพื่อน LINE OA <span className="text-[11px] font-normal text-emerald-600">(แนะนำให้ติดโปสเตอร์)</span></div>
