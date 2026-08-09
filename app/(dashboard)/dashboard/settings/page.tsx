@@ -12,7 +12,7 @@ import { SectionBanner } from "@/components/ui/section-banner";
 import { generateStaffLinkToken, sendTestStaffLine } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode, Download,
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -432,9 +432,10 @@ function PatientLineQRCard() {
     const [liffQr, setLiffQr] = useState("");
     const [copied, setCopied] = useState(false);
     useEffect(() => { if (typeof window !== "undefined") setOaUrl(localStorage.getItem("gonix_oa_url") || ""); }, []);
-    useEffect(() => { if (liffUrl) QRCode.toDataURL(liffUrl, { width: 320, margin: 1 }).then(setLiffQr).catch(() => setLiffQr("")); }, [liffUrl]);
-    useEffect(() => { const u = oaUrl.trim(); if (u) QRCode.toDataURL(u, { width: 320, margin: 1 }).then(setOaQr).catch(() => setOaQr("")); else setOaQr(""); }, [oaUrl]);
+    useEffect(() => { if (liffUrl) QRCode.toDataURL(liffUrl, { width: 512, margin: 2 }).then(setLiffQr).catch(() => setLiffQr("")); }, [liffUrl]);
+    useEffect(() => { const u = oaUrl.trim(); if (u) QRCode.toDataURL(u, { width: 512, margin: 2 }).then(setOaQr).catch(() => setOaQr("")); else setOaQr(""); }, [oaUrl]);
     function saveOa(v: string) { setOaUrl(v); if (typeof window !== "undefined") localStorage.setItem("gonix_oa_url", v); }
+    function saveQr(dataUrl: string, name: string) { const a = document.createElement("a"); a.href = dataUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
     return (
         <div className="gonix-card-premium overflow-hidden">
             <SectionBanner icon={QrCode} title="QR ผูก LINE คนไข้" description="ให้คนไข้สแกนเพื่อรับแจ้งเตือนนัดหมาย/ผลตรวจ" />
@@ -445,8 +446,11 @@ function PatientLineQRCard() {
                     <p className="text-[11px] text-slate-400 mt-1 mb-2">วางลิงก์แอดเพื่อนจาก LINE OA Manager (โปรไฟล์ &gt; เพิ่มเพื่อน/แชร์) — พอคนไข้แอด ระบบส่งลิงก์ผูกบัญชีให้อัตโนมัติ</p>
                     <Input value={oaUrl} onChange={e => saveOa(e.target.value)} placeholder="เช่น https://lin.ee/xxxxx" className="text-xs mb-2" />
                     {oaQr ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <div className="flex justify-center"><img src={oaQr} alt="OA QR" className="w-40 h-40" /></div>
+                        <div className="flex flex-col items-center gap-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={oaQr} alt="OA QR" className="w-40 h-40" />
+                            <Button variant="outline" size="sm" onClick={() => saveQr(oaQr, "line-oa-qr.png")} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" /> บันทึกรูป QR</Button>
+                        </div>
                     ) : <p className="text-[11px] text-slate-300 text-center py-2">วางลิงก์แล้ว QR จะขึ้นตรงนี้</p>}
                 </div>
                 <div className="rounded-xl border border-slate-200 p-4">
@@ -456,8 +460,11 @@ function PatientLineQRCard() {
                     ) : (
                         <>
                             {liffQr && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <div className="flex justify-center mb-2"><img src={liffQr} alt="LIFF QR" className="w-40 h-40" /></div>
+                                <div className="flex flex-col items-center gap-2 mb-2">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={liffQr} alt="LIFF QR" className="w-40 h-40" />
+                                    <Button variant="outline" size="sm" onClick={() => saveQr(liffQr, "line-link-qr.png")} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" /> บันทึกรูป QR</Button>
+                                </div>
                             )}
                             <div className="flex gap-2">
                                 <Input readOnly value={liffUrl} className="text-xs font-mono" onFocus={e => e.currentTarget.select()} />
