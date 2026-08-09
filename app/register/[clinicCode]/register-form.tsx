@@ -127,7 +127,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
 
     if (done) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-emerald-50 flex items-center justify-center p-5">
+            <div className="min-h-screen flex items-center justify-center p-5" style={{ background: "radial-gradient(100% 70% at 100% 0%, rgba(8,145,178,0.07) 0%, transparent 55%), radial-gradient(85% 55% at 0% 100%, rgba(14,116,144,0.05) 0%, transparent 60%), repeating-linear-gradient(105deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 7px), linear-gradient(155deg, #ffffff 0%, #eef3f6 50%, #e6edf1 100%)" }}>
                 <div className="bg-white rounded-3xl shadow-xl border border-emerald-100 max-w-md w-full p-8 text-center">
                     <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="h-9 w-9 text-emerald-600" />
@@ -147,23 +147,22 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-sky-50 py-5 sm:py-8 px-3 sm:px-4">
+        <div className="min-h-screen py-5 sm:py-8 px-3 sm:px-4" style={{ background: "radial-gradient(100% 70% at 100% 0%, rgba(8,145,178,0.07) 0%, transparent 55%), radial-gradient(85% 55% at 0% 100%, rgba(14,116,144,0.05) 0%, transparent 60%), repeating-linear-gradient(105deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 7px), linear-gradient(155deg, #ffffff 0%, #eef3f6 50%, #e6edf1 100%)" }}>
             <PDPAModal open={showPDPA} onClose={() => setShowPDPA(false)} clinicName={clinic.clinic_name} />
             <div className="max-w-2xl mx-auto">
                 {/* Header */}
-                <div className="text-center mb-5 sm:mb-6 px-2">
-                    <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
-                        ลงทะเบียนล่วงหน้า
-                    </h1>
-                    <p className="text-sm text-slate-600 mt-1">
-                        เพื่อความรวดเร็วในวันรับบริการที่ <strong>{clinic.clinic_name}</strong>
-                    </p>
-                    {clinic.address_detail && (
-                        <p className="text-xs text-slate-500 mt-1">{clinic.address_detail}</p>
-                    )}
+                <div className="text-center mb-6 px-2">
+                    <div className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-white shadow-lg ring-1 ring-slate-200 mb-3 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain" />
+                    </div>
+                    <div className="text-lg font-black text-[#0e7490]">{clinic.clinic_name}</div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight mt-1">ลงทะเบียนล่วงหน้า</h1>
+                    <p className="text-sm text-slate-500 mt-1.5">กรอกข้อมูลก่อนมา เพื่อความรวดเร็วในวันรับบริการ</p>
+                    {clinic.address_detail && <p className="text-xs text-slate-400 mt-1">{clinic.address_detail}</p>}
                 </div>
 
-                <form onSubmit={handleSubmit} className="bg-white rounded-2xl sm:rounded-3xl shadow-md border border-slate-200/70 p-4 sm:p-6 space-y-4 sm:space-y-5">
+                <form onSubmit={handleSubmit} className="bg-white rounded-2xl sm:rounded-3xl shadow-xl border border-slate-200/60 p-4 sm:p-6 space-y-4 sm:space-y-5">
                     {error && (
                         <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
@@ -245,13 +244,13 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                                 onChange={(e) => searchTambon(e.target.value)}
                                 onFocus={() => tambonResults.length > 0 && setShowTambonList(true)}
                                 placeholder="พิมพ์ชื่อตำบลหรือรหัสปณ..."
-                                className="h-12 rounded-xl border-slate-300 focus:ring-blue-500/30 focus:border-blue-500 text-base sm:text-sm"
+                                className="h-12 rounded-xl border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm"
                             />
                             {showTambonList && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
                                     {tambonResults.map((addr) => (
                                         <button key={addr.subdistrict_code} type="button" onClick={() => selectTambon(addr)}
-                                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-0">
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 transition-colors border-b border-slate-100 last:border-0">
                                             <span className="font-medium">{addr.subdistrict_name}</span>
                                             <span className="text-slate-500"> → {addr.district_name}, {addr.province_name} {addr.postal_code}</span>
                                         </button>
@@ -271,11 +270,11 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                         </div>
                     </div>
                     {selectedAddress && (
-                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs">
-                            <span className="text-blue-800">
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-cyan-50 border border-cyan-200 text-xs">
+                            <span className="text-cyan-800">
                                  ที่อยู่: ต.{selectedAddress.subdistrict_name} อ.{selectedAddress.district_name} จ.{selectedAddress.province_name} <strong>{selectedAddress.postal_code}</strong>
                             </span>
-                            <button type="button" onClick={clearTambon} className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                            <button type="button" onClick={clearTambon} className="text-cyan-600 hover:underline inline-flex items-center gap-1">
                                 <X className="h-3 w-3" /> ล้าง
                             </button>
                         </div>
@@ -301,22 +300,22 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                         <button
                             type="button"
                             onClick={() => setShowPDPA(true)}
-                            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors group"
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 transition-colors group"
                         >
-                            <span className="text-sm font-bold text-blue-900 inline-flex items-center gap-2">
-                                <ShieldCheck className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-bold text-cyan-900 inline-flex items-center gap-2">
+                                <ShieldCheck className="h-4 w-4 text-cyan-600" />
                                 อ่านนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA) ฉบับเต็ม
                             </span>
-                            <span className="text-xs text-blue-600 font-bold group-hover:translate-x-0.5 transition-transform">›</span>
+                            <span className="text-xs text-cyan-600 font-bold group-hover:translate-x-0.5 transition-transform">›</span>
                         </button>
 
                         <label className="flex items-start gap-2.5 cursor-pointer">
                             <input type="checkbox" name="pdpa_consent" required
-                                className="h-5 w-5 mt-0.5 rounded accent-blue-600" />
+                                className="h-5 w-5 mt-0.5 rounded accent-cyan-600" />
                             <span className="text-sm text-slate-700 leading-relaxed">
                                 ข้าพเจ้าได้อ่านและยินยอมให้ <strong>{clinic.clinic_name}</strong> เก็บและใช้ข้อมูลส่วนบุคคล
                                 และข้อมูลสุขภาพ ตามวัตถุประสงค์ที่ระบุใน{" "}
-                                <button type="button" onClick={() => setShowPDPA(true)} className="text-blue-600 font-bold underline hover:text-blue-700">
+                                <button type="button" onClick={() => setShowPDPA(true)} className="text-cyan-600 font-bold underline hover:text-cyan-700">
                                     นโยบาย PDPA
                                 </button>
                                 {" "}<span className="text-red-500">*</span>
@@ -326,7 +325,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
 
                     {/* Submit */}
                     <Button type="submit" disabled={submitting}
-                        className="w-full rounded-xl h-14 text-base font-semibold bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-md">
+                        className="w-full rounded-xl h-14 text-base font-semibold bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 shadow-md">
                         {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <MessageCircle className="h-5 w-5 mr-2" />}
                         {submitting ? "กำลังส่ง..." : "ส่งข้อมูลลงทะเบียน"}
                     </Button>
@@ -344,7 +343,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
 function SectionTitle({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex items-center gap-2 pt-2">
-            <div className="h-1 w-8 bg-blue-600 rounded-full" />
+            <div className="h-1 w-8 bg-cyan-600 rounded-full" />
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{children}</h3>
         </div>
     );
@@ -364,13 +363,13 @@ function Field({
             <Label htmlFor={name} className="text-xs font-semibold text-slate-600">{label}</Label>
             {type === "select" ? (
                 <select name={name} id={name} required={required} defaultValue={defaultValue || ""}
-                    className="flex h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500">
+                    className="flex h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500">
                     <option value="">—</option>
                     {options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
             ) : (
                 <Input id={name} name={name} type={type} required={required} placeholder={placeholder} maxLength={maxLength} defaultValue={defaultValue}
-                    className="h-12 rounded-xl border-slate-300 focus:ring-blue-500/30 focus:border-blue-500 text-base sm:text-sm" />
+                    className="h-12 rounded-xl border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm" />
             )}
         </div>
     );
@@ -381,7 +380,7 @@ function FieldTextarea({ label, name, placeholder }: { label: string; name: stri
         <div className="space-y-1.5">
             <Label htmlFor={name} className="text-xs font-semibold text-slate-600">{label}</Label>
             <textarea id={name} name={name} placeholder={placeholder} rows={3}
-                className="flex w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none" />
+                className="flex w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500 resize-none" />
         </div>
     );
 }
