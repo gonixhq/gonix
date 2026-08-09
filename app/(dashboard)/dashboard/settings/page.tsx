@@ -12,7 +12,7 @@ import { SectionBanner } from "@/components/ui/section-banner";
 import { generateStaffLinkToken, sendTestStaffLine } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode, Download, Printer,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode, Download, Printer, UserPlus,
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -210,6 +210,8 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     )}
+
+                    {clinicCode && <PreRegisterLinkCard clinicCode={clinicCode} />}
 
                     {/* Language */}
                     <div className="gonix-card-premium overflow-hidden">
@@ -477,6 +479,39 @@ function PatientLineQRCard() {
                     )}
                 </div>
                 <p className="text-[11px] text-amber-600">หมายเหตุ: คนไข้ต้อง<b>แอด OA เป็นเพื่อน</b>ด้วย ถึงจะได้รับแจ้งเตือน (LINE ส่งข้อความได้เฉพาะเพื่อน)</p>
+            </div>
+        </div>
+    );
+}
+
+/** ลิงก์ + QR ลงทะเบียนล่วงหน้าให้คนไข้กรอกก่อนมาคลินิก */
+function PreRegisterLinkCard({ clinicCode }: { clinicCode: string }) {
+    const [url, setUrl] = useState("");
+    const [qr, setQr] = useState("");
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (typeof window === "undefined" || !clinicCode) return;
+        const u = `${window.location.origin}/register/${clinicCode}`;
+        setUrl(u);
+        QRCode.toDataURL(u, { width: 512, margin: 2 }).then(setQr).catch(() => setQr(""));
+    }, [clinicCode]);
+    function saveQr() { if (!qr) return; const a = document.createElement("a"); a.href = qr; a.download = "register-qr.png"; document.body.appendChild(a); a.click(); a.remove(); }
+    return (
+        <div className="gonix-card-premium overflow-hidden">
+            <SectionBanner icon={UserPlus} title="ลิงก์ลงทะเบียนล่วงหน้า" description="ให้คนไข้กรอกข้อมูลก่อนมาคลินิก" />
+            <div className="p-5 space-y-3">
+                <p className="text-[11px] text-slate-500 leading-relaxed">ส่งลิงก์/QR นี้ให้คนไข้กรอกข้อมูลล่วงหน้า → พนักงานดึงข้อมูลตอนสร้างคนไข้ใหม่ (คนไข้ไม่ต้องล็อกอิน)</p>
+                <div className="flex gap-2">
+                    <Input readOnly value={url} className="text-xs font-mono" onFocus={e => e.currentTarget.select()} />
+                    <Button variant="outline" onClick={() => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="shrink-0">{copied ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}</Button>
+                </div>
+                {qr && (
+                    <div className="flex flex-col items-center gap-2 pt-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={qr} alt="Register QR" className="w-40 h-40" />
+                        <Button variant="outline" size="sm" onClick={saveQr} className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" /> บันทึกรูป QR</Button>
+                    </div>
+                )}
             </div>
         </div>
     );
