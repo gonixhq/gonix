@@ -74,7 +74,7 @@ export default function LineLinkClient({ liffId, clinicId, staffMode = false, st
     return (
         <>
             <Script src="https://static.line-scdn.net/liff/edge/2/sdk.js" onReady={() => { void initLiff(); }} />
-            <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "radial-gradient(120% 90% at 50% 0%, #0e7490 0%, #0b3d4d 55%, #072b38 100%)" }}>
+            <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "radial-gradient(80% 52% at 50% 104%, rgba(25,240,140,0.55) 0%, rgba(10,130,75,0.22) 40%, transparent 72%), repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 1px, transparent 1px, transparent 8px), linear-gradient(180deg, #020c06 0%, #04170d 46%, #063a21 100%)" }}>
                 <div className="w-full max-w-sm">
                     {/* หัว: โลโก้จริง + ชื่อคลินิก */}
                     <div className="flex flex-col items-center gap-3 mb-6">
@@ -142,7 +142,7 @@ export default function LineLinkClient({ liffId, clinicId, staffMode = false, st
                         )}
                     </div>
 
-                    <p className="text-center text-[11px] text-white/50 mt-5 inline-flex items-center gap-1.5 w-full justify-center">
+                    <p className="text-center text-[11px] text-white/70 mt-5 inline-flex items-center gap-1.5 w-full justify-center">
                         <ShieldCheck className="h-3.5 w-3.5" /> ข้อมูลของคุณถูกเก็บเป็นความลับ · Powered by Gonix
                     </p>
                 </div>
