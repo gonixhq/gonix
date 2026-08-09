@@ -127,7 +127,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
 
     if (done) {
         return (
-            <div className="min-h-screen flex items-center justify-center p-5" style={{ background: "radial-gradient(100% 70% at 100% 0%, rgba(8,145,178,0.07) 0%, transparent 55%), radial-gradient(85% 55% at 0% 100%, rgba(14,116,144,0.05) 0%, transparent 60%), repeating-linear-gradient(105deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 7px), linear-gradient(155deg, #ffffff 0%, #eef3f6 50%, #e6edf1 100%)" }}>
+            <div className="min-h-screen flex items-center justify-center p-5" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
                 <div className="bg-white rounded-3xl shadow-xl border border-emerald-100 max-w-md w-full p-8 text-center">
                     <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="h-9 w-9 text-emerald-600" />
@@ -147,7 +147,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
     }
 
     return (
-        <div className="min-h-screen py-5 sm:py-8 px-3 sm:px-4" style={{ background: "radial-gradient(100% 70% at 100% 0%, rgba(8,145,178,0.07) 0%, transparent 55%), radial-gradient(85% 55% at 0% 100%, rgba(14,116,144,0.05) 0%, transparent 60%), repeating-linear-gradient(105deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 7px), linear-gradient(155deg, #ffffff 0%, #eef3f6 50%, #e6edf1 100%)" }}>
+        <div className="min-h-screen py-5 sm:py-8 px-3 sm:px-4" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
             <PDPAModal open={showPDPA} onClose={() => setShowPDPA(false)} clinicName={clinic.clinic_name} />
             <div className="max-w-2xl mx-auto">
                 {/* Header */}
