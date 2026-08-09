@@ -79,10 +79,8 @@ export default function LineLinkClient({ liffId, clinicId, staffMode = false, st
                     {/* หัว: โลโก้จริง + ชื่อคลินิก */}
                     <div className="flex flex-col items-center gap-3 mb-6">
                         <div className="h-20 w-20 rounded-3xl bg-white shadow-xl flex items-center justify-center overflow-hidden ring-4 ring-white/15">
-                            {clinicLogo
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={clinicLogo} alt="" className="h-14 w-14 object-contain" />
-                                : <div className="h-11 w-11 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#06C755,#15FF83)" }}><Link2 className="h-6 w-6 text-white" /></div>}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={clinicLogo || "/clinic-logo.png"} alt="" className="h-14 w-14 object-contain" />
                         </div>
                         <div className="text-center">
                             <div className="text-white font-black text-lg leading-tight">{clinicName || "คลินิก"}</div>
