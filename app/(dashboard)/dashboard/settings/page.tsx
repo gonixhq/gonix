@@ -12,8 +12,9 @@ import { SectionBanner } from "@/components/ui/section-banner";
 import { generateStaffLinkToken, sendTestStaffLine } from "@/lib/actions/line-link";
 import {
     Settings, User, Building2, Phone, Mail, Save, Loader2, CheckCircle,
-    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send,
+    Palette, LogOut, Globe, IdCard, KeyRound, Copy, MapPin, ShieldCheck, Crown, Link2, Send, QrCode,
 } from "lucide-react";
+import QRCode from "qrcode";
 
 const ROLE_LABEL: Record<string, string> = {
     owner: "เจ้าของคลินิก", admin: "แอดมิน",
@@ -187,6 +188,9 @@ export default function SettingsPage() {
 
                     {/* ผูก LINE รับแจ้งเตือน */}
                     <StaffLineLinkCard />
+
+                    {/* QR patient link */}
+                    <PatientLineQRCard />
 
                     {/* Clinic Code (owner/admin only) */}
                     {isAdmin && clinicCode && (
@@ -414,6 +418,55 @@ function StaffLineLinkCard() {
                     </Button>
                     {testMsg && <p className={`text-xs mt-2 ${testOk ? "text-emerald-600" : "text-rose-600"}`}>{testMsg}</p>}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// การ์ด QR ให้คนไข้ผูก LINE (QR แอด OA ที่คลินิกวางเอง + QR ผูกบัญชี LIFF)
+function PatientLineQRCard() {
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID_LINK || "";
+    const liffUrl = liffId ? `https://liff.line.me/${liffId}` : "";
+    const [oaUrl, setOaUrl] = useState("");
+    const [oaQr, setOaQr] = useState("");
+    const [liffQr, setLiffQr] = useState("");
+    const [copied, setCopied] = useState(false);
+    useEffect(() => { if (typeof window !== "undefined") setOaUrl(localStorage.getItem("gonix_oa_url") || ""); }, []);
+    useEffect(() => { if (liffUrl) QRCode.toDataURL(liffUrl, { width: 320, margin: 1 }).then(setLiffQr).catch(() => setLiffQr("")); }, [liffUrl]);
+    useEffect(() => { const u = oaUrl.trim(); if (u) QRCode.toDataURL(u, { width: 320, margin: 1 }).then(setOaQr).catch(() => setOaQr("")); else setOaQr(""); }, [oaUrl]);
+    function saveOa(v: string) { setOaUrl(v); if (typeof window !== "undefined") localStorage.setItem("gonix_oa_url", v); }
+    return (
+        <div className="gonix-card-premium overflow-hidden">
+            <SectionBanner icon={QrCode} title="QR ผูก LINE คนไข้" description="ให้คนไข้สแกนเพื่อรับแจ้งเตือนนัดหมาย/ผลตรวจ" />
+            <div className="p-5 space-y-4">
+                <div className="text-xs text-slate-500 leading-relaxed">ขั้นตอนของคนไข้: <b>1)</b> แอด LINE OA คลินิกเป็นเพื่อน <b>2)</b> สแกน/กดลิงก์ผูกบัญชี <b>3)</b> กรอก HN + เบอร์ 4 ตัวท้าย</div>
+                <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="text-sm font-bold text-slate-700">QR แอดเพื่อน LINE OA <span className="text-[11px] font-normal text-emerald-600">(แนะนำให้ติดโปสเตอร์)</span></div>
+                    <p className="text-[11px] text-slate-400 mt-1 mb-2">วางลิงก์แอดเพื่อนจาก LINE OA Manager (โปรไฟล์ &gt; เพิ่มเพื่อน/แชร์) — พอคนไข้แอด ระบบส่งลิงก์ผูกบัญชีให้อัตโนมัติ</p>
+                    <Input value={oaUrl} onChange={e => saveOa(e.target.value)} placeholder="เช่น https://lin.ee/xxxxx" className="text-xs mb-2" />
+                    {oaQr ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <div className="flex justify-center"><img src={oaQr} alt="OA QR" className="w-40 h-40" /></div>
+                    ) : <p className="text-[11px] text-slate-300 text-center py-2">วางลิงก์แล้ว QR จะขึ้นตรงนี้</p>}
+                </div>
+                <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="text-sm font-bold text-slate-700 mb-2">QR ผูกบัญชีตรง <span className="text-[11px] font-normal text-slate-400">(สำหรับคนที่แอด OA แล้ว)</span></div>
+                    {!liffUrl ? (
+                        <p className="text-xs text-rose-500">ยังไม่ได้ตั้งค่า LIFF (NEXT_PUBLIC_LIFF_ID_LINK)</p>
+                    ) : (
+                        <>
+                            {liffQr && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <div className="flex justify-center mb-2"><img src={liffQr} alt="LIFF QR" className="w-40 h-40" /></div>
+                            )}
+                            <div className="flex gap-2">
+                                <Input readOnly value={liffUrl} className="text-xs font-mono" onFocus={e => e.currentTarget.select()} />
+                                <Button variant="outline" onClick={() => { navigator.clipboard.writeText(liffUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }} className="shrink-0">{copied ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}</Button>
+                            </div>
+                        </>
+                    )}
+                </div>
+                <p className="text-[11px] text-amber-600">หมายเหตุ: คนไข้ต้อง<b>แอด OA เป็นเพื่อน</b>ด้วย ถึงจะได้รับแจ้งเตือน (LINE ส่งข้อความได้เฉพาะเพื่อน)</p>
             </div>
         </div>
     );
