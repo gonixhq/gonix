@@ -529,10 +529,19 @@ export async function cancelAnonPayment(id: string) {
 // ── Status / delete ─────────────────────────────────
 export async function setAnonStatus(id: string, status: string) {
     const { supabase, clinicId } = await getCtx();
+    // guard: จะตั้งเป็น "resulted" (มีผลแล้ว) ได้ ต่อเมื่อกรอกผลรายการตรวจครบทุกรายการ
+    if (status === "resulted") {
+        const { data: tests } = await supabase.from("anon_case_tests")
+            .select("item_type, result_status").eq("case_id", id);
+        const labs = (tests || []).filter((t) => t.item_type === "lab" || t.item_type === "lab_external");
+        const pending = labs.filter((t) => t.result_status === "pending" || t.result_status === "sent_out");
+        if (labs.length === 0) return { ok: false as const, error: 'เคสนี้ยังไม่มีรายการตรวจ — ตั้งเป็น "มีผลแล้ว" ไม่ได้' };
+        if (pending.length > 0) return { ok: false as const, error: `ยังกรอกผลไม่ครบ (เหลือ ${pending.length} รายการรอผล) — กรอกผลให้ครบก่อนตั้งเป็น "มีผลแล้ว"` };
+    }
     await supabase.from("anon_cases").update({ status }).eq("id", id).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/anonymous/${id}`);
     revalidatePath("/dashboard/anonymous");
-    return { ok: true };
+    return { ok: true as const };
 }
 
 export async function deleteAnonCase(id: string) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -92,7 +93,7 @@ export default function AnonCaseClient({ data, services, perms }: { data: AnonCa
                 {/* Status flow */}
                 <div className="flex items-center gap-1.5 mt-4 flex-wrap">
                     {STATUS_FLOW.map((s) => (
-                        <button key={s} disabled={busy} onClick={() => run(() => setAnonStatus(data.id, s))}
+                        <button key={s} disabled={busy} onClick={() => startBusy(async () => { const r = await setAnonStatus(data.id, s); if (!r.ok) { toast.error(r.error); return; } router.refresh(); })}
                             className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${data.status === s ? "bg-[#2B54F0] text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
                             {STATUS_LABEL[s]}
                         </button>
