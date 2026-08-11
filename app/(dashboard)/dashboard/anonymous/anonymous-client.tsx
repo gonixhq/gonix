@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import {
     ShieldCheck, UserPlus, Search, Loader2, TestTube, AlertTriangle,
     Clock, Wallet, X, Plus, FlaskConical, CheckCircle2, QrCode, Globe, Download, Copy, FileText,
-    KeyRound, ArrowRight, Package, Pencil, Trash2, Layers, Save,
+    KeyRound, ArrowRight, Package, Pencil, Trash2, Layers, Save, CalendarClock,
 } from "lucide-react";
 import { createAnonCase, openCaseByCode, createAnonPanel, updateAnonPanel, deleteAnonPanel, type AnonCaseRow, type AnonStats, type LabService, type AnonPanel } from "@/lib/actions/anonymous";
 
@@ -113,6 +113,19 @@ export default function AnonymousClient({
                 })}
             </div>
 
+            {/* แจ้งเตือน: มีผู้รับบริการขอนัดหมาย */}
+            {stats.followupPending > 0 && (
+                <div className="rounded-2xl border-2 border-rose-200 bg-rose-50 px-4 py-3 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                        <CalendarClock className="h-5 w-5 text-rose-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-rose-700">มี {stats.followupPending} เคสขอนัดหมายพบแพทย์</p>
+                        <p className="text-xs text-rose-600/80">ผู้รับบริการกดขอนัดผ่านหน้าเช็คผลออนไลน์ — เปิดเคสที่มีป้าย “ขอนัด” ด้านล่างเพื่อติดต่อกลับ</p>
+                    </div>
+                </div>
+            )}
+
             {/* เปิดเคสด้วยรหัสยืนยัน */}
             <div className="gonix-card-premium p-4">
                 <div className="flex items-center gap-2 mb-1">
@@ -183,6 +196,9 @@ export default function AnonymousClient({
                                             )}
                                             {c.positive_count > 0 && (
                                                 <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">ผลบวก</span>
+                                            )}
+                                            {c.followup_requested && (
+                                                <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 inline-flex items-center gap-0.5"><CalendarClock className="h-2.5 w-2.5" /> ขอนัด</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600">{formatDateThai(c.case_date)}</td>

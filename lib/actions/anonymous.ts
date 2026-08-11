@@ -45,6 +45,7 @@ export interface AnonCaseRow {
     test_count: number;
     positive_count: number;
     pending_count: number;
+    followup_requested: boolean;
 }
 
 export interface AnonCaseFull {
@@ -86,6 +87,7 @@ export interface AnonStats {
     awaitingResult: number;  // เปิดเคสแล้ว ยังไม่มีผล
     positiveOpen: number;
     unpaid: number;
+    followupPending: number; // ผู้รับบริการขอนัดหมายพบแพทย์ (ยังไม่ปิดเคส)
 }
 
 const num = (n: unknown) => Number(n || 0);
@@ -99,7 +101,7 @@ export async function getAnonStats(): Promise<AnonStats> {
     const { supabase, clinicId } = await getCtx();
     const { data } = await supabase
         .from("anon_cases")
-        .select("id, case_date, status, paid, reg_channel")
+        .select("id, case_date, status, paid, reg_channel, followup_requested")
         .eq("clinic_id", clinicId);
     const rows = data || [];
 
@@ -124,6 +126,7 @@ export async function getAnonStats(): Promise<AnonStats> {
         awaitingResult: rows.filter((r) => r.status === "opened" || r.status === "collected").length,
         positiveOpen: posOpen.size,
         unpaid: rows.filter((r) => r.paid === false && r.status !== "closed" && r.status !== "registered").length,
+        followupPending: rows.filter((r) => r.followup_requested === true && r.status !== "closed").length,
     };
 }
 
@@ -193,7 +196,7 @@ export async function getAnonCases(search?: string): Promise<AnonCaseRow[]> {
     // เจ้าหน้าที่ต้องป้อนรหัสยืนยันเพื่อเปิดเคสก่อนถึงเห็นข้อมูล
     let q = supabase
         .from("anon_cases")
-        .select("id, case_code, verify_code, reg_channel, case_date, sex, age, status, total_amount, paid, anon_case_tests(result_status, item_type)")
+        .select("id, case_code, verify_code, reg_channel, case_date, sex, age, status, total_amount, paid, followup_requested, anon_case_tests(result_status, item_type)")
         .eq("clinic_id", clinicId)
         .neq("status", "registered")
         .order("case_date", { ascending: false })
@@ -221,6 +224,7 @@ export async function getAnonCases(search?: string): Promise<AnonCaseRow[]> {
             test_count: tests.filter((t) => isLab(t.item_type)).length,
             positive_count: tests.filter((t) => t.result_status === "positive").length,
             pending_count: tests.filter((t) => isLab(t.item_type) && t.result_status === "pending").length,
+            followup_requested: !!c.followup_requested,
         };
     });
 }
