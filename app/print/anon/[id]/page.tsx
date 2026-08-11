@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAnonCase, type AnonCaseFull } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
 import PrintTrigger from "@/app/print/visits/[vn]/print-trigger";
+import { ClinicMasthead } from "@/app/print/clinic-masthead";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -82,7 +83,7 @@ function bahtText(n: number): string {
     return txt;
 }
 
-type Clinic = { clinic_name?: string; clinic_name_en?: string; address_detail?: string; phone?: string; tax_id?: string } | null;
+type Clinic = { clinic_name?: string; clinic_name_en?: string; company_name?: string; company_name_en?: string; address_detail?: string; phone?: string; tax_id?: string; license_number?: string; logo_url?: string } | null;
 type Branch = { branch_name?: string; address?: string; phone?: string } | null;
 
 export default async function AnonPrintPage({
@@ -106,7 +107,7 @@ export default async function AnonPrintPage({
         const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
         if (profile?.clinic_id) {
             const { data: c } = await supabase.from("tenants")
-                .select("clinic_name, clinic_name_en, address_detail, phone, tax_id").eq("id", profile.clinic_id).maybeSingle();
+                .select("clinic_name, clinic_name_en, company_name, company_name_en, address_detail, phone, tax_id, license_number, logo_url").eq("id", profile.clinic_id).maybeSingle();
             clinic = c;
             const { data: b } = await supabase.from("branches")
                 .select("branch_name, address, phone").eq("clinic_id", profile.clinic_id).eq("is_active", true)
@@ -144,25 +145,13 @@ export default async function AnonPrintPage({
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
-                <div style={{ borderTop: "4px double #000", borderBottom: "2px solid #000", padding: "8px 0" }}>
-                    <div className="flex items-start justify-between gap-5">
-                        <div className="flex items-center gap-4">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src="/clinic-logo.png" alt="Clinic" className="h-20 w-20 object-contain shrink-0" />
-                            <div className="leading-tight">
-                                <div className="text-[18px] font-black tracking-tight">{clinic?.clinic_name || "—"}</div>
-                                {clinic?.clinic_name_en && <div className="text-[13px] font-semibold text-slate-800 mt-0.5">{clinic.clinic_name_en}</div>}
-                                {clinic?.address_detail && <div className="text-[12px] text-slate-700 mt-1 leading-relaxed">{clinic.address_detail}</div>}
-                                {clinic?.phone && <div className="text-[12px] text-slate-700">โทรศัพท์ {clinic.phone}</div>}
-                            </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                            <div className="text-[10px] uppercase tracking-[0.3em] font-semibold text-slate-600">Lab Result</div>
-                            <h1 className="text-[20px] font-black tracking-tight text-black leading-tight mt-1">ใบรายงานผลตรวจ (นิรนาม)</h1>
-                            <div className="text-[13px] font-mono font-bold mt-1">รหัสเคส: {data.verify_code || data.case_code}</div>
-                            <div className="text-[12px] italic text-slate-700">{dateThaiLong(data.case_date)}</div>
-                        </div>
-                    </div>
+                <ClinicMasthead clinic={clinic} />
+                <div className="text-center mt-2" style={{ fontSize: "16px", fontWeight: 900 }}>
+                    ใบรายงานผลตรวจ (นิรนาม)<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · Lab Result</span>
+                </div>
+                <div className="flex items-center justify-between mt-1 text-[11.5px]">
+                    <span><b>รหัสเคส</b> <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{data.verify_code || data.case_code}</span></span>
+                    <span className="italic text-slate-600">{dateThaiLong(data.case_date)}</span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 py-3" style={{ borderBottom: "1px solid #000" }}>
