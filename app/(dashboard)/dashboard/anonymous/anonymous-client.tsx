@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import {
     ShieldCheck, UserPlus, Search, Loader2, TestTube, AlertTriangle,
-    Clock, Wallet, X, Plus, FlaskConical, CheckCircle2, QrCode, Globe, Download, Copy,
+    Clock, Wallet, X, Plus, FlaskConical, CheckCircle2, QrCode, Globe, Download, Copy, FileText,
     KeyRound, ArrowRight,
 } from "lucide-react";
 import { createAnonCase, openCaseByCode, type AnonCaseRow, type AnonStats, type LabService } from "@/lib/actions/anonymous";
@@ -219,7 +219,9 @@ export default function AnonymousClient({
 function QRRegisterModal({ clinicId, onClose }: { clinicId: string; onClose: () => void }) {
     const [qr, setQr] = useState("");
     const [copied, setCopied] = useState(false);
+    const [resultCopied, setResultCopied] = useState(false);
     const url = typeof window !== "undefined" ? `${window.location.origin}/checkin/${clinicId}` : "";
+    const resultUrl = typeof window !== "undefined" ? `${window.location.origin}/result` : "";
 
     useEffect(() => {
         if (url) QRCode.toDataURL(url, { width: 360, margin: 1 }).then(setQr).catch(() => setQr(""));
@@ -249,6 +251,14 @@ function QRRegisterModal({ clinicId, onClose }: { clinicId: string; onClose: () 
                                 <Download className="h-4 w-4" /> ดาวน์โหลด
                             </a>
                         )}
+                    </div>
+                    <div className="pt-3 mt-1 border-t border-slate-100 text-left">
+                        <p className="text-xs font-bold text-slate-700 mb-1.5 inline-flex items-center gap-1.5"><FileText className="h-3.5 w-3.5 text-[#2B54F0]" /> ลิงก์ดูผลตรวจ (ให้คนไข้)</p>
+                        <div className="flex gap-2">
+                            <div className="flex-1 min-w-0 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] font-mono text-slate-600 truncate">{resultUrl.replace(/^https?:\/\//, "")}</div>
+                            <button onClick={() => { navigator.clipboard?.writeText(resultUrl); setResultCopied(true); setTimeout(() => setResultCopied(false), 1500); }} className="shrink-0 h-9 w-10 rounded-lg border border-slate-200 inline-flex items-center justify-center hover:bg-slate-50" title="คัดลอกลิงก์ดูผล">{resultCopied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4 text-slate-500" />}</button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">คนไข้เข้าลิงก์นี้ → กรอกรหัส 6 หลัก + เบอร์ 4 ตัวท้าย เพื่อดูผลตรวจเอง</p>
                     </div>
                 </div>
             </div>
