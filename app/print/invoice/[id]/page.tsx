@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import PrintTrigger from "./print-trigger";
+import { ClinicMasthead } from "@/app/print/clinic-masthead";
 
 export const dynamic = "force-dynamic";
 
@@ -161,46 +162,18 @@ function ReceiptCopy({
             )}
 
             {/* Header — match OPD Card style + Title + Copy badge มุมขวา */}
-            <div style={{ borderTop: "3px double #000", borderBottom: "2px solid #000" }} className="py-1 px-1">
-                <div className="flex items-center gap-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/clinic-logo.png" alt="Clinic" className="h-24 w-24 object-contain shrink-0" />
-                    <div className="leading-tight flex-1 min-w-0">
-                        <div className="text-[16px] font-black text-black tracking-tight">
-                            บริษัท ธนเวช เมดิคอล จำกัด <span className="text-[12px] font-semibold text-slate-700">({branch?.branch_name || "สำนักงานใหญ่"})</span>
-                        </div>
-                        <div className="text-[10px] text-slate-700 mt-1.5 leading-relaxed">
-                            {branch?.address || "108/27 หมู่ 1 ต.สันพระเนตร อ.สันทราย จ.เชียงใหม่ 50210"}
-                        </div>
-                        <div className="text-[10px] text-slate-700">
-                            เลขประจำตัวผู้เสียภาษี: <span className="font-mono">{clinic?.tax_id || "0505569001439"}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-700">
-                            โทรศัพท์ {formatPhone(branch?.phone) || "093-987-4559 / 053-111215"}
-                        </div>
-                    </div>
-                    {/* Title + Copy badge — มุมขวาบน */}
-                    <div className="text-right shrink-0 pl-2 flex flex-col items-end gap-1.5">
-                        <div>
-                            <div className="text-[10px] uppercase tracking-[0.25em] font-semibold text-slate-600">
-                                Receipt
-                            </div>
-                            <h1 className="text-[18px] font-black tracking-tight text-black leading-tight mt-0.5">
-                                ใบเสร็จรับเงิน
-                            </h1>
-                        </div>
-                        <div className={`text-[10px] font-bold px-2.5 py-0.5 rounded border-2 ${
-                            isOriginal
-                                ? "bg-emerald-50 border-emerald-500 text-emerald-700"
-                                : "bg-amber-50 border-amber-500 text-amber-700"
-                        }`}>
-                            {copyLabel} · {copyLabelEn}
-                        </div>
-                    </div>
+            <ClinicMasthead clinic={clinic} />
+            <div className="flex items-end justify-between mt-1.5 px-1">
+                <div>
+                    <span className="text-[13px] font-black">ใบเสร็จรับเงิน · Receipt</span>
+                    <span className="text-[10px] text-slate-600 ml-2">เลขผู้เสียภาษี <span className="font-mono">{clinic?.tax_id || "0505569001439"}</span></span>
+                </div>
+                <div className={`text-[10px] font-bold px-2.5 py-0.5 rounded border-2 ${isOriginal ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-amber-50 border-amber-500 text-amber-700"}`}>
+                    {copyLabel} · {copyLabelEn}
                 </div>
             </div>
 
-            {/* Info — 2 col */}
+            {/* Info */}
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 px-1">
                 <div className="space-y-1">
                     <div className="flex gap-2">
@@ -402,7 +375,7 @@ export default async function InvoicePrintPage({
     const issuedByName = issuedBy?.profiles?.full_name || issuedBy?.profiles?.[0]?.full_name || "—";
 
     const { data: clinic } = await supabase
-        .from("tenants").select("clinic_name, clinic_name_en, tax_id, logo_url")
+        .from("tenants").select("clinic_name, clinic_name_en, company_name, company_name_en, tax_id, logo_url, address_detail, phone, license_number")
         .eq("id", inv.clinic_id).maybeSingle();
 
     const { data: branch } = await supabase
