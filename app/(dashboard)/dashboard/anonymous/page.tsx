@@ -1,6 +1,6 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
-import { getAnonCases, getAnonStats, getLabServices } from "@/lib/actions/anonymous";
+import { getAnonCases, getAnonStats, getLabServices, listAnonPanels } from "@/lib/actions/anonymous";
 import AnonymousClient from "./anonymous-client";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +14,11 @@ export default async function AnonymousPage() {
         : { data: null };
     const clinicId = (profile?.clinic_id as string) || "";
 
-    const [cases, stats, services] = await Promise.all([
+    const [cases, stats, services, panels] = await Promise.all([
         getAnonCases(),
         getAnonStats(),
         getLabServices(),
+        listAnonPanels(),
     ]);
-    return <AnonymousClient cases={cases} stats={stats} services={services} clinicId={clinicId} />;
+    return <AnonymousClient cases={cases} stats={stats} services={services} panels={panels} clinicId={clinicId} />;
 }

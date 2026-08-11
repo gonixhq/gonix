@@ -6,9 +6,9 @@ import QRCode from "qrcode";
 import {
     ShieldCheck, UserPlus, Search, Loader2, TestTube, AlertTriangle,
     Clock, Wallet, X, Plus, FlaskConical, CheckCircle2, QrCode, Globe, Download, Copy, FileText,
-    KeyRound, ArrowRight,
+    KeyRound, ArrowRight, Package, Pencil, Trash2, Layers, Save,
 } from "lucide-react";
-import { createAnonCase, openCaseByCode, type AnonCaseRow, type AnonStats, type LabService } from "@/lib/actions/anonymous";
+import { createAnonCase, openCaseByCode, createAnonPanel, updateAnonPanel, deleteAnonPanel, type AnonCaseRow, type AnonStats, type LabService, type AnonPanel } from "@/lib/actions/anonymous";
 
 const baht = (n: number) => `฿${n.toLocaleString("th-TH")}`;
 
@@ -26,17 +26,19 @@ const ITEM_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function AnonymousClient({
-    cases, stats, services, clinicId,
+    cases, stats, services, panels, clinicId,
 }: {
     cases: AnonCaseRow[];
     stats: AnonStats;
     services: LabService[];
+    panels: AnonPanel[];
     clinicId: string;
 }) {
     const router = useRouter();
     const [search, setSearch] = useState("");
     const [showReg, setShowReg] = useState(false);
     const [showQR, setShowQR] = useState(false);
+    const [showPanels, setShowPanels] = useState(false);
     const [openCode, setOpenCode] = useState("");
     const [openErr, setOpenErr] = useState("");
     const [opening, startOpen] = useTransition();
@@ -82,6 +84,10 @@ export default function AnonymousClient({
                     <button onClick={() => setShowQR(true)}
                         className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 text-sm font-bold text-[#2B54F0] border border-[#2B54F0]/30 hover:bg-[#2B54F0]/5">
                         <QrCode className="h-4 w-4" /> QR ลงทะเบียน
+                    </button>
+                    <button onClick={() => setShowPanels(true)}
+                        className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-1.5 text-sm font-bold text-slate-600 border border-slate-200 hover:bg-slate-50">
+                        <Package className="h-4 w-4" /> จัดการแพ็กเกจ
                     </button>
                     <button onClick={() => setShowReg(true)}
                         className="h-10 px-4 rounded-xl inline-flex items-center justify-center gap-1.5 text-sm font-bold text-white shadow-sm"
@@ -207,10 +213,11 @@ export default function AnonymousClient({
             </div>
 
             {showReg && (
-                <RegisterModal services={services} onClose={() => setShowReg(false)}
+                <RegisterModal services={services} panels={panels} onClose={() => setShowReg(false)}
                     onCreated={(id) => { setShowReg(false); router.push(`/dashboard/anonymous/${id}`); }} />
             )}
             {showQR && <QRRegisterModal clinicId={clinicId} onClose={() => setShowQR(false)} />}
+            {showPanels && <PanelManagerModal panels={panels} services={services} onClose={() => setShowPanels(false)} onChanged={() => router.refresh()} />}
         </div>
     );
 }
@@ -272,9 +279,10 @@ function formatDateThai(d: string): string {
 
 // ── Register modal ──────────────────────────────────
 function RegisterModal({
-    services, onClose, onCreated,
+    services, panels, onClose, onCreated,
 }: {
     services: LabService[];
+    panels: AnonPanel[];
     onClose: () => void;
     onCreated: (id: string) => void;
 }) {
@@ -282,6 +290,8 @@ function RegisterModal({
     const [age, setAge] = useState("");
     const [risk, setRisk] = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [selPanels, setSelPanels] = useState<Set<string>>(new Set());
+    const activePanels = panels.filter((p) => p.is_active);
     const [preDone, setPreDone] = useState(false);
     const [preNote, setPreNote] = useState("");
     const [err, setErr] = useState("");
@@ -297,9 +307,18 @@ function RegisterModal({
     }, [services]);
 
     const total = useMemo(
-        () => services.filter((s) => selected.has(s.id)).reduce((sum, s) => sum + s.price, 0),
-        [services, selected]
+        () => services.filter((s) => selected.has(s.id)).reduce((sum, s) => sum + s.price, 0)
+            + panels.filter((p) => selPanels.has(p.id)).reduce((sum, p) => sum + p.price, 0),
+        [services, selected, panels, selPanels]
     );
+
+    function togglePanel(id: string) {
+        setSelPanels((prev) => {
+            const n = new Set(prev);
+            if (n.has(id)) n.delete(id); else n.add(id);
+            return n;
+        });
+    }
 
     function toggle(id: string) {
         setSelected((prev) => {
@@ -311,13 +330,14 @@ function RegisterModal({
 
     function submit() {
         setErr("");
-        if (selected.size === 0) { setErr("กรุณาเลือกรายการตรวจอย่างน้อย 1 รายการ"); return; }
+        if (selected.size === 0 && selPanels.size === 0) { setErr("กรุณาเลือกแพ็กเกจหรือรายการตรวจอย่างน้อย 1 รายการ"); return; }
         startSave(async () => {
             const res = await createAnonCase({
                 sex: sex || undefined,
                 age: age ? Number(age) : null,
                 risk_note: risk || undefined,
                 serviceIds: [...selected],
+                panelIds: [...selPanels],
                 pre_counsel_done: preDone,
                 pre_counsel_note: preNote || undefined,
             });
@@ -371,6 +391,29 @@ function RegisterModal({
                             placeholder="เช่น มีพฤติกรรมเสี่ยง, ต้องการตรวจคัดกรอง ฯลฯ"
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#2B54F0] focus:outline-none resize-none" />
                     </div>
+
+                    {/* Panel selection */}
+                    {activePanels.length > 0 && (
+                        <div>
+                            <label className="text-xs font-semibold text-slate-600 mb-1.5 block inline-flex items-center gap-1.5"><Package className="h-3.5 w-3.5 text-[#2B54F0]" /> แพ็กเกจ (ตรวจเป็นชุด)</label>
+                            <div className="grid sm:grid-cols-2 gap-2">
+                                {activePanels.map((p) => {
+                                    const on = selPanels.has(p.id);
+                                    return (
+                                        <button key={p.id} type="button" onClick={() => togglePanel(p.id)}
+                                            className={`text-left rounded-xl border p-2.5 transition ${on ? "border-[#2B54F0] bg-[#2B54F0]/5 ring-1 ring-[#2B54F0]/30" : "border-slate-200 hover:border-slate-300"}`}>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-sm font-bold text-slate-800">{p.name}</span>
+                                                <span className="text-sm font-black text-[#2B54F0] tabular-nums shrink-0">{baht(p.price)}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{p.items.map((i) => i.name).join(" · ") || "—"}</div>
+                                            <div className="text-[10px] text-slate-400 mt-0.5">{p.items.length} รายการ · รอผล {p.result_days} วัน</div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Test selection */}
                     <div>
@@ -439,5 +482,225 @@ function RegisterModal({
                 </div>
             </div>
         </div>
+    );
+}
+
+
+// ── จัดการแพ็กเกจตรวจ (Lab Panels) ───────────────────
+function PanelManagerModal({
+    panels, services, onClose, onChanged,
+}: {
+    panels: AnonPanel[];
+    services: LabService[];
+    onClose: () => void;
+    onChanged: () => void;
+}) {
+    const [editing, setEditing] = useState<AnonPanel | "new" | null>(null);
+    const [busy, startBusy] = useTransition();
+
+    function del(p: AnonPanel) {
+        if (!confirm(`ลบแพ็กเกจ "${p.name}" ?`)) return;
+        startBusy(async () => { await deleteAnonPanel(p.id); onChanged(); });
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                        <div className="h-9 w-9 rounded-xl bg-[#2B54F0]/10 flex items-center justify-center"><Package className="h-4 w-4 text-[#2B54F0]" /></div>
+                        <div>
+                            <h2 className="font-bold text-slate-800">แพ็กเกจตรวจ (Lab Panels)</h2>
+                            <p className="text-[11px] text-slate-500">ตั้งชุดตรวจ — เพิ่มเข้าเคสครั้งเดียว คิดราคาแพ็กเดียว แตกผลแยกรายการ</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><X className="h-4 w-4 text-slate-500" /></button>
+                </div>
+
+                {editing ? (
+                    <PanelForm
+                        panel={editing === "new" ? null : editing}
+                        services={services}
+                        onCancel={() => setEditing(null)}
+                        onSaved={() => { setEditing(null); onChanged(); }}
+                    />
+                ) : (
+                    <>
+                        <div className="flex-1 overflow-y-auto p-5 space-y-2">
+                            {panels.length === 0 ? (
+                                <div className="text-center py-10 text-sm text-slate-400">
+                                    <Layers className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                                    ยังไม่มีแพ็กเกจ — กด "สร้างแพ็กเกจใหม่" เพื่อเริ่ม
+                                </div>
+                            ) : panels.map((p) => {
+                                const profit = p.price - p.cost;
+                                const pct = p.price > 0 ? Math.round((profit / p.price) * 100) : 0;
+                                return (
+                                    <div key={p.id} className={`rounded-xl border p-3 ${p.is_active ? "border-slate-200" : "border-slate-200 bg-slate-50 opacity-70"}`}>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-slate-800">{p.name}</span>
+                                                    {!p.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 font-bold">ปิดใช้</span>}
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 mt-0.5">{p.items.map((i) => i.name).join(" · ") || "— ยังไม่มีเทสย่อย —"}</div>
+                                                <div className="text-[10px] text-slate-400 mt-1">{p.items.length} รายการ · รอผล {p.result_days} วัน{p.note ? ` · ${p.note}` : ""}</div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="font-black text-slate-800 tabular-nums">{baht(p.price)}</div>
+                                                <div className="text-[10px] text-emerald-600 font-bold">กำไร {baht(profit)} ({pct}%)</div>
+                                                <div className="flex gap-1 mt-1.5 justify-end">
+                                                    <button onClick={() => setEditing(p)} className="h-7 w-7 rounded-lg border border-slate-200 inline-flex items-center justify-center hover:bg-slate-50" title="แก้ไข"><Pencil className="h-3.5 w-3.5 text-slate-500" /></button>
+                                                    <button onClick={() => del(p)} disabled={busy} className="h-7 w-7 rounded-lg border border-rose-200 inline-flex items-center justify-center hover:bg-rose-50" title="ลบ"><Trash2 className="h-3.5 w-3.5 text-rose-500" /></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="border-t border-slate-100 p-4 flex justify-end">
+                            <button onClick={() => setEditing("new")}
+                                className="h-10 px-5 rounded-xl text-sm font-bold text-white shadow-sm inline-flex items-center gap-1.5"
+                                style={{ background: "linear-gradient(90deg,#2B54F0,#00A6C0)" }}>
+                                <Plus className="h-4 w-4" /> สร้างแพ็กเกจใหม่
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function PanelForm({
+    panel, services, onCancel, onSaved,
+}: {
+    panel: AnonPanel | null;
+    services: LabService[];
+    onCancel: () => void;
+    onSaved: () => void;
+}) {
+    const [name, setName] = useState(panel?.name || "");
+    const [note, setNote] = useState(panel?.note || "");
+    const [price, setPrice] = useState(panel ? String(panel.price) : "");
+    const [cost, setCost] = useState(panel ? String(panel.cost) : "");
+    const [days, setDays] = useState(panel ? String(panel.result_days) : "1");
+    const [active, setActive] = useState(panel ? panel.is_active : true);
+    const [sel, setSel] = useState<Set<string>>(new Set(panel?.items.map((i) => i.service_id) || []));
+    const [err, setErr] = useState("");
+    const [saving, startSave] = useTransition();
+
+    const grouped = useMemo(() => {
+        const m = new Map<string, LabService[]>();
+        services.forEach((sv) => { const a = m.get(sv.item_type) || []; a.push(sv); m.set(sv.item_type, a); });
+        return [...m.entries()];
+    }, [services]);
+
+    const sumParts = useMemo(() => services.filter((sv) => sel.has(sv.id)).reduce((x, sv) => x + sv.price, 0), [services, sel]);
+    const priceN = Number(price) || 0;
+    const costN = Number(cost) || 0;
+    const profit = priceN - costN;
+    const pct = priceN > 0 ? Math.round((profit / priceN) * 100) : 0;
+
+    function toggle(id: string) {
+        setSel((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    }
+
+    function submit() {
+        setErr("");
+        if (!name.trim()) { setErr("กรุณาใส่ชื่อแพ็กเกจ"); return; }
+        if (sel.size === 0) { setErr("กรุณาเลือกเทสย่อยอย่างน้อย 1 รายการ"); return; }
+        startSave(async () => {
+            const payload = { name, note, price: priceN, cost: costN, result_days: Number(days) || 1, serviceIds: [...sel] };
+            const res = panel
+                ? await updateAnonPanel(panel.id, { ...payload, is_active: active })
+                : await createAnonPanel(payload);
+            if (res.ok) onSaved(); else setErr(res.error);
+        });
+    }
+
+    return (
+        <>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">ชื่อแพ็กเกจ *</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น STI BASIC"
+                        className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">ราคาขาย (฿)</label>
+                        <input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0"
+                            className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">ต้นทุน (฿)</label>
+                        <input type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0"
+                            className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">รอผล (วัน)</label>
+                        <input type="number" min={0} value={days} onChange={(e) => setDays(e.target.value)} placeholder="1"
+                            className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs">
+                    <span className="text-slate-500">ราคารวมถ้าซื้อแยก <b className="text-slate-700 tabular-nums">{baht(sumParts)}</b></span>
+                    <span className="text-emerald-600 font-bold">กำไร {baht(profit)} ({pct}%)</span>
+                </div>
+
+                <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">หมายเหตุ (ไม่บังคับ)</label>
+                    <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="เช่น รวมค่าเจาะเลือด"
+                        className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+                </div>
+
+                <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">เทสย่อยในแพ็กเกจ * <span className="text-slate-400 font-normal">(เลือกจากรายการบริการ)</span></label>
+                    {services.length === 0 ? (
+                        <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-3">ยังไม่มีรายการบริการ — เพิ่มที่ ตั้งค่า → รายการบริการ &amp; ราคา</p>
+                    ) : (
+                        <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-52 overflow-y-auto">
+                            {grouped.map(([type, list]) => (
+                                <div key={type}>
+                                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">{ITEM_TYPE_LABEL[type] || type}</div>
+                                    {list.map((sv) => {
+                                        const on = sel.has(sv.id);
+                                        return (
+                                            <button key={sv.id} type="button" onClick={() => toggle(sv.id)}
+                                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 ${on ? "bg-[#2B54F0]/5" : ""}`}>
+                                                <span className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${on ? "bg-[#2B54F0] border-[#2B54F0]" : "border-slate-300"}`}>{on && <CheckCircle2 className="h-3 w-3 text-white" />}</span>
+                                                <span className="flex-1 text-sm text-slate-700">{sv.name}</span>
+                                                <span className="text-xs font-semibold text-slate-500 tabular-nums">{baht(sv.price)}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {panel && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 accent-[#2B54F0]" />
+                        <span className="text-sm font-semibold text-slate-700">เปิดใช้งานแพ็กเกจนี้</span>
+                    </label>
+                )}
+
+                {err && <p className="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2">{err}</p>}
+            </div>
+            <div className="border-t border-slate-100 p-4 flex items-center justify-between gap-3">
+                <button onClick={onCancel} className="h-10 px-4 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 inline-flex items-center gap-1.5"><ArrowRight className="h-4 w-4 rotate-180" /> กลับ</button>
+                <button onClick={submit} disabled={saving}
+                    className="h-10 px-5 rounded-xl text-sm font-bold text-white shadow-sm inline-flex items-center gap-1.5 disabled:opacity-60"
+                    style={{ background: "linear-gradient(90deg,#2B54F0,#00A6C0)" }}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {panel ? "บันทึกการแก้ไข" : "สร้างแพ็กเกจ"}
+                </button>
+            </div>
+        </>
     );
 }

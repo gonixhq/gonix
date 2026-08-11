@@ -7,12 +7,12 @@ import Link from "next/link";
 import {
     ShieldCheck, ArrowLeft, TestTube, Plus, Trash2, Loader2, Save,
     MessageSquareHeart, Wallet, CheckCircle2, Printer, CalendarClock, FileText,
-    Activity, EyeOff, AlertTriangle, Tag,
+    Activity, EyeOff, AlertTriangle, Tag, Package,
 } from "lucide-react";
 import {
-    updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest,
+    updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest, addAnonPanel,
     recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals,
-    type AnonCaseFull, type LabService, type AnonTest,
+    type AnonCaseFull, type LabService, type AnonTest, type AnonPanel,
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
 
@@ -36,7 +36,7 @@ const PAYMENT_METHODS: [string, string][] = [
 ];
 const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญิง", other: "อื่นๆ" };
 
-export default function AnonCaseClient({ data, services, perms }: { data: AnonCaseFull; services: LabService[]; perms: Perms }) {
+export default function AnonCaseClient({ data, services, panels, perms }: { data: AnonCaseFull; services: LabService[]; panels: AnonPanel[]; perms: Perms }) {
     const router = useRouter();
     const [busy, startBusy] = useTransition();
     const run = (fn: () => Promise<unknown>) => startBusy(async () => { await fn(); router.refresh(); });
@@ -114,7 +114,7 @@ export default function AnonCaseClient({ data, services, perms }: { data: AnonCa
 
                     {/* รายการตรวจ + ผล — แพทย์ หรือผู้บันทึกผล */}
                     {(perms.clinical || perms.result) && (
-                        <TestsCard caseId={data.id} tests={data.tests} services={services} busy={busy} run={run} />
+                        <TestsCard caseId={data.id} tests={data.tests} services={services} panels={panels} busy={busy} run={run} />
                     )}
 
                     {/* บันทึกแพทย์ + Counseling — แพทย์ */}
@@ -283,11 +283,13 @@ function QuestionnaireCard({ q }: { q: Record<string, unknown> }) {
 }
 
 // ── Tests & charges ─────────────────────────────────
-function TestsCard({ caseId, tests, services, busy, run }: {
-    caseId: string; tests: AnonTest[]; services: LabService[];
+function TestsCard({ caseId, tests, services, panels, busy, run }: {
+    caseId: string; tests: AnonTest[]; services: LabService[]; panels: AnonPanel[];
     busy: boolean; run: (fn: () => Promise<unknown>) => void;
 }) {
     const [adding, setAdding] = useState("");
+    const [addingPanel, setAddingPanel] = useState("");
+    const activePanels = panels.filter((p) => p.is_active);
     const labTests = tests.filter((t) => isLabType(t.item_type));
     const charges = tests.filter((t) => !isLabType(t.item_type));
 
@@ -328,6 +330,23 @@ function TestsCard({ caseId, tests, services, busy, run }: {
                         ))}
                     </div>
                 </>
+            )}
+
+            {/* Add panel */}
+            {activePanels.length > 0 && (
+                <div className="p-3 border-t border-slate-100 bg-[#2B54F0]/[0.03] flex items-center gap-2">
+                    <Package className="h-4 w-4 text-[#2B54F0] shrink-0" />
+                    <select value={addingPanel} onChange={(e) => setAddingPanel(e.target.value)}
+                        className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-[#2B54F0] focus:outline-none">
+                        <option value="">+ เพิ่มแพ็กเกจ (ตรวจเป็นชุด)…</option>
+                        {activePanels.map((p) => <option key={p.id} value={p.id}>{p.name} — {baht(p.price)} ({p.items.length} รายการ)</option>)}
+                    </select>
+                    <button disabled={!addingPanel || busy} onClick={() => run(async () => { await addAnonPanel(caseId, addingPanel); setAddingPanel(""); })}
+                        className="h-9 px-3 rounded-lg text-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-50"
+                        style={{ background: "linear-gradient(90deg,#2B54F0,#00A6C0)" }}>
+                        <Plus className="h-4 w-4" /> เพิ่มแพ็ก
+                    </button>
+                </div>
             )}
 
             {/* Add */}

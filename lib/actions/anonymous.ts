@@ -279,6 +279,112 @@ export async function getLabServices(): Promise<LabService[]> {
     }));
 }
 
+// ── Lab panels (แพ็กเกจ) ────────────────────────────
+export interface AnonPanelItem { service_id: string; name: string; item_type: string; price: number; }
+export interface AnonPanel {
+    id: string; name: string; note: string | null;
+    price: number; cost: number; result_days: number;
+    is_active: boolean; sort_order: number;
+    items: AnonPanelItem[];
+}
+
+export async function listAnonPanels(): Promise<AnonPanel[]> {
+    const { supabase, clinicId } = await getCtx();
+    const { data: panels } = await supabase.from("anon_panels")
+        .select("id, name, note, price, cost, result_days, is_active, sort_order")
+        .eq("clinic_id", clinicId)
+        .order("sort_order", { ascending: true }).order("name", { ascending: true });
+    if (!panels?.length) return [];
+    const ids = panels.map((p) => p.id as string);
+    const { data: items } = await supabase.from("anon_panel_items")
+        .select("panel_id, service_id, service_catalog(service_name, item_type, selling_price)")
+        .in("panel_id", ids);
+    const byPanel = new Map<string, AnonPanelItem[]>();
+    for (const it of items || []) {
+        const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+        const arr = byPanel.get(it.panel_id as string) || [];
+        arr.push({
+            service_id: it.service_id as string, name: sc?.service_name || "—",
+            item_type: sc?.item_type || "other", price: num(sc?.selling_price),
+        });
+        byPanel.set(it.panel_id as string, arr);
+    }
+    return panels.map((p) => ({
+        id: p.id as string, name: p.name as string, note: (p.note as string) || null,
+        price: num(p.price), cost: num(p.cost), result_days: Number(p.result_days || 1),
+        is_active: p.is_active !== false, sort_order: Number(p.sort_order || 0),
+        items: byPanel.get(p.id as string) || [],
+    }));
+}
+
+export async function createAnonPanel(input: {
+    name: string; note?: string; price: number; cost?: number; result_days?: number; serviceIds: string[];
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+    const { supabase, clinicId } = await getCtx();
+    if (!input.name?.trim()) return { ok: false, error: "กรุณาใส่ชื่อแพ็กเกจ" };
+    if (!input.serviceIds?.length) return { ok: false, error: "กรุณาเลือกเทสย่อยอย่างน้อย 1 รายการ" };
+    const { data: panel, error } = await supabase.from("anon_panels").insert({
+        clinic_id: clinicId, name: input.name.trim(), note: input.note?.trim() || null,
+        price: num(input.price), cost: num(input.cost), result_days: Number(input.result_days || 1),
+    }).select("id").single();
+    if (error || !panel) return { ok: false, error: "บันทึกแพ็กเกจไม่สำเร็จ" };
+    const rows = input.serviceIds.map((sid) => ({ panel_id: panel.id, service_id: sid }));
+    if (rows.length) await supabase.from("anon_panel_items").insert(rows);
+    revalidatePath("/dashboard/anonymous");
+    return { ok: true, id: panel.id as string };
+}
+
+export async function updateAnonPanel(id: string, input: {
+    name: string; note?: string; price: number; cost?: number; result_days?: number;
+    is_active?: boolean; serviceIds: string[];
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { supabase, clinicId } = await getCtx();
+    if (!input.name?.trim()) return { ok: false, error: "กรุณาใส่ชื่อแพ็กเกจ" };
+    if (!input.serviceIds?.length) return { ok: false, error: "กรุณาเลือกเทสย่อยอย่างน้อย 1 รายการ" };
+    await supabase.from("anon_panels").update({
+        name: input.name.trim(), note: input.note?.trim() || null,
+        price: num(input.price), cost: num(input.cost), result_days: Number(input.result_days || 1),
+        is_active: input.is_active !== false,
+    }).eq("id", id).eq("clinic_id", clinicId);
+    await supabase.from("anon_panel_items").delete().eq("panel_id", id);
+    const rows = input.serviceIds.map((sid) => ({ panel_id: id, service_id: sid }));
+    if (rows.length) await supabase.from("anon_panel_items").insert(rows);
+    revalidatePath("/dashboard/anonymous");
+    return { ok: true };
+}
+
+export async function deleteAnonPanel(id: string): Promise<{ ok: true }> {
+    const { supabase, clinicId } = await getCtx();
+    await supabase.from("anon_panels").delete().eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath("/dashboard/anonymous");
+    return { ok: true };
+}
+
+// เพิ่มแพ็กเกจเข้าเคส → แตกเป็นเทสย่อย (price 0, ไว้กรอกผล) + 1 บรรทัดค่าแพ็ก
+export async function addAnonPanel(caseId: string, panelId: string): Promise<{ ok: boolean; error?: string }> {
+    const { supabase, clinicId } = await getCtx();
+    const { data: panel } = await supabase.from("anon_panels")
+        .select("id, name, price").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
+    if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
+    const { data: items } = await supabase.from("anon_panel_items")
+        .select("service_id, service_catalog(service_name, item_type)").eq("panel_id", panelId);
+    const rows: any[] = (items || []).map((it) => {
+        const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+        return {
+            case_id: caseId, service_id: it.service_id,
+            test_name: sc?.service_name || "เทส", item_type: sc?.item_type || "lab_external", price: 0,
+        };
+    });
+    rows.push({
+        case_id: caseId, service_id: null,
+        test_name: `แพ็กเกจ · ${panel.name}`, item_type: "other", price: num(panel.price),
+    });
+    if (rows.length) await supabase.from("anon_case_tests").insert(rows);
+    await recomputeTotal(supabase, caseId);
+    revalidatePath(`/dashboard/anonymous/${caseId}`);
+    return { ok: true };
+}
+
 // ── Create case ─────────────────────────────────────
 async function nextCaseCode(supabase: Awaited<ReturnType<typeof getCtx>>["supabase"], clinicId: string, date: string): Promise<string> {
     const ymd = date.replace(/-/g, "").slice(2); // YYMMDD
@@ -293,6 +399,7 @@ async function nextCaseCode(supabase: Awaited<ReturnType<typeof getCtx>>["supaba
 export async function createAnonCase(input: {
     sex?: string; age?: number | null; risk_note?: string;
     serviceIds: string[];
+    panelIds?: string[];
     pre_counsel_done?: boolean; pre_counsel_note?: string;
 }): Promise<{ ok: true; id: string; code: string } | { ok: false; error: string }> {
     const { supabase, clinicId, userId } = await getCtx();
@@ -304,9 +411,27 @@ export async function createAnonCase(input: {
             .select("id, service_name, selling_price, item_type")
             .eq("clinic_id", clinicId).in("id", input.serviceIds)).data || []
         : [];
-    if (services.length === 0) return { ok: false, error: "กรุณาเลือกรายการตรวจอย่างน้อย 1 รายการ" };
+    // snapshot panels (แพ็กเกจ) → เทสย่อย price 0 + บรรทัดค่าแพ็กราคาเดียว
+    const panelIds = input.panelIds || [];
+    const panelRowsBase: any[] = [];
+    if (panelIds.length) {
+        const { data: pans } = await supabase.from("anon_panels")
+            .select("id, name, price").eq("clinic_id", clinicId).in("id", panelIds);
+        const { data: pitems } = await supabase.from("anon_panel_items")
+            .select("panel_id, service_id, service_catalog(service_name, item_type)").in("panel_id", panelIds);
+        for (const pan of pans || []) {
+            for (const it of (pitems || []).filter((x) => x.panel_id === pan.id)) {
+                const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+                panelRowsBase.push({ service_id: it.service_id, test_name: sc?.service_name || "เทส", item_type: sc?.item_type || "lab_external", price: 0 });
+            }
+            panelRowsBase.push({ service_id: null, test_name: `แพ็กเกจ · ${pan.name}`, item_type: "other", price: num(pan.price) });
+        }
+    }
 
-    const total = services.reduce((s, x) => s + num(x.selling_price), 0);
+    if (services.length === 0 && panelRowsBase.length === 0) return { ok: false, error: "กรุณาเลือกรายการตรวจหรือแพ็กเกจอย่างน้อย 1 รายการ" };
+
+    const total = services.reduce((s, x) => s + num(x.selling_price), 0)
+        + panelRowsBase.reduce((s, x) => s + num(x.price), 0);
     const caseCode = await nextCaseCode(supabase, clinicId, date);
 
     // gen verify_code (กันชนด้วย retry)
@@ -331,11 +456,14 @@ export async function createAnonCase(input: {
     if (!created) return { ok: false, error: lastErr || "บันทึกไม่สำเร็จ" };
     const code = verifyCode;
 
-    const testRows = services.map((s) => ({
-        case_id: created.id, service_id: s.id, test_name: s.service_name,
-        item_type: (s.item_type as string) || "other", price: num(s.selling_price),
-    }));
-    await supabase.from("anon_case_tests").insert(testRows);
+    const testRows = [
+        ...services.map((s) => ({
+            case_id: created.id, service_id: s.id, test_name: s.service_name,
+            item_type: (s.item_type as string) || "other", price: num(s.selling_price),
+        })),
+        ...panelRowsBase.map((r) => ({ ...r, case_id: created.id })),
+    ];
+    if (testRows.length) await supabase.from("anon_case_tests").insert(testRows);
 
     revalidatePath("/dashboard/anonymous");
     return { ok: true, id: created.id as string, code };

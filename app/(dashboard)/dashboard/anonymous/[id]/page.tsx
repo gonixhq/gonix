@@ -1,7 +1,7 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import Link from "next/link";
-import { getAnonCase, getLabServices } from "@/lib/actions/anonymous";
+import { getAnonCase, getLabServices, listAnonPanels } from "@/lib/actions/anonymous";
 import AnonCaseClient from "./anon-case-client";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function AnonCasePage({ params }: { params: Promise<{ id: string }> }) {
     await gatePermission("anon.view");
     const { id } = await params;
-    const [data, services, { permissions }] = await Promise.all([
-        getAnonCase(id), getLabServices(), getEffectivePermissionsForUser(),
+    const [data, services, panels, { permissions }] = await Promise.all([
+        getAnonCase(id), getLabServices(), listAnonPanels(), getEffectivePermissionsForUser(),
     ]);
     const perms = {
         clinical: permissions["anon.clinical"] === true,
@@ -45,5 +45,5 @@ export default async function AnonCasePage({ params }: { params: Promise<{ id: s
         );
     }
 
-    return <AnonCaseClient data={data} services={services} perms={perms} />;
+    return <AnonCaseClient data={data} services={services} panels={panels} perms={perms} />;
 }
