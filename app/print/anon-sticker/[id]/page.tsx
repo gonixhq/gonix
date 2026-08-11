@@ -72,19 +72,30 @@ export default async function AnonStickerPage({ params }: { params: Promise<{ id
             <div className="no-print mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
 
             {/* กระดาษ 8×6 ซม. แผ่นเดียว แบ่งครึ่งบน/ล่าง (2 ดวง) */}
-            <div className="sheet" style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
-                <Half divider={true} />
-                <Half divider={false} />
+            <div className="page">
+                <div className="sheet" style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
+                    <Half divider={true} />
+                    <Half divider={false} />
+                </div>
             </div>
             <p className="no-print text-center text-[11px] text-slate-400 mt-2">กระดาษ 8×6 ซม. · 2 ดวง (บน/ล่าง) แบ่งด้วยเส้นประ</p>
 
             <style>{`
+                .page {
+                    width: 60mm; height: 80mm;
+                    position: relative;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                    margin: 0 auto;
+                }
                 .sheet {
                     width: 80mm; height: 60mm;
                     box-sizing: border-box;
                     background: white;
-                    margin: 0 auto;
                     overflow: hidden;
+                    position: absolute;
+                    top: 50%; left: 50%;
+                    transform: translate(-50%, -50%) rotate(90deg);
                 }
                 .sticker {
                     width: 80mm; height: 30mm;
@@ -94,13 +105,13 @@ export default async function AnonStickerPage({ params }: { params: Promise<{ id
                 }
                 @media print {
                     .no-print { display: none !important; }
-                    @page { size: 80mm 60mm; margin: 0; }
+                    @page { size: 60mm 80mm; margin: 0; }
                     body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .sheet { margin: 0; }
+                    .page { margin: 0; }
                 }
                 @media screen {
                     body { background: #f1f5f9; }
-                    .sheet { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 24px auto; }
+                    .page { box-shadow: 0 4px 20px rgba(0,0,0,0.12); margin: 24px auto; }
                 }
             `}</style>
         </>
