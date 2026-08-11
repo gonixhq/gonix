@@ -221,29 +221,14 @@ function ReceiptHalf({ copyLabel, copyLabelEn, isOriginal, data, clinic, branch 
     return (
         <div className="receipt-half relative px-6 py-4 text-[10.5px] leading-snug text-slate-900 flex flex-col gap-2">
             {/* Header */}
-            <div style={{ borderTop: "3px double #000", borderBottom: "2px solid #000" }} className="py-1 px-1">
-                <div className="flex items-center gap-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/clinic-logo.png" alt="Clinic" className="h-24 w-24 object-contain shrink-0" />
-                    <div className="leading-tight flex-1 min-w-0">
-                        <div className="text-[16px] font-black text-black tracking-tight">
-                            บริษัท ธนเวช เมดิคอล จำกัด <span className="text-[12px] font-semibold text-slate-700">({branch?.branch_name || "สำนักงานใหญ่"})</span>
-                        </div>
-                        <div className="text-[10px] text-slate-700 mt-1.5 leading-relaxed">
-                            {branch?.address || clinic?.address_detail || "108/27 หมู่ 1 ต.สันพระเนตร อ.สันทราย จ.เชียงใหม่ 50210"}
-                        </div>
-                        <div className="text-[10px] text-slate-700">เลขประจำตัวผู้เสียภาษี: <span className="font-mono">{clinic?.tax_id || "0505569001439"}</span></div>
-                        <div className="text-[10px] text-slate-700">โทรศัพท์ {formatPhone(branch?.phone || clinic?.phone) || "093-987-4559 / 053-111215"}</div>
-                    </div>
-                    <div className="text-right shrink-0 pl-2 flex flex-col items-end gap-1.5">
-                        <div>
-                            <div className="text-[10px] uppercase tracking-[0.25em] font-semibold text-slate-600">Receipt</div>
-                            <h1 className="text-[18px] font-black tracking-tight text-black leading-tight mt-0.5">ใบเสร็จรับเงิน</h1>
-                        </div>
-                        <div className={`text-[10px] font-bold px-2.5 py-0.5 rounded border-2 ${isOriginal ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-amber-50 border-amber-500 text-amber-700"}`}>
-                            {copyLabel} · {copyLabelEn}
-                        </div>
-                    </div>
+            <ClinicMasthead clinic={clinic} />
+            <div className="flex items-end justify-between mt-1.5 px-1">
+                <div>
+                    <span className="text-[13px] font-black">ใบเสร็จรับเงิน · Receipt</span>
+                    <span className="text-[10px] text-slate-600 ml-2">เลขผู้เสียภาษี <span className="font-mono">{clinic?.tax_id || "0505569001439"}</span></span>
+                </div>
+                <div className={`text-[10px] font-bold px-2.5 py-0.5 rounded border-2 ${isOriginal ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-amber-50 border-amber-500 text-amber-700"}`}>
+                    {copyLabel} · {copyLabelEn}
                 </div>
             </div>
 
