@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import VisitDetailClient from "./visit-detail-client";
 import { getLabCatalog, getVisitLabOrders } from "@/lib/actions/lab-orders";
+import { listAnonPanels } from "@/lib/actions/anonymous";
 
 export default async function VisitDetailPage({
     params,
@@ -60,9 +61,10 @@ export default async function VisitDetailPage({
     const pastVisits = (historyRes.data || []) as any[];
 
     // Lab orders + catalog (ระบบเดียวกับคลินิกนิรนาม — ดึงจาก service_catalog + ตาราง lab_orders)
-    const [labCatalog, labOrders] = await Promise.all([
+    const [labCatalog, labOrders, labPanels] = await Promise.all([
         getLabCatalog(),
         getVisitLabOrders(vn),
+        listAnonPanels(),
     ]);
 
     // Fetch ICD-10 description if diagnosis exists · fall back to free-text diagnosis
@@ -90,6 +92,7 @@ export default async function VisitDetailPage({
             pastVisits={pastVisits}
             labOrders={labOrders}
             labCatalog={labCatalog}
+            labPanels={labPanels}
             icd10Name={icd10Name}
             vn={vn}
             patientHasPackages={patientHasPackages}

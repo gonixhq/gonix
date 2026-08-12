@@ -69,6 +69,29 @@ export async function addLabOrder(vn: string, hn: string, serviceId: string) {
     return { ok: true };
 }
 
+// เพิ่มแพ็กเกจตรวจ (ใช้ชุดเดียวกับคลินิกนิรนาม — anon_panels) → แตกเป็นรายการ lab ใน lab_orders
+export async function addLabPanel(vn: string, hn: string, panelId: string) {
+    const { supabase, clinicId, staffId } = await getCtx();
+    const { data: panel } = await supabase.from("anon_panels")
+        .select("id").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
+    if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
+    const { data: items } = await supabase.from("anon_panel_items")
+        .select("service_catalog(service_name, item_type)").eq("panel_id", panelId);
+    const { data: existing } = await supabase.from("lab_orders")
+        .select("lab_name").eq("vn", vn).eq("clinic_id", clinicId);
+    const have = new Set((existing || []).map((o) => o.lab_name as string));
+    const rows = (items || []).map((it) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+        if (!sc?.service_name || have.has(sc.service_name)) return null;
+        have.add(sc.service_name);
+        return { vn, hn, clinic_id: clinicId, lab_name: sc.service_name, lab_type: (sc.item_type as string) || "lab", ordered_by: staffId, status: "ordered" };
+    }).filter(Boolean);
+    if (rows.length) await supabase.from("lab_orders").insert(rows);
+    revalidatePath(`/dashboard/visits/${vn}`);
+    return { ok: true };
+}
+
 export async function removeLabOrder(id: string, vn: string) {
     const { supabase, clinicId } = await getCtx();
     await supabase.from("lab_orders").delete().eq("id", id).eq("clinic_id", clinicId);

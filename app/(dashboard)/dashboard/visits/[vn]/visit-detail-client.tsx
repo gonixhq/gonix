@@ -23,7 +23,7 @@ import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function VisitDetailClient({ visit, patient, drugs, vitals, statusLogs, medCert, appointments, referrals, pastVisits, labOrders, labCatalog, icd10Name, vn, patientHasPackages }: any) {
+export default function VisitDetailClient({ visit, patient, drugs, vitals, statusLogs, medCert, appointments, referrals, pastVisits, labOrders, labCatalog, labPanels, icd10Name, vn, patientHasPackages }: any) {
     const { t, language } = useLanguage();
     // Visit-type-aware tab visibility
     const isAesthetic = visit.service_category === "aesthetic";
@@ -509,7 +509,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
                         {/* Tab 3: Lab */}
                         <TabsContent forceMount value="lab" className="p-6 m-0 data-[state=inactive]:hidden outline-none">
-                            <LabOrderForm vn={vn} hn={patient.hn} cc={visit.chief_complaint || ""} catalog={labCatalog || []} orders={labOrders || []} report={visit} />
+                            <LabOrderForm vn={vn} hn={patient.hn} cc={visit.chief_complaint || ""} catalog={labCatalog || []} orders={labOrders || []} panels={labPanels || []} report={visit} />
                         </TabsContent>
 
                         {/* Tab 4: Medical Certificate */}

@@ -2,11 +2,12 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { FlaskConical, Plus, Trash2, Loader2, Save, Printer, FileText, CheckCircle2 } from "lucide-react";
+import { FlaskConical, Plus, Trash2, Loader2, Save, Printer, FileText, CheckCircle2, Package } from "lucide-react";
 import {
-    addLabOrder, removeLabOrder, saveLabOrderResult, saveVisitLabReport,
+    addLabOrder, addLabPanel, removeLabOrder, saveLabOrderResult, saveVisitLabReport,
     type LabCatalogItem, type LabOrder,
 } from "@/lib/actions/lab-orders";
+import type { AnonPanel } from "@/lib/actions/anonymous";
 
 interface LabReport {
     lab_no?: string | null; lab_sample_type?: string | null;
@@ -36,14 +37,16 @@ function toDTLocal(iso: string | null | undefined): string {
     return new Date(new Date(iso).getTime() + 7 * 3600 * 1000).toISOString().slice(0, 16);
 }
 
-export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, report }: {
+export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels, report }: {
     vn: string; hn: string; cc?: string;
-    catalog: LabCatalogItem[]; orders: LabOrder[]; report: LabReport;
+    catalog: LabCatalogItem[]; orders: LabOrder[]; panels: AnonPanel[]; report: LabReport;
 }) {
     const router = useRouter();
     const [busy, startBusy] = useTransition();
     const run = (fn: () => Promise<unknown>) => startBusy(async () => { await fn(); router.refresh(); });
     const [search, setSearch] = useState("");
+    const [addingPanel, setAddingPanel] = useState("");
+    const activePanels = (panels || []).filter((p) => p.is_active);
 
     const suggested = useMemo(() => {
         const s = (cc || "").toLowerCase();
@@ -83,6 +86,22 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, report 
                     <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
                         {orders.map((o) => <LabResultRow key={o.id} vn={vn} order={o} busy={busy} run={run} />)}
                     </div>
+                </div>
+            )}
+
+            {/* Panels (แพ็กเกจตรวจ — ชุดเดียวกับคลินิกนิรนาม) */}
+            {activePanels.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-blue-50/40 p-3 flex items-center gap-2">
+                    <Package className="h-4 w-4 text-blue-600 shrink-0" />
+                    <select value={addingPanel} onChange={(e) => setAddingPanel(e.target.value)}
+                        className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-blue-500 focus:outline-none">
+                        <option value="">+ เพิ่มแพ็กเกจตรวจ (ชุด)…</option>
+                        {activePanels.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.items.length} รายการ</option>)}
+                    </select>
+                    <button disabled={!addingPanel || busy} onClick={() => run(async () => { await addLabPanel(vn, hn, addingPanel); setAddingPanel(""); })}
+                        className="h-9 px-3 rounded-lg bg-blue-600 text-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                        <Plus className="h-4 w-4" /> เพิ่มแพ็ก
+                    </button>
                 </div>
             )}
 
