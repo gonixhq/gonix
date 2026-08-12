@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
     updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest, addAnonPanel,
-    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals,
+    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals, saveLabReport,
     type AnonCaseFull, type LabService, type AnonTest, type AnonPanel,
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
@@ -115,6 +115,11 @@ export default function AnonCaseClient({ data, services, panels, perms }: { data
                     {/* รายการตรวจ + ผล — แพทย์ หรือผู้บันทึกผล */}
                     {(perms.clinical || perms.result) && (
                         <TestsCard caseId={data.id} tests={data.tests} services={services} panels={panels} busy={busy} run={run} />
+                    )}
+
+                    {/* ใบรายงานผล Laboratory Report — แพทย์ หรือผู้บันทึกผล */}
+                    {(perms.clinical || perms.result) && (
+                        <LabReportCard data={data} busy={busy} run={run} />
                     )}
 
                     {/* บันทึกแพทย์ + Counseling — แพทย์ */}
@@ -419,6 +424,88 @@ function TestRow({ caseId, test, busy, run }: {
 }
 
 // ── บันทึกแพทย์ + Counseling ────────────────────────
+// ── ใบรายงานผล Laboratory Report ────────────────────
+function toDTLocal(iso: string | null): string {
+    if (!iso) return "";
+    const bkk = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
+    return bkk.toISOString().slice(0, 16);
+}
+const SAMPLE_TYPES = ["Clotted blood", "Serum", "EDTA blood (CBC)", "Plasma", "Urine", "Swab", "Other"];
+
+function LabReportCard({ data, busy, run }: { data: AnonCaseFull; busy: boolean; run: (fn: () => Promise<unknown>) => void }) {
+    const [f, setF] = useState({
+        lab_no: data.lab_no || "",
+        sample_type: data.sample_type || "",
+        collected_at: toDTLocal(data.collected_at),
+        received_at: toDTLocal(data.received_at),
+        lab_comment: data.lab_comment || "",
+        reported_by_name: data.reported_by_name || "",
+        reported_by_license: data.reported_by_license || "",
+        reported_at: toDTLocal(data.reported_at),
+        approved_by_name: data.approved_by_name || "",
+        approved_by_license: data.approved_by_license || "",
+        approved_at: toDTLocal(data.approved_at),
+    });
+    const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+    const inp = "w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none";
+
+    return (
+        <div className="gonix-card-premium overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2 bg-[#2B54F0]/[0.04]">
+                <FileText className="h-4 w-4 text-[#2B54F0]" />
+                <h2 className="text-sm font-bold text-slate-800">ใบรายงานผล (Laboratory Report)</h2>
+                <span className="text-[11px] text-slate-400">ข้อมูลสำหรับพิมพ์ผลตรวจ</span>
+            </div>
+            <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label className="text-[11px] font-semibold text-slate-500">LAB No.</label>
+                        <input value={f.lab_no} onChange={(e) => set("lab_no", e.target.value)} placeholder="เช่น 69-2-07459" className={inp} />
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-slate-500">ชนิดตัวอย่าง (Sample Type)</label>
+                        <input list="anon-sample-types" value={f.sample_type} onChange={(e) => set("sample_type", e.target.value)} placeholder="เช่น Clotted blood" className={inp} />
+                        <datalist id="anon-sample-types">{SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-slate-500">วันเวลาเก็บตัวอย่าง (Collected)</label>
+                        <input type="datetime-local" value={f.collected_at} onChange={(e) => set("collected_at", e.target.value)} className={inp} />
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-slate-500">วันเวลารับตัวอย่าง (Received)</label>
+                        <input type="datetime-local" value={f.received_at} onChange={(e) => set("received_at", e.target.value)} className={inp} />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[11px] font-semibold text-slate-500">หมายเหตุ (Comment)</label>
+                    <input value={f.lab_comment} onChange={(e) => set("lab_comment", e.target.value)} placeholder="หมายเหตุในรายงาน (ถ้ามี)" className={inp} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้รายงานผล (Reported By)</div>
+                        <input value={f.reported_by_name} onChange={(e) => set("reported_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
+                        <input value={f.reported_by_license} onChange={(e) => set("reported_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
+                        <input type="datetime-local" value={f.reported_at} onChange={(e) => set("reported_at", e.target.value)} className={inp} />
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้ตรวจสอบ/อนุมัติ (Approved By)</div>
+                        <input value={f.approved_by_name} onChange={(e) => set("approved_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
+                        <input value={f.approved_by_license} onChange={(e) => set("approved_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
+                        <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
+                    </div>
+                </div>
+
+                <button disabled={busy} onClick={() => run(() => saveLabReport(data.id, f))}
+                    className="h-9 px-4 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกข้อมูลรายงานผล
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function CounselCard({ data, busy, run }: { data: AnonCaseFull; busy: boolean; run: (fn: () => Promise<unknown>) => void }) {
     const [appt, setAppt] = useState(data.result_appt_date || "");
     const [risk, setRisk] = useState(data.risk_note || "");

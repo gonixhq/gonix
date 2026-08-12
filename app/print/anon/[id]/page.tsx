@@ -36,6 +36,21 @@ const RESULT_CLS: Record<string, string> = {
     positive: "border-rose-400 bg-rose-50 text-rose-700",
     inconclusive: "border-amber-400 bg-amber-50 text-amber-700",
 };
+const RESULT_EN: Record<string, string> = {
+    pending: "Pending", sent_out: "Sent for confirmation",
+    negative: "Negative", positive: "Positive", inconclusive: "Inconclusive",
+};
+function dmyShort(d: string): string {
+    if (!d) return "—";
+    const [y, m, dd] = d.split("-");
+    return `${dd}/${m}/${(y || "").slice(2)}`;
+}
+function dtBkk(iso: string | null): string {
+    if (!iso) return "—";
+    const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
+    const z = (n: number) => String(n).padStart(2, "0");
+    return `${z(d.getUTCDate())}/${z(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear()).slice(2)} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())}`;
+}
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด", transfer: "โอนเงิน / QR", qr_promptpay: "QR / พร้อมเพย์",
     credit_card: "บัตรเครดิต", debit_card: "บัตรเดบิต",
@@ -146,58 +161,73 @@ export default async function AnonPrintPage({
         );
     }
 
-    // ── RESULT (ใบรายงานผล นิรนาม) ──
+    // ── RESULT (ใบรายงานผล Laboratory Report) ──
     const labTests = data.tests.filter((t) => isLabType(t.item_type));
+    const sexTitle = data.sex === "female" ? "Ms." : data.sex === "male" ? "Mr." : "";
+    const clinicName = clinic?.clinic_name || "—";
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
                 <ClinicMasthead clinic={clinic} />
-                <div className="text-center mt-3" style={{ fontSize: "17px", fontWeight: 900 }}>
-                    ใบรายงานผลตรวจ<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · Lab Result</span>
+                <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
+                    Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ (นิรนาม)</span>
                 </div>
-                <div className="text-center text-[11px] text-slate-500 mt-0.5">เอกสารไม่ระบุตัวตน (Anonymous) — อ้างอิงด้วยรหัสเคส</div>
 
-                <div className="mt-3 grid grid-cols-4 rounded-lg border border-slate-300 divide-x divide-slate-200 text-center overflow-hidden">
-                    <InfoCell label="รหัสเคส · Code" value={data.verify_code || data.case_code || "—"} mono accent />
-                    <InfoCell label="เพศ · Sex" value={data.sex ? SEX_LABEL[data.sex] || data.sex : "ไม่ระบุ"} />
-                    <InfoCell label="อายุ · Age" value={data.age != null ? `${data.age} ปี` : "ไม่ระบุ"} />
-                    <InfoCell label="วันที่รายงาน · Date" value={thaiDate(data.case_date)} />
+                <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px]" style={{ borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", padding: "10px 2px" }}>
+                    <RptField label="Patient Name" value={`${sexTitle} ${data.verify_code || data.case_code || ""}`.trim()} />
+                    <RptField label="HN / PID" value="—" />
+                    <RptField label="Sex" value={data.sex ? SEX_LABEL[data.sex] || data.sex : "—"} />
+                    <RptField label="Age" value={data.age != null ? `${data.age} ปี` : "—"} />
+                    <RptField label="Clinic / Hosp" value={clinicName} />
+                    <RptField label="LAB No." value={data.lab_no || "—"} mono />
+                    <RptField label="Sample Type" value={data.sample_type || "—"} />
+                    <RptField label="Requested Date" value={dmyShort(data.case_date)} />
+                    <RptField label="Collected Date/Time" value={dtBkk(data.collected_at)} />
+                    <RptField label="Received Date/Time" value={dtBkk(data.received_at)} />
                 </div>
 
                 <div className="mt-4">
-                    <h2 className="text-[14px] font-black tracking-wider mb-2">ผลการตรวจ</h2>
                     <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
                         <thead>
                             <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
-                                <th className="py-2 px-2 font-black">รายการตรวจ <span className="text-[10px] font-semibold text-slate-500">Test</span></th>
-                                <th className="py-2 px-2 font-black">ผล <span className="text-[10px] font-semibold text-slate-500">Result</span></th>
-                                <th className="py-2 px-2 font-black">การแปลผล <span className="text-[10px] font-semibold text-slate-500">Interpretation</span></th>
+                                <th className="py-2 px-2 font-black" style={{ width: "58%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
+                                <th className="py-2 px-2 font-black">Results <span className="text-[10px] font-semibold text-slate-500">ผลตรวจ</span></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {labTests.map((t, i) => (
-                                <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
-                                    <td className="py-2 px-2 font-semibold align-top">{t.test_name}</td>
-                                    <td className="py-2 px-2 tabular-nums align-top">{t.result_value || "—"}</td>
-                                    <td className="py-2 px-2 align-top">
-                                        <span className={`inline-block text-[11.5px] font-bold px-2 py-0.5 rounded-full border ${RESULT_CLS[t.result_status] || RESULT_CLS.pending}`}>{RESULT_LABEL[t.result_status] || "รอผล"}</span>
-                                        {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
-                                    </td>
-                                </tr>
-                            ))}
-                            {labTests.length === 0 && <tr><td colSpan={3} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
+                            {labTests.map((t, i) => {
+                                const pos = t.result_status === "positive";
+                                const main = t.result_value || RESULT_EN[t.result_status] || "Pending";
+                                return (
+                                    <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
+                                        <td className="py-2 px-2 font-semibold align-top">{t.test_name}</td>
+                                        <td className="py-2 px-2 align-top">
+                                            <span style={{ fontWeight: 700, color: pos ? "#be123c" : "#0f172a" }}>{main}</span>
+                                            {t.result_status !== "pending" && t.result_status !== "sent_out"
+                                                ? <span className="text-slate-400 text-[11px]"> · {RESULT_EN[t.result_status]}</span> : null}
+                                            {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {labTests.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
                         </tbody>
                     </table>
-                    {data.result_appt_date && <p className="mt-3 text-[12px]">นัดฟังผล/ติดตาม: <b>{dateThaiLong(data.result_appt_date)}</b></p>}
-                    <p className="mt-4 text-[11px] text-slate-500 italic leading-relaxed">
-                        * เอกสารนี้ออกแบบไม่ระบุตัวตน — กรุณาเก็บรหัสเคสไว้เพื่อใช้ติดตามผลและรับคำปรึกษา ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์
+
+                    <div className="mt-3 text-[11.5px] flex gap-2">
+                        <span className="font-bold shrink-0">Comment :</span>
+                        <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{data.lab_comment || ""}</span>
+                    </div>
+                    {data.result_appt_date && <p className="mt-2 text-[11.5px]">นัดฟังผล/ติดตาม: <b>{dateThaiLong(data.result_appt_date)}</b></p>}
+                    <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
+                        * เอกสารไม่ระบุตัวตน — กรุณาเก็บรหัสเคสไว้เพื่อติดตามผลและรับคำปรึกษา ผลตรวจควรได้รับการแปลผลจากบุคลากรทางการแพทย์
                     </p>
                 </div>
 
                 <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
-                    <div className="text-center"><div style={{ borderBottom: "1px solid #000" }} className="h-8 mb-1" /><div className="text-[10px] italic text-slate-600">ผู้รายงานผล / เจ้าหน้าที่</div></div>
-                    <div className="text-center"><div style={{ borderBottom: "1px solid #000" }} className="h-8 mb-1" /><div className="text-[10px] italic text-slate-600">ผู้ตรวจสอบ / แพทย์</div></div>
+                    <SignBlock role="Reported By · ผู้รายงานผล" name={data.reported_by_name} license={data.reported_by_license} at={data.reported_at} />
+                    <SignBlock role="Approved By · ผู้ตรวจสอบ" name={data.approved_by_name} license={data.approved_by_license} at={data.approved_at} />
                 </div>
                 <div className="mt-4 text-[10px] text-slate-500 text-center italic">
                     ออกจากระบบ Gonix — พิมพ์เมื่อ {new Date().toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
@@ -324,6 +354,27 @@ function InfoCell({ label, value, mono, accent }: { label: string; value: string
         <div className="px-2 py-2">
             <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
             <div className={`text-[14px] font-bold leading-tight mt-0.5 ${mono ? "font-mono" : ""} ${accent ? "text-[#0891b2]" : "text-slate-900"}`}>{value}</div>
+        </div>
+    );
+}
+
+function RptField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+    return (
+        <div className="flex items-baseline gap-1.5">
+            <span className="text-slate-500 shrink-0">{label} :</span>
+            <span className={`flex-1 font-semibold ${mono ? "font-mono" : ""}`} style={{ borderBottom: "1px dotted #cbd5e1" }}>{value}</span>
+        </div>
+    );
+}
+
+function SignBlock({ role, name, license, at }: { role: string; name: string | null; license: string | null; at: string | null }) {
+    return (
+        <div className="text-center">
+            <div style={{ borderBottom: "1px solid #000" }} className="h-9 mb-1 flex items-end justify-center pb-1">
+                <span className="text-[12px] font-semibold">{name || ""}{license ? `  ${license}` : ""}</span>
+            </div>
+            <div className="text-[10px] italic text-slate-600">{role}</div>
+            {at ? <div className="text-[10px] text-slate-500 mt-0.5">{dtBkk(at)}</div> : null}
         </div>
     );
 }

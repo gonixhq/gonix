@@ -79,6 +79,18 @@ export interface AnonCaseFull {
     vitals: Record<string, unknown> | null;
     followup_requested: boolean;
     followup_at: string | null;
+    // lab report (Laboratory Report)
+    lab_no: string | null;
+    sample_type: string | null;
+    collected_at: string | null;
+    received_at: string | null;
+    lab_comment: string | null;
+    reported_by_name: string | null;
+    reported_by_license: string | null;
+    reported_at: string | null;
+    approved_by_name: string | null;
+    approved_by_license: string | null;
+    approved_at: string | null;
     tests: AnonTest[];
 }
 
@@ -259,6 +271,11 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
         questionnaire: (c.questionnaire as Record<string, unknown> | null) ?? null,
         vitals: (c.vitals as Record<string, unknown> | null) ?? null,
         followup_requested: !!c.followup_requested, followup_at: c.followup_at ?? null,
+        lab_no: c.lab_no ?? null, sample_type: c.sample_type ?? null,
+        collected_at: c.collected_at ?? null, received_at: c.received_at ?? null,
+        lab_comment: c.lab_comment ?? null,
+        reported_by_name: c.reported_by_name ?? null, reported_by_license: c.reported_by_license ?? null, reported_at: c.reported_at ?? null,
+        approved_by_name: c.approved_by_name ?? null, approved_by_license: c.approved_by_license ?? null, approved_at: c.approved_at ?? null,
         tests: (tests || []).map((t) => ({
             id: t.id, service_id: t.service_id, test_name: t.test_name,
             item_type: (t.item_type as string) || "other", price: num(t.price),
@@ -502,6 +519,34 @@ export async function updateAnonCaseInfo(id: string, patch: {
 }) {
     const { supabase, clinicId } = await getCtx();
     await supabase.from("anon_cases").update(patch).eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath(`/dashboard/anonymous/${id}`);
+    return { ok: true };
+}
+
+// ── Lab report info (ใบรายงานผล Laboratory Report) ──
+export async function saveLabReport(id: string, patch: {
+    lab_no?: string | null; sample_type?: string | null;
+    collected_at?: string | null; received_at?: string | null;
+    lab_comment?: string | null;
+    reported_by_name?: string | null; reported_by_license?: string | null; reported_at?: string | null;
+    approved_by_name?: string | null; approved_by_license?: string | null; approved_at?: string | null;
+}) {
+    const { supabase, clinicId } = await getCtx();
+    // แปลง "" → null และ datetime-local → ISO
+    const clean: Record<string, unknown> = {};
+    const dtKeys = new Set(["collected_at", "received_at", "reported_at", "approved_at"]);
+    for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) continue;
+        if (v === "" || v === null) { clean[k] = null; continue; }
+        if (dtKeys.has(k)) {
+            // datetime-local (เวลาไทย) → ISO UTC: ผูก offset +07:00 ให้ชัด
+            const s = (v as string).length === 16 ? `${v}:00` : (v as string);
+            clean[k] = new Date(`${s}+07:00`).toISOString();
+        } else {
+            clean[k] = v;
+        }
+    }
+    await supabase.from("anon_cases").update(clean).eq("id", id).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/anonymous/${id}`);
     return { ok: true };
 }
