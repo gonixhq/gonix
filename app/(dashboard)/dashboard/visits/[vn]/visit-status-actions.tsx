@@ -330,7 +330,7 @@ export default function VisitStatusActions({ vn, currentStatus, hasDrugs, summar
                                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                         {summary.labOrders.map((lab: any, i: number) => (
                                             <span key={i} className="px-2 py-1 bg-indigo-50 border border-indigo-200 rounded-md text-xs font-semibold text-indigo-800">
-                                                {lab.name}
+                                                {lab.lab_name || lab.name}
                                             </span>
                                         ))}
                                     </div>

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import VisitDetailClient from "./visit-detail-client";
+import { getLabCatalog, getVisitLabOrders } from "@/lib/actions/lab-orders";
 
 export default async function VisitDetailPage({
     params,
@@ -58,12 +59,11 @@ export default async function VisitDetailPage({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pastVisits = (historyRes.data || []) as any[];
 
-    // Parse lab orders from soap_a (temporary storage)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let labOrders: any[] = [];
-    if (visit.soap_a) {
-        try { labOrders = JSON.parse(visit.soap_a); } catch { labOrders = []; }
-    }
+    // Lab orders + catalog (ระบบเดียวกับคลินิกนิรนาม — ดึงจาก service_catalog + ตาราง lab_orders)
+    const [labCatalog, labOrders] = await Promise.all([
+        getLabCatalog(),
+        getVisitLabOrders(vn),
+    ]);
 
     // Fetch ICD-10 description if diagnosis exists · fall back to free-text diagnosis
     let icd10Name: string | null = null;
@@ -89,6 +89,7 @@ export default async function VisitDetailPage({
             referrals={referrals}
             pastVisits={pastVisits}
             labOrders={labOrders}
+            labCatalog={labCatalog}
             icd10Name={icd10Name}
             vn={vn}
             patientHasPackages={patientHasPackages}
