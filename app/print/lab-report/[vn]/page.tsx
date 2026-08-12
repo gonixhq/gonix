@@ -61,7 +61,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
             .select("clinic_name, clinic_name_en, company_name, company_name_en, phone, address_detail, license_number, logo_url")
             .eq("id", v.clinic_id).maybeSingle(),
         supabase.from("lab_orders")
-            .select("id, lab_name, status, result_value, result_unit, normal_range, result_flag, result_note")
+            .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note")
             .eq("vn", vn).order("created_at", { ascending: true }),
     ]);
 
@@ -126,7 +126,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                                 const showFlag = !!flagLabel && !vlc.includes(String(t.result_flag).toLowerCase()) && !vlc.includes(flagLabel.toLowerCase());
                                 return (
                                     <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
-                                        <td className="py-2 px-2 font-semibold align-top">{t.lab_name}</td>
+                                        <td className="py-2 px-2 font-semibold align-top">{t.lab_type === "lab_external" ? "*" : ""}{t.lab_name}</td>
                                         <td className="py-2 px-2 align-top">
                                             <span style={{ fontWeight: 700, color: abn ? "#be123c" : "#0f172a" }}>{val}</span>
                                             {showFlag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {flagLabel}</span> : null}
@@ -138,6 +138,8 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                             {labs.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการ Lab</td></tr>}
                         </tbody>
                     </table>
+
+                    <p className="mt-2 text-[10.5px] font-semibold text-slate-600">(*) ISO 15189 Accredited</p>
 
                     <div className="mt-3 text-[11.5px] flex gap-2">
                         <span className="font-bold shrink-0">Comment :</span>

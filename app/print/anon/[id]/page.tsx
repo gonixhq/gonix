@@ -203,7 +203,7 @@ export default async function AnonPrintPage({
                                 const showEn = t.result_status !== "pending" && t.result_status !== "sent_out" && !!enWord && String(t.result_value || "").toLowerCase() !== enWord.toLowerCase();
                                 return (
                                     <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
-                                        <td className="py-2 px-2 font-semibold align-top">{t.test_name}</td>
+                                        <td className="py-2 px-2 font-semibold align-top">{t.item_type === "lab_external" ? "*" : ""}{t.test_name}</td>
                                         <td className="py-2 px-2 align-top">
                                             <span style={{ fontWeight: 700, color: pos ? "#be123c" : "#0f172a" }}>{main}</span>
                                             {showEn ? <span className="text-slate-400 text-[11px]"> · {enWord}</span> : null}
@@ -215,6 +215,8 @@ export default async function AnonPrintPage({
                             {labTests.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
                         </tbody>
                     </table>
+
+                    <p className="mt-2 text-[10.5px] font-semibold text-slate-600">(*) ISO 15189 Accredited</p>
 
                     <div className="mt-3 text-[11.5px] flex gap-2">
                         <span className="font-bold shrink-0">Comment :</span>
