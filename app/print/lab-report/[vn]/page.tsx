@@ -25,7 +25,7 @@ function ageFromDob(dob: string | null | undefined): string {
     let a = now.getFullYear() - b.getFullYear();
     const m = now.getMonth() - b.getMonth();
     if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
-    return `${a} ปี`;
+    return `${a} Yrs`;
 }
 function dmyShort(d: string | null | undefined): string {
     if (!d) return "—";
@@ -66,11 +66,15 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
     ]);
 
     const enName = `${patient?.first_name_en || ""} ${patient?.last_name_en || ""}`.trim();
-    const title = patient?.gender === "female" ? "Ms." : patient?.gender === "male" ? "Mr." : "";
+    const g = String(patient?.gender || "").toLowerCase();
+    const isF = g === "female" || g === "f" || g === "หญิง";
+    const isM = g === "male" || g === "m" || g === "ชาย";
+    const title = isF ? "Ms." : isM ? "Mr." : "";
+    const sexEN = isF ? "Female" : isM ? "Male" : (patient?.gender || "—");
     const patientName = enName
         ? `${title} ${enName}`.trim()
         : (`${patient?.prefix || ""}${patient?.first_name || ""} ${patient?.last_name || ""}`.trim() || "—");
-    const clinicName = (clinic as Clinic)?.clinic_name || "—";
+    const clinicName = (clinic as Clinic)?.clinic_name_en || (clinic as Clinic)?.clinic_name || "—";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doctor: any = Array.isArray(v.doctor) ? v.doctor[0] : v.doctor;
     const doctorName = doctor?.profiles?.full_name || doctor?.profiles?.[0]?.full_name || "";
@@ -90,7 +94,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                 <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px]" style={{ borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", padding: "10px 2px" }}>
                     <RptField label="Patient Name" value={patientName} />
                     <RptField label="HN" value={patient?.hn || "—"} mono />
-                    <RptField label="Sex" value={patient?.gender ? SEX_LABEL[patient.gender] || patient.gender : "—"} />
+                    <RptField label="Sex" value={sexEN} />
                     <RptField label="Age" value={ageFromDob(patient?.dob)} />
                     <RptField label="Clinic / Hosp" value={clinicName} />
                     <RptField label="LAB No." value={v.lab_no || "—"} mono />
