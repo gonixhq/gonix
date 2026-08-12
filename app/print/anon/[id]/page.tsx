@@ -29,6 +29,13 @@ const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญ�
 const RESULT_LABEL: Record<string, string> = {
     pending: "รอผล", sent_out: "ส่งตรวจยืนยัน (Lab นอก)", negative: "ลบ / ปกติ", positive: "บวก / ผิดปกติ", inconclusive: "สรุปไม่ได้",
 };
+const RESULT_CLS: Record<string, string> = {
+    pending: "border-slate-300 bg-slate-50 text-slate-600",
+    sent_out: "border-slate-300 bg-slate-50 text-slate-600",
+    negative: "border-emerald-400 bg-emerald-50 text-emerald-700",
+    positive: "border-rose-400 bg-rose-50 text-rose-700",
+    inconclusive: "border-amber-400 bg-amber-50 text-amber-700",
+};
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด", transfer: "โอนเงิน / QR", qr_promptpay: "QR / พร้อมเพย์",
     credit_card: "บัตรเครดิต", debit_card: "บัตรเดบิต",
@@ -146,38 +153,36 @@ export default async function AnonPrintPage({
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
                 <ClinicMasthead clinic={clinic} />
-                <div className="text-center mt-2" style={{ fontSize: "16px", fontWeight: 900 }}>
-                    ใบรายงานผลตรวจ (นิรนาม)<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · Lab Result</span>
+                <div className="text-center mt-3" style={{ fontSize: "17px", fontWeight: 900 }}>
+                    ใบรายงานผลตรวจ<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · Lab Result</span>
                 </div>
-                <div className="flex items-center justify-between mt-1 text-[11.5px]">
-                    <span><b>รหัสเคส</b> <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{data.verify_code || data.case_code}</span></span>
-                    <span className="italic text-slate-600">{dateThaiLong(data.case_date)}</span>
-                </div>
+                <div className="text-center text-[11px] text-slate-500 mt-0.5">เอกสารไม่ระบุตัวตน (Anonymous) — อ้างอิงด้วยรหัสเคส</div>
 
-                <div className="grid grid-cols-3 gap-3 py-3" style={{ borderBottom: "1px solid #000" }}>
-                    <Field label="รหัสเคส (Code)" value={data.verify_code || data.case_code || "—"} mono />
-                    <Field label="เพศ" value={data.sex ? SEX_LABEL[data.sex] || data.sex : "ไม่ระบุ"} />
-                    <Field label="อายุ" value={data.age != null ? `${data.age} ปี` : "ไม่ระบุ"} />
+                <div className="mt-3 grid grid-cols-4 rounded-lg border border-slate-300 divide-x divide-slate-200 text-center overflow-hidden">
+                    <InfoCell label="รหัสเคส · Code" value={data.verify_code || data.case_code || "—"} mono accent />
+                    <InfoCell label="เพศ · Sex" value={data.sex ? SEX_LABEL[data.sex] || data.sex : "ไม่ระบุ"} />
+                    <InfoCell label="อายุ · Age" value={data.age != null ? `${data.age} ปี` : "ไม่ระบุ"} />
+                    <InfoCell label="วันที่รายงาน · Date" value={thaiDate(data.case_date)} />
                 </div>
 
                 <div className="mt-4">
                     <h2 className="text-[14px] font-black tracking-wider mb-2">ผลการตรวจ</h2>
                     <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
                         <thead>
-                            <tr style={{ borderBottom: "2px solid #000" }} className="text-left">
-                                <th className="py-1.5 px-2">รายการตรวจ</th>
-                                <th className="py-1.5 px-2">ผล</th>
-                                <th className="py-1.5 px-2">การแปลผล</th>
+                            <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
+                                <th className="py-2 px-2 font-black">รายการตรวจ <span className="text-[10px] font-semibold text-slate-500">Test</span></th>
+                                <th className="py-2 px-2 font-black">ผล <span className="text-[10px] font-semibold text-slate-500">Result</span></th>
+                                <th className="py-2 px-2 font-black">การแปลผล <span className="text-[10px] font-semibold text-slate-500">Interpretation</span></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {labTests.map((t) => (
-                                <tr key={t.id} style={{ borderBottom: "1px dotted #cbd5e1" }}>
-                                    <td className="py-2 px-2 font-semibold">{t.test_name}</td>
-                                    <td className="py-2 px-2 tabular-nums">{t.result_value || "—"}</td>
-                                    <td className="py-2 px-2">
-                                        <span className={t.result_status === "positive" ? "font-bold" : ""}>{RESULT_LABEL[t.result_status] || "รอผล"}</span>
-                                        {t.result_note ? <span className="text-slate-500 text-[11px]"> · {t.result_note}</span> : null}
+                            {labTests.map((t, i) => (
+                                <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
+                                    <td className="py-2 px-2 font-semibold align-top">{t.test_name}</td>
+                                    <td className="py-2 px-2 tabular-nums align-top">{t.result_value || "—"}</td>
+                                    <td className="py-2 px-2 align-top">
+                                        <span className={`inline-block text-[11.5px] font-bold px-2 py-0.5 rounded-full border ${RESULT_CLS[t.result_status] || RESULT_CLS.pending}`}>{RESULT_LABEL[t.result_status] || "รอผล"}</span>
+                                        {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
                                     </td>
                                 </tr>
                             ))}
@@ -190,7 +195,7 @@ export default async function AnonPrintPage({
                     </p>
                 </div>
 
-                <div className="mt-10 grid grid-cols-2 gap-16 text-[12px]">
+                <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
                     <div className="text-center"><div style={{ borderBottom: "1px solid #000" }} className="h-8 mb-1" /><div className="text-[10px] italic text-slate-600">ผู้รายงานผล / เจ้าหน้าที่</div></div>
                     <div className="text-center"><div style={{ borderBottom: "1px solid #000" }} className="h-8 mb-1" /><div className="text-[10px] italic text-slate-600">ผู้ตรวจสอบ / แพทย์</div></div>
                 </div>
@@ -310,6 +315,15 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
         <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
             <div className={`text-[15px] font-bold ${mono ? "font-mono" : ""}`}>{value}</div>
+        </div>
+    );
+}
+
+function InfoCell({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
+    return (
+        <div className="px-2 py-2">
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">{label}</div>
+            <div className={`text-[14px] font-bold leading-tight mt-0.5 ${mono ? "font-mono" : ""} ${accent ? "text-[#0891b2]" : "text-slate-900"}`}>{value}</div>
         </div>
     );
 }
