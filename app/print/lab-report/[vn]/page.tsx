@@ -49,7 +49,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
         lab_reported_by_name, lab_reported_by_license, lab_reported_at,
         lab_approved_by_name, lab_approved_by_license, lab_approved_at,
         patients!inner(hn, prefix, first_name, last_name, first_name_en, last_name_en, gender, dob),
-        doctor:staff!visits_doctor_id_fkey(profiles(full_name))
+        doctor:staff!visits_doctor_id_fkey(license_number, profiles(full_name, full_name_en))
     `).eq("vn", vn).maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const v = visit as any;
@@ -77,7 +77,11 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
     const clinicName = (clinic as Clinic)?.clinic_name_en || (clinic as Clinic)?.clinic_name || "—";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doctor: any = Array.isArray(v.doctor) ? v.doctor[0] : v.doctor;
-    const doctorName = doctor?.profiles?.full_name || doctor?.profiles?.[0]?.full_name || "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dProf: any = doctor?.profiles ? (Array.isArray(doctor.profiles) ? doctor.profiles[0] : doctor.profiles) : null;
+    const doctorName = dProf?.full_name_en || dProf?.full_name || "";
+    const dLic = String(doctor?.license_number || "");
+    const doctorLicense = dLic ? (/^\d/.test(dLic) ? `MD.${dLic}` : dLic) : null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const labs = (orders || []) as any[];
 
@@ -147,7 +151,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                 </div>
                 <div className="mt-9 flex justify-center text-[12px]">
                     <div style={{ width: "56%" }}>
-                        <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={null} at={null} />
+                        <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={doctorLicense} at={null} />
                     </div>
                 </div>
                 <div className="mt-4 text-[10px] text-slate-500 text-center italic">
