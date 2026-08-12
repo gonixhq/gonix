@@ -159,9 +159,6 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                         <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={doctorLicense} at={null} />
                     </div>
                 </div>
-                <div className="mt-4 text-[10px] text-slate-500 text-center italic">
-                    ออกจากระบบ Gonix — พิมพ์เมื่อ {dtBkk(new Date().toISOString())}
-                </div>
             </div>
             <style>{`
                 @media print {

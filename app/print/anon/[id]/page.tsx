@@ -232,9 +232,6 @@ export default async function AnonPrintPage({
                     <SignBlock role="Reported By · ผู้รายงานผล" name={data.reported_by_name} license={data.reported_by_license} at={data.reported_at} />
                     <SignBlock role="Approved By · ผู้ตรวจสอบ" name={data.approved_by_name} license={data.approved_by_license} at={data.approved_at} />
                 </div>
-                <div className="mt-4 text-[10px] text-slate-500 text-center italic">
-                    ออกจากระบบ Gonix — พิมพ์เมื่อ {new Date().toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
-                </div>
             </div>
             <style>{`
                 @media print {
