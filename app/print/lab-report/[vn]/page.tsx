@@ -48,7 +48,8 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
         lab_no, lab_sample_type, lab_collected_at, lab_received_at, lab_comment,
         lab_reported_by_name, lab_reported_by_license, lab_reported_at,
         lab_approved_by_name, lab_approved_by_license, lab_approved_at,
-        patients!inner(hn, prefix, first_name, last_name, gender, dob)
+        patients!inner(hn, prefix, first_name, last_name, first_name_en, last_name_en, gender, dob),
+        doctor:staff!visits_doctor_id_fkey(profiles(full_name))
     `).eq("vn", vn).maybeSingle();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const v = visit as any;
@@ -64,8 +65,15 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
             .eq("vn", vn).order("created_at", { ascending: true }),
     ]);
 
-    const patientName = `${patient?.prefix || ""}${patient?.first_name || ""} ${patient?.last_name || ""}`.trim() || "—";
+    const enName = `${patient?.first_name_en || ""} ${patient?.last_name_en || ""}`.trim();
+    const title = patient?.gender === "female" ? "Ms." : patient?.gender === "male" ? "Mr." : "";
+    const patientName = enName
+        ? `${title} ${enName}`.trim()
+        : (`${patient?.prefix || ""}${patient?.first_name || ""} ${patient?.last_name || ""}`.trim() || "—");
     const clinicName = (clinic as Clinic)?.clinic_name || "—";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doctor: any = Array.isArray(v.doctor) ? v.doctor[0] : v.doctor;
+    const doctorName = doctor?.profiles?.full_name || doctor?.profiles?.[0]?.full_name || "";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const labs = (orders || []) as any[];
 
@@ -96,16 +104,15 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                     <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
                         <thead>
                             <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
-                                <th className="py-2 px-2 font-black" style={{ width: "42%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
+                                <th className="py-2 px-2 font-black" style={{ width: "55%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
                                 <th className="py-2 px-2 font-black">Result <span className="text-[10px] font-semibold text-slate-500">ผล</span></th>
-                                <th className="py-2 px-2 font-black">Unit</th>
-                                <th className="py-2 px-2 font-black">Normal Range <span className="text-[10px] font-semibold text-slate-500">ค่าปกติ</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             {labs.map((t, i) => {
                                 const abn = ABNORMAL.has((t.result_flag as string) || "");
-                                const val = t.result_value || (t.status === "resulted" ? "-" : "Pending");
+                                const base = t.result_value || (t.status === "resulted" ? "-" : "Pending");
+                                const val = t.result_value && t.result_unit ? `${base} ${t.result_unit}` : base;
                                 return (
                                     <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
                                         <td className="py-2 px-2 font-semibold align-top">{t.lab_name}</td>
@@ -114,12 +121,10 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                                             {t.result_flag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {FLAG_LABEL[t.result_flag] || t.result_flag}</span> : null}
                                             {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
                                         </td>
-                                        <td className="py-2 px-2 align-top text-slate-600">{t.result_unit || "—"}</td>
-                                        <td className="py-2 px-2 align-top text-slate-600">{t.normal_range || "—"}</td>
                                     </tr>
                                 );
                             })}
-                            {labs.length === 0 && <tr><td colSpan={4} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการ Lab</td></tr>}
+                            {labs.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการ Lab</td></tr>}
                         </tbody>
                     </table>
 
@@ -135,6 +140,11 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                 <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
                     <SignBlock role="Reported By · ผู้รายงานผล" name={v.lab_reported_by_name} license={v.lab_reported_by_license} at={v.lab_reported_at} />
                     <SignBlock role="Approved By · ผู้ตรวจสอบ" name={v.lab_approved_by_name} license={v.lab_approved_by_license} at={v.lab_approved_at} />
+                </div>
+                <div className="mt-9 flex justify-center text-[12px]">
+                    <div style={{ width: "56%" }}>
+                        <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={null} at={null} />
+                    </div>
                 </div>
                 <div className="mt-4 text-[10px] text-slate-500 text-center italic">
                     ออกจากระบบ Gonix — พิมพ์เมื่อ {dtBkk(new Date().toISOString())}
