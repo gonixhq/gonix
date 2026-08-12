@@ -121,12 +121,15 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                                 const abn = ABNORMAL.has((t.result_flag as string) || "");
                                 const base = t.result_value || (t.status === "resulted" ? "-" : "Pending");
                                 const val = t.result_value && t.result_unit ? `${base} ${t.result_unit}` : base;
+                                const flagLabel = t.result_flag ? (FLAG_LABEL[t.result_flag] || t.result_flag) : "";
+                                const vlc = String(t.result_value || "").toLowerCase();
+                                const showFlag = !!flagLabel && !vlc.includes(String(t.result_flag).toLowerCase()) && !vlc.includes(flagLabel.toLowerCase());
                                 return (
                                     <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
                                         <td className="py-2 px-2 font-semibold align-top">{t.lab_name}</td>
                                         <td className="py-2 px-2 align-top">
                                             <span style={{ fontWeight: 700, color: abn ? "#be123c" : "#0f172a" }}>{val}</span>
-                                            {t.result_flag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {FLAG_LABEL[t.result_flag] || t.result_flag}</span> : null}
+                                            {showFlag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {flagLabel}</span> : null}
                                             {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
                                         </td>
                                     </tr>

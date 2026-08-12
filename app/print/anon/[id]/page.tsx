@@ -199,13 +199,14 @@ export default async function AnonPrintPage({
                             {labTests.map((t, i) => {
                                 const pos = t.result_status === "positive";
                                 const main = t.result_value || RESULT_EN[t.result_status] || "Pending";
+                                const enWord = RESULT_EN[t.result_status] || "";
+                                const showEn = t.result_status !== "pending" && t.result_status !== "sent_out" && !!enWord && String(t.result_value || "").toLowerCase() !== enWord.toLowerCase();
                                 return (
                                     <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
                                         <td className="py-2 px-2 font-semibold align-top">{t.test_name}</td>
                                         <td className="py-2 px-2 align-top">
                                             <span style={{ fontWeight: 700, color: pos ? "#be123c" : "#0f172a" }}>{main}</span>
-                                            {t.result_status !== "pending" && t.result_status !== "sent_out"
-                                                ? <span className="text-slate-400 text-[11px]"> · {RESULT_EN[t.result_status]}</span> : null}
+                                            {showEn ? <span className="text-slate-400 text-[11px]"> · {enWord}</span> : null}
                                             {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
                                         </td>
                                     </tr>
