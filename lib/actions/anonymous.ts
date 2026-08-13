@@ -30,6 +30,7 @@ export interface AnonTest {
     result_status: string;   // pending / negative / positive / inconclusive
     result_note: string | null;
     resulted_at: string | null;
+    sample_type: string | null;
 }
 
 export interface AnonCaseRow {
@@ -252,7 +253,7 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
 
     const { data: tests } = await supabase
         .from("anon_case_tests")
-        .select("id, service_id, test_name, item_type, price, result_value, result_status, result_note, resulted_at")
+        .select("id, service_id, test_name, item_type, price, result_value, result_status, result_note, resulted_at, sample_type")
         .eq("case_id", id)
         .order("created_at", { ascending: true });
 
@@ -280,7 +281,7 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
             id: t.id, service_id: t.service_id, test_name: t.test_name,
             item_type: (t.item_type as string) || "other", price: num(t.price),
             result_value: t.result_value, result_status: t.result_status || "pending",
-            result_note: t.result_note, resulted_at: t.resulted_at,
+            result_note: t.result_note, resulted_at: t.resulted_at, sample_type: t.sample_type ?? null,
         })),
     };
 }
@@ -604,13 +605,14 @@ export async function removeAnonTest(testId: string, caseId: string) {
 }
 
 export async function saveTestResult(testId: string, caseId: string, body: {
-    result_value?: string; result_status: string; result_note?: string;
+    result_value?: string; result_status: string; result_note?: string; sample_type?: string | null;
 }) {
     const { supabase, clinicId, userId } = await getCtx();
     await supabase.from("anon_case_tests").update({
         result_value: body.result_value ?? null,
         result_status: body.result_status,
         result_note: body.result_note ?? null,
+        sample_type: body.sample_type ?? null,
         resulted_by: userId, resulted_at: new Date().toISOString(),
     }).eq("id", testId);
 

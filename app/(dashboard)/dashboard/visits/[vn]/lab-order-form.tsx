@@ -157,8 +157,9 @@ function LabResultRow({ vn, order, busy, run }: {
     const [range, setRange] = useState(order.normal_range || "");
     const [flag, setFlag] = useState(order.result_flag || "");
     const [note, setNote] = useState(order.result_note || "");
+    const [sample, setSample] = useState(order.sample_type || "");
     const dirty = value !== (order.result_value || "") || unit !== (order.result_unit || "")
-        || range !== (order.normal_range || "") || flag !== (order.result_flag || "") || note !== (order.result_note || "");
+        || range !== (order.normal_range || "") || flag !== (order.result_flag || "") || note !== (order.result_note || "") || sample !== (order.sample_type || "");
     const abn = flag === "high" || flag === "low" || flag === "abnormal" || flag === "positive";
 
     return (
@@ -175,6 +176,8 @@ function LabResultRow({ vn, order, busy, run }: {
                     </button>
                 </div>
             </div>
+            <input list="visit-sample-types" value={sample} onChange={(e) => setSample(e.target.value)} placeholder="ชนิดตัวอย่าง (Sample Type) — เช่น Clotted blood / Urine"
+                className="mb-2 w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-blue-500 focus:outline-none" />
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="ค่าผล"
                     className={`h-9 rounded-lg border bg-white px-2.5 text-sm focus:outline-none ${abn ? "border-rose-300 text-rose-700 font-semibold" : "border-slate-200 focus:border-blue-500"}`} />
@@ -192,7 +195,7 @@ function LabResultRow({ vn, order, busy, run }: {
             {dirty && (
                 <div className="mt-2 flex justify-end">
                     <button disabled={busy} onClick={() => run(() => saveLabOrderResult(order.id, vn, {
-                        result_value: value, result_unit: unit, normal_range: range, result_flag: flag, result_note: note,
+                        result_value: value, result_unit: unit, normal_range: range, result_flag: flag, result_note: note, sample_type: sample,
                     }))}
                         className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} บันทึกผล

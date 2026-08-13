@@ -1,6 +1,6 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { createClient } from "@/lib/supabase/server";
-import { getAnonCase, type AnonCaseFull } from "@/lib/actions/anonymous";
+import { getAnonCase, type AnonCaseFull, type AnonTest } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
 import PrintTrigger from "@/app/print/visits/[vn]/print-trigger";
 import { ClinicMasthead } from "@/app/print/clinic-masthead";
@@ -161,14 +161,45 @@ export default async function AnonPrintPage({
         );
     }
 
-    // ── RESULT (ใบรายงานผล Laboratory Report) ──
+    // ── RESULT (ใบรายงานผล Laboratory Report) — แยกใบตาม Sample Type ──
     const labTests = data.tests.filter((t) => isLabType(t.item_type));
     const sexTitle = data.sex === "female" ? "Ms." : data.sex === "male" ? "Mr." : "";
     const clinicName = clinic?.clinic_name || "—";
+    const grpMap = new Map<string, AnonTest[]>();
+    for (const t of labTests) {
+        const key = String(t.sample_type || data.sample_type || "").trim();
+        const arr = grpMap.get(key) || [];
+        arr.push(t); grpMap.set(key, arr);
+    }
+    const groups = [...grpMap.entries()].map(([label, tests]) => ({ key: label || "_none", label, tests }));
+    if (groups.length === 0) groups.push({ key: "_none", label: String(data.sample_type || ""), tests: [] });
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
-            <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
+            {groups.map((grp, idx) => (
+                <AnonReportSheet key={grp.key} data={data} clinic={clinic} sexTitle={sexTitle} clinicName={clinicName} tests={grp.tests} sampleType={grp.label} notLast={idx < groups.length - 1} />
+            ))}
+            <style>{`
+                @media print {
+                    .no-print { display: none !important; }
+                    @page { size: A4; margin: 14mm; }
+                    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .print-page { max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+                }
+                @media screen { .print-page { background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px auto; padding: 14mm; } body { background: #f1f5f9; } }
+            `}</style>
+        </>
+    );
+}
+
+// ── ใบผลนิรนาม 1 หน้า (ต่อ 1 Sample Type) ──
+function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType, notLast }: {
+    data: AnonCaseFull; clinic: Clinic; sexTitle: string; clinicName: string;
+    tests: AnonTest[]; sampleType: string; notLast: boolean;
+}) {
+    return (
+        <>
+            <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
                 <ClinicMasthead clinic={clinic} />
                 <div className="flex justify-end items-center gap-2.5 mt-1.5">
                     <div className="text-[9px] text-slate-600 text-right leading-tight">
@@ -189,7 +220,7 @@ export default async function AnonPrintPage({
                     <RptField label="Age" value={data.age != null ? `${data.age} ปี` : "—"} />
                     <RptField label="Clinic / Hosp" value={clinicName} />
                     <RptField label="LAB No." value={data.lab_no || "—"} mono />
-                    <RptField label="Sample Type" value={data.sample_type || "—"} />
+                    <RptField label="Sample Type" value={sampleType || "—"} />
                     <RptField label="Requested Date" value={dmyShort(data.case_date)} />
                     <RptField label="Collected Date/Time" value={dtBkk(data.collected_at)} />
                     <RptField label="Received Date/Time" value={dtBkk(data.received_at)} />
@@ -204,7 +235,7 @@ export default async function AnonPrintPage({
                             </tr>
                         </thead>
                         <tbody>
-                            {labTests.map((t, i) => {
+                            {tests.map((t, i) => {
                                 const pos = t.result_status === "positive";
                                 const main = t.result_value || RESULT_EN[t.result_status] || "Pending";
                                 const enWord = RESULT_EN[t.result_status] || "";
@@ -220,7 +251,7 @@ export default async function AnonPrintPage({
                                     </tr>
                                 );
                             })}
-                            {labTests.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
+                            {tests.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
                         </tbody>
                     </table>
 
@@ -241,15 +272,6 @@ export default async function AnonPrintPage({
                     <SignBlock role="Approved By · ผู้ตรวจสอบ" name={data.approved_by_name} license={data.approved_by_license} at={data.approved_at} />
                 </div>
             </div>
-            <style>{`
-                @media print {
-                    .no-print { display: none !important; }
-                    @page { size: A4; margin: 14mm; }
-                    body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    .print-page { max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
-                }
-                @media screen { .print-page { background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px auto; padding: 14mm; } body { background: #f1f5f9; } }
-            `}</style>
         </>
     );
 }

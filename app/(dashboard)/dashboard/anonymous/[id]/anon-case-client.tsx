@@ -35,6 +35,7 @@ const PAYMENT_METHODS: [string, string][] = [
     ["cash", "เงินสด"], ["transfer", "โอน"], ["qr_promptpay", "QR / พร้อมเพย์"], ["credit_card", "บัตรเครดิต"],
 ];
 const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญิง", other: "อื่นๆ" };
+const ANON_SAMPLE_TYPES = ["Clotted blood", "Serum", "EDTA blood (CBC)", "Plasma", "Urine", "Swab", "Other"];
 
 export default function AnonCaseClient({ data, services, panels, perms }: { data: AnonCaseFull; services: LabService[]; panels: AnonPanel[]; perms: Perms }) {
     const router = useRouter();
@@ -304,6 +305,7 @@ function TestsCard({ caseId, tests, services, panels, busy, run }: {
 
     return (
         <div className="gonix-card-premium overflow-hidden">
+            <datalist id="anon-sample-types">{ANON_SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
             <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                 <TestTube className="h-4 w-4 text-[#2B54F0]" />
                 <h2 className="text-sm font-bold text-slate-800">รายการตรวจ & ผล (Lab)</h2>
@@ -385,7 +387,8 @@ function TestRow({ caseId, test, busy, run }: {
     const [value, setValue] = useState(test.result_value || "");
     const [status, setStatus] = useState(test.result_status || "pending");
     const [note, setNote] = useState(test.result_note || "");
-    const dirty = value !== (test.result_value || "") || status !== (test.result_status || "pending") || note !== (test.result_note || "");
+    const [sample, setSample] = useState(test.sample_type || "");
+    const dirty = value !== (test.result_value || "") || status !== (test.result_status || "pending") || note !== (test.result_note || "") || sample !== (test.sample_type || "");
     const st = RESULT_STATUS[test.result_status] || RESULT_STATUS.pending;
 
     return (
@@ -401,6 +404,8 @@ function TestRow({ caseId, test, busy, run }: {
                     </button>
                 </div>
             </div>
+            <input list="anon-sample-types" value={sample} onChange={(e) => setSample(e.target.value)} placeholder="ชนิดตัวอย่าง (Sample Type) — เช่น Clotted blood / Urine"
+                className="mb-2 w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="ค่าผล เช่น Non-reactive"
                     className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
@@ -413,7 +418,7 @@ function TestRow({ caseId, test, busy, run }: {
             </div>
             {dirty && (
                 <div className="mt-2 flex justify-end">
-                    <button disabled={busy} onClick={() => run(() => saveTestResult(test.id, caseId, { result_value: value, result_status: status, result_note: note }))}
+                    <button disabled={busy} onClick={() => run(() => saveTestResult(test.id, caseId, { result_value: value, result_status: status, result_note: note, sample_type: sample }))}
                         className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} บันทึกผล
                     </button>

@@ -13,7 +13,6 @@ export async function generateMetadata({ params }: { params: Promise<{ vn: strin
 
 type Clinic = { clinic_name?: string; clinic_name_en?: string; company_name?: string; company_name_en?: string; address_detail?: string; phone?: string; license_number?: string; logo_url?: string } | null;
 
-const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญิง", ชาย: "ชาย", หญิง: "หญิง", other: "อื่นๆ" };
 const FLAG_LABEL: Record<string, string> = { normal: "ปกติ (N)", high: "สูง (H)", low: "ต่ำ (L)", abnormal: "ผิดปกติ", positive: "Positive", negative: "Negative" };
 const ABNORMAL = new Set(["high", "low", "abnormal", "positive"]);
 
@@ -61,7 +60,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
             .select("clinic_name, clinic_name_en, company_name, company_name_en, phone, address_detail, license_number, logo_url")
             .eq("id", v.clinic_id).maybeSingle(),
         supabase.from("lab_orders")
-            .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note")
+            .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, sample_type")
             .eq("vn", vn).order("created_at", { ascending: true }),
     ]);
 
@@ -85,89 +84,25 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const labs = (orders || []) as any[];
 
+    // แยกกลุ่มตาม Sample Type (fallback → sample type ระดับ visit) — แต่ละกลุ่ม = คนละใบ
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupMap = new Map<string, any[]>();
+    for (const t of labs) {
+        const key = String(t.sample_type || v.lab_sample_type || "").trim();
+        const arr = groupMap.get(key) || [];
+        arr.push(t); groupMap.set(key, arr);
+    }
+    const groups = [...groupMap.entries()].map(([label, tests]) => ({ key: label || "_none", label, tests }));
+    if (groups.length === 0) groups.push({ key: "_none", label: String(v.lab_sample_type || ""), tests: [] });
+
+    const shared = { clinic, v, patient, patientName, sexEN, clinicName, doctorName, doctorLicense };
+
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
-            <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
-                <ClinicMasthead clinic={clinic} />
-                <div className="flex justify-end items-center gap-2.5 mt-1.5">
-                    <div className="text-[9px] text-slate-600 text-right leading-tight">
-                        <div>Tested at an ISO 15189</div>
-                        <div className="font-semibold text-slate-700">accredited laboratory</div>
-                    </div>
-                    <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
-                    <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
-                </div>
-
-                <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
-                    Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ</span>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px]" style={{ borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", padding: "10px 2px" }}>
-                    <RptField label="Patient Name" value={patientName} />
-                    <RptField label="HN" value={patient?.hn || "—"} mono />
-                    <RptField label="Sex" value={sexEN} />
-                    <RptField label="Age" value={ageFromDob(patient?.dob)} />
-                    <RptField label="Clinic / Hosp" value={clinicName} />
-                    <RptField label="LAB No." value={v.lab_no || "—"} mono />
-                    <RptField label="Sample Type" value={v.lab_sample_type || "—"} />
-                    <RptField label="Requested Date" value={dmyShort(v.visit_date)} />
-                    <RptField label="Collected Date/Time" value={dtBkk(v.lab_collected_at)} />
-                    <RptField label="Received Date/Time" value={dtBkk(v.lab_received_at)} />
-                </div>
-
-                <div className="mt-4">
-                    <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
-                        <thead>
-                            <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
-                                <th className="py-2 px-2 font-black" style={{ width: "55%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
-                                <th className="py-2 px-2 font-black">Result <span className="text-[10px] font-semibold text-slate-500">ผล</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {labs.map((t, i) => {
-                                const abn = ABNORMAL.has((t.result_flag as string) || "");
-                                const base = t.result_value || (t.status === "resulted" ? "-" : "Pending");
-                                const val = t.result_value && t.result_unit ? `${base} ${t.result_unit}` : base;
-                                const flagLabel = t.result_flag ? (FLAG_LABEL[t.result_flag] || t.result_flag) : "";
-                                const vlc = String(t.result_value || "").toLowerCase();
-                                const showFlag = !!flagLabel && !vlc.includes(String(t.result_flag).toLowerCase()) && !vlc.includes(flagLabel.toLowerCase());
-                                return (
-                                    <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
-                                        <td className="py-2 px-2 font-semibold align-top">{t.lab_type === "lab_external" ? "*" : ""}{t.lab_name}</td>
-                                        <td className="py-2 px-2 align-top">
-                                            <span style={{ fontWeight: 700, color: abn ? "#be123c" : "#0f172a" }}>{val}</span>
-                                            {showFlag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {flagLabel}</span> : null}
-                                            {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {labs.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการ Lab</td></tr>}
-                        </tbody>
-                    </table>
-
-                    <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ห้องปฏิบัติการที่ได้รับการรับรอง ISO 15189</p>
-
-                    <div className="mt-3 text-[11.5px] flex gap-2">
-                        <span className="font-bold shrink-0">Comment :</span>
-                        <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{v.lab_comment || ""}</span>
-                    </div>
-                    <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
-                        * ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์
-                    </p>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
-                    <SignBlock role="Reported By · ผู้รายงานผล" name={v.lab_reported_by_name} license={v.lab_reported_by_license} at={v.lab_reported_at} />
-                    <SignBlock role="Approved By · ผู้ตรวจสอบ" name={v.lab_approved_by_name} license={v.lab_approved_by_license} at={v.lab_approved_at} />
-                </div>
-                <div className="mt-9 flex justify-center text-[12px]">
-                    <div style={{ width: "56%" }}>
-                        <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={doctorLicense} at={null} />
-                    </div>
-                </div>
-            </div>
+            {groups.map((grp, idx) => (
+                <ReportSheet key={grp.key} {...shared} labs={grp.tests} sampleType={grp.label} notLast={idx < groups.length - 1} />
+            ))}
             <style>{`
                 @media print {
                     .no-print { display: none !important; }
@@ -178,6 +113,101 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                 @media screen { .print-page { background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px auto; padding: 14mm; } body { background: #f1f5f9; } }
             `}</style>
         </>
+    );
+}
+
+// ── ใบผล 1 หน้า (ต่อ 1 Sample Type) ──
+function ReportSheet({
+    clinic, v, patient, patientName, sexEN, clinicName, doctorName, doctorLicense, labs, sampleType, notLast,
+}: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    clinic: any; v: any; patient: any;
+    patientName: string; sexEN: string; clinicName: string;
+    doctorName: string; doctorLicense: string | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    labs: any[]; sampleType: string; notLast: boolean;
+}) {
+    return (
+        <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
+            <ClinicMasthead clinic={clinic} />
+            <div className="flex justify-end items-center gap-2.5 mt-1.5">
+                <div className="text-[9px] text-slate-600 text-right leading-tight">
+                    <div>Tested at an ISO 15189</div>
+                    <div className="font-semibold text-slate-700">accredited laboratory</div>
+                </div>
+                <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
+                <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
+            </div>
+
+            <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
+                Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ</span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px]" style={{ borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", padding: "10px 2px" }}>
+                <RptField label="Patient Name" value={patientName} />
+                <RptField label="HN" value={patient?.hn || "—"} mono />
+                <RptField label="Sex" value={sexEN} />
+                <RptField label="Age" value={ageFromDob(patient?.dob)} />
+                <RptField label="Clinic / Hosp" value={clinicName} />
+                <RptField label="LAB No." value={v.lab_no || "—"} mono />
+                <RptField label="Sample Type" value={sampleType || "—"} />
+                <RptField label="Requested Date" value={dmyShort(v.visit_date)} />
+                <RptField label="Collected Date/Time" value={dtBkk(v.lab_collected_at)} />
+                <RptField label="Received Date/Time" value={dtBkk(v.lab_received_at)} />
+            </div>
+
+            <div className="mt-4">
+                <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                        <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
+                            <th className="py-2 px-2 font-black" style={{ width: "55%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
+                            <th className="py-2 px-2 font-black">Result <span className="text-[10px] font-semibold text-slate-500">ผล</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {labs.map((t, i) => {
+                            const abn = ABNORMAL.has((t.result_flag as string) || "");
+                            const base = t.result_value || (t.status === "resulted" ? "-" : "Pending");
+                            const val = t.result_value && t.result_unit ? `${base} ${t.result_unit}` : base;
+                            const flagLabel = t.result_flag ? (FLAG_LABEL[t.result_flag] || t.result_flag) : "";
+                            const vlc = String(t.result_value || "").toLowerCase();
+                            const showFlag = !!flagLabel && !vlc.includes(String(t.result_flag).toLowerCase()) && !vlc.includes(flagLabel.toLowerCase());
+                            return (
+                                <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
+                                    <td className="py-2 px-2 font-semibold align-top">{t.lab_type === "lab_external" ? "*" : ""}{t.lab_name}</td>
+                                    <td className="py-2 px-2 align-top">
+                                        <span style={{ fontWeight: 700, color: abn ? "#be123c" : "#0f172a" }}>{val}</span>
+                                        {showFlag ? <span className="text-[10px] font-bold" style={{ color: abn ? "#be123c" : "#64748b" }}> · {flagLabel}</span> : null}
+                                        {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {labs.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการ Lab</td></tr>}
+                    </tbody>
+                </table>
+
+                <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ห้องปฏิบัติการที่ได้รับการรับรอง ISO 15189</p>
+
+                <div className="mt-3 text-[11.5px] flex gap-2">
+                    <span className="font-bold shrink-0">Comment :</span>
+                    <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{v.lab_comment || ""}</span>
+                </div>
+                <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
+                    * ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์
+                </p>
+            </div>
+
+            <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
+                <SignBlock role="Reported By · ผู้รายงานผล" name={v.lab_reported_by_name} license={v.lab_reported_by_license} at={v.lab_reported_at} />
+                <SignBlock role="Approved By · ผู้ตรวจสอบ" name={v.lab_approved_by_name} license={v.lab_approved_by_license} at={v.lab_approved_at} />
+            </div>
+            <div className="mt-9 flex justify-center text-[12px]">
+                <div style={{ width: "56%" }}>
+                    <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={doctorName} license={doctorLicense} at={null} />
+                </div>
+            </div>
+        </div>
     );
 }
 

@@ -26,6 +26,7 @@ export interface LabOrder {
     result_flag: string | null;
     result_note: string | null;
     resulted_at: string | null;
+    sample_type: string | null;
 }
 
 const num = (n: unknown) => Number(n || 0);
@@ -49,7 +50,7 @@ export async function getVisitLabOrders(vn: string): Promise<LabOrder[]> {
     const { supabase, clinicId } = await getCtx();
     const { data } = await supabase
         .from("lab_orders")
-        .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, resulted_at")
+        .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, resulted_at, sample_type")
         .eq("vn", vn).eq("clinic_id", clinicId)
         .order("created_at", { ascending: true });
     return (data || []) as LabOrder[];
@@ -101,7 +102,7 @@ export async function removeLabOrder(id: string, vn: string) {
 
 export async function saveLabOrderResult(id: string, vn: string, body: {
     result_value?: string | null; result_unit?: string | null; normal_range?: string | null;
-    result_flag?: string | null; result_note?: string | null;
+    result_flag?: string | null; result_note?: string | null; sample_type?: string | null;
 }) {
     const { supabase, clinicId } = await getCtx();
     const hasResult = !!(body.result_value && body.result_value.trim());
@@ -111,6 +112,7 @@ export async function saveLabOrderResult(id: string, vn: string, body: {
         normal_range: body.normal_range ?? null,
         result_flag: body.result_flag ?? null,
         result_note: body.result_note ?? null,
+        sample_type: body.sample_type ?? null,
         status: hasResult ? "resulted" : "ordered",
         resulted_at: hasResult ? new Date().toISOString() : null,
     }).eq("id", id).eq("clinic_id", clinicId);
