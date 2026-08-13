@@ -92,11 +92,11 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                 <ClinicMasthead clinic={clinic} />
                 <div className="flex justify-end items-center gap-2.5 mt-1.5">
                     <div className="text-[9px] text-slate-600 text-right leading-tight">
-                        <div>ตรวจโดยห้องปฏิบัติการที่</div>
-                        <div className="font-semibold text-slate-700">ได้รับการรับรอง ISO 15189</div>
+                        <div>Tested at an ISO 15189</div>
+                        <div className="font-semibold text-slate-700">accredited laboratory</div>
                     </div>
-                    <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto" }} />
-                    <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto" }} />
+                    <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
+                    <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
                 </div>
 
                 <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
