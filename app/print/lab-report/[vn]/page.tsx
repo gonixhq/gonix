@@ -90,6 +90,18 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
                 <ClinicMasthead clinic={clinic} />
+                <div className="flex justify-end items-center gap-2.5 mt-1.5">
+                    <div className="text-[8.5px] text-slate-500 text-right leading-tight">
+                        <div>ตรวจโดยแล็บภายนอก · Tested at</div>
+                        <div className="font-semibold text-slate-700">CMF Medical Laboratory</div>
+                    </div>
+                    <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto" }} />
+                    <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto" }} />
+                    <div className="text-[9px] leading-tight text-slate-700 text-right">
+                        <div className="font-bold">ISO 15189</div>
+                        <div>No. 4374/68</div>
+                    </div>
+                </div>
 
                 <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
                     Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ</span>
@@ -139,7 +151,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
                         </tbody>
                     </table>
 
-                    <p className="mt-2 text-[10.5px] font-semibold text-slate-600">(*) ISO 15189 Accredited</p>
+                    <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ CMF Medical Laboratory ซึ่งได้รับการรับรอง ISO 15189 (Accreditation No. 4374/68)</p>
 
                     <div className="mt-3 text-[11.5px] flex gap-2">
                         <span className="font-bold shrink-0">Comment :</span>
