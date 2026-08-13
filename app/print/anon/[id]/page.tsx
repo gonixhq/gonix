@@ -171,16 +171,12 @@ export default async function AnonPrintPage({
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
                 <ClinicMasthead clinic={clinic} />
                 <div className="flex justify-end items-center gap-2.5 mt-1.5">
-                    <div className="text-[8.5px] text-slate-500 text-right leading-tight">
-                        <div>ตรวจโดยแล็บภายนอก · Tested at</div>
-                        <div className="font-semibold text-slate-700">CMF Medical Laboratory</div>
+                    <div className="text-[9px] text-slate-600 text-right leading-tight">
+                        <div>ตรวจโดยห้องปฏิบัติการที่</div>
+                        <div className="font-semibold text-slate-700">ได้รับการรับรอง ISO 15189</div>
                     </div>
                     <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto" }} />
                     <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto" }} />
-                    <div className="text-[9px] leading-tight text-slate-700 text-right">
-                        <div className="font-bold">ISO 15189</div>
-                        <div>No. 4374/68</div>
-                    </div>
                 </div>
                 <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
                     Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ (นิรนาม)</span>
@@ -228,7 +224,7 @@ export default async function AnonPrintPage({
                         </tbody>
                     </table>
 
-                    <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ CMF Medical Laboratory ซึ่งได้รับการรับรอง ISO 15189 (Accreditation No. 4374/68)</p>
+                    <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ห้องปฏิบัติการที่ได้รับการรับรอง ISO 15189</p>
 
                     <div className="mt-3 text-[11.5px] flex gap-2">
                         <span className="font-bold shrink-0">Comment :</span>
