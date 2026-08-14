@@ -50,7 +50,7 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center mb-6">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/clinic-logo.png" alt="" className="h-20 w-20 object-contain mb-3" />
+                    <img src="/clinic-logo.png" alt="" className="h-32 w-32 sm:h-36 sm:w-36 object-contain mb-2" />
                     <h1 className="text-lg font-black tracking-tight" style={{ color: "#0e7490" }}>{data?.clinic_name || "ธนเวชคลินิกเวชกรรม"}</h1>
                     <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 bg-white/70 ring-1 ring-cyan-100 rounded-full px-2.5 py-1">
                         <Lock className="h-3 w-3" /> นิรนาม · เป็นความลับ · เข้ารหัส
