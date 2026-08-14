@@ -61,7 +61,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
             .eq("id", v.clinic_id).maybeSingle(),
         supabase.from("lab_orders")
             .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, sample_type")
-            .eq("vn", vn).order("created_at", { ascending: true }),
+            .eq("vn", vn).neq("lab_type", "package").order("created_at", { ascending: true }),
     ]);
 
     const enName = `${patient?.first_name_en || ""} ${patient?.last_name_en || ""}`.trim();

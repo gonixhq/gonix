@@ -52,6 +52,7 @@ export async function getVisitLabOrders(vn: string): Promise<LabOrder[]> {
         .from("lab_orders")
         .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, resulted_at, sample_type")
         .eq("vn", vn).eq("clinic_id", clinicId)
+        .neq("lab_type", "package")  // บรรทัดแพ็ก (billing) ไม่ต้องกรอกผล
         .order("created_at", { ascending: true });
     return (data || []) as LabOrder[];
 }
@@ -59,11 +60,12 @@ export async function getVisitLabOrders(vn: string): Promise<LabOrder[]> {
 export async function addLabOrder(vn: string, hn: string, serviceId: string) {
     const { supabase, clinicId, staffId } = await getCtx();
     const { data: s } = await supabase.from("service_catalog")
-        .select("service_name, item_type").eq("clinic_id", clinicId).eq("id", serviceId).maybeSingle();
+        .select("service_name, item_type, selling_price").eq("clinic_id", clinicId).eq("id", serviceId).maybeSingle();
     if (!s) return { ok: false, error: "ไม่พบรายการ Lab" };
     await supabase.from("lab_orders").insert({
         vn, hn, clinic_id: clinicId,
         lab_name: s.service_name, lab_type: (s.item_type as string) || "lab",
+        price: num(s.selling_price),
         ordered_by: staffId, status: "ordered",
     });
     revalidatePath(`/dashboard/visits/${vn}`);
@@ -74,20 +76,26 @@ export async function addLabOrder(vn: string, hn: string, serviceId: string) {
 export async function addLabPanel(vn: string, hn: string, panelId: string) {
     const { supabase, clinicId, staffId } = await getCtx();
     const { data: panel } = await supabase.from("anon_panels")
-        .select("id").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
+        .select("id, name, price").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
     if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
     const { data: items } = await supabase.from("anon_panel_items")
         .select("service_catalog(service_name, item_type)").eq("panel_id", panelId);
     const { data: existing } = await supabase.from("lab_orders")
         .select("lab_name").eq("vn", vn).eq("clinic_id", clinicId);
     const have = new Set((existing || []).map((o) => o.lab_name as string));
-    const rows = (items || []).map((it) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = [];
+    for (const it of items || []) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
-        if (!sc?.service_name || have.has(sc.service_name)) return null;
+        if (!sc?.service_name || have.has(sc.service_name)) continue;
         have.add(sc.service_name);
-        return { vn, hn, clinic_id: clinicId, lab_name: sc.service_name, lab_type: (sc.item_type as string) || "lab", ordered_by: staffId, status: "ordered" };
-    }).filter(Boolean);
+        // เทสย่อย: กรอกผลได้ แต่ราคา 0 (คิดเงินเป็นแพ็กก้อนเดียว)
+        rows.push({ vn, hn, clinic_id: clinicId, lab_name: sc.service_name, lab_type: (sc.item_type as string) || "lab", price: 0, ordered_by: staffId, status: "ordered" });
+    }
+    // บรรทัดค่าแพ็กเกจ (คิดเงินก้อนเดียวที่หน้าชำระเงิน) — lab_type=package ไม่โผล่ในช่องกรอกผล/ใบพิมพ์
+    const pkgName = `แพ็กเกจ · ${panel.name}`;
+    if (!have.has(pkgName)) rows.push({ vn, hn, clinic_id: clinicId, lab_name: pkgName, lab_type: "package", price: num(panel.price), ordered_by: staffId, status: "ordered" });
     if (rows.length) await supabase.from("lab_orders").insert(rows);
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };

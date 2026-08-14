@@ -51,12 +51,13 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
         .from("lab_orders")
         .select(`
             id,
-            lab_test_id,
             lab_name,
+            lab_type,
             price,
             status
         `)
-        .eq("vn", vn); // Supabase doesn't natively chain .catch on Builder sync calls in this version.
+        .eq("vn", vn)
+        .gt("price", 0); // เฉพาะรายการที่มีราคา (lab เดี่ยว + บรรทัดแพ็ก) — เทสย่อยในแพ็ก price 0 ไม่ต้องคิดซ้ำ
 
     // Service catalog (preset items สำหรับเคาท์เตอร์)
     const services = await listActiveServices();
