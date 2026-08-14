@@ -45,21 +45,13 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
     const canSubmit = code.trim().length >= 4 && phone4.length === 4 && !busy;
 
     return (
-        <div className="min-h-screen relative overflow-hidden" style={{
-            background: "linear-gradient(180deg,#ecfeff 0%,#f0fdfa 42%,#f8fafc 100%)",
-        }}>
-            {/* decorative glows */}
-            <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                <div className="absolute -top-32 -right-24 h-80 w-80 rounded-full" style={{ background: "radial-gradient(circle, rgba(8,145,178,0.18), transparent 70%)" }} />
-                <div className="absolute top-40 -left-24 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle, rgba(20,184,166,0.16), transparent 70%)" }} />
-            </div>
-
-            <div className="relative max-w-md mx-auto px-4 py-8 sm:py-12">
+        <div className="min-h-screen" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
+            <div className="max-w-md mx-auto px-4 py-8 sm:py-12">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center mb-6">
-                    <div className="h-16 w-16 rounded-2xl bg-white shadow-md ring-1 ring-cyan-100 flex items-center justify-center overflow-hidden mb-3">
+                    <div className="h-20 w-20 rounded-3xl bg-white shadow-lg ring-1 ring-slate-200 flex items-center justify-center overflow-hidden mb-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/clinic-logo.png" alt="" className="h-12 w-12 object-contain" />
+                        <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain" />
                     </div>
                     <h1 className="text-lg font-black tracking-tight" style={{ color: "#0e7490" }}>{data?.clinic_name || "ธนเวชคลินิกเวชกรรม"}</h1>
                     <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 bg-white/70 ring-1 ring-cyan-100 rounded-full px-2.5 py-1">
@@ -67,7 +59,7 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-[26px] shadow-xl ring-1 ring-slate-100 overflow-hidden">
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-200/60 overflow-hidden">
                     {/* accent top bar */}
                     <div className="h-1.5 w-full" style={{ background: "linear-gradient(90deg,#0891b2,#14b8a6)" }} />
                     <div className="p-6">
