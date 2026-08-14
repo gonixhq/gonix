@@ -49,10 +49,8 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
             <div className="max-w-md mx-auto px-4 py-8 sm:py-12">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center mb-6">
-                    <div className="h-20 w-20 rounded-3xl bg-white shadow-lg ring-1 ring-slate-200 flex items-center justify-center overflow-hidden mb-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain" />
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/clinic-logo.png" alt="" className="h-20 w-20 object-contain mb-3" />
                     <h1 className="text-lg font-black tracking-tight" style={{ color: "#0e7490" }}>{data?.clinic_name || "ธนเวชคลินิกเวชกรรม"}</h1>
                     <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 bg-white/70 ring-1 ring-cyan-100 rounded-full px-2.5 py-1">
                         <Lock className="h-3 w-3" /> นิรนาม · เป็นความลับ · เข้ารหัส
