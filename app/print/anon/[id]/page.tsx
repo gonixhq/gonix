@@ -329,7 +329,7 @@ function ReceiptHalf({ copyLabel, copyLabelEn, isOriginal, data, clinic, branch 
                     ) : data.tests.map((it, idx) => (
                         <tr key={it.id} className="border-b border-slate-100">
                             <td className="text-center py-1 px-1 tabular-nums">{idx + 1}</td>
-                            <td className="py-1 px-1.5">{it.test_name}<span className="text-[10px] text-slate-500 ml-1">({ITEM_TYPE_LABEL[it.item_type] || it.item_type})</span></td>
+                            <td className="py-1 px-1.5">{it.test_name}</td>
                             <td className="text-center py-1 px-1 tabular-nums">1</td>
                             <td className="text-right py-1 px-1.5 tabular-nums">{Number(it.price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                             <td className="text-right py-1 px-1.5 tabular-nums font-semibold">{Number(it.price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
