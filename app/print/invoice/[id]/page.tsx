@@ -162,11 +162,10 @@ function ReceiptCopy({
             )}
 
             {/* Header — match OPD Card style + Title + Copy badge มุมขวา */}
-            <ClinicMasthead clinic={clinic} />
+            <ClinicMasthead clinic={clinic} taxId={clinic?.tax_id || "0505569001439"} />
             <div className="flex items-end justify-between mt-1.5 px-1">
                 <div>
                     <span className="text-[13px] font-black">ใบเสร็จรับเงิน · Receipt</span>
-                    <span className="text-[10px] text-slate-600 ml-2">เลขผู้เสียภาษี <span className="font-mono">{clinic?.tax_id || "0505569001439"}</span></span>
                 </div>
                 <div className={`text-[10px] font-bold px-2.5 py-0.5 rounded border-2 ${isOriginal ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-amber-50 border-amber-500 text-amber-700"}`}>
                     {copyLabel} · {copyLabelEn}

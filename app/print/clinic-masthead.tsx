@@ -1,7 +1,7 @@
 // หัวกระดาษคลินิกกลาง — ใช้ร่วมทั้งใบรับรองแพทย์ (med-cert) และเวชระเบียน OPD (visits)
 // แก้ที่นี่ที่เดียว มีผลกับเอกสารทุกใบ
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function ClinicMasthead({ clinic, en }: { clinic: any; en?: boolean }) {
+export function ClinicMasthead({ clinic, en, taxId }: { clinic: any; en?: boolean; taxId?: string }) {
     const nameTh = clinic?.clinic_name || "ธนเวชคลินิกเวชกรรม";
     const nameEn = clinic?.clinic_name_en || "Tanavej Clinic";
     const company = clinic?.company_name as string | undefined;
@@ -20,6 +20,7 @@ export function ClinicMasthead({ clinic, en }: { clinic: any; en?: boolean }) {
                 {companyLine && <div style={{ fontWeight: 500, color: "#4b5563" }}>{companyLine}</div>}
                 <div style={{ marginTop: "1px" }}>{clinic?.address_detail || (en ? "Chiang Mai, Thailand" : "จ.เชียงใหม่")}</div>
                 {clinic?.phone && <div>{en ? "Tel: " : "โทร. "}{clinic.phone}</div>}
+                {taxId && <div>{en ? "Tax ID: " : "เลขผู้เสียภาษี "}{taxId}</div>}
             </div>
         </div>
     );
