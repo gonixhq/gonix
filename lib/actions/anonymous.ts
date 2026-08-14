@@ -92,7 +92,14 @@ export interface AnonCaseFull {
     approved_by_name: string | null;
     approved_by_license: string | null;
     approved_at: string | null;
+    lab_report_meta: Record<string, LabReportMeta>;
     tests: AnonTest[];
+}
+
+export interface LabReportMeta {
+    lab_no?: string | null; collected_at?: string | null; received_at?: string | null; comment?: string | null;
+    reported_by_name?: string | null; reported_by_license?: string | null; reported_at?: string | null;
+    approved_by_name?: string | null; approved_by_license?: string | null; approved_at?: string | null;
 }
 
 export interface AnonStats {
@@ -277,6 +284,7 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
         lab_comment: c.lab_comment ?? null,
         reported_by_name: c.reported_by_name ?? null, reported_by_license: c.reported_by_license ?? null, reported_at: c.reported_at ?? null,
         approved_by_name: c.approved_by_name ?? null, approved_by_license: c.approved_by_license ?? null, approved_at: c.approved_at ?? null,
+        lab_report_meta: (c.lab_report_meta as Record<string, LabReportMeta>) || {},
         tests: (tests || []).map((t) => ({
             id: t.id, service_id: t.service_id, test_name: t.test_name,
             item_type: (t.item_type as string) || "other", price: num(t.price),
@@ -552,6 +560,26 @@ export async function saveLabReport(id: string, patch: {
     return { ok: true };
 }
 
+// หัวใบรายงานผลต่อ Sample Type (แบบ CMF) — เก็บใน lab_report_meta[sampleType]
+export async function saveAnonReportMeta(id: string, sampleType: string, patch: LabReportMeta) {
+    const { supabase, clinicId } = await getCtx();
+    const { data: c } = await supabase.from("anon_cases").select("lab_report_meta").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+    const meta = ((c?.lab_report_meta as Record<string, LabReportMeta>) || {});
+    const dtKeys = new Set(["collected_at", "received_at", "reported_at", "approved_at"]);
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) continue;
+        if (v === "" || v === null) { clean[k] = null; continue; }
+        clean[k] = dtKeys.has(k)
+            ? new Date(`${(v as string).length === 16 ? `${v}:00` : (v as string)}+07:00`).toISOString()
+            : v;
+    }
+    meta[sampleType || ""] = clean as LabReportMeta;
+    await supabase.from("anon_cases").update({ lab_report_meta: meta }).eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath(`/dashboard/anonymous/${id}`);
+    return { ok: true };
+}
+
 // ── Vital signs (คัดกรองโดยเจ้าหน้าที่) ─────────────
 export async function saveVitals(id: string, vitals: Record<string, unknown>) {
     const { supabase, clinicId, userId } = await getCtx();
@@ -617,6 +645,30 @@ export async function saveTestResult(testId: string, caseId: string, body: {
     }).eq("id", testId);
 
     // bump status: ถ้ามีผลแล้วและยังเป็น opened/collected → resulted
+    const { data: c } = await supabase.from("anon_cases").select("status").eq("id", caseId).eq("clinic_id", clinicId).maybeSingle();
+    if (c && (c.status === "opened" || c.status === "collected")) {
+        await supabase.from("anon_cases").update({ status: "resulted" }).eq("id", caseId);
+    }
+    revalidatePath(`/dashboard/anonymous/${caseId}`);
+    return { ok: true };
+}
+
+// บันทึกผลหลายรายการพร้อมกัน (ปุ่มเดียว)
+export async function saveAnonTestResults(caseId: string, rows: {
+    id: string; result_value?: string | null; result_status?: string | null; result_note?: string | null; sample_type?: string | null;
+}[]) {
+    const { supabase, clinicId, userId } = await getCtx();
+    await Promise.all((rows || []).map((r) => {
+        const has = !!(r.result_value && String(r.result_value).trim()) || (!!r.result_status && r.result_status !== "pending");
+        return supabase.from("anon_case_tests").update({
+            result_value: r.result_value ?? null,
+            result_status: r.result_status || "pending",
+            result_note: r.result_note ?? null,
+            sample_type: r.sample_type ?? null,
+            resulted_by: has ? userId : null,
+            resulted_at: has ? new Date().toISOString() : null,
+        }).eq("id", r.id);
+    }));
     const { data: c } = await supabase.from("anon_cases").select("status").eq("id", caseId).eq("clinic_id", clinicId).maybeSingle();
     if (c && (c.status === "opened" || c.status === "collected")) {
         await supabase.from("anon_cases").update({ status: "resulted" }).eq("id", caseId);

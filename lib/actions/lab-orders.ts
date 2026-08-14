@@ -120,6 +120,29 @@ export async function saveLabOrderResult(id: string, vn: string, body: {
     return { ok: true };
 }
 
+// บันทึกผลหลายรายการพร้อมกัน (ปุ่มเดียว)
+export async function saveLabOrderResults(vn: string, rows: {
+    id: string; result_value?: string | null; result_unit?: string | null; normal_range?: string | null;
+    result_flag?: string | null; result_note?: string | null; sample_type?: string | null;
+}[]) {
+    const { supabase, clinicId } = await getCtx();
+    await Promise.all((rows || []).map((r) => {
+        const hasResult = !!(r.result_value && String(r.result_value).trim());
+        return supabase.from("lab_orders").update({
+            result_value: r.result_value ?? null,
+            result_unit: r.result_unit ?? null,
+            normal_range: r.normal_range ?? null,
+            result_flag: r.result_flag ?? null,
+            result_note: r.result_note ?? null,
+            sample_type: r.sample_type ?? null,
+            status: hasResult ? "resulted" : "ordered",
+            resulted_at: hasResult ? new Date().toISOString() : null,
+        }).eq("id", r.id).eq("clinic_id", clinicId);
+    }));
+    revalidatePath(`/dashboard/visits/${vn}`);
+    return { ok: true };
+}
+
 // หัวใบรายงานผล (Laboratory Report) — เก็บบน visits (prefix lab_)
 export async function saveVisitLabReport(vn: string, patch: {
     lab_no?: string | null; lab_sample_type?: string | null;
@@ -142,6 +165,32 @@ export async function saveVisitLabReport(vn: string, patch: {
         }
     }
     await supabase.from("visits").update(clean).eq("vn", vn).eq("clinic_id", clinicId);
+    revalidatePath(`/dashboard/visits/${vn}`);
+    return { ok: true };
+}
+
+export interface VisitReportMeta {
+    lab_no?: string | null; collected_at?: string | null; received_at?: string | null; comment?: string | null;
+    reported_by_name?: string | null; reported_by_license?: string | null; reported_at?: string | null;
+    approved_by_name?: string | null; approved_by_license?: string | null; approved_at?: string | null;
+}
+
+// หัวใบรายงานผลต่อ Sample Type (แบบ CMF) — เก็บใน visits.lab_report_meta[sampleType]
+export async function saveVisitReportMeta(vn: string, sampleType: string, patch: VisitReportMeta) {
+    const { supabase, clinicId } = await getCtx();
+    const { data: c } = await supabase.from("visits").select("lab_report_meta").eq("vn", vn).eq("clinic_id", clinicId).maybeSingle();
+    const meta = ((c?.lab_report_meta as Record<string, VisitReportMeta>) || {});
+    const dtKeys = new Set(["collected_at", "received_at", "reported_at", "approved_at"]);
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) continue;
+        if (v === "" || v === null) { clean[k] = null; continue; }
+        clean[k] = dtKeys.has(k)
+            ? new Date(`${(v as string).length === 16 ? `${v}:00` : (v as string)}+07:00`).toISOString()
+            : v;
+    }
+    meta[sampleType || ""] = clean as VisitReportMeta;
+    await supabase.from("visits").update({ lab_report_meta: meta }).eq("vn", vn).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };
 }

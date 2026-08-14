@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo, useRef, useEffect } from "react";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
     updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest, addAnonPanel,
-    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals, saveLabReport,
+    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals, saveLabReport, saveAnonReportMeta, saveAnonTestResults,
     type AnonCaseFull, type LabService, type AnonTest, type AnonPanel,
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
@@ -303,6 +303,14 @@ function TestsCard({ caseId, tests, services, panels, busy, run }: {
     const labOpts = services.filter((s) => isLabType(s.item_type));
     const otherOpts = services.filter((s) => !isLabType(s.item_type));
 
+    // ปุ่มเดียว: เก็บ draft ทุกแถวไว้ใน ref แล้วบันทึกพร้อมกัน
+    const draftsRef = useRef<Map<string, { result_value: string; result_status: string; result_note: string; sample_type: string }>>(new Map());
+    const onDraft = (id: string, vals: { result_value: string; result_status: string; result_note: string; sample_type: string }) => { draftsRef.current.set(id, vals); };
+    const saveAll = () => run(() => saveAnonTestResults(caseId, labTests.map((t) => {
+        const d = draftsRef.current.get(t.id);
+        return { id: t.id, result_value: d?.result_value ?? t.result_value, result_status: d?.result_status ?? t.result_status, result_note: d?.result_note ?? t.result_note, sample_type: d?.sample_type ?? t.sample_type };
+    })));
+
     return (
         <div className="gonix-card-premium overflow-hidden">
             <datalist id="anon-sample-types">{ANON_SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
@@ -310,9 +318,15 @@ function TestsCard({ caseId, tests, services, panels, busy, run }: {
                 <TestTube className="h-4 w-4 text-[#2B54F0]" />
                 <h2 className="text-sm font-bold text-slate-800">รายการตรวจ & ผล (Lab)</h2>
                 <span className="text-xs text-slate-400">({labTests.length})</span>
+                {labTests.length > 0 && (
+                    <button disabled={busy} onClick={saveAll}
+                        className="ml-auto h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} บันทึกผลทั้งหมด
+                    </button>
+                )}
             </div>
             <div className="divide-y divide-slate-100">
-                {labTests.map((t) => <TestRow key={t.id} caseId={caseId} test={t} busy={busy} run={run} />)}
+                {labTests.map((t) => <TestRow key={t.id} caseId={caseId} test={t} busy={busy} run={run} onDraft={onDraft} />)}
                 {labTests.length === 0 && <p className="text-center text-sm text-slate-400 py-6">ยังไม่มีรายการตรวจ Lab</p>}
             </div>
 
@@ -381,8 +395,9 @@ function TestsCard({ caseId, tests, services, panels, busy, run }: {
     );
 }
 
-function TestRow({ caseId, test, busy, run }: {
+function TestRow({ caseId, test, busy, run, onDraft }: {
     caseId: string; test: AnonTest; busy: boolean; run: (fn: () => Promise<unknown>) => void;
+    onDraft: (id: string, vals: { result_value: string; result_status: string; result_note: string; sample_type: string }) => void;
 }) {
     const [value, setValue] = useState(test.result_value || "");
     const [status, setStatus] = useState(test.result_status || "pending");
@@ -390,6 +405,8 @@ function TestRow({ caseId, test, busy, run }: {
     const [sample, setSample] = useState(test.sample_type || "");
     const dirty = value !== (test.result_value || "") || status !== (test.result_status || "pending") || note !== (test.result_note || "") || sample !== (test.sample_type || "");
     const st = RESULT_STATUS[test.result_status] || RESULT_STATUS.pending;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { onDraft(test.id, { result_value: value, result_status: status, result_note: note, sample_type: sample }); }, [value, status, note, sample]);
 
     return (
         <div className="px-5 py-3">
@@ -398,6 +415,7 @@ function TestRow({ caseId, test, busy, run }: {
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 tabular-nums">{baht(test.price)}</span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>
+                    {dirty && <span className="text-[10px] font-bold text-amber-600" title="ยังไม่บันทึก">●</span>}
                     <button disabled={busy} onClick={() => run(() => removeAnonTest(test.id, caseId))}
                         className="h-7 w-7 rounded-lg hover:bg-rose-50 flex items-center justify-center text-slate-400 hover:text-rose-600">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -416,14 +434,6 @@ function TestRow({ caseId, test, busy, run }: {
                 <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="หมายเหตุ (ไม่บังคับ)"
                     className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
             </div>
-            {dirty && (
-                <div className="mt-2 flex justify-end">
-                    <button disabled={busy} onClick={() => run(() => saveTestResult(test.id, caseId, { result_value: value, result_status: status, result_note: note, sample_type: sample }))}
-                        className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
-                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} บันทึกผล
-                    </button>
-                </div>
-            )}
         </div>
     );
 }
@@ -438,21 +448,24 @@ function toDTLocal(iso: string | null): string {
 const SAMPLE_TYPES = ["Clotted blood", "Serum", "EDTA blood (CBC)", "Plasma", "Urine", "Swab", "Other"];
 
 function LabReportCard({ data, busy, run }: { data: AnonCaseFull; busy: boolean; run: (fn: () => Promise<unknown>) => void }) {
-    const [f, setF] = useState({
-        lab_no: data.lab_no || "",
-        sample_type: data.sample_type || "",
-        collected_at: toDTLocal(data.collected_at),
-        received_at: toDTLocal(data.received_at),
-        lab_comment: data.lab_comment || "",
-        reported_by_name: data.reported_by_name || "",
-        reported_by_license: data.reported_by_license || "",
-        reported_at: toDTLocal(data.reported_at),
-        approved_by_name: data.approved_by_name || "",
-        approved_by_license: data.approved_by_license || "",
-        approved_at: toDTLocal(data.approved_at),
-    });
-    const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
-    const inp = "w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const metaMap = (data.lab_report_meta || {}) as Record<string, any>;
+    const sampleTypes = useMemo(() => {
+        const set = new Set<string>();
+        data.tests.filter((t) => isLabType(t.item_type)).forEach((t) => set.add(t.sample_type || ""));
+        const arr = [...set];
+        return arr.length ? arr : [""];
+    }, [data.tests]);
+    const [active, setActive] = useState(sampleTypes[0] ?? "");
+    const legacy = {
+        lab_no: data.lab_no, collected_at: data.collected_at, received_at: data.received_at, comment: data.lab_comment,
+        reported_by_name: data.reported_by_name, reported_by_license: data.reported_by_license, reported_at: data.reported_at,
+        approved_by_name: data.approved_by_name, approved_by_license: data.approved_by_license, approved_at: data.approved_at,
+    };
+    const initFor = (st: string) => {
+        const m = metaMap[st] || {};
+        return Object.keys(m).length === 0 ? legacy : m;
+    };
 
     return (
         <div className="gonix-card-premium overflow-hidden">
@@ -462,51 +475,81 @@ function LabReportCard({ data, busy, run }: { data: AnonCaseFull; busy: boolean;
                 <span className="text-[11px] text-slate-400">ข้อมูลสำหรับพิมพ์ผลตรวจ</span>
             </div>
             <div className="p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-2.5">
+                {sampleTypes.length > 1 && (
                     <div>
-                        <label className="text-[11px] font-semibold text-slate-500">LAB No.</label>
-                        <input value={f.lab_no} onChange={(e) => set("lab_no", e.target.value)} placeholder="เช่น 69-2-07459" className={inp} />
+                        <label className="text-[11px] font-semibold text-[#2B54F0]">เลือกชนิดตัวอย่าง — แต่ละชนิด = คนละใบ (LAB No. แยกกัน)</label>
+                        <select value={active} onChange={(e) => setActive(e.target.value)}
+                            className="w-full h-9 rounded-lg border border-[#2B54F0]/30 bg-[#2B54F0]/[0.04] px-2 text-sm font-semibold focus:border-[#2B54F0] focus:outline-none">
+                            {sampleTypes.map((st) => <option key={st} value={st}>{st || "— ไม่ระบุชนิดตัวอย่าง —"}</option>)}
+                        </select>
                     </div>
-                    <div>
-                        <label className="text-[11px] font-semibold text-slate-500">ชนิดตัวอย่าง (Sample Type)</label>
-                        <input list="anon-sample-types" value={f.sample_type} onChange={(e) => set("sample_type", e.target.value)} placeholder="เช่น Clotted blood" className={inp} />
-                        <datalist id="anon-sample-types">{SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
-                    </div>
-                    <div>
-                        <label className="text-[11px] font-semibold text-slate-500">วันเวลาเก็บตัวอย่าง (Collected)</label>
-                        <input type="datetime-local" value={f.collected_at} onChange={(e) => set("collected_at", e.target.value)} className={inp} />
-                    </div>
-                    <div>
-                        <label className="text-[11px] font-semibold text-slate-500">วันเวลารับตัวอย่าง (Received)</label>
-                        <input type="datetime-local" value={f.received_at} onChange={(e) => set("received_at", e.target.value)} className={inp} />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="text-[11px] font-semibold text-slate-500">หมายเหตุ (Comment)</label>
-                    <input value={f.lab_comment} onChange={(e) => set("lab_comment", e.target.value)} placeholder="หมายเหตุในรายงาน (ถ้ามี)" className={inp} />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้รายงานผล (Reported By)</div>
-                        <input value={f.reported_by_name} onChange={(e) => set("reported_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
-                        <input value={f.reported_by_license} onChange={(e) => set("reported_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
-                        <input type="datetime-local" value={f.reported_at} onChange={(e) => set("reported_at", e.target.value)} className={inp} />
-                    </div>
-                    <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้ตรวจสอบ/อนุมัติ (Approved By)</div>
-                        <input value={f.approved_by_name} onChange={(e) => set("approved_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
-                        <input value={f.approved_by_license} onChange={(e) => set("approved_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
-                        <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
-                    </div>
-                </div>
-
-                <button disabled={busy} onClick={() => run(() => saveLabReport(data.id, f))}
-                    className="h-9 px-4 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกข้อมูลรายงานผล
-                </button>
+                )}
+                <AnonMetaForm key={active} caseId={data.id} sampleType={active} initial={initFor(active)} busy={busy} run={run} />
             </div>
+        </div>
+    );
+}
+
+function AnonMetaForm({ caseId, sampleType, initial, busy, run }: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    caseId: string; sampleType: string; initial: any; busy: boolean; run: (fn: () => Promise<unknown>) => void;
+}) {
+    const [f, setF] = useState({
+        lab_no: initial.lab_no || "",
+        collected_at: toDTLocal(initial.collected_at),
+        received_at: toDTLocal(initial.received_at),
+        comment: initial.comment || "",
+        reported_by_name: initial.reported_by_name || "",
+        reported_by_license: initial.reported_by_license || "",
+        reported_at: toDTLocal(initial.reported_at),
+        approved_by_name: initial.approved_by_name || "",
+        approved_by_license: initial.approved_by_license || "",
+        approved_at: toDTLocal(initial.approved_at),
+    });
+    const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+    const inp = "w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none";
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                    <label className="text-[11px] font-semibold text-slate-500">LAB No.</label>
+                    <input value={f.lab_no} onChange={(e) => set("lab_no", e.target.value)} placeholder="เช่น 69-2-07459" className={inp} />
+                </div>
+                <div>
+                    <label className="text-[11px] font-semibold text-slate-500">ชนิดตัวอย่าง (Sample Type)</label>
+                    <input value={sampleType || "— ไม่ระบุ —"} disabled className={`${inp} bg-slate-50 text-slate-500`} />
+                </div>
+                <div>
+                    <label className="text-[11px] font-semibold text-slate-500">วันเวลาเก็บตัวอย่าง (Collected)</label>
+                    <input type="datetime-local" value={f.collected_at} onChange={(e) => set("collected_at", e.target.value)} className={inp} />
+                </div>
+                <div>
+                    <label className="text-[11px] font-semibold text-slate-500">วันเวลารับตัวอย่าง (Received)</label>
+                    <input type="datetime-local" value={f.received_at} onChange={(e) => set("received_at", e.target.value)} className={inp} />
+                </div>
+            </div>
+            <div>
+                <label className="text-[11px] font-semibold text-slate-500">หมายเหตุ (Comment)</label>
+                <input value={f.comment} onChange={(e) => set("comment", e.target.value)} placeholder="หมายเหตุในรายงาน (ถ้ามี)" className={inp} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้รายงานผล (Reported By)</div>
+                    <input value={f.reported_by_name} onChange={(e) => set("reported_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
+                    <input value={f.reported_by_license} onChange={(e) => set("reported_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
+                    <input type="datetime-local" value={f.reported_at} onChange={(e) => set("reported_at", e.target.value)} className={inp} />
+                </div>
+                <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้ตรวจสอบ/อนุมัติ (Approved By)</div>
+                    <input value={f.approved_by_name} onChange={(e) => set("approved_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
+                    <input value={f.approved_by_license} onChange={(e) => set("approved_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
+                    <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
+                </div>
+            </div>
+            <button disabled={busy} onClick={() => run(() => saveAnonReportMeta(caseId, sampleType, f))}
+                className="h-9 px-4 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกใบนี้ ({sampleType || "ไม่ระบุชนิด"})
+            </button>
         </div>
     );
 }

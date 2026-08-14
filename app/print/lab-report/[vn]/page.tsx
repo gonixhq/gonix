@@ -44,7 +44,7 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
 
     const { data: visit } = await supabase.from("visits").select(`
         vn, visit_date, clinic_id,
-        lab_no, lab_sample_type, lab_collected_at, lab_received_at, lab_comment,
+        lab_no, lab_sample_type, lab_collected_at, lab_received_at, lab_comment, lab_report_meta,
         lab_reported_by_name, lab_reported_by_license, lab_reported_at,
         lab_approved_by_name, lab_approved_by_license, lab_approved_at,
         patients!inner(hn, prefix, first_name, last_name, first_name_en, last_name_en, gender, dob),
@@ -127,6 +127,8 @@ function ReportSheet({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     labs: any[]; sampleType: string; notLast: boolean;
 }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = (v.lab_report_meta && v.lab_report_meta[sampleType]) || {};
     return (
         <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
             <ClinicMasthead clinic={clinic} />
@@ -149,11 +151,11 @@ function ReportSheet({
                 <RptField label="Sex" value={sexEN} />
                 <RptField label="Age" value={ageFromDob(patient?.dob)} />
                 <RptField label="Clinic / Hosp" value={clinicName} />
-                <RptField label="LAB No." value={v.lab_no || "—"} mono />
+                <RptField label="LAB No." value={(m.lab_no || v.lab_no) || "—"} mono />
                 <RptField label="Sample Type" value={sampleType || "—"} />
                 <RptField label="Requested Date" value={dmyShort(v.visit_date)} />
-                <RptField label="Collected Date/Time" value={dtBkk(v.lab_collected_at)} />
-                <RptField label="Received Date/Time" value={dtBkk(v.lab_received_at)} />
+                <RptField label="Collected Date/Time" value={dtBkk(m.collected_at || v.lab_collected_at)} />
+                <RptField label="Received Date/Time" value={dtBkk(m.received_at || v.lab_received_at)} />
             </div>
 
             <div className="mt-4">
@@ -191,7 +193,7 @@ function ReportSheet({
 
                 <div className="mt-3 text-[11.5px] flex gap-2">
                     <span className="font-bold shrink-0">Comment :</span>
-                    <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{v.lab_comment || ""}</span>
+                    <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{m.comment ?? v.lab_comment ?? ""}</span>
                 </div>
                 <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
                     * ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์
@@ -199,8 +201,8 @@ function ReportSheet({
             </div>
 
             <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
-                <SignBlock role="Reported By · ผู้รายงานผล" name={v.lab_reported_by_name} license={v.lab_reported_by_license} at={v.lab_reported_at} />
-                <SignBlock role="Approved By · ผู้ตรวจสอบ" name={v.lab_approved_by_name} license={v.lab_approved_by_license} at={v.lab_approved_at} />
+                <SignBlock role="Reported By · ผู้รายงานผล" name={m.reported_by_name ?? v.lab_reported_by_name} license={m.reported_by_license ?? v.lab_reported_by_license} at={m.reported_at ?? v.lab_reported_at} />
+                <SignBlock role="Approved By · ผู้ตรวจสอบ" name={m.approved_by_name ?? v.lab_approved_by_name} license={m.approved_by_license ?? v.lab_approved_by_license} at={m.approved_at ?? v.lab_approved_at} />
             </div>
             <div className="mt-9 flex justify-center text-[12px]">
                 <div style={{ width: "56%" }}>

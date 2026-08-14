@@ -197,6 +197,8 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
     data: AnonCaseFull; clinic: Clinic; sexTitle: string; clinicName: string;
     tests: AnonTest[]; sampleType: string; notLast: boolean;
 }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = (data.lab_report_meta && data.lab_report_meta[sampleType]) || {};
     return (
         <>
             <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
@@ -219,11 +221,11 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
                     <RptField label="Sex" value={data.sex ? SEX_LABEL[data.sex] || data.sex : "—"} />
                     <RptField label="Age" value={data.age != null ? `${data.age} ปี` : "—"} />
                     <RptField label="Clinic / Hosp" value={clinicName} />
-                    <RptField label="LAB No." value={data.lab_no || "—"} mono />
+                    <RptField label="LAB No." value={(m.lab_no || data.lab_no) || "—"} mono />
                     <RptField label="Sample Type" value={sampleType || "—"} />
                     <RptField label="Requested Date" value={dmyShort(data.case_date)} />
-                    <RptField label="Collected Date/Time" value={dtBkk(data.collected_at)} />
-                    <RptField label="Received Date/Time" value={dtBkk(data.received_at)} />
+                    <RptField label="Collected Date/Time" value={dtBkk(m.collected_at || data.collected_at)} />
+                    <RptField label="Received Date/Time" value={dtBkk(m.received_at || data.received_at)} />
                 </div>
 
                 <div className="mt-4">
@@ -259,7 +261,7 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
 
                     <div className="mt-3 text-[11.5px] flex gap-2">
                         <span className="font-bold shrink-0">Comment :</span>
-                        <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{data.lab_comment || ""}</span>
+                        <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{m.comment ?? data.lab_comment ?? ""}</span>
                     </div>
                     {data.result_appt_date && <p className="mt-2 text-[11.5px]">นัดฟังผล/ติดตาม: <b>{dateThaiLong(data.result_appt_date)}</b></p>}
                     <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
@@ -268,8 +270,8 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
                 </div>
 
                 <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
-                    <SignBlock role="Reported By · ผู้รายงานผล" name={data.reported_by_name} license={data.reported_by_license} at={data.reported_at} />
-                    <SignBlock role="Approved By · ผู้ตรวจสอบ" name={data.approved_by_name} license={data.approved_by_license} at={data.approved_at} />
+                    <SignBlock role="Reported By · ผู้รายงานผล" name={m.reported_by_name ?? data.reported_by_name} license={m.reported_by_license ?? data.reported_by_license} at={m.reported_at ?? data.reported_at} />
+                    <SignBlock role="Approved By · ผู้ตรวจสอบ" name={m.approved_by_name ?? data.approved_by_name} license={m.approved_by_license ?? data.approved_by_license} at={m.approved_at ?? data.approved_at} />
                 </div>
             </div>
         </>
