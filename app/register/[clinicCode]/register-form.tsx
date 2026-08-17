@@ -191,7 +191,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Field label="วันเกิด" name="dob" type="date" />
-                        <Field label="เลขบัตรประชาชน" name="thai_id_card" placeholder="13 หลัก" maxLength={13} />
+                        <Field label="เลขบัตรประชาชน / Passport No." name="thai_id_card" placeholder="เลขบัตร 13 หลัก หรือ Passport No." maxLength={20} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
