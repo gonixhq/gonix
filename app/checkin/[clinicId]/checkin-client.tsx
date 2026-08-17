@@ -196,25 +196,22 @@ export default function CheckinClient({ clinicId }: { clinicId: string }) {
     }
 
     return (
-        <div className="min-h-screen" style={{ background: "linear-gradient(160deg,#0b1020,#141A33 55%,#1C2244)" }}>
+        <div className="min-h-screen" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
             <div className="max-w-2xl mx-auto px-4 py-8">
                 {/* Brand header */}
-                <div className="flex items-center gap-3 mb-4 text-white">
-                    <div className="h-11 w-11 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#00FFCC,#15FF83)" }}>
-                        <ShieldCheck className="h-6 w-6 text-[#0A1020]" />
-                    </div>
-                    <div>
-                        <div className="font-black text-lg leading-tight">{L.brandTitle}</div>
-                        <div className="text-[11px] text-white/60 flex items-center gap-1"><Lock className="h-3 w-3" /> {L.brandSub}</div>
-                    </div>
+                <div className="flex flex-col items-center text-center mb-5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/clinic-logo.png" alt="" className="h-28 w-28 sm:h-32 sm:w-32 object-contain mb-1" />
+                    <div className="font-black text-lg" style={{ color: "#0e7490" }}>{L.brandTitle}</div>
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 bg-white/70 ring-1 ring-cyan-100 rounded-full px-2.5 py-1"><Lock className="h-3 w-3" /> {L.brandSub}</div>
                 </div>
 
                 {/* Language switcher — ใหญ่ + ธงชาติ + กึ่งกลาง */}
                 <div className="flex justify-center mb-6">
-                    <div className="inline-flex items-center rounded-2xl bg-white/10 border border-white/15 p-1.5 gap-1.5 backdrop-blur-sm">
+                    <div className="inline-flex items-center rounded-2xl bg-white border border-slate-200 shadow-sm p-1.5 gap-1.5">
                         {([["th", "ไทย", <ThaiFlag key="th" />], ["en", "English", <UkFlag key="en" />]] as [Lang, string, React.ReactNode][]).map(([lg, name, flag]) => (
                             <button key={lg} onClick={() => setLang(lg)}
-                                className={`h-12 px-5 rounded-xl text-base font-bold inline-flex items-center gap-2.5 transition-all ${lang === lg ? "bg-white text-[#1C2244] shadow-lg scale-[1.03]" : "text-white/70 hover:text-white hover:bg-white/5"}`}>
+                                className={`h-12 px-5 rounded-xl text-base font-bold inline-flex items-center gap-2.5 transition-all ${lang === lg ? "bg-[#0891b2] text-white shadow-md scale-[1.03]" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>
                                 <span className="h-6 w-9 rounded-[3px] overflow-hidden ring-1 ring-black/10 shrink-0 inline-flex">{flag}</span>
                                 {name}
                             </button>
@@ -225,7 +222,7 @@ export default function CheckinClient({ clinicId }: { clinicId: string }) {
                 {step >= 1 && step <= 3 && (
                     <div className="flex items-center gap-1.5 mb-4">
                         {[1, 2, 3].map((s) => (
-                            <div key={s} className="flex-1 h-1.5 rounded-full" style={{ background: s <= step ? "#00FFCC" : "rgba(255,255,255,0.15)" }} />
+                            <div key={s} className="flex-1 h-1.5 rounded-full" style={{ background: s <= step ? "#0891b2" : "#dbe2e9" }} />
                         ))}
                     </div>
                 )}
@@ -352,7 +349,7 @@ export default function CheckinClient({ clinicId }: { clinicId: string }) {
                     )}
                 </div>
 
-                <p className="text-center text-[11px] text-white/40 mt-5">ระบบคลินิกนิรนาม · Powered by Gonix</p>
+                <p className="text-center text-[11px] text-slate-400 mt-5">ระบบคลินิกนิรนาม · Powered by Gonix</p>
             </div>
         </div>
     );

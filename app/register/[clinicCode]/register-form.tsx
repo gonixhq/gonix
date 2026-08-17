@@ -152,10 +152,8 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
             <div className="max-w-2xl mx-auto">
                 {/* Header */}
                 <div className="text-center mb-6 px-2">
-                    <div className="inline-flex items-center justify-center h-20 w-20 rounded-3xl bg-white shadow-lg ring-1 ring-slate-200 mb-3 overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/clinic-logo.png" alt="" className="h-14 w-14 object-contain" />
-                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/clinic-logo.png" alt="" className="mx-auto block h-32 w-32 sm:h-36 sm:w-36 object-contain mb-2" />
                     <div className="text-lg font-black text-[#0e7490]">{clinic.clinic_name}</div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight mt-1">ลงทะเบียนล่วงหน้า</h1>
                     <p className="text-sm text-slate-500 mt-1.5">กรอกข้อมูลก่อนมา เพื่อความรวดเร็วในวันรับบริการ</p>
