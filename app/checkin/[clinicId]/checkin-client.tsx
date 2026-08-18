@@ -42,7 +42,10 @@ const GENDER_IDENTITY: Opt[] = [
 ];
 const HEAR_FROM: Opt[] = [
     { value: "เพื่อน/คนรู้จัก", th: "เพื่อน/คนรู้จัก", en: "Friend / acquaintance" },
-    { value: "อินเทอร์เน็ต/โซเชียล", th: "อินเทอร์เน็ต/โซเชียล", en: "Internet / social media" },
+    { value: "Facebook", th: "Facebook", en: "Facebook" },
+    { value: "Instagram", th: "Instagram (IG)", en: "Instagram (IG)" },
+    { value: "Google Maps", th: "Google Maps", en: "Google Maps" },
+    { value: "AI (ChatGPT ฯลฯ)", th: "AI (ChatGPT ฯลฯ)", en: "AI (ChatGPT, etc.)" },
     { value: "เคยมาใช้บริการ", th: "เคยมาใช้บริการ", en: "Returning client" },
     { value: "หน่วยงาน/องค์กร", th: "หน่วยงาน/องค์กร", en: "Organization / referral" },
     { value: "อื่นๆ", th: "อื่นๆ", en: "Other" },
