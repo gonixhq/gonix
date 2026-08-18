@@ -6,7 +6,8 @@ import {
     CalendarPlus, Phone, ArrowRight, KeyRound, Smartphone,
     RotateCcw, EyeOff, Download,
 } from "lucide-react";
-import { lookupAnonResult, requestAnonFollowup, type AnonResult } from "@/lib/actions/anon-result";
+import { lookupAnonResult, requestAnonFollowup, type AnonResult, type AnonResultTest } from "@/lib/actions/anon-result";
+import { ClinicMasthead } from "@/app/print/clinic-masthead";
 import { isLabType } from "@/lib/anon-shared";
 
 type Lang = "th" | "en";
@@ -138,12 +139,13 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
                 <p className="text-center text-[11px] text-slate-400 mt-3">{t.brand}</p>
             </div>
         </div>
-        {data && <PrintDoc data={data} lang={lang} t={t} />}
+        {data && <PrintDoc data={data} lang={lang} />}
         <style>{`
             @media print {
                 .result-screen { display: none !important; }
                 .result-print { display: block !important; }
                 body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .print-page { max-width: 100% !important; margin: 0 !important; }
                 @page { size: A4; margin: 12mm; }
             }
         `}</style>
@@ -315,43 +317,154 @@ function ResultView({ data, code, phone4, onReset, onDownload, lang, t }: {
     );
 }
 
-function PrintDoc({ data, lang, t }: { data: AnonResult; lang: Lang; t: typeof T["th"] }) {
+// ── ใบ Laboratory Report (เหมือนคลินิก) สำหรับโหลด PDF ──
+const RESULT_EN: Record<string, string> = { pending: "Pending", sent_out: "Sent for confirmation", negative: "Negative", positive: "Positive", inconclusive: "Inconclusive" };
+const SEX_LABEL_TH: Record<string, string> = { male: "ชาย", female: "หญิง", other: "อื่นๆ" };
+function dmyShort(d: string): string {
+    if (!d) return "—";
+    const [y, m, dd] = String(d).slice(0, 10).split("-");
+    return `${dd}/${m}/${(y || "").slice(2)}`;
+}
+function dtBkk(iso: string | null): string {
+    if (!iso) return "—";
+    const d = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
+    const z = (n: number) => String(n).padStart(2, "0");
+    return `${z(d.getUTCDate())}/${z(d.getUTCMonth() + 1)}/${String(d.getUTCFullYear()).slice(2)} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())}`;
+}
+function dateThaiLong(d: string): string {
+    return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function PrintDoc({ data }: { data: AnonResult; lang: Lang }) {
     const labTests = data.tests.filter((tt) => isLabType(tt.item_type));
+    const sexTitle = data.sex === "female" ? "Ms." : data.sex === "male" ? "Mr." : "";
+    const clinicName = data.clinic_name || "—";
+    const clinic = {
+        clinic_name: data.clinic_name, clinic_name_en: data.clinic_name_en,
+        company_name: data.company_name, company_name_en: data.company_name_en,
+        address_detail: data.address_detail, phone: data.clinic_phone,
+        license_number: data.license_number, logo_url: data.logo_url,
+    };
+    const grpMap = new Map<string, AnonResultTest[]>();
+    for (const t of labTests) {
+        const k = String(t.sample_type || data.sample_type || "").trim();
+        const a = grpMap.get(k) || [];
+        a.push(t); grpMap.set(k, a);
+    }
+    const groups = [...grpMap.entries()].map(([label, tests]) => ({ label, tests }));
+    if (groups.length === 0) groups.push({ label: String(data.sample_type || ""), tests: [] });
     return (
         <div className="result-print" style={{ display: "none" }}>
-            <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#0f172a", maxWidth: "190mm", margin: "0 auto" }}>
-                <div style={{ textAlign: "center", borderBottom: "2px solid #0891b2", paddingBottom: "10px" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/clinic-logo.png" alt="" style={{ height: "70px", objectFit: "contain" }} />
-                    <div style={{ fontSize: "18px", fontWeight: 900, color: "#0e7490", marginTop: "4px" }}>{data.clinic_name || "ธนเวชคลินิกเวชกรรม"}</div>
-                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{lang === "th" ? "ใบสรุปผลตรวจ (นิรนาม)" : "Result Summary (Anonymous)"}</div>
+            {groups.map((grp, idx) => (
+                <AnonSheet key={idx} data={data} clinic={clinic} clinicName={clinicName} sexTitle={sexTitle} tests={grp.tests} sampleType={grp.label} notLast={idx < groups.length - 1} />
+            ))}
+        </div>
+    );
+}
+
+function AnonSheet({ data, clinic, clinicName, sexTitle, tests, sampleType, notLast }: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: AnonResult; clinic: any; clinicName: string; sexTitle: string;
+    tests: AnonResultTest[]; sampleType: string; notLast: boolean;
+}) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m: any = (data.lab_report_meta && data.lab_report_meta[sampleType]) || {};
+    return (
+        <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
+            <ClinicMasthead clinic={clinic} />
+            <div className="flex justify-end items-center gap-2.5 mt-1.5">
+                <div className="text-[9px] text-slate-600 text-right leading-tight">
+                    <div>Tested at an ISO 15189</div>
+                    <div className="font-semibold text-slate-700">accredited laboratory</div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", margin: "14px 0" }}>
-                    <span><b>{t.caseCode}:</b> <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0e7490" }}>{data.code}</span></span>
-                    <span>{new Date().toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { dateStyle: "long" })}</span>
-                </div>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/accredit-ilac.png" alt="ilac-MRA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/accredit-dmsc.png" alt="DMSc QA" style={{ height: "34px", width: "auto", filter: "grayscale(100%)" }} />
+            </div>
+            <div className="text-center mt-3" style={{ fontSize: "18px", fontWeight: 900 }}>
+                Laboratory Report<span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b" }}> · ใบรายงานผลตรวจ (นิรนาม)</span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-[12px]" style={{ borderTop: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1", padding: "10px 2px" }}>
+                <RptField label="Patient Name" value={`${sexTitle} ${data.code || ""}`.trim()} />
+                <RptField label="HN / PID" value="—" />
+                <RptField label="Sex" value={data.sex ? SEX_LABEL_TH[data.sex] || data.sex : "—"} />
+                <RptField label="Age" value={data.age != null ? `${data.age} ปี` : "—"} />
+                <RptField label="Clinic / Hosp" value={clinicName} />
+                <RptField label="LAB No." value={(m.lab_no || data.lab_no) || "—"} mono />
+                <RptField label="Sample Type" value={sampleType || "—"} />
+                <RptField label="Requested Date" value={dmyShort(data.case_date)} />
+                <RptField label="Collected Date/Time" value={dtBkk(m.collected_at || data.collected_at)} />
+                <RptField label="Received Date/Time" value={dtBkk(m.received_at || data.received_at)} />
+            </div>
+
+            <div className="mt-4">
+                <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
                     <thead>
-                        <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }}>
-                            <th style={{ textAlign: "left", padding: "8px", width: "58%" }}>{lang === "th" ? "รายการตรวจ" : "Test"}</th>
-                            <th style={{ textAlign: "left", padding: "8px" }}>{lang === "th" ? "ผล" : "Result"}</th>
+                        <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
+                            <th className="py-2 px-2 font-black" style={{ width: "58%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
+                            <th className="py-2 px-2 font-black">Results <span className="text-[10px] font-semibold text-slate-500">ผลตรวจ</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {labTests.map((tt, i) => {
-                            const v = RESULT_VIEW[tt.result_status] || RESULT_VIEW.pending;
+                        {tests.map((t, i) => {
+                            const pos = t.result_status === "positive";
+                            const main = t.result_value || RESULT_EN[t.result_status] || "Pending";
+                            const enWord = RESULT_EN[t.result_status] || "";
+                            const showEn = t.result_status !== "pending" && t.result_status !== "sent_out" && !!enWord && String(t.result_value || "").toLowerCase() !== enWord.toLowerCase();
                             return (
-                                <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                                    <td style={{ padding: "8px", fontWeight: 600 }}>{tt.test_name}</td>
-                                    <td style={{ padding: "8px", fontWeight: 700 }}>{v[lang]}</td>
+                                <tr key={i} style={{ borderBottom: "1px solid #e2e8f0", background: i % 2 ? "#f8fafc" : "#fff" }}>
+                                    <td className="py-2 px-2 font-semibold align-top">{t.item_type === "lab_external" ? "*" : ""}{t.test_name}</td>
+                                    <td className="py-2 px-2 align-top">
+                                        <span style={{ fontWeight: 700, color: pos ? "#be123c" : "#0f172a" }}>{main}</span>
+                                        {showEn ? <span className="text-slate-400 text-[11px]"> · {enWord}</span> : null}
+                                        {t.result_note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{t.result_note}</div> : null}
+                                    </td>
                                 </tr>
                             );
                         })}
+                        {tests.length === 0 && <tr><td colSpan={2} className="py-3 px-2 text-slate-400 italic">ยังไม่มีรายการตรวจ Lab</td></tr>}
                     </tbody>
                 </table>
-                <p style={{ fontSize: "11px", color: "#64748b", fontStyle: "italic", marginTop: "14px", lineHeight: 1.6 }}>* {lang === "th" ? "ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์" : "Results should be interpreted and consulted with a medical professional."}</p>
-                {data.clinic_phone && <p style={{ fontSize: "12px", marginTop: "6px" }}>{t.contactBtn}: {data.clinic_phone}</p>}
+
+                <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ห้องปฏิบัติการที่ได้รับการรับรอง ISO 15189</p>
+
+                <div className="mt-3 text-[11.5px] flex gap-2">
+                    <span className="font-bold shrink-0">Comment :</span>
+                    <span className="flex-1" style={{ borderBottom: "1px dotted #94a3b8", minHeight: "16px" }}>{m.comment ?? data.lab_comment ?? ""}</span>
+                </div>
+                {data.result_appt_date && <p className="mt-2 text-[11.5px]">นัดฟังผล/ติดตาม: <b>{dateThaiLong(data.result_appt_date)}</b></p>}
+                <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">
+                    * เอกสารไม่ระบุตัวตน — กรุณาเก็บรหัสเคสไว้เพื่อติดตามผลและรับคำปรึกษา ผลตรวจควรได้รับการแปลผลจากบุคลากรทางการแพทย์
+                </p>
             </div>
+
+            <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
+                <SignBlock role="Reported By · ผู้รายงานผล" name={m.reported_by_name ?? data.reported_by_name} license={m.reported_by_license ?? data.reported_by_license} at={m.reported_at ?? data.reported_at} />
+                <SignBlock role="Approved By · ผู้ตรวจสอบ" name={m.approved_by_name ?? data.approved_by_name} license={m.approved_by_license ?? data.approved_by_license} at={m.approved_at ?? data.approved_at} />
+            </div>
+        </div>
+    );
+}
+
+function RptField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+    return (
+        <div className="flex items-baseline gap-1.5">
+            <span className="text-slate-500 shrink-0">{label} :</span>
+            <span className={`flex-1 font-semibold ${mono ? "font-mono" : ""}`} style={{ borderBottom: "1px dotted #cbd5e1" }}>{value}</span>
+        </div>
+    );
+}
+
+function SignBlock({ role, name, license, at }: { role: string; name: string | null; license: string | null; at: string | null }) {
+    return (
+        <div className="text-center">
+            <div style={{ borderBottom: "1px solid #000" }} className="h-9 mb-1 flex items-end justify-center pb-1">
+                <span className="text-[12px] font-semibold">{name || ""}{license ? `  ${license}` : ""}</span>
+            </div>
+            <div className="text-[10px] italic text-slate-600">{role}</div>
+            {at ? <div className="text-[10px] text-slate-500 mt-0.5">{dtBkk(at)}</div> : null}
         </div>
     );
 }

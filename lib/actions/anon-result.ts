@@ -8,6 +8,8 @@ export interface AnonResultTest {
     item_type: string;
     result_status: string;
     result_value: string | null;
+    result_note?: string | null;
+    sample_type?: string | null;
 }
 export interface AnonResult {
     code: string;
@@ -16,8 +18,32 @@ export interface AnonResult {
     result_appt_date: string | null;
     paid: boolean;
     followup_requested: boolean;
+    // patient / sample info (สำหรับใบ Laboratory Report)
+    sex: string | null;
+    age: number | null;
+    lab_no: string | null;
+    sample_type: string | null;
+    collected_at: string | null;
+    received_at: string | null;
+    lab_comment: string | null;
+    reported_by_name: string | null;
+    reported_by_license: string | null;
+    reported_at: string | null;
+    approved_by_name: string | null;
+    approved_by_license: string | null;
+    approved_at: string | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lab_report_meta: Record<string, any>;
+    // clinic masthead
     clinic_name: string | null;
+    clinic_name_en: string | null;
+    company_name: string | null;
+    company_name_en: string | null;
+    address_detail: string | null;
     clinic_phone: string | null;
+    license_number: string | null;
+    tax_id: string | null;
+    logo_url: string | null;
     tests: AnonResultTest[];
 }
 
