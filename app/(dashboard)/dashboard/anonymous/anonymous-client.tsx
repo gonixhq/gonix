@@ -18,6 +18,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
     collected: { label: "เก็บตัวอย่าง", cls: "bg-indigo-100 text-indigo-700" },
     resulted: { label: "มีผลแล้ว", cls: "bg-emerald-100 text-emerald-700" },
     closed: { label: "ปิดเคส", cls: "bg-slate-200 text-slate-600" },
+    cancelled: { label: "ยกเลิก", cls: "bg-slate-200 text-slate-500" },
 };
 const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญิง", other: "อื่นๆ" };
 const ITEM_TYPE_LABEL: Record<string, string> = {
@@ -187,7 +188,7 @@ export default function AnonymousClient({
                             {filtered.map((c) => {
                                 const st = STATUS[c.status] || STATUS.registered;
                                 return (
-                                    <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50/50 cursor-pointer"
+                                    <tr key={c.id} className={`border-t border-slate-100 hover:bg-slate-50/50 cursor-pointer ${c.cancelled_at ? "opacity-60" : ""}`}
                                         onClick={() => router.push(`/dashboard/anonymous/${c.id}`)}>
                                         <td className="px-4 py-3">
                                             <span className="font-mono font-bold text-[#2B54F0]">{c.code}</span>
@@ -199,6 +200,11 @@ export default function AnonymousClient({
                                             )}
                                             {c.followup_requested && (
                                                 <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 inline-flex items-center gap-0.5"><CalendarClock className="h-2.5 w-2.5" /> ขอนัด</span>
+                                            )}
+                                            {c.cancelled_at && (
+                                                <div className="text-[10px] text-slate-400 mt-1 line-clamp-1">
+                                                    ยกเลิก {new Date(c.cancelled_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}{c.cancelled_by_name ? ` · โดย ${c.cancelled_by_name}` : ""}{c.cancel_reason ? ` · ${c.cancel_reason}` : ""}
+                                                </div>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-slate-600">{formatDateThai(c.case_date)}</td>

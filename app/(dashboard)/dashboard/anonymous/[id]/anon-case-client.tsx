@@ -7,11 +7,11 @@ import Link from "next/link";
 import {
     ShieldCheck, ArrowLeft, TestTube, Plus, Trash2, Loader2, Save,
     MessageSquareHeart, Wallet, CheckCircle2, Printer, CalendarClock, FileText,
-    Activity, EyeOff, AlertTriangle, Tag, Package,
+    Activity, EyeOff, AlertTriangle, Tag, Package, Ban, RotateCcw,
 } from "lucide-react";
 import {
     updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest, addAnonPanel,
-    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals, saveLabReport, saveAnonReportMeta, saveAnonTestResults,
+    recordAnonPayment, cancelAnonPayment, setAnonStatus, saveVitals, saveLabReport, saveAnonReportMeta, saveAnonTestResults, cancelAnonCase, uncancelAnonCase,
     type AnonCaseFull, type LabService, type AnonTest, type AnonPanel,
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
@@ -29,7 +29,7 @@ const RESULT_STATUS: Record<string, { label: string; cls: string }> = {
 };
 const STATUS_FLOW = ["opened", "collected", "resulted", "closed"];
 const STATUS_LABEL: Record<string, string> = {
-    registered: "ลงทะเบียน", opened: "เปิดเคสแล้ว", collected: "เก็บตัวอย่าง", resulted: "มีผลแล้ว", closed: "ปิดเคส",
+    registered: "ลงทะเบียน", opened: "เปิดเคสแล้ว", collected: "เก็บตัวอย่าง", resulted: "มีผลแล้ว", closed: "ปิดเคส", cancelled: "ยกเลิก",
 };
 const PAYMENT_METHODS: [string, string][] = [
     ["cash", "เงินสด"], ["transfer", "โอน"], ["qr_promptpay", "QR / พร้อมเพย์"], ["credit_card", "บัตรเครดิต"],
@@ -88,18 +88,42 @@ export default function AnonCaseClient({ data, services, panels, perms }: { data
                             className="h-9 px-3 rounded-xl border border-slate-200 inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
                             <FileText className="h-4 w-4" /> ใบเสร็จ
                         </a>
+                        {data.status !== "cancelled" && (
+                            <button onClick={() => { const r = prompt("เหตุผลที่ยกเลิกเคส (ไม่บังคับ):"); if (r === null) return; run(() => cancelAnonCase(data.id, r)); }}
+                                className="h-9 px-3 rounded-xl border border-rose-200 inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50">
+                                <Ban className="h-4 w-4" /> ยกเลิกเคส
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Status flow */}
-                <div className="flex items-center gap-1.5 mt-4 flex-wrap">
-                    {STATUS_FLOW.map((s) => (
-                        <button key={s} disabled={busy} onClick={() => startBusy(async () => { const r = await setAnonStatus(data.id, s); if (!r.ok) { toast.error(r.error); return; } router.refresh(); })}
-                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${data.status === s ? "bg-[#2B54F0] text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
-                            {STATUS_LABEL[s]}
+                {/* Status flow / cancelled banner */}
+                {data.status === "cancelled" ? (
+                    <div className="mt-4 rounded-xl bg-slate-100 border border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="flex items-start gap-2 min-w-0">
+                            <Ban className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+                            <div className="text-sm text-slate-600 min-w-0">
+                                <span className="font-bold text-slate-700">เคสถูกยกเลิก</span>
+                                {data.cancelled_at && <span className="text-xs"> · {new Date(data.cancelled_at).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}</span>}
+                                {data.cancelled_by_name && <span className="text-xs"> · โดย {data.cancelled_by_name}</span>}
+                                {data.cancel_reason && <div className="text-xs text-slate-500 mt-0.5">เหตุผล: {data.cancel_reason}</div>}
+                            </div>
+                        </div>
+                        <button disabled={busy} onClick={() => run(() => uncancelAnonCase(data.id))}
+                            className="h-8 px-3 rounded-lg border border-slate-300 text-xs font-bold text-slate-600 hover:bg-white inline-flex items-center gap-1 shrink-0 disabled:opacity-50">
+                            <RotateCcw className="h-3.5 w-3.5" /> คืนสภาพ
                         </button>
-                    ))}
-                </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1.5 mt-4 flex-wrap">
+                        {STATUS_FLOW.map((s) => (
+                            <button key={s} disabled={busy} onClick={() => startBusy(async () => { const r = await setAnonStatus(data.id, s); if (!r.ok) { toast.error(r.error); return; } router.refresh(); })}
+                                className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${data.status === s ? "bg-[#2B54F0] text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                                {STATUS_LABEL[s]}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className={perms.manage ? "grid grid-cols-1 lg:grid-cols-3 gap-4" : "space-y-4"}>

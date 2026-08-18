@@ -47,6 +47,9 @@ export interface AnonCaseRow {
     positive_count: number;
     pending_count: number;
     followup_requested: boolean;
+    cancelled_at: string | null;
+    cancel_reason: string | null;
+    cancelled_by_name: string | null;
 }
 
 export interface AnonCaseFull {
@@ -70,6 +73,9 @@ export interface AnonCaseFull {
     receipt_no: string | null;
     status: string;
     note: string | null;
+    cancelled_at: string | null;
+    cancel_reason: string | null;
+    cancelled_by_name: string | null;
     // online registration
     verify_code: string | null;
     reg_channel: string;
@@ -136,7 +142,7 @@ export async function getAnonStats(): Promise<AnonStats> {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .filter((t: any) => {
                 const h = Array.isArray(t.anon_cases) ? t.anon_cases[0] : t.anon_cases;
-                return h && h.status !== "closed";
+                return h && h.status !== "closed" && h.status !== "cancelled";
             })
             .map((t) => t.case_id as string)
     );
@@ -145,8 +151,8 @@ export async function getAnonStats(): Promise<AnonStats> {
         pendingOnline: rows.filter((r) => r.status === "registered" && r.reg_channel === "online").length,
         awaitingResult: rows.filter((r) => r.status === "opened" || r.status === "collected").length,
         positiveOpen: posOpen.size,
-        unpaid: rows.filter((r) => r.paid === false && r.status !== "closed" && r.status !== "registered").length,
-        followupPending: rows.filter((r) => r.followup_requested === true && r.status !== "closed").length,
+        unpaid: rows.filter((r) => r.paid === false && r.status !== "closed" && r.status !== "registered" && r.status !== "cancelled").length,
+        followupPending: rows.filter((r) => r.followup_requested === true && r.status !== "closed" && r.status !== "cancelled").length,
     };
 }
 
@@ -216,7 +222,7 @@ export async function getAnonCases(search?: string): Promise<AnonCaseRow[]> {
     // เจ้าหน้าที่ต้องป้อนรหัสยืนยันเพื่อเปิดเคสก่อนถึงเห็นข้อมูล
     let q = supabase
         .from("anon_cases")
-        .select("id, case_code, verify_code, reg_channel, case_date, sex, age, status, total_amount, paid, followup_requested, anon_case_tests(result_status, item_type)")
+        .select("id, case_code, verify_code, reg_channel, case_date, sex, age, status, total_amount, paid, followup_requested, cancelled_at, cancel_reason, canceller:profiles!anon_cases_cancelled_by_fkey(full_name), anon_case_tests(result_status, item_type)")
         .eq("clinic_id", clinicId)
         .neq("status", "registered")
         .order("case_date", { ascending: false })
@@ -231,6 +237,8 @@ export async function getAnonCases(search?: string): Promise<AnonCaseRow[]> {
     return (data || []).map((c) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tests: any[] = c.anon_case_tests || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const canc: any = Array.isArray((c as any).canceller) ? (c as any).canceller[0] : (c as any).canceller;
         return {
             id: c.id as string,
             code: (c.verify_code as string) || (c.case_code as string) || "—",
@@ -245,6 +253,9 @@ export async function getAnonCases(search?: string): Promise<AnonCaseRow[]> {
             positive_count: tests.filter((t) => t.result_status === "positive").length,
             pending_count: tests.filter((t) => isLab(t.item_type) && t.result_status === "pending").length,
             followup_requested: !!c.followup_requested,
+            cancelled_at: (c.cancelled_at as string) ?? null,
+            cancel_reason: (c.cancel_reason as string) ?? null,
+            cancelled_by_name: (canc?.full_name as string) ?? null,
         };
     });
 }
@@ -254,9 +265,11 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
     const { supabase, clinicId } = await getCtx();
     const { data: c } = await supabase
         .from("anon_cases")
-        .select("*")
+        .select("*, canceller:profiles!anon_cases_cancelled_by_fkey(full_name)")
         .eq("id", id).eq("clinic_id", clinicId).maybeSingle();
     if (!c) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const canc: any = Array.isArray((c as any).canceller) ? (c as any).canceller[0] : (c as any).canceller;
 
     const { data: tests } = await supabase
         .from("anon_case_tests")
@@ -273,6 +286,7 @@ export async function getAnonCase(id: string): Promise<AnonCaseFull | null> {
         total_amount: num(c.total_amount), paid: !!c.paid, payment_method: c.payment_method,
         paid_at: c.paid_at, receipt_no: c.receipt_no,
         status: c.status, note: c.note,
+        cancelled_at: c.cancelled_at ?? null, cancel_reason: c.cancel_reason ?? null, cancelled_by_name: (canc?.full_name as string) ?? null,
         verify_code: c.verify_code ?? null, reg_channel: (c.reg_channel as string) || "walkin",
         code_expires_at: c.code_expires_at ?? null,
         contact_email: c.contact_email ?? null, contact_phone: c.contact_phone ?? null,
@@ -770,6 +784,30 @@ export async function setAnonStatus(id: string, status: string) {
         if (pending.length > 0) return { ok: false as const, error: `ยังกรอกผลไม่ครบ (เหลือ ${pending.length} รายการรอผล) — กรอกผลให้ครบก่อนตั้งเป็น "มีผลแล้ว"` };
     }
     await supabase.from("anon_cases").update({ status }).eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath(`/dashboard/anonymous/${id}`);
+    revalidatePath("/dashboard/anonymous");
+    return { ok: true as const };
+}
+
+// ยกเลิกเคส (ไม่ลบ) — status=cancelled + บันทึกวันเวลา/เหตุผล/ผู้ยกเลิก
+export async function cancelAnonCase(id: string, reason: string) {
+    const { supabase, clinicId, userId } = await getCtx();
+    await supabase.from("anon_cases").update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancel_reason: reason?.trim() || null,
+        cancelled_by: userId,
+    }).eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath(`/dashboard/anonymous/${id}`);
+    revalidatePath("/dashboard/anonymous");
+    return { ok: true as const };
+}
+
+export async function uncancelAnonCase(id: string) {
+    const { supabase, clinicId } = await getCtx();
+    await supabase.from("anon_cases").update({
+        status: "opened", cancelled_at: null, cancel_reason: null, cancelled_by: null,
+    }).eq("id", id).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/anonymous/${id}`);
     revalidatePath("/dashboard/anonymous");
     return { ok: true as const };
