@@ -95,7 +95,7 @@ const T = {
         servicesLabel: "เลือกบริการ (ได้หลายข้อ)", hivYear: "หากทราบว่าติดเชื้อ HIV อยู่แล้ว — ทราบผลเมื่อปี พ.ศ.", hivYearPh: "เช่น 2565 (ไม่บังคับ)",
         reasons: "สาเหตุที่เข้ารับบริการตรวจ", protections: "การป้องกันในเหตุการณ์เสี่ยง",
         riskTime: "ระยะเวลาที่เกิดความเสี่ยงล่าสุด", selfHarm: "เคยมีความคิดทำร้ายตนเองหรือไม่", wantCounselor: "ต้องการผู้ให้คำปรึกษาพิเศษหรือไม่",
-        yes: "ใช่", no: "ไม่ใช่", selectPh: "— เลือก —",
+        yes: "ใช่", no: "ไม่ใช่", selectPh: "— เลือก —", provincePh: "เลือก หรือพิมพ์จังหวัด / ประเทศ",
         regSuccess: "ลงทะเบียนสำเร็จ", regSuccessSub: "นำรหัสนี้ไปยื่นที่เคาน์เตอร์คลินิก",
         verifyCode: "รหัสยืนยัน (Verify Code)", copyCode: "คัดลอกรหัส", copied: "คัดลอกแล้ว!", downloadQR: "ดาวน์โหลด QR",
         expiryNote: (d: string) => `รหัสมีอายุ 72 ชั่วโมง (หมดอายุ ${d})`,
@@ -120,7 +120,7 @@ const T = {
         servicesLabel: "Select services (multiple)", hivYear: "If already HIV positive — year diagnosed (B.E.)", hivYearPh: "e.g. 2565 (optional)",
         reasons: "Reasons for testing", protections: "Protection during risky event",
         riskTime: "Time since last risk event", selfHarm: "Ever had thoughts of self-harm?", wantCounselor: "Need a special counselor?",
-        yes: "Yes", no: "No", selectPh: "— Select —",
+        yes: "Yes", no: "No", selectPh: "— Select —", provincePh: "Select or type province / country",
         regSuccess: "Registration complete", regSuccessSub: "Show this code at the clinic counter",
         verifyCode: "Verify Code", copyCode: "Copy code", copied: "Copied!", downloadQR: "Download QR",
         expiryNote: (d: string) => `Code valid for 72 hours (expires ${d})`,
@@ -258,9 +258,9 @@ export default function CheckinClient({ clinicId }: { clinicId: string }) {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <Txt label={L.district} value={f.addr_district} onChange={(v) => set("addr_district", v)} />
-                                <Sel label={L.province} value={f.addr_province} onChange={(v) => set("addr_province", v)} options={provinceOpts} lang={lang} ph={L.selectPh} />
+                                <Combo label={L.province} value={f.addr_province} onChange={(v) => set("addr_province", v)} options={provinceOpts} ph={L.provincePh} listId="prov-current" />
                             </div>
-                            <Sel label={L.birthProvince} value={f.birth_province} onChange={(v) => set("birth_province", v)} options={provinceOpts} lang={lang} ph={L.selectPh} />
+                            <Combo label={L.birthProvince} value={f.birth_province} onChange={(v) => set("birth_province", v)} options={provinceOpts} ph={L.provincePh} listId="prov-birth" />
                             <div className="grid grid-cols-2 gap-3">
                                 <Txt label={L.email} type="email" value={f.email} onChange={(v) => set("email", v)} placeholder={L.emailPh} />
                                 <Txt label={L.phone} type="tel" value={f.phone} onChange={(v) => set("phone", v)} placeholder={L.phonePh} />
@@ -461,6 +461,19 @@ function Sel({ label, value, onChange, options, lang, ph }: {
                 <option value="">{ph}</option>
                 {options.map((o) => <option key={o.value} value={o.value}>{lbl(o, lang)}</option>)}
             </select>
+        </div>
+    );
+}
+// input + datalist — เลือกจังหวัดไทยได้ หรือพิมพ์ประเทศ/จังหวัดต่างชาติเอง
+function Combo({ label, value, onChange, options, ph, listId }: {
+    label: string; value: string; onChange: (v: string) => void; options: Opt[]; ph: string; listId: string;
+}) {
+    return (
+        <div>
+            <FieldLabel>{label}</FieldLabel>
+            <input list={listId} value={value} onChange={(e) => onChange(e.target.value)} placeholder={ph}
+                className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
+            <datalist id={listId}>{options.map((o) => <option key={o.value} value={o.value} />)}</datalist>
         </div>
     );
 }
