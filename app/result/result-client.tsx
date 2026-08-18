@@ -4,7 +4,7 @@ import { useState, useTransition, useRef } from "react";
 import {
     ShieldCheck, Lock, Loader2, AlertTriangle, CheckCircle2, Clock,
     CalendarPlus, Phone, ArrowRight, KeyRound, Smartphone,
-    RotateCcw, EyeOff,
+    RotateCcw, EyeOff, Download,
 } from "lucide-react";
 import { lookupAnonResult, requestAnonFollowup, type AnonResult } from "@/lib/actions/anon-result";
 import { isLabType } from "@/lib/anon-shared";
@@ -40,7 +40,7 @@ const T = {
         heroPartialT: "มีผลแล้วบางส่วน", heroPartialD: "บางรายการยังรอผลจากห้องปฏิบัติการ",
         heroNormalT: "ผลปกติทั้งหมด", heroNormalD: "หากมีข้อสงสัย ปรึกษาแพทย์ได้ที่คลินิก",
         apptBtn: "นัดหมายพบแพทย์", apptDoneT: "ส่งคำขอนัดหมายแล้ว", apptDoneD: "เจ้าหน้าที่จะติดต่อกลับเร็วที่สุด",
-        apptDate: "นัดฟังผล/ติดตาม:", contactBtn: "ติดต่อคลินิก", resetBtn: "เช็ครหัสอื่น",
+        apptDate: "นัดฟังผล/ติดตาม:", contactBtn: "ติดต่อคลินิก", resetBtn: "เช็ครหัสอื่น", downloadPdf: "โหลดผลเป็น PDF",
     },
     en: {
         brandSub: "Anonymous · Confidential · Encrypted",
@@ -53,7 +53,7 @@ const T = {
         heroPartialT: "Some results ready", heroPartialD: "Some items are still awaiting lab results",
         heroNormalT: "All results normal", heroNormalD: "If you have questions, consult a doctor at the clinic",
         apptBtn: "Request appointment", apptDoneT: "Appointment requested", apptDoneD: "Staff will contact you soon",
-        apptDate: "Follow-up appointment:", contactBtn: "Contact clinic", resetBtn: "Check another code",
+        apptDate: "Follow-up appointment:", contactBtn: "Contact clinic", resetBtn: "Check another code", downloadPdf: "Download PDF",
     },
 };
 // แปล error จาก server (ไทย) → EN
@@ -83,10 +83,17 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
         });
     }
     function reset() { setData(null); setErr(""); setPhone4(""); }
+    function downloadPdf() {
+        const prev = document.title;
+        if (data) document.title = `${data.code}-result`;
+        window.print();
+        setTimeout(() => { document.title = prev; }, 800);
+    }
     const canSubmit = code.trim().length >= 4 && phone4.length === 4 && !busy;
 
     return (
-        <div className="min-h-screen" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
+        <>
+        <div className="min-h-screen result-screen" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
             <div className="max-w-md mx-auto px-4 py-8 sm:py-12">
                 {/* Language switch */}
                 <div className="flex justify-end mb-3">
@@ -119,7 +126,7 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
                                 err={err} busy={busy} canSubmit={canSubmit} submit={submit} phoneRef={phoneRef}
                             />
                         ) : (
-                            <ResultView data={data} code={code} phone4={phone4} onReset={reset} lang={lang} t={t} />
+                            <ResultView data={data} code={code} phone4={phone4} onReset={reset} onDownload={downloadPdf} lang={lang} t={t} />
                         )}
                     </div>
                 </div>
@@ -131,6 +138,16 @@ export default function ResultClient({ initialCode }: { initialCode: string }) {
                 <p className="text-center text-[11px] text-slate-400 mt-3">{t.brand}</p>
             </div>
         </div>
+        {data && <PrintDoc data={data} lang={lang} t={t} />}
+        <style>{`
+            @media print {
+                .result-screen { display: none !important; }
+                .result-print { display: block !important; }
+                body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                @page { size: A4; margin: 12mm; }
+            }
+        `}</style>
+        </>
     );
 }
 
@@ -182,8 +199,8 @@ function LoginForm({ t, code, setCode, phone4, setPhone4, err, busy, canSubmit, 
     );
 }
 
-function ResultView({ data, code, phone4, onReset, lang, t }: {
-    data: AnonResult; code: string; phone4: string; onReset: () => void; lang: Lang; t: typeof T["th"];
+function ResultView({ data, code, phone4, onReset, onDownload, lang, t }: {
+    data: AnonResult; code: string; phone4: string; onReset: () => void; onDownload: () => void; lang: Lang; t: typeof T["th"];
 }) {
     const [requested, setRequested] = useState(data.followup_requested);
     const [busy, startBusy] = useTransition();
@@ -277,6 +294,13 @@ function ResultView({ data, code, phone4, onReset, lang, t }: {
                 </div>
             )}
 
+            {hasResults && (
+                <button onClick={onDownload}
+                    className="w-full h-11 rounded-xl border-2 border-cyan-500 text-cyan-700 text-sm font-bold inline-flex items-center justify-center gap-1.5 hover:bg-cyan-50 transition">
+                    <Download className="h-4 w-4" /> {t.downloadPdf}
+                </button>
+            )}
+
             <div className="flex gap-2 pt-1">
                 {data.clinic_phone && (
                     <a href={`tel:${data.clinic_phone}`} className="flex-1 h-11 rounded-xl border border-slate-200 text-slate-700 text-sm font-bold inline-flex items-center justify-center gap-1.5 hover:bg-slate-50">
@@ -286,6 +310,47 @@ function ResultView({ data, code, phone4, onReset, lang, t }: {
                 <button onClick={onReset} className="flex-1 h-11 rounded-xl border border-slate-200 text-slate-500 text-sm font-bold inline-flex items-center justify-center gap-1.5 hover:bg-slate-50">
                     <RotateCcw className="h-4 w-4" /> {t.resetBtn}
                 </button>
+            </div>
+        </div>
+    );
+}
+
+function PrintDoc({ data, lang, t }: { data: AnonResult; lang: Lang; t: typeof T["th"] }) {
+    const labTests = data.tests.filter((tt) => isLabType(tt.item_type));
+    return (
+        <div className="result-print" style={{ display: "none" }}>
+            <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#0f172a", maxWidth: "190mm", margin: "0 auto" }}>
+                <div style={{ textAlign: "center", borderBottom: "2px solid #0891b2", paddingBottom: "10px" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/clinic-logo.png" alt="" style={{ height: "70px", objectFit: "contain" }} />
+                    <div style={{ fontSize: "18px", fontWeight: 900, color: "#0e7490", marginTop: "4px" }}>{data.clinic_name || "ธนเวชคลินิกเวชกรรม"}</div>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{lang === "th" ? "ใบสรุปผลตรวจ (นิรนาม)" : "Result Summary (Anonymous)"}</div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", margin: "14px 0" }}>
+                    <span><b>{t.caseCode}:</b> <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#0e7490" }}>{data.code}</span></span>
+                    <span>{new Date().toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { dateStyle: "long" })}</span>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                        <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }}>
+                            <th style={{ textAlign: "left", padding: "8px", width: "58%" }}>{lang === "th" ? "รายการตรวจ" : "Test"}</th>
+                            <th style={{ textAlign: "left", padding: "8px" }}>{lang === "th" ? "ผล" : "Result"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {labTests.map((tt, i) => {
+                            const v = RESULT_VIEW[tt.result_status] || RESULT_VIEW.pending;
+                            return (
+                                <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                                    <td style={{ padding: "8px", fontWeight: 600 }}>{tt.test_name}</td>
+                                    <td style={{ padding: "8px", fontWeight: 700 }}>{v[lang]}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+                <p style={{ fontSize: "11px", color: "#64748b", fontStyle: "italic", marginTop: "14px", lineHeight: 1.6 }}>* {lang === "th" ? "ผลตรวจควรได้รับการแปลผลและคำปรึกษาจากบุคลากรทางการแพทย์" : "Results should be interpreted and consulted with a medical professional."}</p>
+                {data.clinic_phone && <p style={{ fontSize: "12px", marginTop: "6px" }}>{t.contactBtn}: {data.clinic_phone}</p>}
             </div>
         </div>
     );
