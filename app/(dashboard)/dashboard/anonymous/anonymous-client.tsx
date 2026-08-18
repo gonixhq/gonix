@@ -311,6 +311,7 @@ function RegisterModal({
     const [sex, setSex] = useState("");
     const [age, setAge] = useState("");
     const [risk, setRisk] = useState("");
+    const [phone4, setPhone4] = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [selPanels, setSelPanels] = useState<Set<string>>(new Set());
     const activePanels = panels.filter((p) => p.is_active);
@@ -358,6 +359,7 @@ function RegisterModal({
                 sex: sex || undefined,
                 age: age ? Number(age) : null,
                 risk_note: risk || undefined,
+                phone4: phone4 || undefined,
                 serviceIds: [...selected],
                 panelIds: [...selPanels],
                 pre_counsel_done: preDone,
@@ -405,6 +407,13 @@ function RegisterModal({
                                 placeholder="เช่น 28"
                                 className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:border-[#2B54F0] focus:outline-none" />
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">เบอร์มือถือ 4 ตัวท้าย <span className="text-slate-400 font-normal">(ใช้ยืนยันดูผลออนไลน์)</span></label>
+                        <input inputMode="numeric" maxLength={4} value={phone4} onChange={(e) => setPhone4(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                            placeholder="เช่น 4993"
+                            className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono tracking-widest focus:border-[#2B54F0] focus:outline-none" />
                     </div>
 
                     <div>

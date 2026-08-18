@@ -441,7 +441,7 @@ async function nextCaseCode(supabase: Awaited<ReturnType<typeof getCtx>>["supaba
 }
 
 export async function createAnonCase(input: {
-    sex?: string; age?: number | null; risk_note?: string;
+    sex?: string; age?: number | null; risk_note?: string; phone4?: string;
     serviceIds: string[];
     panelIds?: string[];
     pre_counsel_done?: boolean; pre_counsel_note?: string;
@@ -487,6 +487,7 @@ export async function createAnonCase(input: {
         const { data, error } = await supabase.from("anon_cases").insert({
             clinic_id: clinicId, case_code: caseCode, verify_code: verifyCode, reg_channel: "walkin", case_date: date,
             sex: input.sex || null, age: input.age ?? null, risk_note: input.risk_note || null,
+            contact_phone: (input.phone4 || "").replace(/\D/g, "").slice(-4) || null,
             pre_counsel_done: !!input.pre_counsel_done,
             pre_counsel_note: input.pre_counsel_note || null,
             pre_counsel_by: input.pre_counsel_done ? userId : null,
