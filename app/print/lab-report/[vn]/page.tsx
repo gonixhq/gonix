@@ -131,7 +131,7 @@ function ReportSheet({
     });
     return (
         <LabReportSheet
-            clinic={clinic} notLast={notLast}
+            clinic={clinic} titleSuffix="ใบรายงานผลตรวจ" notLast={notLast}
             patientName={patientName} hn={patient?.hn || "—"} sex={sexEN} age={ageFromDob(patient?.dob)} clinicName={clinicName}
             labNo={(m.lab_no || v.lab_no) || "—"} sampleType={sampleType || "—"} requestedDate={dmyShort(v.visit_date)}
             collectedAt={dtBkk(m.collected_at || v.lab_collected_at)} receivedAt={dtBkk(m.received_at || v.lab_received_at)}

@@ -64,7 +64,7 @@ export function LabReportSheet(props: {
                 <table className="w-full text-[13px]" style={{ borderCollapse: "collapse" }}>
                     <thead>
                         <tr style={{ borderBottom: "2px solid #0891b2", background: "#ecfeff" }} className="text-left">
-                            <th className="py-2 px-2 font-black" style={{ width: "58%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
+                            <th className="py-2 px-2 font-black" style={{ width: "55%" }}>Lab Test <span className="text-[10px] font-semibold text-slate-500">รายการตรวจ</span></th>
                             <th className="py-2 px-2 font-black">Result <span className="text-[10px] font-semibold text-slate-500">ผล</span></th>
                         </tr>
                     </thead>
@@ -74,7 +74,7 @@ export function LabReportSheet(props: {
                                 <td className="py-2 px-2 font-semibold align-top">{r.isExternal ? "*" : ""}{r.name}</td>
                                 <td className="py-2 px-2 align-top">
                                     <span style={{ fontWeight: 700, color: r.mainAbn ? "#be123c" : "#0f172a" }}>{r.main}</span>
-                                    {r.suffix ? <span className="text-slate-400 text-[11px]"> · {r.suffix}</span> : null}
+                                    {r.suffix ? <span className="text-[10px] font-bold" style={{ color: r.mainAbn ? "#be123c" : "#64748b" }}> · {r.suffix}</span> : null}
                                     {r.note ? <div className="text-slate-500 text-[10.5px] mt-0.5">{r.note}</div> : null}
                                 </td>
                             </tr>
