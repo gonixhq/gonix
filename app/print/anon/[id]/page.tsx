@@ -116,6 +116,8 @@ export default async function AnonPrintPage({
     const { data: { user } } = await supabase.auth.getUser();
     let clinic: Clinic = null;
     let branch: Branch = null;
+    let physicianName = "";
+    let physicianLicense: string | null = null;
     if (user) {
         const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
         if (profile?.clinic_id) {
@@ -126,6 +128,20 @@ export default async function AnonPrintPage({
                 .select("branch_name, address, phone").eq("clinic_id", profile.clinic_id).eq("is_active", true)
                 .order("sort_order").limit(1).maybeSingle();
             branch = b;
+            // แพทย์ผู้ตรวจของคลินิก (มี license) → ใส่ในใบผลนิรนาม
+            const { data: doc } = await supabase.from("staff")
+                .select("license_number, profiles!inner(full_name, full_name_en, role)")
+                .eq("clinic_id", profile.clinic_id)
+                .not("license_number", "is", null)
+                .in("profiles.role", ["doctor", "dentist", "owner"])
+                .limit(1).maybeSingle();
+            if (doc) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const dp: any = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
+                physicianName = (dp?.full_name_en as string) || (dp?.full_name as string) || "";
+                const lic = String(doc.license_number || "");
+                physicianLicense = lic ? (/^\d/.test(lic) ? `MD.${lic}` : lic) : null;
+            }
         }
     }
 
@@ -168,7 +184,7 @@ export default async function AnonPrintPage({
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             {groups.map((grp, idx) => (
-                <AnonReportSheet key={grp.key} data={data} clinic={clinic} sexTitle={sexTitle} clinicName={clinicName} tests={grp.tests} sampleType={grp.label} notLast={idx < groups.length - 1} />
+                <AnonReportSheet key={grp.key} data={data} clinic={clinic} sexTitle={sexTitle} clinicName={clinicName} tests={grp.tests} sampleType={grp.label} physicianName={physicianName} physicianLicense={physicianLicense} notLast={idx < groups.length - 1} />
             ))}
             <style>{`
                 @media print {
@@ -184,9 +200,9 @@ export default async function AnonPrintPage({
 }
 
 // ── ใบผลนิรนาม 1 หน้า (ต่อ 1 Sample Type) ──
-function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType, notLast }: {
+function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType, physicianName, physicianLicense, notLast }: {
     data: AnonCaseFull; clinic: Clinic; sexTitle: string; clinicName: string;
-    tests: AnonTest[]; sampleType: string; notLast: boolean;
+    tests: AnonTest[]; sampleType: string; physicianName: string; physicianLicense: string | null; notLast: boolean;
 }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = (data.lab_report_meta && data.lab_report_meta[sampleType]) || {};
@@ -210,7 +226,7 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
             footerNote="* เอกสารไม่ระบุตัวตน — กรุณาเก็บรหัสเคสไว้เพื่อติดตามผลและรับคำปรึกษา ผลตรวจควรได้รับการแปลผลจากบุคลากรทางการแพทย์"
             reported={{ name: m.reported_by_name ?? data.reported_by_name, license: m.reported_by_license ?? data.reported_by_license, at: m.reported_at ?? data.reported_at }}
             approved={{ name: m.approved_by_name ?? data.approved_by_name, license: m.approved_by_license ?? data.approved_by_license, at: m.approved_at ?? data.approved_at }}
-            physician={{ name: "", license: null }}
+            physician={{ name: physicianName, license: physicianLicense }}
         />
     );
 }

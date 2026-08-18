@@ -379,7 +379,7 @@ function AnonSheet({ data, clinic, clinicName, sexTitle, tests, sampleType, notL
             footerNote="* เอกสารไม่ระบุตัวตน — กรุณาเก็บรหัสเคสไว้เพื่อติดตามผลและรับคำปรึกษา ผลตรวจควรได้รับการแปลผลจากบุคลากรทางการแพทย์"
             reported={{ name: m.reported_by_name ?? data.reported_by_name, license: m.reported_by_license ?? data.reported_by_license, at: m.reported_at ?? data.reported_at }}
             approved={{ name: m.approved_by_name ?? data.approved_by_name, license: m.approved_by_license ?? data.approved_by_license, at: m.approved_at ?? data.approved_at }}
-            physician={{ name: "", license: null }}
+            physician={{ name: data.physician_name || "", license: data.physician_license ? (/^\d/.test(data.physician_license) ? `MD.${data.physician_license}` : data.physician_license) : null }}
         />
     );
 }

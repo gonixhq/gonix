@@ -32,6 +32,8 @@ export interface AnonResult {
     approved_by_name: string | null;
     approved_by_license: string | null;
     approved_at: string | null;
+    physician_name: string | null;
+    physician_license: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lab_report_meta: Record<string, any>;
     // clinic masthead
