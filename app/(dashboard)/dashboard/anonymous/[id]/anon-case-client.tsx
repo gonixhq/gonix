@@ -28,6 +28,9 @@ const RESULT_STATUS: Record<string, { label: string; cls: string }> = {
     positive: { label: "บวก / ผิดปกติ", cls: "bg-rose-100 text-rose-700" },
     inconclusive: { label: "สรุปไม่ได้", cls: "bg-amber-100 text-amber-700" },
 };
+const ACCENT_COLOR: Record<string, string> = {
+    positive: "#e11d48", inconclusive: "#f59e0b", negative: "#10b981", sent_out: "#6366f1", pending: "transparent",
+};
 const STATUS_FLOW = ["opened", "collected", "resulted", "closed"];
 const STATUS_LABEL: Record<string, string> = {
     registered: "ลงทะเบียน", opened: "เปิดเคสแล้ว", collected: "เก็บตัวอย่าง", resulted: "มีผลแล้ว", closed: "ปิดเคส", cancelled: "ยกเลิก",
@@ -326,11 +329,11 @@ function QuestionnaireCard({ q }: { q: Record<string, unknown> }) {
                         <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${g.color}`}>
                             <span className="h-1.5 w-1.5 rounded-full bg-current" /> {g.title}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
                             {g.rows.map((r) => (
-                                <div key={r.label} className={`rounded-lg px-3 py-2 border ${r.danger ? "bg-rose-50 border-rose-200" : "bg-slate-50/60 border-slate-100"}`}>
-                                    <div className="text-[10.5px] text-slate-500 leading-tight">{r.label}</div>
-                                    <div className={`text-sm font-bold leading-snug mt-0.5 ${r.danger ? "text-rose-700" : "text-slate-800"}`}>{r.val}</div>
+                                <div key={r.label} className={`flex items-baseline justify-between gap-4 py-2 border-b ${r.danger ? "border-rose-100" : "border-slate-100"}`}>
+                                    <span className="text-[13px] text-slate-500 shrink-0">{r.label}</span>
+                                    <span className={`text-[14px] font-bold text-right leading-snug ${r.danger ? "text-rose-600" : "text-slate-800"}`}>{r.val}</span>
                                 </div>
                             ))}
                         </div>
@@ -458,42 +461,40 @@ function TestRow({ caseId, test, busy, run, onDraft }: {
     const [note, setNote] = useState(test.result_note || "");
     const [sample, setSample] = useState(test.sample_type || "");
     const dirty = value !== (test.result_value || "") || status !== (test.result_status || "pending") || note !== (test.result_note || "") || sample !== (test.sample_type || "");
-    const st = RESULT_STATUS[test.result_status] || RESULT_STATUS.pending;
+    const abn = status === "positive" || status === "inconclusive";
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { onDraft(test.id, { result_value: value, result_status: status, result_note: note, sample_type: sample }); }, [value, status, note, sample]);
 
+    const inp = "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none";
     return (
-        <div className="px-5 py-3">
-            <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="font-semibold text-slate-800 text-sm">{test.test_name}</div>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 tabular-nums">{baht(test.price)}</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>
-                    {dirty && <span className="text-[10px] font-bold text-amber-600" title="ยังไม่บันทึก">●</span>}
-                    <button disabled={busy} onClick={() => run(() => removeAnonTest(test.id, caseId))}
-                        className="h-7 w-7 rounded-lg hover:bg-rose-50 flex items-center justify-center text-slate-400 hover:text-rose-600">
-                        <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                </div>
+        <div className="px-4 py-2.5 flex flex-wrap md:flex-nowrap items-center gap-2" style={{ borderLeft: `3px solid ${ACCENT_COLOR[test.result_status] || "transparent"}` }}>
+            <div className="w-full md:w-[23%] md:shrink-0 min-w-0 flex items-center justify-between md:block">
+                <span className="font-semibold text-slate-800 text-[13px] leading-tight block truncate" title={test.test_name}>{test.test_name}</span>
+                <span className="text-[10.5px] text-slate-400 tabular-nums">{baht(test.price)}</span>
             </div>
-            <input list="anon-sample-types" value={sample} onChange={(e) => setSample(e.target.value)} placeholder="ชนิดตัวอย่าง (Sample Type) — เช่น Clotted blood / Urine"
-                className="mb-2 w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="ค่าผล เช่น Non-reactive"
-                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
-                    className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-[#2B54F0] focus:outline-none">
-                    {Object.entries(RESULT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                </select>
-                <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="หมายเหตุ (ไม่บังคับ)"
-                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm focus:border-[#2B54F0] focus:outline-none" />
+            <input list="anon-sample-types" value={sample} onChange={(e) => setSample(e.target.value)} placeholder="ตัวอย่าง"
+                className={`${inp} w-[46%] md:w-28 shrink-0`} title="ชนิดตัวอย่าง (Sample Type)" />
+            <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="ค่าผล"
+                className={`${inp} flex-1 min-w-0 ${abn ? "border-rose-300 text-rose-700 font-semibold" : ""}`} />
+            <select value={status} onChange={(e) => setStatus(e.target.value)}
+                className={`${inp} w-[46%] md:w-36 shrink-0 pr-1`}>
+                {Object.entries(RESULT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="หมายเหตุ"
+                className={`${inp} flex-1 min-w-0`} />
+            <div className="flex items-center gap-1 shrink-0 ml-auto md:ml-0">
+                {dirty && <span className="text-[11px] font-bold text-amber-600" title="ยังไม่บันทึก">●</span>}
+                <button disabled={busy} onClick={() => run(() => removeAnonTest(test.id, caseId))}
+                    className="h-8 w-8 rounded-lg hover:bg-rose-50 flex items-center justify-center text-slate-400 hover:text-rose-600">
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
             </div>
         </div>
     );
 }
 
-// ── บันทึกแพทย์ + Counseling ────────────────────────
-// ── ใบรายงานผล Laboratory Report ────────────────────
+// ── บันทึกแพทย์ + Counseling ──
+// ── ใบรายงานผล Laboratory Report ──
 function toDTLocal(iso: string | null): string {
     if (!iso) return "";
     const bkk = new Date(new Date(iso).getTime() + 7 * 3600 * 1000);
