@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
     ShieldCheck, ArrowLeft, TestTube, Plus, Trash2, Loader2, Save,
     MessageSquareHeart, Wallet, CheckCircle2, Printer, CalendarClock, FileText,
-    Activity, EyeOff, AlertTriangle, Tag, Package, Ban, RotateCcw,
+    Activity, EyeOff, AlertTriangle, Tag, Package, Ban, RotateCcw, User, type LucideIcon,
 } from "lucide-react";
 import {
     updateAnonCaseInfo, setCounsel, saveTestResult, addAnonTest, removeAnonTest, addAnonPanel,
@@ -281,11 +281,11 @@ function qVal(key: string, v: unknown): string {
     if (key === "self_harm" || key === "want_counselor") return v === "yes" ? "ใช่" : v === "no" ? "ไม่ใช่" : String(v ?? "");
     return String(v ?? "");
 }
-const Q_GROUPS: { title: string; color: string; keys: string[] }[] = [
-    { title: "เหตุผล & ความเสี่ยง", color: "text-rose-600", keys: ["reasons", "__risk", "protections", "sexual_history", "sexual_partners"] },
-    { title: "เพศสภาพ & สุขภาพจิต", color: "text-violet-600", keys: ["gender_identity", "self_harm", "want_counselor"] },
-    { title: "บริการที่ต้องการ", color: "text-[#2B54F0]", keys: ["services", "hiv_known_year"] },
-    { title: "ข้อมูลทั่วไป", color: "text-slate-400", keys: ["weight", "marital", "education", "occupation", "income", "addr_district", "addr_province", "birth_province", "email", "phone"] },
+const Q_GROUPS: { title: string; icon: LucideIcon; hdr: string; chip: string; keys: string[] }[] = [
+    { title: "เหตุผล & ความเสี่ยง", icon: AlertTriangle, hdr: "text-rose-600", chip: "bg-rose-100 text-rose-600", keys: ["reasons", "__risk", "protections", "sexual_history", "sexual_partners"] },
+    { title: "เพศสภาพ & สุขภาพจิต", icon: MessageSquareHeart, hdr: "text-violet-600", chip: "bg-violet-100 text-violet-600", keys: ["gender_identity", "self_harm", "want_counselor"] },
+    { title: "บริการที่ต้องการ", icon: TestTube, hdr: "text-[#2B54F0]", chip: "bg-[#2B54F0]/10 text-[#2B54F0]", keys: ["services", "hiv_known_year"] },
+    { title: "ข้อมูลทั่วไป", icon: User, hdr: "text-slate-500", chip: "bg-slate-100 text-slate-500", keys: ["weight", "marital", "education", "occupation", "income", "addr_district", "addr_province", "birth_province", "email", "phone"] },
 ];
 
 function QuestionnaireCard({ q }: { q: Record<string, unknown> }) {
@@ -323,15 +323,16 @@ function QuestionnaireCard({ q }: { q: Record<string, unknown> }) {
                 </div>
             )}
 
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-3">
                 {groups.map((g) => (
-                    <div key={g.title}>
-                        <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${g.color}`}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {g.title}
+                    <div key={g.title} className="rounded-xl border border-slate-100 bg-slate-50/40 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-white/60 border-b border-slate-100">
+                            <span className={`h-6 w-6 rounded-lg flex items-center justify-center ${g.chip}`}><g.icon className="h-3.5 w-3.5" /></span>
+                            <span className={`text-[12px] font-bold ${g.hdr}`}>{g.title}</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                        <div className="px-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6">
                             {g.rows.map((r) => (
-                                <div key={r.label} className={`flex items-baseline justify-between gap-4 py-2 border-b ${r.danger ? "border-rose-100" : "border-slate-100"}`}>
+                                <div key={r.label} className="flex items-baseline justify-between gap-4 py-2 border-b border-slate-100/80 last:border-0">
                                     <span className="text-[13px] text-slate-500 shrink-0">{r.label}</span>
                                     <span className={`text-[14px] font-bold text-right leading-snug ${r.danger ? "text-rose-600" : "text-slate-800"}`}>{r.val}</span>
                                 </div>
