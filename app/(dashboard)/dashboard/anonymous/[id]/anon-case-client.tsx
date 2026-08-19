@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, useRef, useEffect } from "react";
+import { useState, useTransition, useMemo, useRef, useEffect, Fragment } from "react";
 import { toast } from "@/lib/toast";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -42,6 +42,7 @@ export default function AnonCaseClient({ data, services, panels, perms }: { data
     const router = useRouter();
     const [busy, startBusy] = useTransition();
     const run = (fn: () => Promise<unknown>) => startBusy(async () => { await fn(); router.refresh(); });
+    const setStatus = (s: string) => startBusy(async () => { const r = await setAnonStatus(data.id, s); if (!r.ok) { toast.error(r.error); return; } router.refresh(); });
 
     return (
         <div className="space-y-4 max-w-5xl mx-auto animate-fade-in pb-12">
@@ -116,14 +117,7 @@ export default function AnonCaseClient({ data, services, panels, perms }: { data
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 mt-4 flex-wrap">
-                        {STATUS_FLOW.map((s) => (
-                            <button key={s} disabled={busy} onClick={() => startBusy(async () => { const r = await setAnonStatus(data.id, s); if (!r.ok) { toast.error(r.error); return; } router.refresh(); })}
-                                className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${data.status === s ? "bg-[#2B54F0] text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
-                                {STATUS_LABEL[s]}
-                            </button>
-                        ))}
-                    </div>
+                    <StatusStepper status={data.status} busy={busy} onSet={setStatus} />
                 )}
             </div>
 
@@ -165,6 +159,39 @@ export default function AnonCaseClient({ data, services, panels, perms }: { data
 
 function formatDateThai(d: string): string {
     return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// ── Status stepper (ขั้นตอนการทำงานของเคส) ──────────
+function StatusStepper({ status, busy, onSet }: { status: string; busy: boolean; onSet: (s: string) => void }) {
+    const curr = STATUS_FLOW.indexOf(status);
+    return (
+        <div className="mt-5 flex items-start">
+            {STATUS_FLOW.map((s, i) => {
+                const done = curr > i;
+                const active = curr === i;
+                return (
+                    <Fragment key={s}>
+                        <button disabled={busy} onClick={() => onSet(s)} title={`ตั้งสถานะเป็น "${STATUS_LABEL[s]}"`}
+                            className="flex flex-col items-center gap-1.5 shrink-0 w-16 group disabled:opacity-60">
+                            <span className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all ${done
+                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                : active
+                                    ? "bg-[#2B54F0] border-[#2B54F0] text-white ring-4 ring-[#2B54F0]/15"
+                                    : "bg-white border-slate-300 text-slate-400 group-hover:border-slate-400"}`}>
+                                {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                            </span>
+                            <span className={`text-[10px] font-bold text-center leading-tight ${active ? "text-[#2B54F0]" : done ? "text-emerald-600" : "text-slate-400"}`}>
+                                {STATUS_LABEL[s]}
+                            </span>
+                        </button>
+                        {i < STATUS_FLOW.length - 1 && (
+                            <div className={`flex-1 h-0.5 rounded mt-4 transition-colors ${curr > i ? "bg-emerald-400" : "bg-slate-200"}`} />
+                        )}
+                    </Fragment>
+                );
+            })}
+        </div>
+    );
 }
 
 // ── Vital signs (เจ้าหน้าที่คัดกรอง) ────────────────
@@ -296,12 +323,14 @@ function QuestionnaireCard({ q }: { q: Record<string, unknown> }) {
             <div className="p-4 space-y-4">
                 {groups.map((g) => (
                     <div key={g.title}>
-                        <div className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 ${g.color}`}>{g.title}</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5">
+                        <div className={`text-[11px] font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${g.color}`}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {g.title}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {g.rows.map((r) => (
-                                <div key={r.label} className="flex justify-between gap-3 text-sm border-b border-slate-50 pb-1.5">
-                                    <span className="text-slate-500 shrink-0">{r.label}</span>
-                                    <span className={`font-semibold text-right ${r.danger ? "text-rose-600" : "text-slate-800"}`}>{r.val}</span>
+                                <div key={r.label} className={`rounded-lg px-3 py-2 border ${r.danger ? "bg-rose-50 border-rose-200" : "bg-slate-50/60 border-slate-100"}`}>
+                                    <div className="text-[10.5px] text-slate-500 leading-tight">{r.label}</div>
+                                    <div className={`text-sm font-bold leading-snug mt-0.5 ${r.danger ? "text-rose-700" : "text-slate-800"}`}>{r.val}</div>
                                 </div>
                             ))}
                         </div>
