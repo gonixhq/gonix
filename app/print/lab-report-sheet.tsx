@@ -24,11 +24,12 @@ export function LabReportSheet(props: {
     labNo: string; sampleType: string; requestedDate: string; collectedAt: string; receivedAt: string;
     rows: LabRow[]; commentText: string; apptText?: string | null; footerNote: string;
     reported: SignData; approved: SignData; physician?: { name: string | null; license: string | null } | null;
+    images?: string[];
 }) {
     const {
         clinic, titleSuffix = "", notLast = false,
         patientName, hn, sex, age, clinicName, labNo, sampleType, requestedDate, collectedAt, receivedAt,
-        rows, commentText, apptText, footerNote, reported, approved, physician,
+        rows, commentText, apptText, footerNote, reported, approved, physician, images,
     } = props;
     return (
         <div className="print-page" style={{ maxWidth: "210mm", fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", pageBreakAfter: notLast ? "always" : "auto" }}>
@@ -84,6 +85,18 @@ export function LabReportSheet(props: {
                 </table>
 
                 <p className="mt-2 text-[10.5px] text-slate-600">(*) เทสที่มีเครื่องหมาย * ส่งตรวจที่ห้องปฏิบัติการที่ได้รับการรับรอง ISO 15189</p>
+
+                {images && images.length > 0 ? (
+                    <div className="mt-3">
+                        <div className="text-[11px] font-bold text-slate-600 mb-1.5">ผลตรวจแนบ · Attached Result</div>
+                        <div className="flex flex-col gap-2">
+                            {images.map((src, i) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img key={i} src={src} alt={`result-${i + 1}`} style={{ maxWidth: "100%", height: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }} />
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
 
                 <div className="mt-3 text-[11.5px] flex gap-2">
                     <span className="font-bold shrink-0">Comment :</span>

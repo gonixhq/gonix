@@ -85,13 +85,25 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
     const groups = [...groupMap.entries()].map(([label, tests]) => ({ key: label || "_none", label, tests }));
     if (groups.length === 0) groups.push({ key: "_none", label: String(v.lab_sample_type || ""), tests: [] });
 
+    // เซ็น URL รูปผลตรวจแนบ (lab_report_meta[label].images) ต่อ sample type
+    const groupImgs = new Map<string, string[]>();
+    await Promise.all(groups.map(async (g) => {
+        const meta = (v.lab_report_meta && v.lab_report_meta[g.label]) || {};
+        const paths: string[] = Array.isArray(meta.images) ? meta.images : [];
+        const urls = await Promise.all(paths.map(async (p: string) => {
+            const { data } = await supabase.storage.from("clinic-assets").createSignedUrl(p, 3600);
+            return data?.signedUrl || "";
+        }));
+        groupImgs.set(g.key, urls.filter(Boolean));
+    }));
+
     const shared = { clinic, v, patient, patientName, sexEN, clinicName, doctorName, doctorLicense };
 
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             {groups.map((grp, idx) => (
-                <ReportSheet key={grp.key} {...shared} labs={grp.tests} sampleType={grp.label} notLast={idx < groups.length - 1} />
+                <ReportSheet key={grp.key} {...shared} labs={grp.tests} sampleType={grp.label} images={groupImgs.get(grp.key) || []} notLast={idx < groups.length - 1} />
             ))}
             <style>{`
                 @media print {
@@ -108,14 +120,14 @@ export default async function LabReportPrintPage({ params }: { params: Promise<{
 
 // ── ใบผล 1 หน้า (ต่อ 1 Sample Type) — ใช้ LabReportSheet กลาง ──
 function ReportSheet({
-    clinic, v, patient, patientName, sexEN, clinicName, doctorName, doctorLicense, labs, sampleType, notLast,
+    clinic, v, patient, patientName, sexEN, clinicName, doctorName, doctorLicense, labs, sampleType, images, notLast,
 }: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     clinic: any; v: any; patient: any;
     patientName: string; sexEN: string; clinicName: string;
     doctorName: string; doctorLicense: string | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    labs: any[]; sampleType: string; notLast: boolean;
+    labs: any[]; sampleType: string; images: string[]; notLast: boolean;
 }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = (v.lab_report_meta && v.lab_report_meta[sampleType]) || {};
@@ -141,6 +153,7 @@ function ReportSheet({
             reported={{ name: m.reported_by_name ?? v.lab_reported_by_name, license: m.reported_by_license ?? v.lab_reported_by_license, at: m.reported_at ?? v.lab_reported_at }}
             approved={{ name: m.approved_by_name ?? v.lab_approved_by_name, license: m.approved_by_license ?? v.lab_approved_by_license, at: m.approved_at ?? v.lab_approved_at }}
             physician={{ name: doctorName, license: doctorLicense }}
+            images={images}
         />
     );
 }

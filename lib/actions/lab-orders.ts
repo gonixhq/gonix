@@ -181,6 +181,7 @@ export interface VisitReportMeta {
     lab_no?: string | null; collected_at?: string | null; received_at?: string | null; comment?: string | null;
     reported_by_name?: string | null; reported_by_license?: string | null; reported_at?: string | null;
     approved_by_name?: string | null; approved_by_license?: string | null; approved_at?: string | null;
+    images?: string[]; // path รูปผลตรวจแนบ — จัดการผ่าน lab-report-images.ts, save meta ต้องคงไว้
 }
 
 // หัวใบรายงานผลต่อ Sample Type (แบบ CMF) — เก็บใน visits.lab_report_meta[sampleType]
@@ -197,6 +198,8 @@ export async function saveVisitReportMeta(vn: string, sampleType: string, patch:
             ? new Date(`${(v as string).length === 16 ? `${v}:00` : (v as string)}+07:00`).toISOString()
             : v;
     }
+    const prev = meta[sampleType || ""];
+    if (prev?.images) (clean as VisitReportMeta).images = prev.images; // คงรูปผลตรวจแนบไว้
     meta[sampleType || ""] = clean as VisitReportMeta;
     await supabase.from("visits").update({ lab_report_meta: meta }).eq("vn", vn).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/visits/${vn}`);

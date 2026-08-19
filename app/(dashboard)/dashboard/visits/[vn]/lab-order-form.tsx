@@ -8,6 +8,7 @@ import {
     type LabCatalogItem, type LabOrder,
 } from "@/lib/actions/lab-orders";
 import type { AnonPanel } from "@/lib/actions/anonymous";
+import LabImageUploader from "@/components/ui/lab-image-uploader";
 
 interface LabReport {
     lab_no?: string | null; lab_sample_type?: string | null;
@@ -319,6 +320,7 @@ function MetaForm({ vn, sampleType, initial, busy, run }: {
                     <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
                 </div>
             </div>
+            <LabImageUploader scope="visit" caseKey={vn} sampleType={sampleType} paths={(initial.images as string[]) || []} />
             <button disabled={busy} onClick={() => run(() => saveVisitReportMeta(vn, sampleType, f))}
                 className="h-9 px-4 rounded-lg bg-blue-600 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกใบนี้ ({sampleType || "ไม่ระบุชนิด"})

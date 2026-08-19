@@ -15,6 +15,7 @@ import {
     type AnonCaseFull, type LabService, type AnonTest, type AnonPanel,
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
+import LabImageUploader from "@/components/ui/lab-image-uploader";
 
 interface Perms { clinical: boolean; result: boolean; manage: boolean; }
 
@@ -570,6 +571,7 @@ function AnonMetaForm({ caseId, sampleType, initial, busy, run }: {
                     <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
                 </div>
             </div>
+            <LabImageUploader scope="anon" caseKey={caseId} sampleType={sampleType} paths={(initial.images as string[]) || []} />
             <button disabled={busy} onClick={() => run(() => saveAnonReportMeta(caseId, sampleType, f))}
                 className="h-9 px-4 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกใบนี้ ({sampleType || "ไม่ระบุชนิด"})

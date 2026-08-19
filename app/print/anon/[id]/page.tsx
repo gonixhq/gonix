@@ -180,11 +180,24 @@ export default async function AnonPrintPage({
     }
     const groups = [...grpMap.entries()].map(([label, tests]) => ({ key: label || "_none", label, tests }));
     if (groups.length === 0) groups.push({ key: "_none", label: String(data.sample_type || ""), tests: [] });
+
+    // เซ็น URL รูปผลตรวจแนบ (lab_report_meta[label].images) ต่อ sample type
+    const groupImgs = new Map<string, string[]>();
+    await Promise.all(groups.map(async (g) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const meta: any = (data.lab_report_meta && data.lab_report_meta[g.label]) || {};
+        const paths: string[] = Array.isArray(meta.images) ? meta.images : [];
+        const urls = await Promise.all(paths.map(async (p: string) => {
+            const { data: s } = await supabase.storage.from("clinic-assets").createSignedUrl(p, 3600);
+            return s?.signedUrl || "";
+        }));
+        groupImgs.set(g.key, urls.filter(Boolean));
+    }));
     return (
         <>
             <div className="mx-auto" style={{ maxWidth: "210mm" }}><PrintTrigger /></div>
             {groups.map((grp, idx) => (
-                <AnonReportSheet key={grp.key} data={data} clinic={clinic} sexTitle={sexTitle} clinicName={clinicName} tests={grp.tests} sampleType={grp.label} physicianName={physicianName} physicianLicense={physicianLicense} notLast={idx < groups.length - 1} />
+                <AnonReportSheet key={grp.key} data={data} clinic={clinic} sexTitle={sexTitle} clinicName={clinicName} tests={grp.tests} sampleType={grp.label} images={groupImgs.get(grp.key) || []} physicianName={physicianName} physicianLicense={physicianLicense} notLast={idx < groups.length - 1} />
             ))}
             <style>{`
                 @media print {
@@ -200,9 +213,9 @@ export default async function AnonPrintPage({
 }
 
 // ── ใบผลนิรนาม 1 หน้า (ต่อ 1 Sample Type) ──
-function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType, physicianName, physicianLicense, notLast }: {
+function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType, images, physicianName, physicianLicense, notLast }: {
     data: AnonCaseFull; clinic: Clinic; sexTitle: string; clinicName: string;
-    tests: AnonTest[]; sampleType: string; physicianName: string; physicianLicense: string | null; notLast: boolean;
+    tests: AnonTest[]; sampleType: string; images: string[]; physicianName: string; physicianLicense: string | null; notLast: boolean;
 }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m: any = (data.lab_report_meta && data.lab_report_meta[sampleType]) || {};
@@ -227,6 +240,7 @@ function AnonReportSheet({ data, clinic, sexTitle, clinicName, tests, sampleType
             reported={{ name: m.reported_by_name ?? data.reported_by_name, license: m.reported_by_license ?? data.reported_by_license, at: m.reported_at ?? data.reported_at }}
             approved={{ name: m.approved_by_name ?? data.approved_by_name, license: m.approved_by_license ?? data.approved_by_license, at: m.approved_at ?? data.approved_at }}
             physician={{ name: physicianName, license: physicianLicense }}
+            images={images}
         />
     );
 }

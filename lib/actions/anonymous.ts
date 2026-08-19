@@ -106,6 +106,7 @@ export interface LabReportMeta {
     lab_no?: string | null; collected_at?: string | null; received_at?: string | null; comment?: string | null;
     reported_by_name?: string | null; reported_by_license?: string | null; reported_at?: string | null;
     approved_by_name?: string | null; approved_by_license?: string | null; approved_at?: string | null;
+    images?: string[]; // path รูปผลตรวจแนบ — จัดการผ่าน lab-report-images.ts, save meta ต้องคงไว้
 }
 
 export interface AnonStats {
@@ -589,6 +590,8 @@ export async function saveAnonReportMeta(id: string, sampleType: string, patch: 
             ? new Date(`${(v as string).length === 16 ? `${v}:00` : (v as string)}+07:00`).toISOString()
             : v;
     }
+    const prev = meta[sampleType || ""];
+    if (prev?.images) (clean as LabReportMeta).images = prev.images; // คงรูปผลตรวจแนบไว้
     meta[sampleType || ""] = clean as LabReportMeta;
     await supabase.from("anon_cases").update({ lab_report_meta: meta }).eq("id", id).eq("clinic_id", clinicId);
     revalidatePath(`/dashboard/anonymous/${id}`);
