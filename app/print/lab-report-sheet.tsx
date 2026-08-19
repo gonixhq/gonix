@@ -92,7 +92,7 @@ export function LabReportSheet(props: {
                         <div className="flex flex-col gap-2">
                             {images.map((src, i) => (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img key={i} src={src} alt={`result-${i + 1}`} style={{ maxWidth: "100%", height: "auto", border: "1px solid #e2e8f0", borderRadius: "6px" }} />
+                                <img key={i} src={src} alt={`result-${i + 1}`} style={{ maxWidth: "100%", maxHeight: "115mm", width: "auto", height: "auto", border: "1px solid #e2e8f0", borderRadius: "6px", pageBreakInside: "avoid" }} />
                             ))}
                         </div>
                     </div>
@@ -106,17 +106,11 @@ export function LabReportSheet(props: {
                 <p className="mt-3 text-[10.5px] text-slate-500 italic leading-relaxed">{footerNote}</p>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-16 text-[12px]">
+            <div className={`mt-8 grid gap-8 text-[12px] ${physician ? "grid-cols-3" : "grid-cols-2 gap-16"}`} style={{ pageBreakInside: "avoid" }}>
                 <SignBlock role="Reported By · ผู้รายงานผล" name={reported.name} license={reported.license} at={reported.at} />
                 <SignBlock role="Approved By · ผู้ตรวจสอบ" name={approved.name} license={approved.license} at={approved.at} />
+                {physician ? <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={physician.name} license={physician.license} at={null} /> : null}
             </div>
-            {physician ? (
-                <div className="mt-9 flex justify-center text-[12px]">
-                    <div style={{ width: "56%" }}>
-                        <SignBlock role="แพทย์ผู้ตรวจ · Examining Physician" name={physician.name} license={physician.license} at={null} />
-                    </div>
-                </div>
-            ) : null}
         </div>
     );
 }
@@ -134,9 +128,9 @@ export function SignBlock({ role, name, license, at }: { role: string; name: str
     return (
         <div className="text-center">
             <div style={{ borderBottom: "1px solid #000" }} className="h-9 mb-1 flex items-end justify-center pb-1">
-                <span className="text-[12px] font-semibold">{name || ""}{license ? `  ${license}` : ""}</span>
+                <span className="text-[11px] font-semibold leading-tight text-center px-1">{name || ""}{license ? `  ${license}` : ""}</span>
             </div>
-            <div className="text-[10px] italic text-slate-600">{role}</div>
+            <div className="text-[9.5px] italic text-slate-600 leading-tight">{role}</div>
             {at ? <div className="text-[10px] text-slate-500 mt-0.5">{dtBkk(at)}</div> : null}
         </div>
     );

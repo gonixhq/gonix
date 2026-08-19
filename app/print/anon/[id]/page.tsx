@@ -129,18 +129,31 @@ export default async function AnonPrintPage({
                 .order("sort_order").limit(1).maybeSingle();
             branch = b;
             // แพทย์ผู้ตรวจของคลินิก (มี license) → ใส่ในใบผลนิรนาม
-            const { data: doc } = await supabase.from("staff")
+            // เลือกหมอจริงก่อน: role doctor > dentist > owner และ profile ที่มีชื่ออังกฤษก่อน
+            const { data: docs } = await supabase.from("staff")
                 .select("license_number, profiles!inner(full_name, full_name_en, role)")
                 .eq("clinic_id", profile.clinic_id)
                 .not("license_number", "is", null)
                 .in("profiles.role", ["doctor", "dentist", "owner"])
-                .limit(1).maybeSingle();
-            if (doc) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const dp: any = Array.isArray(doc.profiles) ? doc.profiles[0] : doc.profiles;
-                physicianName = (dp?.full_name_en as string) || (dp?.full_name as string) || "";
-                const lic = String(doc.license_number || "");
-                physicianLicense = lic ? (/^\d/.test(lic) ? `MD.${lic}` : lic) : null;
+                .limit(20);
+            if (docs && docs.length) {
+                const pri: Record<string, number> = { doctor: 0, dentist: 1, owner: 2 };
+                const cand = docs.map((d) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const dp: any = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
+                    return {
+                        lic: String(d.license_number || ""),
+                        name: (dp?.full_name_en as string) || (dp?.full_name as string) || "",
+                        role: (dp?.role as string) || "owner",
+                        hasEn: !!dp?.full_name_en,
+                    };
+                }).filter((x) => x.name);
+                cand.sort((a, b) => (pri[a.role] ?? 9) - (pri[b.role] ?? 9) || (Number(b.hasEn) - Number(a.hasEn)));
+                const best = cand[0];
+                if (best) {
+                    physicianName = best.name;
+                    physicianLicense = best.lic ? (/^\d/.test(best.lic) ? `MD.${best.lic}` : best.lic) : null;
+                }
             }
         }
     }
