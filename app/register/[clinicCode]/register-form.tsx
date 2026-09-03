@@ -9,6 +9,11 @@ import { CheckCircle, Loader2, MessageCircle, ShieldCheck, AlertTriangle, Search
 import { PDPAModal } from "@/components/ui/pdpa-modal";
 import { submitPendingRegistration } from "@/lib/actions/pending-registrations";
 
+type Lang = "th" | "en";
+type Opt = { value: string; th: string; en: string };
+const lbl = (o: Opt, lang: Lang) => (lang === "en" ? o.en : o.th);
+const opts = (set: Opt[], lang: Lang) => set.map((o) => ({ value: o.value, label: lbl(o, lang) }));
+
 interface AddressItem {
     subdistrict_code: string;
     subdistrict_name: string;
@@ -25,8 +30,78 @@ interface Clinic {
     address_detail: string | null;
 }
 
+// ── Option sets (value = canonical เก็บลง DB เสมอ) ──
+const PREFIX: Opt[] = [
+    { value: "นาย", th: "นาย", en: "Mr." }, { value: "นาง", th: "นาง", en: "Mrs." },
+    { value: "น.ส.", th: "น.ส.", en: "Ms." }, { value: "ด.ช.", th: "ด.ช.", en: "Master" }, { value: "ด.ญ.", th: "ด.ญ.", en: "Miss" },
+];
+const GENDER: Opt[] = [
+    { value: "M", th: "ชาย", en: "Male" }, { value: "F", th: "หญิง", en: "Female" }, { value: "other", th: "อื่นๆ", en: "Other" },
+];
+const BLOOD: Opt[] = [
+    { value: "A", th: "A", en: "A" }, { value: "B", th: "B", en: "B" }, { value: "AB", th: "AB", en: "AB" }, { value: "O", th: "O", en: "O" },
+];
+const MARITAL: Opt[] = [
+    { value: "โสด", th: "โสด", en: "Single" }, { value: "สมรส", th: "สมรส", en: "Married" },
+    { value: "หย่า", th: "หย่า", en: "Divorced" }, { value: "หม้าย", th: "หม้าย", en: "Widowed" },
+];
+
+// ── UI strings ──────────────────────────────────────
+const T = {
+    th: {
+        successTitle: "ลงทะเบียนสำเร็จ!",
+        successBody1: "ขอบคุณที่ลงทะเบียนล่วงหน้า",
+        successBody2: "กรุณามายืนยันตัวตนที่เคาน์เตอร์เมื่อมาถึงคลินิก",
+        headerTitle: "ลงทะเบียนล่วงหน้า",
+        headerSub: "กรอกข้อมูลก่อนมา เพื่อความรวดเร็วในวันรับบริการ",
+        secPersonal: "ข้อมูลส่วนตัว", secContact: "การติดต่อ", secAddress: "ที่อยู่", secMedical: "ข้อมูลทางการแพทย์", secEmergency: "ผู้ติดต่อฉุกเฉิน",
+        prefix: "คำนำหน้า", gender: "เพศ", firstName: "ชื่อ *", lastName: "นามสกุล *",
+        dob: "วันเกิด", idCard: "เลขบัตรประชาชน / Passport No.", idCardPh: "เลขบัตร 13 หลัก หรือ Passport No.",
+        blood: "กรุ๊ปเลือด", marital: "สถานะสมรส", occupation: "อาชีพ", occupationPh: "เช่น พนักงานบริษัท",
+        race: "เชื้อชาติ", nationality: "สัญชาติ", racePh: "ไทย",
+        phone: "เบอร์โทรศัพท์ *", phonePh: "08X-XXX-XXXX", email: "อีเมล", emailPh: "example@email.com", lineId: "LINE ID", lineIdPh: "@somchai หรือเบอร์โทร LINE",
+        addrDetail: "บ้านเลขที่ / ซอย / ถนน", addrDetailPh: "เช่น 99/9 ซ.สุขุมวิท 21 ถ.อโศก", moo: "หมู่ที่", mooPh: "เช่น 4",
+        tambonSearch: "ค้นหาตำบล / รหัสปณ.", tambonPh: "พิมพ์ชื่อตำบลหรือรหัสปณ...", district: "อำเภอ", province: "จังหวัด",
+        addrPrefix: "ที่อยู่:", clear: "ล้าง",
+        allergy: "ประวัติแพ้ยา/อาหาร", allergyPh: "ระบุยา/อาหารที่แพ้ (ถ้ามี)", disease: "โรคประจำตัว", diseasePh: "เบาหวาน, ความดัน, ฯลฯ (ถ้ามี)",
+        emgName: "ชื่อ", emgNamePh: "ชื่อ-นามสกุล", emgRelation: "ความสัมพันธ์", emgRelationPh: "บิดา, มารดา, ฯลฯ", emgPhone: "เบอร์โทร",
+        pdpaRead: "อ่านนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA) ฉบับเต็ม",
+        consentPre: "ข้าพเจ้าได้อ่านและยินยอมให้", consentMid: "เก็บและใช้ข้อมูลส่วนบุคคลและข้อมูลสุขภาพ ตามวัตถุประสงค์ที่ระบุใน", consentLink: "นโยบาย PDPA",
+        submit: "ส่งข้อมูลลงทะเบียน", submitting: "กำลังส่ง...",
+        footer: "ข้อมูลจะถูกเก็บอย่างปลอดภัย — เจ้าหน้าที่จะยืนยันตัวตนเมื่อท่านมาถึงคลินิก",
+        errRequired: "กรุณากรอกชื่อ-นามสกุล และเบอร์โทร", errSubmit: "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่",
+        selectPh: "—",
+    },
+    en: {
+        successTitle: "Registration complete!",
+        successBody1: "Thank you for registering in advance.",
+        successBody2: "Please verify your identity at the counter when you arrive.",
+        headerTitle: "Pre-registration",
+        headerSub: "Fill in your details before your visit for a faster check-in",
+        secPersonal: "Personal Information", secContact: "Contact", secAddress: "Address", secMedical: "Medical Information", secEmergency: "Emergency Contact",
+        prefix: "Title", gender: "Sex", firstName: "First name *", lastName: "Last name *",
+        dob: "Date of birth", idCard: "National ID / Passport No.", idCardPh: "13-digit ID or Passport No.",
+        blood: "Blood group", marital: "Marital status", occupation: "Occupation", occupationPh: "e.g. Company employee",
+        race: "Race", nationality: "Nationality", racePh: "Thai",
+        phone: "Phone number *", phonePh: "08X-XXX-XXXX", email: "Email", emailPh: "example@email.com", lineId: "LINE ID", lineIdPh: "@somchai or LINE phone number",
+        addrDetail: "House no. / Soi / Road", addrDetailPh: "e.g. 99/9 Soi Sukhumvit 21, Asoke Rd.", moo: "Village no. (Moo)", mooPh: "e.g. 4",
+        tambonSearch: "Search subdistrict / postal code", tambonPh: "Type subdistrict name or postal code...", district: "District", province: "Province",
+        addrPrefix: "Address:", clear: "Clear",
+        allergy: "Drug / food allergies", allergyPh: "Specify allergies (if any)", disease: "Chronic conditions", diseasePh: "Diabetes, hypertension, etc. (if any)",
+        emgName: "Name", emgNamePh: "Full name", emgRelation: "Relationship", emgRelationPh: "Father, mother, etc.", emgPhone: "Phone",
+        pdpaRead: "Read the full Personal Data Protection (PDPA) policy",
+        consentPre: "I have read and consent to", consentMid: "collecting and using my personal and health data for the purposes stated in the", consentLink: "PDPA policy",
+        submit: "Submit registration", submitting: "Submitting...",
+        footer: "Your data is stored securely — staff will verify your identity when you arrive at the clinic.",
+        errRequired: "Please enter your first name, last name and phone number", errSubmit: "Submission failed, please try again",
+        selectPh: "—",
+    },
+} as const;
+
 export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; clinicCode: string }) {
     const supabase = createClient();
+    const [lang, setLang] = useState<Lang>("th");
+    const L = T[lang];
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState(false);
     const [error, setError] = useState("");
@@ -79,7 +154,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
         const phone = getField("phone");
 
         if (!firstName || !lastName || !phone) {
-            setError("กรุณากรอกชื่อ-นามสกุล และเบอร์โทร");
+            setError(L.errRequired);
             setSubmitting(false);
             return;
         }
@@ -115,7 +190,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
         // ส่งผ่าน server action → RPC security-definer (clinic_id ผูกจาก code + rate limit, mig 110)
         const res = await submitPendingRegistration(clinicCode, payload);
         if (!res.ok) {
-            setError(res.error || "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่");
+            setError(res.error || L.errSubmit);
             setSubmitting(false);
             return;
         }
@@ -132,13 +207,13 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     <div className="h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
                         <CheckCircle className="h-9 w-9 text-emerald-600" />
                     </div>
-                    <h1 className="text-2xl font-extrabold text-slate-800">ลงทะเบียนสำเร็จ!</h1>
+                    <h1 className="text-2xl font-extrabold text-slate-800">{L.successTitle}</h1>
                     <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                        ขอบคุณที่ลงทะเบียนล่วงหน้า<br />
-                        กรุณามายืนยันตัวตนที่เคาน์เตอร์เมื่อมาถึงคลินิก
+                        {L.successBody1}<br />
+                        {L.successBody2}
                     </p>
                     <div className="mt-5 pt-5 border-t border-slate-100">
-                        <p className="text-xs text-slate-500">{clinic.clinic_name}</p>
+                        <p className="text-xs text-slate-500">{lang === "en" ? (clinic.clinic_name_en || clinic.clinic_name) : clinic.clinic_name}</p>
                         {clinic.phone && <p className="text-xs text-slate-500 mt-1">{clinic.phone}</p>}
                     </div>
                 </div>
@@ -150,13 +225,26 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
         <div className="min-h-screen py-5 sm:py-8 px-3 sm:px-4" style={{ background: "radial-gradient(62% 45% at 72% 20%, rgba(255,255,255,0.9) 0%, transparent 60%), radial-gradient(95% 60% at 100% 3%, rgba(8,145,178,0.10) 0%, transparent 55%), repeating-linear-gradient(102deg, rgba(105,125,150,0.12) 0px, rgba(105,125,150,0.12) 1px, transparent 1px, transparent 6px), linear-gradient(150deg, #eef2f6 0%, #dbe2e9 48%, #cbd5dd 100%)" }}>
             <PDPAModal open={showPDPA} onClose={() => setShowPDPA(false)} clinicName={clinic.clinic_name} />
             <div className="max-w-2xl mx-auto">
+                {/* Language switcher */}
+                <div className="flex justify-center mb-4">
+                    <div className="inline-flex items-center rounded-2xl bg-white border border-slate-200 shadow-sm p-1.5 gap-1.5">
+                        {([["th", "ไทย", <ThaiFlag key="th" />], ["en", "English", <UkFlag key="en" />]] as [Lang, string, React.ReactNode][]).map(([lg, name, flag]) => (
+                            <button key={lg} onClick={() => setLang(lg)} type="button"
+                                className={`h-11 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition-all ${lang === lg ? "bg-[#0891b2] text-white shadow-md scale-[1.03]" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}>
+                                <span className="h-5 w-8 rounded-[3px] overflow-hidden ring-1 ring-black/10 shrink-0 inline-flex">{flag}</span>
+                                {name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 {/* Header */}
                 <div className="text-center mb-6 px-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/clinic-logo.png" alt="" className="mx-auto block h-32 w-32 sm:h-36 sm:w-36 object-contain mb-2" />
-                    <div className="text-lg font-black text-[#0e7490]">{clinic.clinic_name}</div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight mt-1">ลงทะเบียนล่วงหน้า</h1>
-                    <p className="text-sm text-slate-500 mt-1.5">กรอกข้อมูลก่อนมา เพื่อความรวดเร็วในวันรับบริการ</p>
+                    <div className="text-lg font-black text-[#0e7490]">{lang === "en" ? (clinic.clinic_name_en || clinic.clinic_name) : clinic.clinic_name}</div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight mt-1">{L.headerTitle}</h1>
+                    <p className="text-sm text-slate-500 mt-1.5">{L.headerSub}</p>
                     {clinic.address_detail && <p className="text-xs text-slate-400 mt-1">{clinic.address_detail}</p>}
                 </div>
 
@@ -168,80 +256,62 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     )}
 
                     {/* Name */}
-                    <SectionTitle>ข้อมูลส่วนตัว</SectionTitle>
+                    <SectionTitle>{L.secPersonal}</SectionTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="คำนำหน้า" name="prefix" type="select" options={[
-                            { value: "นาย", label: "นาย" },
-                            { value: "นาง", label: "นาง" },
-                            { value: "น.ส.", label: "น.ส." },
-                            { value: "ด.ช.", label: "ด.ช." },
-                            { value: "ด.ญ.", label: "ด.ญ." },
-                        ]} />
-                        <Field label="เพศ" name="gender" type="select" options={[
-                            { value: "M", label: "ชาย" },
-                            { value: "F", label: "หญิง" },
-                            { value: "other", label: "อื่นๆ" },
-                        ]} />
+                        <Field label={L.prefix} name="prefix" type="select" ph={L.selectPh} options={opts(PREFIX, lang)} />
+                        <Field label={L.gender} name="gender" type="select" ph={L.selectPh} options={opts(GENDER, lang)} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="ชื่อ *" name="first_name" required />
-                        <Field label="นามสกุล *" name="last_name" required />
+                        <Field label={L.firstName} name="first_name" required />
+                        <Field label={L.lastName} name="last_name" required />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="วันเกิด" name="dob" type="date" />
-                        <Field label="เลขบัตรประชาชน / Passport No." name="thai_id_card" placeholder="เลขบัตร 13 หลัก หรือ Passport No." maxLength={20} />
+                        <Field label={L.dob} name="dob" type="date" />
+                        <Field label={L.idCard} name="thai_id_card" placeholder={L.idCardPh} maxLength={20} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="กรุ๊ปเลือด" name="blood_group" type="select" options={[
-                            { value: "A", label: "A" }, { value: "B", label: "B" },
-                            { value: "AB", label: "AB" }, { value: "O", label: "O" },
-                        ]} />
-                        <Field label="สถานะสมรส" name="marital_status" type="select" options={[
-                            { value: "โสด", label: "โสด" },
-                            { value: "สมรส", label: "สมรส" },
-                            { value: "หย่า", label: "หย่า" },
-                            { value: "หม้าย", label: "หม้าย" },
-                        ]} />
+                        <Field label={L.blood} name="blood_group" type="select" ph={L.selectPh} options={opts(BLOOD, lang)} />
+                        <Field label={L.marital} name="marital_status" type="select" ph={L.selectPh} options={opts(MARITAL, lang)} />
                     </div>
 
-                    <Field label="อาชีพ" name="occupation" placeholder="เช่น พนักงานบริษัท" />
+                    <Field label={L.occupation} name="occupation" placeholder={L.occupationPh} />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="เชื้อชาติ" name="race" placeholder="ไทย" defaultValue="ไทย" />
-                        <Field label="สัญชาติ" name="nationality" placeholder="ไทย" defaultValue="ไทย" />
+                        <Field label={L.race} name="race" placeholder={L.racePh} defaultValue="ไทย" />
+                        <Field label={L.nationality} name="nationality" placeholder={L.racePh} defaultValue="ไทย" />
                     </div>
 
                     {/* Contact */}
-                    <SectionTitle>การติดต่อ</SectionTitle>
+                    <SectionTitle>{L.secContact}</SectionTitle>
                     <div className="grid grid-cols-1 gap-3">
-                        <Field label="เบอร์โทรศัพท์ *" name="phone" type="tel" required placeholder="08X-XXX-XXXX" />
-                        <Field label="อีเมล" name="email" type="email" placeholder="example@email.com" />
-                        <Field label="LINE ID" name="line_id_handle" placeholder="@somchai หรือเบอร์โทร LINE" />
+                        <Field label={L.phone} name="phone" type="tel" required placeholder={L.phonePh} />
+                        <Field label={L.email} name="email" type="email" placeholder={L.emailPh} />
+                        <Field label={L.lineId} name="line_id_handle" placeholder={L.lineIdPh} />
                     </div>
 
                     {/* Address */}
-                    <SectionTitle>ที่อยู่</SectionTitle>
+                    <SectionTitle>{L.secAddress}</SectionTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
-                            <Field label="บ้านเลขที่ / ซอย / ถนน" name="address_detail" placeholder="เช่น 99/9 ซ.สุขุมวิท 21 ถ.อโศก" />
+                            <Field label={L.addrDetail} name="address_detail" placeholder={L.addrDetailPh} />
                         </div>
-                        <Field label="หมู่ที่" name="address_moo" placeholder="เช่น 4" />
+                        <Field label={L.moo} name="address_moo" placeholder={L.mooPh} />
                     </div>
 
                     {/* Tambon autocomplete */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                         <div className="space-y-1.5 relative sm:col-span-2">
                             <Label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                                <Search className="h-3 w-3" /> ค้นหาตำบล / รหัสปณ.
+                                <Search className="h-3 w-3" /> {L.tambonSearch}
                             </Label>
                             <Input
                                 value={tambonQuery}
                                 onChange={(e) => searchTambon(e.target.value)}
                                 onFocus={() => tambonResults.length > 0 && setShowTambonList(true)}
-                                placeholder="พิมพ์ชื่อตำบลหรือรหัสปณ..."
+                                placeholder={L.tambonPh}
                                 className="h-12 rounded-xl border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm"
                             />
                             {showTambonList && (
@@ -257,12 +327,12 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                             )}
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-slate-600">อำเภอ</Label>
+                            <Label className="text-xs font-semibold text-slate-600">{L.district}</Label>
                             <Input value={selectedAddress?.district_name || ""} disabled
                                 className="h-11 rounded-xl bg-slate-100 text-slate-600 border-slate-200" />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold text-slate-600">จังหวัด</Label>
+                            <Label className="text-xs font-semibold text-slate-600">{L.province}</Label>
                             <Input value={selectedAddress?.province_name || ""} disabled
                                 className="h-11 rounded-xl bg-slate-100 text-slate-600 border-slate-200" />
                         </div>
@@ -270,28 +340,28 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     {selectedAddress && (
                         <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-cyan-50 border border-cyan-200 text-xs">
                             <span className="text-cyan-800">
-                                 ที่อยู่: ต.{selectedAddress.subdistrict_name} อ.{selectedAddress.district_name} จ.{selectedAddress.province_name} <strong>{selectedAddress.postal_code}</strong>
+                                 {L.addrPrefix} ต.{selectedAddress.subdistrict_name} อ.{selectedAddress.district_name} จ.{selectedAddress.province_name} <strong>{selectedAddress.postal_code}</strong>
                             </span>
                             <button type="button" onClick={clearTambon} className="text-cyan-600 hover:underline inline-flex items-center gap-1">
-                                <X className="h-3 w-3" /> ล้าง
+                                <X className="h-3 w-3" /> {L.clear}
                             </button>
                         </div>
                     )}
 
                     {/* Medical */}
-                    <SectionTitle>ข้อมูลทางการแพทย์</SectionTitle>
+                    <SectionTitle>{L.secMedical}</SectionTitle>
                     <div className="space-y-3">
-                        <FieldTextarea label="ประวัติแพ้ยา/อาหาร" name="allergy_summary" placeholder="ระบุยา/อาหารที่แพ้ (ถ้ามี)" />
-                        <FieldTextarea label="โรคประจำตัว" name="disease_summary" placeholder="เบาหวาน, ความดัน, ฯลฯ (ถ้ามี)" />
+                        <FieldTextarea label={L.allergy} name="allergy_summary" placeholder={L.allergyPh} />
+                        <FieldTextarea label={L.disease} name="disease_summary" placeholder={L.diseasePh} />
                     </div>
 
                     {/* Emergency */}
-                    <SectionTitle>ผู้ติดต่อฉุกเฉิน</SectionTitle>
+                    <SectionTitle>{L.secEmergency}</SectionTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label="ชื่อ" name="emergency_contact_name" placeholder="ชื่อ-นามสกุล" />
-                        <Field label="ความสัมพันธ์" name="emergency_contact_relation" placeholder="บิดา, มารดา, ฯลฯ" />
+                        <Field label={L.emgName} name="emergency_contact_name" placeholder={L.emgNamePh} />
+                        <Field label={L.emgRelation} name="emergency_contact_relation" placeholder={L.emgRelationPh} />
                     </div>
-                    <Field label="เบอร์โทร" name="emergency_contact_phone" type="tel" placeholder="08X-XXX-XXXX" />
+                    <Field label={L.emgPhone} name="emergency_contact_phone" type="tel" placeholder={L.phonePh} />
 
                     {/* PDPA */}
                     <div className="pt-3 border-t border-slate-200 space-y-2">
@@ -302,7 +372,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                         >
                             <span className="text-sm font-bold text-cyan-900 inline-flex items-center gap-2">
                                 <ShieldCheck className="h-4 w-4 text-cyan-600" />
-                                อ่านนโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA) ฉบับเต็ม
+                                {L.pdpaRead}
                             </span>
                             <span className="text-xs text-cyan-600 font-bold group-hover:translate-x-0.5 transition-transform">›</span>
                         </button>
@@ -311,10 +381,9 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                             <input type="checkbox" name="pdpa_consent" required
                                 className="h-5 w-5 mt-0.5 rounded accent-cyan-600" />
                             <span className="text-sm text-slate-700 leading-relaxed">
-                                ข้าพเจ้าได้อ่านและยินยอมให้ <strong>{clinic.clinic_name}</strong> เก็บและใช้ข้อมูลส่วนบุคคล
-                                และข้อมูลสุขภาพ ตามวัตถุประสงค์ที่ระบุใน{" "}
+                                {L.consentPre} <strong>{lang === "en" ? (clinic.clinic_name_en || clinic.clinic_name) : clinic.clinic_name}</strong> {L.consentMid}{" "}
                                 <button type="button" onClick={() => setShowPDPA(true)} className="text-cyan-600 font-bold underline hover:text-cyan-700">
-                                    นโยบาย PDPA
+                                    {L.consentLink}
                                 </button>
                                 {" "}<span className="text-red-500">*</span>
                             </span>
@@ -325,15 +394,40 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     <Button type="submit" disabled={submitting}
                         className="w-full rounded-xl h-14 text-base font-semibold bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 shadow-md">
                         {submitting ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <MessageCircle className="h-5 w-5 mr-2" />}
-                        {submitting ? "กำลังส่ง..." : "ส่งข้อมูลลงทะเบียน"}
+                        {submitting ? L.submitting : L.submit}
                     </Button>
 
                     <p className="text-xs text-center text-slate-400">
-                        ข้อมูลจะถูกเก็บอย่างปลอดภัย — เจ้าหน้าที่จะยืนยันตัวตนเมื่อท่านมาถึงคลินิก
+                        {L.footer}
                     </p>
                 </form>
             </div>
         </div>
+    );
+}
+
+/* ─── Flags (SVG) ─── */
+function ThaiFlag() {
+    return (
+        <svg viewBox="0 0 60 40" className="h-full w-full" preserveAspectRatio="none">
+            <rect width="60" height="40" fill="#A51931" />
+            <rect y="6.67" width="60" height="26.66" fill="#F4F5F8" />
+            <rect y="13.33" width="60" height="13.34" fill="#2D2A4A" />
+        </svg>
+    );
+}
+function UkFlag() {
+    return (
+        <svg viewBox="0 0 60 40" className="h-full w-full" preserveAspectRatio="none">
+            <defs><clipPath id="ukclip-reg"><rect width="60" height="40" /></clipPath></defs>
+            <g clipPath="url(#ukclip-reg)">
+                <rect width="60" height="40" fill="#012169" />
+                <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" strokeWidth="8" />
+                <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" strokeWidth="4" />
+                <path d="M30,0 V40 M0,20 H60" stroke="#fff" strokeWidth="13" />
+                <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" strokeWidth="7" />
+            </g>
+        </svg>
     );
 }
 
@@ -348,13 +442,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function Field({
-    label, name, type = "text", placeholder, required, options, maxLength, defaultValue,
+    label, name, type = "text", placeholder, required, options, maxLength, defaultValue, ph,
 }: {
     label: string; name: string; type?: string;
     placeholder?: string; required?: boolean;
     options?: { value: string; label: string }[];
     maxLength?: number;
     defaultValue?: string;
+    ph?: string;
 }) {
     return (
         <div className="space-y-1.5">
@@ -362,7 +457,7 @@ function Field({
             {type === "select" ? (
                 <select name={name} id={name} required={required} defaultValue={defaultValue || ""}
                     className="flex h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500">
-                    <option value="">—</option>
+                    <option value="">{ph || "—"}</option>
                     {options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
             ) : (
