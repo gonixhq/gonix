@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import PrintTrigger from "./print-trigger";
@@ -393,6 +394,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             {/* Action bar — hide on print */}
             <div className="print:hidden bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
                 <div>
+                    <Link href="/dashboard/pharmacy" className="text-sm text-teal-700 hover:underline">← กลับหน้ารับเงิน</Link>
                     <h1 className="text-base font-bold text-slate-800">ตัวอย่างใบเสร็จรับเงิน</h1>
                     <p className="text-xs text-slate-500">{inv.id} · A4 พิมพ์ออกมา 2 ส่วน (ต้นฉบับ + สำเนา)</p>
                 </div>

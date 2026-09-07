@@ -23,7 +23,7 @@ import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function VisitDetailClient({ visit, patient, drugs, vitals, statusLogs, medCert, appointments, referrals, pastVisits, labOrders, labCatalog, labPanels, icd10Name, vn, patientHasPackages }: any) {
+export default function VisitDetailClient({ visit, patient, drugs, vitals, statusLogs, medCert, appointments, referrals, pastVisits, labOrders, labCatalog, labPanels, icd10Name, vn, patientHasPackages, initialTab }: any) {
     const { t, language } = useLanguage();
     // Visit-type-aware tab visibility
     const isAesthetic = visit.service_category === "aesthetic";
@@ -31,7 +31,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     const showDrugsTab = !isAesthetic;           // Rx/วินิจฉัย — เคาท์เตอร์คีย์ในหน้าจ่ายเงินแทน
     const showPackagesTab = isAesthetic || !!patientHasPackages;
     const showMedCertTab = !isAesthetic;        // ใบรับรองไม่ใช่กับ aesthetic
-    const defaultTab = isAesthetic ? "aesthetic" : "soap";
+    const defaultTab = initialTab === "lab" ? "lab" : isAesthetic ? "aesthetic" : "soap";
 
     // Completion indicators ( บนแท็บที่กรอกแล้ว)
     const doneSoap = !!(visit.soap_o || visit.soap_p);

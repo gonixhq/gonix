@@ -48,12 +48,13 @@ export async function getLabCatalog(): Promise<LabCatalogItem[]> {
 
 export async function getVisitLabOrders(vn: string): Promise<LabOrder[]> {
     const { supabase, clinicId } = await getCtx();
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from("lab_orders")
         .select("id, lab_name, lab_type, status, result_value, result_unit, normal_range, result_flag, result_note, resulted_at, sample_type")
         .eq("vn", vn).eq("clinic_id", clinicId)
-        .neq("lab_type", "package")  // บรรทัดแพ็ก (billing) ไม่ต้องกรอกผล
+        .or("lab_type.is.null,lab_type.neq.package")  // บรรทัดแพ็ก (billing) ไม่ต้องกรอกผล
         .order("created_at", { ascending: true });
+    if (error) throw new Error("โหลดรายการตรวจไม่สำเร็จ กรุณาลองใหม่");
     return (data || []) as LabOrder[];
 }
 
@@ -62,12 +63,14 @@ export async function addLabOrder(vn: string, hn: string, serviceId: string) {
     const { data: s } = await supabase.from("service_catalog")
         .select("service_name, item_type, selling_price").eq("clinic_id", clinicId).eq("id", serviceId).maybeSingle();
     if (!s) return { ok: false, error: "ไม่พบรายการ Lab" };
-    await supabase.from("lab_orders").insert({
+    const { error } = await supabase.from("lab_orders").insert({
         vn, hn, clinic_id: clinicId,
         lab_name: s.service_name, lab_type: (s.item_type as string) || "lab",
         price: num(s.selling_price),
         ordered_by: staffId, status: "ordered",
     });
+    if (error) throw new Error("บันทึกรายการตรวจไม่สำเร็จ กรุณาลองใหม่");
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };
 }
@@ -78,10 +81,11 @@ export async function addLabPanel(vn: string, hn: string, panelId: string) {
     const { data: panel } = await supabase.from("anon_panels")
         .select("id, name, price").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
     if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
-    const { data: items } = await supabase.from("anon_panel_items")
+    const { data: items, error: itemsError } = await supabase.from("anon_panel_items")
         .select("service_catalog(service_name, item_type)").eq("panel_id", panelId);
-    const { data: existing } = await supabase.from("lab_orders")
+    const { data: existing, error: existingError } = await supabase.from("lab_orders")
         .select("lab_name").eq("vn", vn).eq("clinic_id", clinicId);
+    if (itemsError || existingError) throw new Error("โหลดรายการในแพ็กเกจไม่สำเร็จ กรุณาลองใหม่");
     const have = new Set((existing || []).map((o) => o.lab_name as string));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows: any[] = [];
@@ -96,15 +100,21 @@ export async function addLabPanel(vn: string, hn: string, panelId: string) {
     // บรรทัดค่าแพ็กเกจ (คิดเงินก้อนเดียวที่หน้าชำระเงิน) — lab_type=package ไม่โผล่ในช่องกรอกผล/ใบพิมพ์
     const pkgName = `แพ็กเกจ · ${panel.name}`;
     if (!have.has(pkgName)) rows.push({ vn, hn, clinic_id: clinicId, lab_name: pkgName, lab_type: "package", price: num(panel.price), ordered_by: staffId, status: "ordered" });
-    if (rows.length) await supabase.from("lab_orders").insert(rows);
+    if (rows.length) {
+        const { error } = await supabase.from("lab_orders").insert(rows);
+        if (error) throw new Error("บันทึกแพ็กเกจตรวจไม่สำเร็จ กรุณาลองใหม่");
+    }
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };
 }
 
 export async function removeLabOrder(id: string, vn: string) {
     const { supabase, clinicId } = await getCtx();
-    await supabase.from("lab_orders").delete().eq("id", id).eq("clinic_id", clinicId);
+    const { error } = await supabase.from("lab_orders").delete().eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
+    if (error) throw new Error("ลบรายการตรวจไม่สำเร็จ กรุณาลองใหม่");
     return { ok: true };
 }
 
@@ -114,7 +124,7 @@ export async function saveLabOrderResult(id: string, vn: string, body: {
 }) {
     const { supabase, clinicId } = await getCtx();
     const hasResult = !!(body.result_value && body.result_value.trim());
-    await supabase.from("lab_orders").update({
+    const { error } = await supabase.from("lab_orders").update({
         result_value: body.result_value ?? null,
         result_unit: body.result_unit ?? null,
         normal_range: body.normal_range ?? null,
@@ -124,7 +134,9 @@ export async function saveLabOrderResult(id: string, vn: string, body: {
         status: hasResult ? "resulted" : "ordered",
         resulted_at: hasResult ? new Date().toISOString() : null,
     }).eq("id", id).eq("clinic_id", clinicId);
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
+    if (error) throw new Error("บันทึกผลตรวจไม่สำเร็จ กรุณาลองใหม่");
     return { ok: true };
 }
 
@@ -134,7 +146,7 @@ export async function saveLabOrderResults(vn: string, rows: {
     result_flag?: string | null; result_note?: string | null; sample_type?: string | null;
 }[]) {
     const { supabase, clinicId } = await getCtx();
-    await Promise.all((rows || []).map((r) => {
+    const results = await Promise.all((rows || []).map((r) => {
         const hasResult = !!(r.result_value && String(r.result_value).trim());
         return supabase.from("lab_orders").update({
             result_value: r.result_value ?? null,
@@ -147,7 +159,9 @@ export async function saveLabOrderResults(vn: string, rows: {
             resulted_at: hasResult ? new Date().toISOString() : null,
         }).eq("id", r.id).eq("clinic_id", clinicId);
     }));
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
+    if (results.some((result) => result.error)) throw new Error("บันทึกผลตรวจบางรายการไม่สำเร็จ กรุณาตรวจสอบและลองใหม่");
     return { ok: true };
 }
 
@@ -173,6 +187,7 @@ export async function saveVisitLabReport(vn: string, patch: {
         }
     }
     await supabase.from("visits").update(clean).eq("vn", vn).eq("clinic_id", clinicId);
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };
 }
@@ -202,6 +217,7 @@ export async function saveVisitReportMeta(vn: string, sampleType: string, patch:
     if (prev?.images) (clean as VisitReportMeta).images = prev.images; // คงรูปผลตรวจแนบไว้
     meta[sampleType || ""] = clean as VisitReportMeta;
     await supabase.from("visits").update({ lab_report_meta: meta }).eq("vn", vn).eq("clinic_id", clinicId);
+    revalidatePath("/dashboard/lab");
     revalidatePath(`/dashboard/visits/${vn}`);
     return { ok: true };
 }
