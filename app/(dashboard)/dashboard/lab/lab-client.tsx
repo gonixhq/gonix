@@ -5,39 +5,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FlaskConical, Plus, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export default function LabClient({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     labOrders,
     pending,
     inProgress,
     completed,
 }: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    labOrders: any[];
+    labOrders: {
+        id: string; vn: string; hn: string; lab_name: string; created_at: string;
+        status: string; result_note: string | null;
+        patient: { hn: string; first_name: string; last_name: string } | null | undefined;
+    }[];
     pending: number;
     inProgress: number;
     completed: number;
 }) {
     const { language } = useLanguage();
+    const router = useRouter();
 
     const statusLabel: Record<string, string> = {
-        pending: language === "en" ? "Pending" : "รอดำเนินการ",
+        ordered: language === "en" ? "Pending" : "รอดำเนินการ",
         in_progress: language === "en" ? "In Progress" : "กำลังทำ",
-        completed: language === "en" ? "Completed" : "เสร็จแล้ว",
+        resulted: language === "en" ? "Completed" : "เสร็จแล้ว",
         cancelled: language === "en" ? "Cancelled" : "ยกเลิก",
     };
     const statusColor: Record<string, string> = {
-        pending: "bg-amber-100 text-amber-700 border-amber-200",
+        ordered: "bg-amber-100 text-amber-700 border-amber-200",
         in_progress: "bg-blue-100 text-blue-700 border-blue-200",
-        completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+        resulted: "bg-emerald-100 text-emerald-700 border-emerald-200",
         cancelled: "bg-slate-100 text-slate-600 border-slate-200",
     };
     const statusIcon: Record<string, React.ReactNode> = {
-        pending: <Clock className="h-3.5 w-3.5" />,
+        ordered: <Clock className="h-3.5 w-3.5" />,
         in_progress: <AlertCircle className="h-3.5 w-3.5" />,
-        completed: <CheckCircle2 className="h-3.5 w-3.5" />,
+        resulted: <CheckCircle2 className="h-3.5 w-3.5" />,
     };
 
     return (
@@ -49,12 +53,15 @@ export default function LabClient({
                         {language === "en" ? "Laboratory Results" : "ผลการตรวจทางห้องปฏิบัติการ"}
                     </span>
                 </p>
-                <Link href="/dashboard/lab/new">
+                <div className="flex gap-2">
+                <Button variant="outline" onClick={() => router.refresh()}>{language === "en" ? "Refresh" : "รีเฟรช"}</Button>
+                <Link href="/dashboard/visits">
                     <Button className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm shadow-cyan-500/20">
                         <Plus className="h-4 w-4" />
-                        {language === "en" ? "Order Lab" : "สั่ง Lab"}
+                        {language === "en" ? "Select Visit" : "เลือก Visit เพื่อสั่ง Lab"}
                     </Button>
                 </Link>
+                </div>
             </div>
 
             {/* Stats - Glassmorphism Cards */}
@@ -138,15 +145,14 @@ export default function LabClient({
                                         <th className="text-left px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Patient" : "ผู้ป่วย"}</th>
                                         <th className="text-left px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">VN</th>
                                         <th className="text-left px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Date" : "วันที่สั่ง"}</th>
-                                        <th className="text-left px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Notes" : "หมายเหตุ"}</th>
+                                        <th className="text-left px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Test" : "รายการตรวจ"}</th>
                                         <th className="text-center px-6 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">{language === "en" ? "Status" : "สถานะ"}</th>
                                         <th className="text-right px-6 py-4"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {labOrders.map((lab) => {
-                                        const pt = Array.isArray(lab.patients) ? lab.patients[0] : lab.patients;
-                                        const visit = Array.isArray(lab.visits) ? lab.visits[0] : lab.visits;
+                                        const pt = lab.patient;
                                         return (
                                             <tr key={lab.id} className="border-b border-slate-100 last:border-0 hover:bg-white/80 transition-colors">
                                                 <td className="px-6 py-4">
@@ -155,13 +161,13 @@ export default function LabClient({
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                                                        {visit?.vn || "—"}
+                                                        {lab.vn || "—"}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-slate-600 font-medium">
-                                                    {new Date(lab.order_date).toLocaleDateString(language === "en" ? "en-US" : "th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                                                    {new Date(lab.created_at).toLocaleDateString(language === "en" ? "en-US" : "th-TH", { day: "numeric", month: "short", year: "numeric" })}
                                                 </td>
-                                                <td className="px-6 py-4 text-slate-500 text-sm max-w-[200px] truncate">{lab.note || "—"}</td>
+                                                <td className="px-6 py-4 text-slate-500 text-sm max-w-[200px] truncate">{lab.lab_name}</td>
                                                 <td className="px-6 py-4 text-center">
                                                     <div className={cn(
                                                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold tracking-wide border shadow-sm",
@@ -172,7 +178,7 @@ export default function LabClient({
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <Link href={`/dashboard/lab/${lab.id}`}>
+                                                    <Link href={`/dashboard/visits/${encodeURIComponent(lab.vn)}?tab=lab`}>
                                                         <Button variant="outline" size="sm" className="rounded-xl text-xs font-bold shadow-sm hover:shadow-md hover:border-indigo-300 hover:text-indigo-700 transition-all bg-white">
                                                             {language === "en" ? "View" : "ดูผล"}
                                                         </Button>

@@ -6,10 +6,13 @@ import { listAnonPanels } from "@/lib/actions/anonymous";
 
 export default async function VisitDetailPage({
     params,
+    searchParams,
 }: {
     params: Promise<{ vn: string }>;
+    searchParams: Promise<{ tab?: string }>;
 }) {
     const { vn } = await params;
+    const { tab } = await searchParams;
     const supabase = await createClient();
 
     const visitRes = await supabase.from("visits").select(`
@@ -81,6 +84,7 @@ export default async function VisitDetailPage({
 
     return (
         <VisitDetailClient
+            initialTab={tab === "lab" ? "lab" : undefined}
             visit={visit}
             patient={patient}
             drugs={drugs}

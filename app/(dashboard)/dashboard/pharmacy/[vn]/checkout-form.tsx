@@ -387,6 +387,7 @@ export default function CheckoutForm({
     };
 
     const handleComplete = async () => {
+        if (loading || saved) return;
         if (!isPaymentValid) {
             toast.error("ยอดเงินรับน้อยกว่ายอดสุทธิ");
             return;
@@ -464,14 +465,10 @@ export default function CheckoutForm({
 
             setSaved(true);
             toast.success("ปิดบิลสำเร็จ");
-            // เปิดหน้าพิมพ์ใบเสร็จรับเงินในแท็บใหม่
-            if (res.invId) {
-                window.open(`/print/invoice/${res.invId}`, "_blank");
-            }
-            setTimeout(() => {
-                router.push("/dashboard/pharmacy");
-                router.refresh();
-            }, 1500);
+            // เปิดแท็บเดิม: ไม่พึ่ง pop-up หลัง await ซึ่งเบราว์เซอร์อาจบล็อก
+            router.push(res.invId
+                ? `/print/invoice/${encodeURIComponent(res.invId)}`
+                : "/dashboard/finance");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
             toast.error(e.message || "เกิดข้อผิดพลาด");

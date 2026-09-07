@@ -46,7 +46,19 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
 }) {
     const router = useRouter();
     const [busy, startBusy] = useTransition();
-    const run = (fn: () => Promise<unknown>) => startBusy(async () => { await fn(); router.refresh(); });
+    const [error, setError] = useState("");
+    const run = (fn: () => Promise<unknown>) => startBusy(async () => {
+        setError("");
+        try {
+            const result = await fn();
+            if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+                throw new Error("error" in result ? String(result.error) : "บันทึกไม่สำเร็จ");
+            }
+            router.refresh();
+        } catch (error) {
+            setError(error instanceof Error ? error.message : "บันทึกไม่สำเร็จ กรุณาลองใหม่");
+        }
+    });
     const [search, setSearch] = useState("");
     const [addingPanel, setAddingPanel] = useState("");
     const activePanels = (panels || []).filter((p) => p.is_active);
@@ -80,6 +92,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
 
     return (
         <div className="space-y-6">
+            {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
             <datalist id="visit-sample-types">{SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
             <div className="flex items-center justify-between pb-3 border-b">
                 <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -116,7 +129,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
                         <option value="">+ เพิ่มแพ็กเกจตรวจ (ชุด)…</option>
                         {activePanels.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.items.length} รายการ</option>)}
                     </select>
-                    <button disabled={!addingPanel || busy} onClick={() => run(async () => { await addLabPanel(vn, hn, addingPanel); setAddingPanel(""); })}
+                    <button disabled={!addingPanel || busy} onClick={() => run(async () => { const result = await addLabPanel(vn, hn, addingPanel); if (result.ok) setAddingPanel(""); return result; })}
                         className="h-9 px-3 rounded-lg bg-blue-600 text-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-50">
                         <Plus className="h-4 w-4" /> เพิ่มแพ็ก
                     </button>
