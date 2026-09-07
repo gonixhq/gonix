@@ -561,7 +561,7 @@ function PanelManagerModal({
                             {panels.length === 0 ? (
                                 <div className="text-center py-10 text-sm text-slate-400">
                                     <Layers className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-                                    ยังไม่มีแพ็กเกจ — กด "สร้างแพ็กเกจใหม่" เพื่อเริ่ม
+                                    ยังไม่มีแพ็กเกจ — กด &quot;สร้างแพ็กเกจใหม่&quot; เพื่อเริ่ม
                                 </div>
                             ) : panels.map((p) => {
                                 const profit = p.price - p.cost;

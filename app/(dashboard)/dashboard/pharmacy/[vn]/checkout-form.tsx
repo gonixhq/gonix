@@ -17,7 +17,7 @@ import { completeCheckout, type InvoiceItemInput } from "./checkout-actions";
 import { validateCampaignCode, type ValidatedCampaign } from "@/lib/actions/campaigns";
 import type { DiscountEntry } from "@/lib/campaign-types";
 import type { ServiceCatalogItem } from "@/lib/service-types";
-import { listActivePackages, getPatientActivePackages, usePackageSession } from "@/lib/actions/packages";
+import { listActivePackages, getPatientActivePackages, consumePackageSession } from "@/lib/actions/packages";
 import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
 import CheckoutAppointmentForm from "./checkout-appointment-form";
 
@@ -187,7 +187,7 @@ export default function CheckoutForm({
     async function handleUsePackage(pp: PatientPackageActive) {
         if (!confirm(`ตัด 1 ครั้งจาก "${pp.package_name}"?\nหลังตัดจะเหลือ ${pp.remaining_sessions - 1}/${pp.total_sessions} ครั้ง`)) return;
         setUsingPackageId(pp.id);
-        const result = await usePackageSession({
+        const result = await consumePackageSession({
             patient_package_id: pp.id,
             visit_vn: visit.vn,
             note: "ตัดจากห้องยา/การเงิน",

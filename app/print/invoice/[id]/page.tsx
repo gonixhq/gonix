@@ -20,8 +20,7 @@ export async function generateMetadata(
             .select("patients!inner(first_name, last_name)")
             .eq("id", id)
             .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pt = data ? (Array.isArray((data as any).patients) ? (data as any).patients[0] : (data as any).patients) : null;
+        const pt = data ? (Array.isArray(data.patients) ? data.patients[0] : data.patients) : null;
         if (pt) {
             const name = `${pt.first_name || ""}_${pt.last_name || ""}`.trim().replace(/\s+/g, "_");
             return { title: `${id}_${name}` };
@@ -116,33 +115,15 @@ function bahtText(n: number): string {
     return txt;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface ReceiptCopyProps {
+type ReceiptCopyProps = Awaited<ReturnType<typeof loadReceipt>> & {
     copyLabel: string;
     copyLabelEn: string;
     isOriginal: boolean;
-    inv: any;
-    items: any[];
-    pt: any;
-    clinic: any;
-    branch: any;
-    issuedByName: string;
-    positivePayments: any[];
-    refunds: any[];
-    subtotal: number;
-    discount: number;
-    discountLines: any[];
-    tax: number;
-    total: number;
-    balance: number;
-    isVoided: boolean;
-    isRefunded: boolean;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
+};
 
 function ReceiptCopy({
     copyLabel, copyLabelEn, isOriginal,
-    inv, items, pt, clinic, branch, issuedByName,
+    inv, items, pt, clinic, issuedByName,
     positivePayments, refunds,
     subtotal, discount, discountLines, tax, total, balance,
     isVoided, isRefunded,
@@ -239,7 +220,7 @@ function ReceiptCopy({
                         <td className="text-right py-0.5 px-1.5 tabular-nums font-semibold">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     </tr>
                     {/* ส่วนลดแยกบรรทัดตามที่มา — คนไข้/บัญชีเห็นว่าแต่ละก้อนมาจากไหน */}
-                    {discountLines.length > 0 ? discountLines.map((d: any) => (
+                    {discountLines.length > 0 ? discountLines.map((d) => (
                         <tr key={d.id}>
                             <td colSpan={4} className="text-right py-0.5 px-1.5 text-slate-700">
                                 ส่วนลด — {d.label}
@@ -334,12 +315,7 @@ function ReceiptCopy({
     );
 }
 
-export default async function InvoicePrintPage({
-    params,
-}: {
-    params: Promise<{ id: string }>;
-}) {
-    const { id } = await params;
+async function loadReceipt(id: string) {
     const supabase = await createClient();
 
     const [invRes, itemsRes, paymentsRes] = await Promise.all([
@@ -359,8 +335,7 @@ export default async function InvoicePrintPage({
         .select("id, discount_type, discount_source, amount, campaigns(code, name)")
         .eq("inv_id", id).order("created_at");
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const inv = invRes.data as any;
+    const inv = invRes.data;
     if (!inv) notFound();
 
     const items = itemsRes.data || [];
@@ -370,16 +345,12 @@ export default async function InvoicePrintPage({
 
     const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
     const issuedBy = Array.isArray(inv.issued_by) ? inv.issued_by[0] : inv.issued_by;
-    const issuedByName = issuedBy?.profiles?.full_name || issuedBy?.profiles?.[0]?.full_name || "—";
+    const issuedByProfile = Array.isArray(issuedBy?.profiles) ? issuedBy.profiles[0] : issuedBy?.profiles;
+    const issuedByName = issuedByProfile?.full_name || "—";
 
     const { data: clinic } = await supabase
         .from("tenants").select("clinic_name, clinic_name_en, company_name, company_name_en, tax_id, logo_url, address_detail, phone, license_number")
         .eq("id", inv.clinic_id).maybeSingle();
-
-    const { data: branch } = await supabase
-        .from("branches").select("branch_name, address, phone")
-        .eq("clinic_id", inv.clinic_id).eq("is_active", true)
-        .order("sort_order").limit(1).maybeSingle();
 
     const subtotal = Number(inv.subtotal || 0);
     const discount = Number(inv.discount_amount || 0);
@@ -394,20 +365,26 @@ export default async function InvoicePrintPage({
         campaign: "โปรโมชัน", manual: "ส่วนลดพิเศษ",
         package: "ส่วนลดคอส", staff_benefit: "สวัสดิการพนักงาน",
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const discountLines = ((discRows || []) as any[]).map((d) => {
+    const discountLines = (discRows || []).map((d) => {
         const camp = Array.isArray(d.campaigns) ? d.campaigns[0] : d.campaigns;
         const label = camp ? `${camp.code} (${camp.name})`
             : d.discount_source || KIND_LABEL[d.discount_type] || "ส่วนลด";
         return { id: d.id, label, amount: Number(d.amount || 0) };
     }).filter((d) => d.amount > 0);
 
-    const commonProps = {
-        inv, items, pt, clinic, branch, issuedByName,
+    return {
+        inv, items, pt, clinic, issuedByName,
         positivePayments, refunds,
         subtotal, discount, discountLines, tax, total, balance,
         isVoided, isRefunded,
     };
+
+}
+
+export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const commonProps = await loadReceipt(id);
+    const { inv } = commonProps;
 
     return (
         <div className="min-h-screen bg-slate-100 print:bg-white print:min-h-0">

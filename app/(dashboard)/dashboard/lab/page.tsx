@@ -17,9 +17,9 @@ export default async function LabPage() {
         .limit(100);
 
     // Stats
-    const pending = (labOrders || []).filter((l: any) => l.status === "pending").length;
-    const inProgress = (labOrders || []).filter((l: any) => l.status === "in_progress").length;
-    const completed = (labOrders || []).filter((l: any) => l.status === "completed").length;
+    const pending = (labOrders || []).filter((l) => l.status === "pending").length;
+    const inProgress = (labOrders || []).filter((l) => l.status === "in_progress").length;
+    const completed = (labOrders || []).filter((l) => l.status === "completed").length;
 
     return (
         <LabClient

@@ -143,8 +143,7 @@ export async function previewApplyDefault(month: string, staffId?: string): Prom
 
 /** สร้างแถวเวรจาก default (คำนวณ conflict) — ใช้ทั้ง preview + apply */
 async function buildApplyRows(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    supabase: any, clinicId: string, month: string, staffId?: string,
+    supabase: Awaited<ReturnType<typeof createClient>>, clinicId: string, month: string, staffId?: string,
 ) {
     let q = supabase.from("staff_default_schedule")
         .select("staff_id, weekday, start_time, end_time, room_id").eq("clinic_id", clinicId);
@@ -156,7 +155,7 @@ async function buildApplyRows(
     // เวรเดิมในเดือน (เฉพาะ staff ที่เกี่ยว)
     const [y, m] = month.split("-").map(Number);
     const last = new Date(y, m, 0).getDate();
-    const staffIds = [...new Set((defs || []).map((d: any) => d.staff_id as string))];
+    const staffIds = [...new Set((defs || []).map((d) => d.staff_id as string))];
     const existByStaffDate: Record<string, { s: string; e: string }[]> = {};
     if (staffIds.length > 0) {
         const { data: existing } = await supabase.from("doctor_shifts")
