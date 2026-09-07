@@ -22,7 +22,7 @@ import {
     getPackageUsages,
     undoPackageUsage,
     refundPackage,
-    usePackageSession,
+    consumePackageSession,
     getPackageRecommendations,
     type PackageRecommendation,
 } from "@/lib/actions/packages";
@@ -401,7 +401,7 @@ function UseSessionModal({
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
-            const result = await usePackageSession({
+            const result = await consumePackageSession({
                 patient_package_id: pp.id,
                 note: note || undefined,
             });

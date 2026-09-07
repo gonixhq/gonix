@@ -325,6 +325,13 @@ export async function getLabServices(): Promise<LabService[]> {
 }
 
 // ── Lab panels (แพ็กเกจ) ────────────────────────────
+interface AnonTestSnapshot {
+    service_id: string | null;
+    test_name: string;
+    item_type: string;
+    price: number;
+}
+
 export interface AnonPanelItem { service_id: string; name: string; item_type: string; price: number; }
 export interface AnonPanel {
     id: string; name: string; note: string | null;
@@ -346,7 +353,7 @@ export async function listAnonPanels(): Promise<AnonPanel[]> {
         .in("panel_id", ids);
     const byPanel = new Map<string, AnonPanelItem[]>();
     for (const it of items || []) {
-        const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+        const sc = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
         const arr = byPanel.get(it.panel_id as string) || [];
         arr.push({
             service_id: it.service_id as string, name: sc?.service_name || "—",
@@ -413,8 +420,8 @@ export async function addAnonPanel(caseId: string, panelId: string): Promise<{ o
     if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
     const { data: items } = await supabase.from("anon_panel_items")
         .select("service_id, service_catalog(service_name, item_type)").eq("panel_id", panelId);
-    const rows: any[] = (items || []).map((it) => {
-        const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+    const rows: (AnonTestSnapshot & { case_id: string })[] = (items || []).map((it) => {
+        const sc = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
         return {
             case_id: caseId, service_id: it.service_id,
             test_name: sc?.service_name || "เทส", item_type: sc?.item_type || "lab_external", price: 0,
@@ -458,7 +465,7 @@ export async function createAnonCase(input: {
         : [];
     // snapshot panels (แพ็กเกจ) → เทสย่อย price 0 + บรรทัดค่าแพ็กราคาเดียว
     const panelIds = input.panelIds || [];
-    const panelRowsBase: any[] = [];
+    const panelRowsBase: AnonTestSnapshot[] = [];
     if (panelIds.length) {
         const { data: pans } = await supabase.from("anon_panels")
             .select("id, name, price").eq("clinic_id", clinicId).in("id", panelIds);
@@ -466,7 +473,7 @@ export async function createAnonCase(input: {
             .select("panel_id, service_id, service_catalog(service_name, item_type)").in("panel_id", panelIds);
         for (const pan of pans || []) {
             for (const it of (pitems || []).filter((x) => x.panel_id === pan.id)) {
-                const sc: any = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
+                const sc = Array.isArray(it.service_catalog) ? it.service_catalog[0] : it.service_catalog;
                 panelRowsBase.push({ service_id: it.service_id, test_name: sc?.service_name || "เทส", item_type: sc?.item_type || "lab_external", price: 0 });
             }
             panelRowsBase.push({ service_id: null, test_name: `แพ็กเกจ · ${pan.name}`, item_type: "other", price: num(pan.price) });

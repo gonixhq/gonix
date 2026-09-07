@@ -608,7 +608,7 @@ export interface UsePackageSessionInput {
     note?: string;
 }
 
-export async function usePackageSession(input: UsePackageSessionInput) {
+export async function consumePackageSession(input: UsePackageSessionInput) {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();

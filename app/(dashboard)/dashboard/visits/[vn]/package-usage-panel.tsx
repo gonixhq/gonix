@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import {
     getPatientActivePackages,
-    usePackageSession,
+    consumePackageSession,
     listActivePackages,
     purchasePackage,
 } from "@/lib/actions/packages";
@@ -209,7 +209,7 @@ function ConfirmUseModal({
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
-            const result = await usePackageSession({
+            const result = await consumePackageSession({
                 patient_package_id: pp.id,
                 visit_vn: vn,
                 note: note || undefined,

@@ -76,7 +76,7 @@ export default async function DeletedLogPage() {
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
                 <div className="text-amber-600 shrink-0 mt-0.5"></div>
                 <div className="text-xs text-amber-900 leading-relaxed">
-                    <strong>หมายเหตุ:</strong> HN ที่อยู่ในตารางนี้จะ "ถูกล็อก" — ระบบจะไม่นำเลขเหล่านี้กลับมาใช้ซ้ำ
+                    <strong>หมายเหตุ:</strong> HN ที่อยู่ในตารางนี้จะ &quot;ถูกล็อก&quot; — ระบบจะไม่นำเลขเหล่านี้กลับมาใช้ซ้ำ
                     เมื่อสร้างผู้ป่วยใหม่ จะข้ามไปใช้เลขถัดไปอัตโนมัติ
                 </div>
             </div>
