@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 
 type Stroke = { color: string; points: string };
@@ -16,6 +16,20 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
     const [redo, setRedo] = useState<Stroke[]>([]);
     const [message, setMessage] = useState("");
     const drawing = useRef(false);
+    const container = useRef<HTMLDivElement>(null);
+    const [expanded, setExpanded] = useState(false);
+    const [renaming, setRenaming] = useState(false);
+    useEffect(() => {
+        const sync = () => setExpanded(document.fullscreenElement === container.current);
+        document.addEventListener("fullscreenchange", sync);
+        return () => document.removeEventListener("fullscreenchange", sync);
+    }, []);
+    async function toggleFullscreen() {
+        try {
+            if (document.fullscreenElement === container.current) await document.exitFullscreen();
+            else await container.current?.requestFullscreen();
+        } catch { setMessage("อุปกรณ์นี้ไม่รองรับการขยายเต็มจอ"); }
+    }
     const sheet = sheets.find(s => s.id === active)!;
     function edit(patch: Partial<Sheet>) { setSheets(old => old.map(s => s.id === active ? { ...s, ...patch } : s)); setMessage(""); }
     function add(name: string, background: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, strokes: [] }]); setActive(id); setRedo([]); onCount(sheets.length + 1); setMessage(""); }
@@ -43,13 +57,13 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
             setSheets(restored); setActive(restored[0].id); onCount(restored.length); setRedo([]); setMessage("เปิดแผ่นวาดแล้ว สามารถวาดต่อได้");
         } catch { setMessage("เปิดไฟล์ไม่ได้ กรุณาเลือกไฟล์แผ่นวาดจากต้นแบบนี้"); }
     }
-    return <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-        <h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3>
+    return <div ref={container} className={`space-y-2 rounded-2xl border border-slate-200 p-3 ${expanded ? "overflow-y-auto bg-white" : "bg-slate-50/60"}`}>
+        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3><button className={button} onClick={() => void toggleFullscreen()}>{expanded ? "ย่อกลับ" : "ขยายเต็มจอ"}</button></div>
         <div className="flex flex-wrap gap-2"><button className={button} onClick={() => add("Face", "/face-chart.png")}>+ Face</button><button className={button} onClick={() => add("Body", body)}>+ Body</button><button className={button} onClick={() => add("กระดาษเปล่า", "")}>+ กระดาษเปล่า</button><label className={`${button} cursor-pointer`}>อัปโหลดภาพ<input className="sr-only" type="file" accept="image/*" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} /></label><label className={`${button} cursor-pointer`}>ถ่ายภาพ<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} /></label></div>
-        <div className="flex flex-wrap gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} onClick={() => { setActive(s.id); setRedo([]); }}>{s.name}</button>)}</div>
-        <label className="block text-xs text-slate-500">ชื่อแผ่น<input className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} /></label>
+        <div className="flex flex-wrap gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} title="กดแผ่นที่เลือกเพื่อเปลี่ยนชื่อ" onClick={() => { setRenaming(active === s.id ? !renaming : false); setActive(s.id); setRedo([]); }}>{s.name}</button>)}</div>
+        {renaming && <label className="block text-xs text-slate-500">ชื่อแผ่น<input autoFocus className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} /></label>}
         <div className="flex flex-wrap items-center gap-2"><label className="text-xs">สี <input aria-label="สีปากกา" type="color" value={color} onChange={e => { setColor(e.target.value); setErase(false); }} /></label><button className={button} aria-pressed={!erase} onClick={() => setErase(false)}>ปากกา</button><button className={`${button} ${erase ? "!bg-blue-100" : ""}`} aria-pressed={erase} onClick={() => setErase(true)}>ลบเส้น</button><button className={button} disabled={!sheet.strokes.length} onClick={() => { setRedo(r => [...r, sheet.strokes[sheet.strokes.length - 1]]); edit({ strokes: sheet.strokes.slice(0, -1) }); }}>ย้อนกลับ</button><button className={button} disabled={!redo.length} onClick={() => { edit({ strokes: [...sheet.strokes, redo[redo.length - 1]] }); setRedo(r => r.slice(0, -1)); }}>ทำซ้ำ</button></div>
-        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="w-full touch-none rounded-xl border border-slate-200 bg-white" onPointerDown={e => { if (erase) return; e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
+        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc(68dvh * 0.75))" : "min(100%, 300px, calc(48dvh * 0.75))", aspectRatio: "3 / 4" }} onPointerDown={e => { if (erase) return; e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
             {sheet.background && <image href={sheet.background} width="600" height="800" preserveAspectRatio="xMidYMid meet" />}
             {sheet.strokes.map((s, i) => <polyline key={i} points={s.points} stroke={s.color} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents={erase ? "stroke" : "none"} onPointerDown={e => { if (erase) { e.stopPropagation(); edit({ strokes: sheet.strokes.filter((_, n) => n !== i) }); setRedo([]); } }} />)}
         </svg>
