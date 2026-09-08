@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Undo2, Redo2, MapPin, Pencil, Eraser } from "lucide-react";
+import { Undo2, Redo2, MapPin, Pencil, Eraser, Plus } from "lucide-react";
 import type { PointerEvent } from "react";
 
 type Stroke = { color: string; points: string };
@@ -23,6 +23,17 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
     const [message, setMessage] = useState("");
     const drawing = useRef(false);
     const container = useRef<HTMLDivElement>(null);
+    const addMenu = useRef<HTMLDetailsElement>(null);
+    const uploadInput = useRef<HTMLInputElement>(null);
+    const cameraInput = useRef<HTMLInputElement>(null);
+    function closeAddMenu() { if (addMenu.current) addMenu.current.open = false; }
+    useEffect(() => {
+        const outside = (event: globalThis.PointerEvent) => { if (!addMenu.current?.contains(event.target as Node)) closeAddMenu(); };
+        const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && addMenu.current?.open) { closeAddMenu(); addMenu.current.querySelector("summary")?.focus(); } };
+        document.addEventListener("pointerdown", outside);
+        document.addEventListener("keydown", escape);
+        return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+    }, []);
     const [expanded, setExpanded] = useState(false);
     const [renaming, setRenaming] = useState(false);
     useEffect(() => {
@@ -82,8 +93,24 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
         } catch { setMessage("เปิดไฟล์ไม่ได้ กรุณาเลือกไฟล์แผ่นวาดจากต้นแบบนี้"); }
     }
     return <div ref={container} className={`space-y-2 rounded-2xl border border-slate-200 p-3 ${expanded ? "overflow-y-auto bg-white" : "bg-slate-50/60"}`}>
-        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3><button className={button} onClick={() => void toggleFullscreen()}>{expanded ? "ย่อกลับ" : "ขยายเต็มจอ"}</button></div>
-        <div className="flex flex-wrap gap-2"><button className={button} onClick={() => add("Face", "/face-chart.png")}>+ Face</button><button className={button} onClick={() => add("Body", body)}>+ Body</button><button className={button} onClick={() => add("กระดาษเปล่า", "")}>+ กระดาษเปล่า</button><label className={`${button} cursor-pointer`}>อัปโหลดภาพ<input className="sr-only" type="file" accept="image/*" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} /></label><label className={`${button} cursor-pointer`}>ถ่ายภาพ<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} /></label></div>
+        <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3>
+            <div className="flex shrink-0 items-center gap-2">
+                <details ref={addMenu} className="relative">
+                    <summary aria-label="เพิ่มแผ่นวาดหรือภาพ" title="เพิ่มแผ่นวาดหรือภาพ" className={`${button} flex h-9 w-9 cursor-pointer list-none items-center justify-center !px-0 text-blue-700 [&::-webkit-details-marker]:hidden focus-visible:outline-blue-600`}><Plus size={20} /></summary>
+                    <div className="absolute right-0 top-full z-20 mt-2 grid w-44 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                        <button className={`${button} text-left`} onClick={() => { add("Face", "/face-chart.png"); closeAddMenu(); }}>Face chart</button>
+                        <button className={`${button} text-left`} onClick={() => { add("Body", body); closeAddMenu(); }}>Body chart</button>
+                        <button className={`${button} text-left`} onClick={() => { add("กระดาษเปล่า", ""); closeAddMenu(); }}>กระดาษเปล่า</button>
+                        <button className={`${button} text-left`} onClick={() => { uploadInput.current?.click(); closeAddMenu(); }}>อัปโหลดภาพ</button>
+                        <button className={`${button} text-left`} onClick={() => { cameraInput.current?.click(); closeAddMenu(); }}>ถ่ายภาพ</button>
+                    </div>
+                </details>
+                <button className={button} onClick={() => void toggleFullscreen()}>{expanded ? "ย่อกลับ" : "ขยายเต็มจอ"}</button>
+            </div>
+            <input ref={uploadInput} hidden type="file" accept="image/*" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
+        </div>
 
         {renaming && <label className="block text-xs text-slate-500">ชื่อแผ่น<input autoFocus className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} /></label>}
         <div className="flex flex-wrap items-center gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} title="กดแผ่นที่เลือกเพื่อเปลี่ยนชื่อ" onClick={() => { setRenaming(active === s.id ? !renaming : false); if (active !== s.id) { setRedo([]); setUndo([]); setDraftPin(null); } setActive(s.id); }}>{s.name}</button>)}<label className="text-xs">สี <input aria-label="สีปากกา" type="color" value={color} onChange={e => { setColor(e.target.value); setErase(false); }} /></label><button className={button} title="ปากกา" aria-label="ปากกา" aria-pressed={!erase && !pinMode} onClick={() => { setErase(false); setPinMode(false); }}><Pencil size={18} /></button><button className={`${button} ${erase ? "!bg-blue-100" : ""}`} title="ลบเส้น" aria-label="ลบเส้น" aria-pressed={erase} onClick={() => { setErase(true); setPinMode(false); }}><Eraser size={18} /></button><button className={`${button} inline-flex items-center gap-1 ${pinMode ? "!bg-blue-100" : ""}`} aria-pressed={pinMode} onClick={() => { setPinMode(true); setErase(false); }}><MapPin size={16} /> จุด / cc</button><button className={button} title="ย้อนกลับ" aria-label="ย้อนกลับ" disabled={!undo.length} onClick={undoDrawing}><Undo2 size={18} /></button><button className={button} title="ทำซ้ำ" aria-label="ทำซ้ำ" disabled={!redo.length} onClick={redoDrawing}><Redo2 size={18} /></button></div>
