@@ -55,7 +55,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     const statusLabel: Record<string, string> = {
         waiting: language === "en" ? "Waiting History" : "รอซักประวัติ",
         triaged: language === "en" ? "Triaged" : "คัดกรอง",
-        with_doctor: language === "en" ? "Seeing Doctor" : "รอตรวจรักษา",
+        with_doctor: language === "en" ? "Seeing Doctor" : "กำลังตรวจ",
         with_nurse: language === "en" ? "Seeing Nurse" : "พบพยาบาล",
         waiting_medicine: language === "en" ? "Pharmacy" : "รอรับยา",
         waiting_payment: language === "en" ? "Cashier" : "รอชำระ",
@@ -112,7 +112,97 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             visit.visit_type === 'follow_up' ? (language === "en" ? "Follow Up" : 'ติดตามอาการ') :
                 visit.visit_type === 'procedure' ? (language === "en" ? "Procedure" : 'ทำหัตถการ') : (visit.visit_type || "—");
 
-    const tabTriggerClass = "w-auto md:w-full min-w-0 shrink-0 flex items-center whitespace-normal text-left break-words leading-relaxed [&>span]:min-w-0 gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/80 hover:text-blue-800 data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-colors justify-start";
+    const tabTriggerClass = (isAesthetic ? "md:w-full " : "") + "w-auto min-w-0 shrink-0 flex items-center whitespace-normal text-left break-words leading-relaxed [&>span]:min-w-0 gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/80 hover:text-blue-800 data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-colors justify-start";
+
+    // เครื่องหมายขีดเป็นข้อมูลที่ยังไม่ได้ระบุ ไม่ใช่ประวัติแพ้ยา
+    const meaningfulHistory = (value: unknown) => { const text = String(value ?? "").trim(); return /^[-–—\s]*$/.test(text) ? "" : text; };
+    const clinicalHeader = (
+<div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl overflow-hidden shadow-[0_4px_24px_rgba(30,58,95,0.06)]">
+                {/* CC + Pain */}
+                <div className="px-4 sm:px-5 pt-5 pb-4 flex flex-wrap items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                            อาการสำคัญ (CC)
+                        </div>
+                        <div className="font-semibold text-slate-900 text-xl leading-relaxed">
+                            {visit.chief_complaint || <span className="text-slate-400 italic font-medium">ไม่ได้บันทึก</span>}
+                        </div>
+                        {visit.present_illness && (
+                            <div className="text-sm text-slate-600 mt-2 leading-relaxed whitespace-pre-wrap">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 mr-1.5">PI:</span>
+                                {visit.present_illness}
+                            </div>
+                        )}
+                    </div>
+                    {typeof visit.pain_score === "number" && visit.pain_score > 0 && (
+                        <div className="flex items-baseline gap-1.5 shrink-0 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pain</span>
+                            <span className={`text-2xl font-semibold leading-none ${visit.pain_score >= 7 ? "text-red-600" : visit.pain_score >= 4 ? "text-amber-600" : "text-emerald-600"}`}>
+                                {visit.pain_score}
+                            </span>
+                            <span className="text-xs text-slate-400">/10</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Allergies + Chronic (safety strip) */}
+                {(() => {
+                    const allergyText = allergies.length > 0
+                        ? allergies.map(a => meaningfulHistory(a.allergen_name)).filter(Boolean).join(", ") || meaningfulHistory(patient.allergy_summary)
+                        : meaningfulHistory(patient.allergy_summary);
+                    const hasAllergy = !!allergyText;
+                    const diseaseText = chronicList.map(meaningfulHistory).filter(Boolean).join(", ") || meaningfulHistory(patient.disease_summary);
+                    const hasChronic = !!diseaseText;
+                    const chronicText = diseaseText || (language === "en" ? "Not recorded" : "ยังไม่ระบุ");
+                    return (
+                        <div className={`px-5 py-2.5 border-y flex items-center gap-x-5 gap-y-1 flex-wrap text-sm ${
+                            hasAllergy ? "bg-red-50/40 border-red-100" : "bg-slate-50/40 border-slate-100"
+                        }`}>
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className={`h-4 w-4 ${hasAllergy ? "text-red-600" : "text-slate-300"}`} />
+                                <span className="text-slate-600 font-semibold">แพ้:</span>
+                                {hasAllergy
+                                    ? <span className="text-red-700 font-semibold">{allergyText}</span>
+                                    : <span className="text-slate-400">ยังไม่ระบุ</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Heart className={`h-4 w-4 ${hasChronic ? "text-amber-600" : "text-slate-300"}`} />
+                                <span className="text-slate-600 font-semibold">โรคประจำตัว:</span>
+                                <span className={hasChronic ? "text-amber-700 font-semibold" : "text-slate-400"}>
+                                    {chronicText}
+                                </span>
+                            </div>
+                            {patient.past_history && (
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <History className="h-4 w-4 text-blue-600 shrink-0" />
+                                    <span className="text-slate-600 font-semibold shrink-0">{language === "en" ? "Past history (PH):" : "ประวัติอดีต (PH):"}</span>
+                                    <span className="text-blue-800 font-medium break-words">{patient.past_history}</span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {/* Vitals inline */}
+                <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                    {[
+                        { label: 'BP', unit: 'mmHg', value: (vitals?.bp_systolic || visit?.bp_systolic) ? `${vitals?.bp_systolic || visit?.bp_systolic || '-'}/${vitals?.bp_diastolic || visit?.bp_diastolic || '-'}` : null },
+                        { label: 'PR', unit: 'bpm', value: vitals?.pulse_rate ?? visit?.pulse_rate ?? null },
+                        { label: 'Temp', unit: '°C', value: vitals?.temperature ?? visit?.temperature ?? null },
+                        { label: 'O2', unit: '%', value: vitals?.o2_saturation ?? visit?.o2_saturation ?? null },
+                        { label: 'Wt/Ht', unit: '', value: (vitals?.weight_kg || visit?.weight_kg) ? `${vitals?.weight_kg || visit?.weight_kg || '-'}kg / ${vitals?.height_cm || visit?.height_cm || '-'}cm` : null },
+                    ].map((v, i) => (
+                        <div key={i} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{v.label}</span>
+                            <span className={`font-semibold text-sm tabular-nums ${v.value ? "text-slate-800" : "text-slate-300"}`}>
+                                {v.value || "—"}
+                            </span>
+                            {v.unit && v.value && <span className="text-xs text-slate-400">{v.unit}</span>}
+                        </div>
+                    ))}
+                </div>
+            </div>
+    );
 
     return (
         <div className={`${styles.workspace} space-y-5 max-w-7xl mx-auto animate-fade-in relative z-10 p-3 sm:p-5 pb-8`}>
@@ -122,11 +212,11 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             </Link>
 
             {/* ════ 2-Column Layout: Top card + Tabs (left) + Patient sidebar (right) ════ */}
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+            <div className={isAesthetic ? "grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start" : "space-y-4"}>
 
             {/* ╔════════ RIGHT (sticky) — Patient Detail Card ════════╗ */}
-            <div className="xl:order-2 xl:sticky xl:top-4 min-w-0">
-                <div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl p-5 space-y-4 shadow-[0_4px_24px_rgba(30,58,95,0.06)]">
+            <div className={isAesthetic ? "xl:order-2 xl:sticky xl:top-4 min-w-0" : "min-w-0"}>
+                <div className={cn("rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl p-4 shadow-sm", isAesthetic ? "space-y-4" : "grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-start")}>
                     {/* Header: Avatar + Name + HN + Status */}
                     <div className="flex items-center gap-2 pb-3 border-b border-slate-200/60">
                         <div className="h-10 w-10 rounded-lg bg-slate-800 flex items-center justify-center text-white font-semibold text-base shadow-sm shrink-0">
@@ -138,6 +228,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 <span className="text-xs font-mono text-blue-700 font-semibold">{patient.hn}</span>
+                                {!isAesthetic && <span className="text-xs text-slate-500">· {patient.gender === "F" ? "หญิง" : patient.gender === "M" ? "ชาย" : "ไม่ระบุเพศ"} · {calculateAge(patient.dob)} · {vn}</span>}
                                 <Badge className={cn(
                                     "px-1.5 py-0 font-semibold rounded border-0 text-xs",
                                     statusVariant[visit.status] === "completed" ? "bg-emerald-100 text-emerald-700" :
@@ -152,8 +243,11 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         </div>
                     </div>
 
+                    <details open={isAesthetic || undefined} className={isAesthetic ? "" : "order-3 sm:col-span-2"}>
+                        <summary className="cursor-pointer text-sm text-blue-700">ข้อมูลคนไข้เพิ่มเติม</summary>
+                        <div className={isAesthetic ? "mt-3 space-y-3" : "mt-3 space-y-4"}>
                     {/* Demographics + Visit info */}
-                    <div className="space-y-2.5 text-sm leading-relaxed [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words">
+                    <div className={cn("text-sm leading-relaxed [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words", isAesthetic ? "space-y-2.5" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 [&>div]:grid-cols-[88px_minmax(0,1fr)]")}>
                         <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
                             <span className="text-slate-500">เพศ</span>
                             <span className="text-slate-700">
@@ -226,11 +320,11 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                     </div>
 
                     {/* VN (พิมพ์ย้ายไปหน้าจ่ายยา/คิดเงิน) */}
-                    <div className="pt-3 border-t border-slate-200/60">
+                    {isAesthetic && <div className="pt-3 border-t border-slate-200/60">
                         <div className="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-semibold font-mono tracking-wider text-center">
                             {vn}
                         </div>
-                    </div>
+                    </div>}
 
                     {/* Emergency Contact */}
                     {(patient.emergency_contact_name || patient.emergency_contact_phone) && (
@@ -252,8 +346,10 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         </div>
                     )}
 
+                        </div>
+                    </details>
                     {/* End Examination button (small, in sidebar) */}
-                    <div className="pt-3 border-t border-slate-200/60">
+                    <div className={isAesthetic ? "pt-3 border-t border-slate-200/60" : "[&>button]:px-4"}>
                         <VisitStatusActions
                             vn={vn}
                             currentStatus={visit.status}
@@ -307,9 +403,10 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         />
                     </div>
 
+                    {!isAesthetic && <div className="sm:col-span-2">{clinicalHeader}</div>}
                     {/* Link to full patient page */}
                     <Link href={`/dashboard/patients/${patient.hn}`} target="_blank"
-                        className="block w-full text-center text-xs text-blue-600 hover:text-blue-800 hover:underline pt-2 border-t border-slate-200/60">
+                        className="order-4 sm:col-span-2 block w-full text-center text-xs text-blue-600 hover:text-blue-800 hover:underline pt-2 border-t border-slate-200/60">
                         ดูข้อมูลผู้ป่วยเต็ม (เปิดแท็บใหม่) →
                     </Link>
                 </div>
@@ -320,105 +417,19 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             <div className="xl:order-1 min-w-0 space-y-5">
 
             {isAesthetic && <Link href={`/dashboard/visits/${vn}/workspace`} className="inline-flex rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">เปิดหน้าตรวจแบบใหม่ →</Link>}
-            {/* Unified Top Card — Clinical only (CC + Warnings + Vitals) */}
-            <div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl overflow-hidden shadow-[0_4px_24px_rgba(30,58,95,0.06)]">
-                {/* CC + Pain */}
-                <div className="px-4 sm:px-5 pt-5 pb-4 flex flex-wrap items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
-                            อาการสำคัญ (CC)
-                        </div>
-                        <div className="font-semibold text-slate-900 text-xl leading-relaxed">
-                            {visit.chief_complaint || <span className="text-slate-400 italic font-medium">ไม่ได้บันทึก</span>}
-                        </div>
-                        {visit.present_illness && (
-                            <div className="text-sm text-slate-600 mt-2 leading-relaxed whitespace-pre-wrap">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 mr-1.5">PI:</span>
-                                {visit.present_illness}
-                            </div>
-                        )}
-                    </div>
-                    {typeof visit.pain_score === "number" && visit.pain_score > 0 && (
-                        <div className="flex items-baseline gap-1.5 shrink-0 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pain</span>
-                            <span className={`text-2xl font-semibold leading-none ${visit.pain_score >= 7 ? "text-red-600" : visit.pain_score >= 4 ? "text-amber-600" : "text-emerald-600"}`}>
-                                {visit.pain_score}
-                            </span>
-                            <span className="text-xs text-slate-400">/10</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Allergies + Chronic (safety strip) */}
-                {(() => {
-                    const allergyText = allergies.length > 0
-                        ? allergies.map(a => a.allergen_name).join(", ")
-                        : patient.allergy_summary || "";
-                    const hasAllergy = !!allergyText;
-                    const hasChronic = chronicList.length > 0 || !!patient.disease_summary;
-                    const chronicText = chronicList.length > 0
-                        ? chronicList.join(", ")
-                        : patient.disease_summary || (language === "en" ? "Not recorded" : "ยังไม่ระบุ");
-                    return (
-                        <div className={`px-5 py-2.5 border-y flex items-center gap-x-5 gap-y-1 flex-wrap text-sm ${
-                            hasAllergy ? "bg-red-50/40 border-red-100" : "bg-slate-50/40 border-slate-100"
-                        }`}>
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className={`h-4 w-4 ${hasAllergy ? "text-red-600" : "text-slate-300"}`} />
-                                <span className="text-slate-600 font-semibold">แพ้:</span>
-                                {hasAllergy
-                                    ? <span className="text-red-700 font-semibold">{allergyText}</span>
-                                    : <span className="text-slate-400">ยังไม่ระบุ</span>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Heart className={`h-4 w-4 ${hasChronic ? "text-amber-600" : "text-slate-300"}`} />
-                                <span className="text-slate-600 font-semibold">โรคประจำตัว:</span>
-                                <span className={hasChronic ? "text-amber-700 font-semibold" : "text-slate-400"}>
-                                    {chronicText}
-                                </span>
-                            </div>
-                            {patient.past_history && (
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <History className="h-4 w-4 text-blue-600 shrink-0" />
-                                    <span className="text-slate-600 font-semibold shrink-0">{language === "en" ? "Past history (PH):" : "ประวัติอดีต (PH):"}</span>
-                                    <span className="text-blue-800 font-medium break-words">{patient.past_history}</span>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })()}
-
-                {/* Vitals inline */}
-                <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                    {[
-                        { label: 'BP', unit: 'mmHg', value: (vitals?.bp_systolic || visit?.bp_systolic) ? `${vitals?.bp_systolic || visit?.bp_systolic || '-'}/${vitals?.bp_diastolic || visit?.bp_diastolic || '-'}` : null },
-                        { label: 'PR', unit: 'bpm', value: vitals?.pulse_rate ?? visit?.pulse_rate ?? null },
-                        { label: 'Temp', unit: '°C', value: vitals?.temperature ?? visit?.temperature ?? null },
-                        { label: 'O2', unit: '%', value: vitals?.o2_saturation ?? visit?.o2_saturation ?? null },
-                        { label: 'Wt/Ht', unit: '', value: (vitals?.weight_kg || visit?.weight_kg) ? `${vitals?.weight_kg || visit?.weight_kg || '-'}kg / ${vitals?.height_cm || visit?.height_cm || '-'}cm` : null },
-                    ].map((v, i) => (
-                        <div key={i} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{v.label}</span>
-                            <span className={`font-semibold text-sm tabular-nums ${v.value ? "text-slate-800" : "text-slate-300"}`}>
-                                {v.value || "—"}
-                            </span>
-                            {v.unit && v.value && <span className="text-xs text-slate-400">{v.unit}</span>}
-                        </div>
-                    ))}
-                </div>
-            </div>
+            {isAesthetic && clinicalHeader}
 
             {/* Main Workspace Tabs - Sidebar layout */}
             <div className="backdrop-blur-xl bg-white/65 border border-white/90 shadow-[0_4px_24px_rgba(30,58,95,0.06)] rounded-2xl p-2 sm:p-3">
-                <Tabs defaultValue={defaultTab} orientation="vertical" className="w-full">
-                    <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-3">
+                <Tabs defaultValue={defaultTab} orientation={isAesthetic ? "vertical" : "horizontal"} className="w-full">
+                    <div className={isAesthetic ? "grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-3" : "space-y-3"}>
                         {/* ── LEFT SIDEBAR ── */}
-                        <aside className="md:sticky md:top-4 md:self-start">
-                            <TabsList className="flex flex-wrap md:flex-col md:flex-nowrap items-stretch justify-start gap-1 h-auto bg-slate-100/65 border border-white/90 p-1.5 rounded-xl w-full">
+                        <aside className={isAesthetic ? "md:sticky md:top-4 md:self-start" : ""}>
+                            <TabsList className={cn("flex flex-wrap items-stretch justify-start gap-1 h-auto bg-slate-100/65 border border-white/90 p-1.5 rounded-xl w-full", isAesthetic && "md:flex-col md:flex-nowrap")}>
                                 {showSoapTab && (
                                     <TabsTrigger value="soap" className={tabTriggerClass}>
                                         <Stethoscope className="h-4 w-4 shrink-0" />
-                                        <span>{language === "en" ? "Examination" : "ตรวจร่างกาย"}</span>
+                                        <span>{language === "en" ? "Examination Notes" : "บันทึกการตรวจ"}</span>
                                         {doneSoap && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                     </TabsTrigger>
                                 )}
@@ -431,7 +442,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 {showDrugsTab && (
                                     <TabsTrigger value="drugs" className={tabTriggerClass}>
                                         <Pill className="h-4 w-4 shrink-0" />
-                                        <span>{language === "en" ? "Diagnosis & Rx" : "วินิจฉัย & สั่งยา"}</span>
+                                        <span>{language === "en" ? "Prescription" : "สั่งยา"}</span>
                                         {doneDx && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 ml-auto shrink-0" />}
                                     </TabsTrigger>
                                 )}
@@ -450,7 +461,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 {!isAesthetic && (
                                     <TabsTrigger value="appt" className={tabTriggerClass}>
                                         <FileSignature className="h-4 w-4 shrink-0" />
-                                        <span>{language === "en" ? "Refer" : "ส่งต่อ"}</span>
+                                        <span>{language === "en" ? "Appointments & Referral" : "นัดหมาย / ส่งต่อ"}</span>
                                     </TabsTrigger>
                                 )}
                                 {showPackagesTab && (
@@ -472,6 +483,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {showSoapTab && (
                             <TabsContent forceMount value="soap" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
                                 <SoapForm
+                                    beforeExamination={<DrugOrderForm diagnosisOnly compact vn={vn} hn={patient.hn} defaultIcd10={visit.icd10_primary || ""} defaultDiagnosisText={visit.diagnosis_text || ""} />}
                                     vn={vn}
                                     visitType={visit.visit_type || "opd"}
                                     defaultValues={{
@@ -494,7 +506,8 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {showDrugsTab && (
                         <TabsContent forceMount value="drugs" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
                             <DrugOrderForm
-                                showDiagnosis={!isAesthetic}
+                                compact
+                                showDiagnosis={false}
                                 vn={vn}
                                 hn={patient.hn}
                                 defaultIcd10={visit.icd10_primary || ""}
@@ -522,7 +535,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
                         {/* Tab 3: Lab */}
                         <TabsContent forceMount value="lab" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
-                            <LabOrderForm vn={vn} hn={patient.hn} cc={visit.chief_complaint || ""} catalog={labCatalog || []} orders={labOrders || []} panels={labPanels || []} report={visit} />
+                            <LabOrderForm compact={!isAesthetic} vn={vn} hn={patient.hn} cc={visit.chief_complaint || ""} catalog={labCatalog || []} orders={labOrders || []} panels={labPanels || []} report={visit} />
                         </TabsContent>
 
                         {/* Tab 4: Medical Certificate */}
@@ -539,7 +552,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                     vn={vn}
                                     hn={patient.hn}
                                     doctorId={visit.doctor_id || undefined}
-                                    showAppointment={false}
+                                    showAppointment={true}
                                     showRefer={true}
                                 />
                             </TabsContent>
@@ -555,6 +568,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {/* Tab 7: History / Timeline */}
                         <TabsContent forceMount value="timeline" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
                             <div className="space-y-5">
+                                {!isAesthetic && <div className="rounded-xl border border-slate-200 p-4"><h2 className="mb-3 font-semibold">ผล Lab ของ visit นี้</h2>{!(labOrders || []).length && <p className="text-sm text-slate-500">ยังไม่มีรายการ Lab ใน visit นี้</p>}{(labOrders || []).map((lab: { id: string; lab_name: string; result_value?: string; result_unit?: string; normal_range?: string; status: string }) => <div key={lab.id} className="flex flex-wrap justify-between gap-2 border-t border-slate-100 py-2 text-sm"><span>{lab.lab_name}</span><span>{lab.result_value ?? "ยังไม่มีผล"} {lab.result_unit} · {lab.status === "resulted" ? "มีผลตรวจแล้ว" : lab.status === "ordered" ? "รอผลตรวจ" : lab.status === "cancelled" ? "ยกเลิก" : lab.status}{lab.normal_range && ` · ค่าอ้างอิง ${lab.normal_range}`}</span></div>)}</div>}
                                 {/* Header */}
                                 <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-200">
                                     <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">

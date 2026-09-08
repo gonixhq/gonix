@@ -54,6 +54,7 @@ interface DrugPreset {
 interface DrugOrderFormProps {
     compact?: boolean;
     showDiagnosis?: boolean;
+    diagnosisOnly?: boolean;
     vn: string;
     hn: string;
     defaultIcd10?: string;
@@ -82,7 +83,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false, showDiagnosis = true }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false, showDiagnosis = true, diagnosisOnly = false }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -421,7 +422,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
             </div>}
 
             {/* ── Drug Prescription ────────────────────────────── */}
-            <div className="space-y-3">
+            {!diagnosisOnly && <div className="space-y-3">
                 <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-emerald-700 flex items-center gap-1.5">
                         <Pill className="h-4 w-4" />
@@ -660,7 +661,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                         </Button>
                     </div>
                 )}
-            </div>
+            </div>}
         </div>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,7 @@ const PE_TEMPLATES: { key: string; text: string }[] = [
 ];
 
 interface SoapFormProps {
+    beforeExamination?: ReactNode;
     vn: string;
     visitType?: string;
     defaultValues: {
@@ -26,7 +27,7 @@ interface SoapFormProps {
     };
 }
 
-export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapFormProps) {
+export default function SoapForm({ vn, visitType = "opd", defaultValues, beforeExamination }: SoapFormProps) {
     const router = useRouter();
     const supabase = createClient();
 
@@ -107,6 +108,8 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                 </div>
             </div>
 
+            {beforeExamination}
+
             <div className="space-y-5">
                 <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -136,7 +139,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
 
                 <div className="space-y-2">
                     <Label htmlFor="soap_p" className="text-sm font-semibold text-slate-700">
-                        บันทึกส่วนตัวแพทย์ (Doctor Note)
+                        บันทึกแพทย์ / แผนการรักษา (Doctor Note / Plan)
                     </Label>
                     <textarea
                         id="soap_p"
