@@ -136,7 +136,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
 
                 <div className="space-y-2">
                     <Label htmlFor="soap_p" className="text-sm font-semibold text-slate-700">
-                        บันทึกส่วนตัวแพทย์ (Doctor Note)
+                        บันทึกแพทย์ / แผนการรักษา (Doctor Note / Plan)
                     </Label>
                     <textarea
                         id="soap_p"

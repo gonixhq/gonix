@@ -114,6 +114,8 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
     const tabTriggerClass = (isAesthetic ? "md:w-full " : "") + "w-auto min-w-0 shrink-0 flex items-center whitespace-normal text-left break-words leading-relaxed [&>span]:min-w-0 gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/80 hover:text-blue-800 data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-colors justify-start";
 
+    // เครื่องหมายขีดเป็นข้อมูลที่ยังไม่ได้ระบุ ไม่ใช่ประวัติแพ้ยา
+    const meaningfulHistory = (value: unknown) => { const text = String(value ?? "").trim(); return /^[-–—\s]*$/.test(text) ? "" : text; };
     const clinicalHeader = (
 <div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl overflow-hidden shadow-[0_4px_24px_rgba(30,58,95,0.06)]">
                 {/* CC + Pain */}
@@ -146,13 +148,12 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                 {/* Allergies + Chronic (safety strip) */}
                 {(() => {
                     const allergyText = allergies.length > 0
-                        ? allergies.map(a => a.allergen_name).join(", ")
-                        : patient.allergy_summary || "";
+                        ? allergies.map(a => meaningfulHistory(a.allergen_name)).filter(Boolean).join(", ") || meaningfulHistory(patient.allergy_summary)
+                        : meaningfulHistory(patient.allergy_summary);
                     const hasAllergy = !!allergyText;
-                    const hasChronic = chronicList.length > 0 || !!patient.disease_summary;
-                    const chronicText = chronicList.length > 0
-                        ? chronicList.join(", ")
-                        : patient.disease_summary || (language === "en" ? "Not recorded" : "ยังไม่ระบุ");
+                    const diseaseText = chronicList.map(meaningfulHistory).filter(Boolean).join(", ") || meaningfulHistory(patient.disease_summary);
+                    const hasChronic = !!diseaseText;
+                    const chronicText = diseaseText || (language === "en" ? "Not recorded" : "ยังไม่ระบุ");
                     return (
                         <div className={`px-5 py-2.5 border-y flex items-center gap-x-5 gap-y-1 flex-wrap text-sm ${
                             hasAllergy ? "bg-red-50/40 border-red-100" : "bg-slate-50/40 border-slate-100"
@@ -244,9 +245,9 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
                     <details open={isAesthetic || undefined} className={isAesthetic ? "" : "order-3 sm:col-span-2"}>
                         <summary className="cursor-pointer text-sm text-blue-700">ข้อมูลคนไข้เพิ่มเติม</summary>
-                        <div className={isAesthetic ? "mt-3 space-y-3" : "mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
+                        <div className={isAesthetic ? "mt-3 space-y-3" : "mt-3 space-y-4"}>
                     {/* Demographics + Visit info */}
-                    <div className="space-y-2.5 text-sm leading-relaxed [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words">
+                    <div className={cn("text-sm leading-relaxed [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words", isAesthetic ? "space-y-2.5" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 [&>div]:grid-cols-[88px_minmax(0,1fr)]")}>
                         <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
                             <span className="text-slate-500">เพศ</span>
                             <span className="text-slate-700">
@@ -319,11 +320,11 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                     </div>
 
                     {/* VN (พิมพ์ย้ายไปหน้าจ่ายยา/คิดเงิน) */}
-                    <div className="pt-3 border-t border-slate-200/60">
+                    {isAesthetic && <div className="pt-3 border-t border-slate-200/60">
                         <div className="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-semibold font-mono tracking-wider text-center">
                             {vn}
                         </div>
-                    </div>
+                    </div>}
 
                     {/* Emergency Contact */}
                     {(patient.emergency_contact_name || patient.emergency_contact_phone) && (
