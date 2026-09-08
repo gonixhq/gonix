@@ -2,95 +2,51 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Plus, Sparkles, Trash2 } from "lucide-react";
+import ChartPad from "./chart-pad";
 
-const steps = ["ประเมิน", "แผนวันนี้", "บันทึกหัตถการ", "ผลและติดตาม", "ตรวจทาน"];
-type Treatment = { id: number; kind: string; product: string; site: string; side: string; qty: string; lot: string; expiry: string };
-const blankTreatment = (id: number): Treatment => ({ id, kind: "Botox", product: "", site: "", side: "", qty: "", lot: "", expiry: "" });
-const fieldClass = "mt-2 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
-const buttonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-blue-600 disabled:opacity-40";
+const tabs = ["บันทึกการตรวจ", "บันทึกหัตถการ", "สั่ง Lab", "สั่งยา", "คอร์สบริการ", "ประวัติ & ผล Lab"];
+const products = ["Botox · ผลิตภัณฑ์จำลอง A", "Botox · ผลิตภัณฑ์จำลอง B", "Filler · ผลิตภัณฑ์จำลอง C", "Filler · ผลิตภัณฑ์จำลอง D", "Skinbooster · ผลิตภัณฑ์จำลอง E"];
+const input = "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200";
+const button = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 hover:bg-blue-50 disabled:opacity-40 focus-visible:outline-blue-600";
+type Treatment = { id: number; product: string; qty: string; unit: string; site: string; lot: string };
+type Order = { id: number; name: string; qty: string; note: string };
 
-function TextField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
-    return <label className="block text-sm font-medium text-slate-600">{label}<textarea rows={3} className={fieldClass} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} /></label>;
+function OrderPanel({ kind, catalog, rows, setRows }: { kind: string; catalog: string[]; rows: Order[]; setRows: (rows: Order[]) => void }) {
+    const [search, setSearch] = useState("");
+    return <div className="space-y-5"><p className="text-sm text-slate-500">รายการจำลองสำหรับทดลอง {kind} ยังไม่ส่งคำสั่งหรือเปลี่ยนยอดคงเหลือจริง</p><input aria-label={`ค้นหา${kind}`} placeholder={`ค้นหา${kind}`} className={input} value={search} onChange={e => setSearch(e.target.value)} /><div className="flex flex-wrap gap-2">{catalog.filter(n => n.toLowerCase().includes(search.toLowerCase())).map(n => <button className={button} key={n} onClick={() => setRows([...rows, { id: Date.now(), name: n, qty: "1", note: "" }])}>+ {n}</button>)}</div><h3 className="font-medium">รายการที่เลือก ({rows.length})</h3>{!rows.length && <p className="rounded-xl bg-slate-50 p-6 text-sm text-slate-500">ยังไม่มีรายการ</p>}{rows.map(r => <div key={r.id} className="space-y-3 rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><span>{r.name}</span><button className={button} onClick={() => setRows(rows.filter(o => o.id !== r.id))}>ลบ</button></div><label className="block text-xs text-slate-500">จำนวน<input className={`${input} mt-1`} type="number" min="1" value={r.qty} onChange={e => setRows(rows.map(o => o.id === r.id ? { ...o, qty: e.target.value } : o))} /></label><label className="block text-xs text-slate-500">{kind === "ยา" ? "วิธีใช้ / คำสั่งแพทย์" : "หมายเหตุ"}<textarea className={`${input} mt-1`} value={r.note} onChange={e => setRows(rows.map(o => o.id === r.id ? { ...o, note: e.target.value } : o))} /></label></div>)}</div>;
 }
 
 export default function AestheticPreview() {
-    const [step, setStep] = useState(0);
-    const [reviewed, setReviewed] = useState(false);
-    const [concern, setConcern] = useState("");
-    const [assessment, setAssessment] = useState("");
-    const [plan, setPlan] = useState("");
-    const [deferred, setDeferred] = useState("");
+    const [tab, setTab] = useState(0);
+    const [notes, setNotes] = useState("");
+    const [query, setQuery] = useState("");
+    const [filter, setFilter] = useState("ทั้งหมด");
+    const [favorites, setFavorites] = useState<string[]>([]);
+    const [recent, setRecent] = useState<string[]>([]);
     const [treatments, setTreatments] = useState<Treatment[]>([]);
-    const [outcome, setOutcome] = useState("");
+    const [labs, setLabs] = useState<Order[]>([]);
+    const [drugs, setDrugs] = useState<Order[]>([]);
+    const [courses, setCourses] = useState<Order[]>([]);
+    const [sheets, setSheets] = useState(1);
+    const [summary, setSummary] = useState(false);
     const [care, setCare] = useState("");
     const [followup, setFollowup] = useState("");
-    const [confirmed, setConfirmed] = useState(false);
     const [finished, setFinished] = useState(false);
-    const [showHistory, setShowHistory] = useState(false);
-    function updateTreatment(id: number, patch: Partial<Treatment>) {
-        setTreatments(rows => rows.map(row => row.id === id ? { ...row, ...patch } : row));
-    }
-    const checks = [
-        { label: "ทบทวนประวัติ", ok: reviewed, step: 0 },
-        { label: "ปัญหาและการประเมิน", ok: !!concern.trim() && !!assessment.trim(), step: 0 },
-        { label: "แผนที่ตกลงทำวันนี้", ok: !!plan.trim(), step: 1 },
-        { label: "รายละเอียดรายการทำจริง", ok: treatments.length > 0 && treatments.every(t => t.product.trim() && t.site.trim() && t.side && Number(t.qty) > 0 && t.lot.trim() && t.expiry), step: 2 },
-        { label: "ผลหลังทำและคำแนะนำ", ok: !!outcome.trim() && !!care.trim(), step: 3 },
-        { label: "แผนติดตาม", ok: !!followup.trim(), step: 3 },
-    ];
-    const complete = checks.every(c => c.ok);
-    return <main className="mx-auto max-w-7xl space-y-5 rounded-3xl bg-gradient-to-br from-slate-100/80 via-blue-50/60 to-white/70 p-4 text-slate-700 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-            <Link href="/dashboard/doctor-station" className="inline-flex items-center gap-2 text-sm"><ArrowLeft size={16} /> กลับห้องแพทย์</Link>
-            <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800">ต้นแบบ • ข้อมูลจำลอง • ไม่บันทึกเข้าระบบ</span>
-        </div>
-        <header className="rounded-2xl border border-white bg-white/80 p-5 shadow-sm backdrop-blur-xl">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div><p className="mb-1 text-xs font-medium text-blue-700">AESTHETIC CONSULTATION</p><h1 className="text-2xl font-semibold text-slate-900">ตรวจความงาม</h1><p className="mt-2 text-sm">คนไข้จำลอง A · อายุ 35 ปี · ทดลองลำดับการกรอก Botox / Filler</p></div>
-                <button className={buttonClass} onClick={() => setShowHistory(!showHistory)} aria-expanded={showHistory}>ประวัติครั้งก่อน</button>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-4 text-sm"><span>แพ้ยา: <strong className="font-medium text-amber-700">{reviewed ? "ทบทวนแล้ว (จำลอง)" : "ยังไม่ได้ทบทวน"}</strong></span><span>โรคประจำตัว: รอซักประวัติ</span><span>ยาที่ใช้: รอซักประวัติ</span></div>
-            {showHistory && <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-relaxed"><p className="font-medium">ประวัติจำลอง · ครั้งก่อน</p><p className="mt-1">มาปรึกษาปัญหาริ้วรอย ยังไม่ได้ทำหัตถการ ต้องการกลับมาประเมินแผนอีกครั้ง</p><p className="mt-2 text-xs text-slate-500">ต้นแบบนี้ยังไม่เชื่อมรูปถ่ายหรือประวัติจริง</p></div>}
-        </header>
-        <nav aria-label="ขั้นตอนการตรวจ" className="flex flex-wrap gap-2">{steps.map((label, i) => <button key={label} aria-current={step === i ? "step" : undefined} onClick={() => { setStep(i); setFinished(false); setConfirmed(false); }} className={`${buttonClass} ${step === i ? "!border-blue-700 !bg-blue-700 !text-white" : ""}`}><span className="opacity-70">0{i + 1}</span>{label}</button>)}</nav>
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
-            <section className="min-w-0 rounded-2xl border border-white bg-white/85 p-5 shadow-sm sm:p-7">
-                <div className="mb-6 flex items-center gap-3"><span className="rounded-xl bg-blue-50 p-3 text-blue-700"><Sparkles size={20} /></span><div><p className="text-xs text-slate-500">ขั้นตอน {step + 1} / 5</p><h2 className="text-xl font-semibold text-slate-900">{steps[step]}</h2></div></div>
-                {step === 0 && <div className="space-y-5">
-                    <label className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm"><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} className="mt-1" /> ทดลองยืนยันว่าทบทวนประวัติแพ้ยา โรคประจำตัว และยาที่ใช้แล้ว</label>
-                    <TextField label="ปัญหาและเป้าหมายของคนไข้" value={concern} onChange={setConcern} placeholder="คนไข้กังวลอะไร บริเวณใด และคาดหวังอะไร" />
-                    <TextField label="การประเมินของแพทย์" value={assessment} onChange={setAssessment} placeholder="บันทึกสิ่งที่ตรวจพบและข้อพิจารณาของเคสนี้" />
-                </div>}
-                {step === 1 && <div className="space-y-5"><TextField label="แผนที่ตกลงทำวันนี้" value={plan} onChange={setPlan} placeholder="ระบุแผนที่พูดคุยและตกลงกับคนไข้" /><TextField label="แนะนำไว้ / ยังไม่ทำวันนี้" value={deferred} onChange={setDeferred} placeholder="แยกสิ่งที่ยังไม่ทำออกจากรายการทำจริง" /><p className="text-sm text-slate-500">ขั้นตอนถัดไปจึงบันทึกผลิตภัณฑ์และปริมาณที่ใช้จริง</p></div>}
-                {step === 2 && <div className="space-y-5">
-                    {treatments.length === 0 && <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">ยังไม่มีรายการทำจริง เริ่มเพิ่ม Botox หรือ Filler ด้านล่าง</div>}
-                    {treatments.map((t, index) => <div key={t.id} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                        <div className="flex items-center justify-between"><h3 className="font-medium">รายการ {index + 1}</h3><button aria-label={`ลบรายการ ${index + 1}`} className={buttonClass} onClick={() => setTreatments(rows => rows.filter(row => row.id !== t.id))}><Trash2 size={16} /></button></div>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <label className="text-sm">หัตถการ<select className={fieldClass} value={t.kind} onChange={e => updateTreatment(t.id, { kind: e.target.value, qty: "" })}><option>Botox</option><option>Filler</option></select></label>
-                            <label className="text-sm">ผลิตภัณฑ์<input className={fieldClass} value={t.product} onChange={e => updateTreatment(t.id, { product: e.target.value })} placeholder="ชื่อผลิตภัณฑ์จำลอง" /></label>
-                            <label className="text-sm">ตำแหน่ง<input className={fieldClass} value={t.site} onChange={e => updateTreatment(t.id, { site: e.target.value })} placeholder="ระบุบริเวณที่ทำ" /></label>
-                            <label className="text-sm">ด้าน<select className={fieldClass} value={t.side} onChange={e => updateTreatment(t.id, { side: e.target.value })}><option value="">เลือก</option><option>ซ้าย</option><option>ขวา</option><option>กึ่งกลาง</option><option>ไม่ระบุด้าน</option></select></label>
-                            <label className="text-sm">ปริมาณ ({t.kind === "Botox" ? "unit" : "ml"})<input type="number" min="0" step="any" className={fieldClass} value={t.qty} onChange={e => updateTreatment(t.id, { qty: e.target.value })} /></label>
-                            <label className="text-sm">Lot<input className={fieldClass} value={t.lot} onChange={e => updateTreatment(t.id, { lot: e.target.value })} /></label>
-                            <label className="text-sm">วันหมดอายุ<input type="date" className={fieldClass} value={t.expiry} onChange={e => updateTreatment(t.id, { expiry: e.target.value })} /></label>
-                        </div>
-                    </div>)}
-                    <button className={buttonClass} onClick={() => setTreatments(rows => [...rows, blankTreatment(Date.now())])}><Plus size={16} /> เพิ่มรายการทำจริง</button>
-                    <p className="text-xs leading-relaxed text-slate-500">ยังไม่เชื่อมสต๊อก บิล หรือแผนผังใบหน้า รายละเอียดที่กรอกจะแสดงในสรุปโดยไม่ต้องพิมพ์ซ้ำ</p>
-                </div>}
-                {step === 3 && <div className="space-y-5"><TextField label="ผลหลังทำ / อาการที่สังเกต" value={outcome} onChange={setOutcome} placeholder="บันทึกตามที่ประเมินจริง" /><TextField label="คำแนะนำที่ให้" value={care} onChange={setCare} /><TextField label="แผนติดตาม" value={followup} onChange={setFollowup} placeholder="ระบุแผนติดตาม หรือเหตุผลหากไม่นัด" /></div>}
-                {step === 4 && <div className="space-y-5">
-                    {[["ปัญหา", concern], ["การประเมิน", assessment], ["ทำวันนี้", plan], ["แนะนำไว้", deferred], ["ผลหลังทำ", outcome], ["คำแนะนำ", care], ["ติดตาม", followup]].map(([label, value]) => <div key={label}><p className="mb-1 text-xs font-medium text-slate-500">{label}</p><p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{value || "— ยังไม่ได้ระบุ —"}</p></div>)}
-                    <div className="space-y-2 border-y border-slate-100 py-4"><h3 className="text-sm font-medium">รายการทำจริง</h3>{treatments.length === 0 && <p className="text-sm text-slate-500">ยังไม่มีรายการ</p>}{treatments.map(t => <p key={t.id} className="break-words text-sm leading-relaxed">{t.kind} · {t.product || "ยังไม่ระบุผลิตภัณฑ์"} · {t.site || "ยังไม่ระบุตำแหน่ง"} {t.side} · {t.qty || "—"} {t.kind === "Botox" ? "unit" : "ml"}<br /><span className="text-slate-500">Lot {t.lot || "—"} · หมดอายุ {t.expiry || "—"}</span></p>)}</div>
-                    <label className="flex items-start gap-3 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mt-1" /> ตรวจทานข้อมูลจำลองแล้ว</label>
-                    <button disabled={!complete || !confirmed} className={`${buttonClass} !bg-blue-700 !text-white`} onClick={() => setFinished(true)}><Check size={16} /> ทดลองจบการตรวจ</button>
-                    {finished && <p role="status" className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">ทดลองครบแล้ว ข้อมูลนี้ไม่ได้บันทึกเป็นเวชระเบียนหรือส่งคิดเงิน</p>}
-                </div>}
-                <div className="mt-8 flex justify-between gap-3 border-t border-slate-100 pt-5"><button className={buttonClass} disabled={step === 0} onClick={() => setStep(step - 1)}><ArrowLeft size={16} /> ย้อนกลับ</button>{step < 4 && <button className={`${buttonClass} !border-blue-700 !bg-blue-700 !text-white`} onClick={() => setStep(step + 1)}>ถัดไป <ArrowRight size={16} /></button>}</div>
-            </section>
-            <aside className="space-y-4 lg:sticky lg:top-4"><div className="rounded-2xl border border-white bg-white/80 p-5"><h2 className="font-semibold">ตรวจความครบถ้วน</h2><p className="mt-1 text-xs text-slate-500">รายการทดลองสำหรับเคสทำหัตถการ</p><div className="mt-4 space-y-2">{checks.map(c => <button key={c.label} onClick={() => setStep(c.step)} className="flex w-full items-center gap-3 rounded-lg py-2 text-left text-sm hover:bg-slate-50"><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${c.ok ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300"}`}>{c.ok && <Check size={12} />}</span>{c.label}</button>)}</div></div><p className="px-2 text-xs leading-relaxed text-slate-500">ข้อมูลอยู่เฉพาะขณะเปิดหน้านี้ รีเฟรชแล้วเริ่มใหม่ ใช้ข้อมูลสมมติเท่านั้น</p></aside>
-        </div>
+    const shown = (filter === "รายการโปรด" ? favorites : filter === "ใช้ล่าสุด" ? recent : products).filter(p => p.toLowerCase().includes(query.toLowerCase()) && (!["Botox", "Filler"].includes(filter) || p.startsWith(filter)));
+    const valid = !!notes.trim() && treatments.every(t => Number(t.qty) > 0 && t.site.trim()) && [...labs, ...drugs, ...courses].every(r => Number(r.qty) > 0) && drugs.every(d => d.note.trim());
+    function selectProduct(product: string) { setTreatments(old => [...old, { id: Date.now(), product, qty: "", unit: product.startsWith("Botox") ? "unit" : "ml", site: "", lot: "" }]); setRecent(old => [product, ...old.filter(p => p !== product)]); }
+    return <main className="mx-auto max-w-[1600px] space-y-5 rounded-3xl bg-gradient-to-br from-slate-100/80 via-blue-50/60 to-white/80 p-4 text-slate-700 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm" href="/dashboard/doctor-station">← กลับห้องแพทย์</Link><span className="rounded-full bg-blue-50 px-3 py-2 text-xs text-blue-800">ต้นแบบ • ใช้ข้อมูลสมมติ • ไม่เชื่อมเวชระเบียนจริง</span></div>
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white bg-white/80 p-5 shadow-sm backdrop-blur-xl"><div><p className="text-xs text-blue-700">AESTHETIC CONSULTATION</p><h1 className="mt-1 text-2xl font-semibold text-slate-900">ตรวจความงาม</h1><p className="mt-2 text-sm">คนไข้จำลอง A · 35 ปี · แพ้ยา / โรคประจำตัว: ยังไม่ได้ทบทวน</p></div><button className={`${button} !bg-blue-700 !text-white`} onClick={() => { setSummary(true); setFinished(false); }}>สรุปและจบการตรวจ</button></header>
+        <nav aria-label="เมนูหน้าตรวจ" className="flex flex-wrap gap-2">{tabs.map((name, i) => <button key={name} aria-pressed={tab === i} className={`${button} ${tab === i ? "!bg-blue-700 !text-white" : ""}`} onClick={() => setTab(i)}>{name}</button>)}</nav>
+        <section className="min-w-0 rounded-2xl border border-white bg-white/85 p-4 shadow-sm sm:p-6">
+            <div hidden={tab !== 0} className="space-y-4"><div><h2 className="text-xl font-semibold">บันทึกการตรวจ</h2><p className="mt-1 text-sm text-slate-500">จดปัญหา ประวัติ การประเมิน และแผนการรักษารวมในบันทึกเดียว</p></div><button className={button} onClick={() => setNotes(n => n + (n ? "\n\n" : "") + "ปัญหา / ประวัติ:\n\nตรวจและประเมิน:\n\nแผนการรักษา:\n")}>+ แทรกหัวข้อช่วยจด</button><textarea aria-label="บันทึกการตรวจ" className={`${input} min-h-[420px] leading-7`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="หมอจดบันทึกได้ที่นี่…" /><p className="text-xs text-slate-500">ข้อมูลคงอยู่ขณะสลับเมนู รีเฟรชแล้วเริ่มใหม่</p></div>
+            <div hidden={tab !== 1}><div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.9fr)]"><div className="min-w-0 space-y-4"><h2 className="text-xl font-semibold">บันทึกหัตถการ</h2><input aria-label="ค้นหาผลิตภัณฑ์" className={input} placeholder="ค้นหาชื่อสินค้า / ยี่ห้อ" value={query} onChange={e => setQuery(e.target.value)} /><div className="flex flex-wrap gap-2">{["ทั้งหมด", "Botox", "Filler", "รายการโปรด", "ใช้ล่าสุด"].map(f => <button key={f} aria-pressed={filter === f} className={`${button} ${filter === f ? "!bg-blue-50 !border-blue-400" : ""}`} onClick={() => setFilter(f)}>{f}</button>)}</div><p className="text-xs text-slate-500">แค็ตตาล็อกจำลอง · กด ☆ เพื่อเก็บรายการโปรด</p><div className="space-y-2">{!shown.length && <p className="p-4 text-sm text-slate-500">ไม่มีรายการในตัวกรองนี้</p>}{shown.map(p => <div key={p} className="flex gap-2"><button className={`${button} flex-1 text-left`} onClick={() => selectProduct(p)}>+ {p}</button><button aria-label={`รายการโปรด ${p}`} aria-pressed={favorites.includes(p)} className={button} onClick={() => setFavorites(old => old.includes(p) ? old.filter(x => x !== p) : [...old, p])}>{favorites.includes(p) ? "★" : "☆"}</button></div>)}</div><h3 className="pt-2 font-medium">รายการทำจริง ({treatments.length})</h3>{treatments.map(t => <div key={t.id} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4"><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{t.product}</p><button className={button} onClick={() => setTreatments(old => old.filter(r => r.id !== t.id))}>ลบ</button></div><div className="grid gap-3 sm:grid-cols-2">{([['qty', `ปริมาณ (${t.unit})`], ['site', 'ตำแหน่ง / ด้าน'], ['lot', 'Lot / วันหมดอายุ']] as const).map(([key, label]) => <label key={key} className="text-xs text-slate-500">{label}<input className={`${input} mt-1`} type={key === 'qty' ? 'number' : 'text'} min={key === 'qty' ? '0' : undefined} step={key === 'qty' ? 'any' : undefined} value={t[key]} onChange={e => setTreatments(old => old.map(r => r.id === t.id ? { ...r, [key]: e.target.value } : r))} /></label>)}</div></div>)}</div><ChartPad onCount={setSheets} /></div></div>
+            <div hidden={tab !== 2}><h2 className="mb-4 text-xl font-semibold">สั่ง Lab</h2><OrderPanel kind="Lab" catalog={["CBC (จำลอง)", "Glucose (จำลอง)", "Lipid profile (จำลอง)"]} rows={labs} setRows={setLabs} /></div>
+            <div hidden={tab !== 3}><h2 className="mb-4 text-xl font-semibold">สั่งยา</h2><OrderPanel kind="ยา" catalog={["ยารับประทาน A (จำลอง)", "ยาทาภายนอก B (จำลอง)"]} rows={drugs} setRows={setDrugs} /></div>
+            <div hidden={tab !== 4}><h2 className="mb-4 text-xl font-semibold">คอร์สบริการ</h2><div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm">คอร์สจำลอง: ดูแลผิว 5 ครั้ง · ใช้แล้ว 2 · เหลือ 3 ครั้ง<br />การเพิ่มรายการด้านล่างยังไม่ตัดสิทธิ์จริง</div><OrderPanel kind="คอร์ส" catalog={["ใช้คอร์สดูแลผิว (จำลอง)", "เพิ่มบริการครั้งเดียว (จำลอง)"]} rows={courses} setRows={setCourses} /></div>
+            <div hidden={tab !== 5} className="space-y-4"><h2 className="text-xl font-semibold">ประวัติ & ผล Lab</h2><article className="rounded-xl border border-slate-200 p-4"><p className="font-medium">ครั้งก่อน · ข้อมูลจำลอง</p><p className="mt-2 text-sm">ปรึกษาปัญหาผิวและแผนดูแล ยังไม่ได้ทำหัตถการ</p></article><article className="rounded-xl border border-slate-200 p-4"><p className="font-medium">ผล Lab</p><p className="mt-2 text-sm text-slate-500">ยังไม่มีผลตรวจในเคสจำลองนี้ รายการสั่งใหม่ดูได้ที่เมนูสั่ง Lab</p></article></div>
+        </section>
+        {summary && <div role="dialog" aria-modal="true" aria-label="สรุปการตรวจ" className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm"><div className="mx-auto my-5 max-w-3xl space-y-5 rounded-2xl bg-white p-6"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">สรุปการตรวจ</h2><button autoFocus className={button} onClick={() => setSummary(false)}>กลับไปแก้ไข</button></div><p className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-relaxed">{notes || "ยังไม่ได้บันทึกการตรวจ"}</p><h3 className="font-medium">หัตถการ {treatments.length} รายการ · แผ่นวาด {sheets} แผ่น</h3>{treatments.map(t => <p className="break-words text-sm" key={t.id}>{t.product} · {t.qty || "—"} {t.unit} · {t.site || "ยังไม่ระบุตำแหน่ง"} · {t.lot || "ยังไม่ระบุ Lot / วันหมดอายุ"}</p>)}{[["Lab", labs], ["ยา", drugs], ["คอร์ส", courses]].map(([label, orders]) => <div key={String(label)}><h3 className="font-medium">{String(label)} ({(orders as Order[]).length})</h3>{(orders as Order[]).map(o => <p key={o.id} className="break-words text-sm leading-relaxed">{o.name} × {o.qty || "—"} {o.note}</p>)}</div>)}<label className="block text-sm">คำแนะนำ<textarea className={`${input} mt-2`} value={care} onChange={e => setCare(e.target.value)} /></label><label className="block text-sm">นัดติดตาม<input className={`${input} mt-2`} value={followup} onChange={e => setFollowup(e.target.value)} /></label>{!valid && <p className="text-sm text-amber-700">เติมบันทึกการตรวจ จำนวนและตำแหน่งของหัตถการ จำนวนรายการสั่ง และวิธีใช้ยาที่เลือก ก่อนทดลองจบการตรวจ</p>}<button className={`${button} !bg-blue-700 !text-white`} disabled={!valid} onClick={() => setFinished(true)}>ยืนยันจบการตรวจจำลอง</button>{finished && <p role="status" className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">ทดลองจบแล้ว ไม่มีการส่งคำสั่ง Lab ยา คิดเงิน หรือตัดคอร์สจริง</p>}<p className="text-xs text-slate-500">แผ่นวาดดาวน์โหลดได้จากเมนูบันทึกหัตถการ ข้อมูลอื่นยังอยู่เฉพาะหน้านี้</p></div></div>}
     </main>;
 }
