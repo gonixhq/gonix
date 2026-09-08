@@ -164,9 +164,9 @@ export default async function DoctorStationPage() {
         : isAdminView ? "ทุกห้องตรวจ (Admin View)" : "ห้องตรวจรวม";
 
     return (
-        <div className="space-y-5 max-w-7xl mx-auto animate-fade-in">
+        <div className="space-y-5 max-w-7xl mx-auto animate-fade-in rounded-3xl bg-gradient-to-br from-slate-100/70 via-blue-50/40 to-white/60 p-3 sm:p-6">
             {/* Sub-header — compact context line (Top Navbar already shows page title) */}
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 flex-wrap pt-1">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-500 flex-wrap rounded-2xl border border-white/90 bg-white/65 backdrop-blur-xl px-4 py-3 shadow-sm">
                 <span className={`inline-flex items-center gap-1.5 font-bold ${currentSession ? roomColorStyle.text : "text-blue-700"}`}>
                     <Stethoscope className="h-4 w-4" />
                     {headerTitle}
@@ -192,50 +192,50 @@ export default async function DoctorStationPage() {
 
             {/* Triage summary — glass cards with soft shadow */}
             <div className="grid grid-cols-3 gap-3">
-                <div className={`rounded-2xl border backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-2 transition-all ${
+                <div className={`rounded-2xl border backdrop-blur-xl px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm ${
                     counts.emergency > 0
-                        ? "bg-gradient-to-br from-red-50 to-rose-50/60 border-red-200 shadow-sm shadow-red-100"
-                        : "bg-white/50 border-slate-200/60"
+                        ? "bg-white/70 border-white/90"
+                        : "bg-white/60 border-white/90"
                 }`}>
                     <div className="flex items-center gap-2">
                         <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${
-                            counts.emergency > 0 ? "bg-red-100" : "bg-slate-100/60"
+                            counts.emergency > 0 ? "bg-red-100" : "bg-slate-100/80"
                         }`}>
-                            <Flame className={`h-3.5 w-3.5 ${counts.emergency > 0 ? "text-red-600 animate-pulse" : "text-slate-400"}`} />
+                            <Flame className={`h-3.5 w-3.5 ${counts.emergency > 0 ? "text-red-600 " : "text-slate-400"}`} />
                         </div>
                         <span className={`text-sm font-bold ${counts.emergency > 0 ? "text-red-800" : "text-slate-500"}`}>ฉุกเฉิน</span>
                     </div>
-                    <span className={`text-xl font-black tabular-nums ${counts.emergency > 0 ? "text-red-700" : "text-slate-300"}`}>{counts.emergency}</span>
+                    <span className={`text-xl font-semibold tabular-nums ${counts.emergency > 0 ? "text-red-700" : "text-slate-300"}`}>{counts.emergency}</span>
                 </div>
-                <div className={`rounded-2xl border backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-2 transition-all ${
+                <div className={`rounded-2xl border backdrop-blur-xl px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm ${
                     counts.urgent > 0
-                        ? "bg-gradient-to-br from-amber-50 to-orange-50/60 border-amber-200 shadow-sm shadow-amber-100"
-                        : "bg-white/50 border-slate-200/60"
+                        ? "bg-white/70 border-white/90"
+                        : "bg-white/60 border-white/90"
                 }`}>
                     <div className="flex items-center gap-2">
                         <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${
-                            counts.urgent > 0 ? "bg-amber-100" : "bg-slate-100/60"
+                            counts.urgent > 0 ? "bg-amber-100" : "bg-slate-100/80"
                         }`}>
                             <AlertTriangle className={`h-3.5 w-3.5 ${counts.urgent > 0 ? "text-amber-600" : "text-slate-400"}`} />
                         </div>
                         <span className={`text-sm font-bold ${counts.urgent > 0 ? "text-amber-800" : "text-slate-500"}`}>เร่งด่วน</span>
                     </div>
-                    <span className={`text-xl font-black tabular-nums ${counts.urgent > 0 ? "text-amber-700" : "text-slate-300"}`}>{counts.urgent}</span>
+                    <span className={`text-xl font-semibold tabular-nums ${counts.urgent > 0 ? "text-amber-700" : "text-slate-300"}`}>{counts.urgent}</span>
                 </div>
-                <div className={`rounded-2xl border backdrop-blur-md px-4 py-2.5 flex items-center justify-between gap-2 transition-all ${
+                <div className={`rounded-2xl border backdrop-blur-xl px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm ${
                     counts.normal > 0
-                        ? "bg-gradient-to-br from-emerald-50 to-blue-50/60 border-emerald-200 shadow-sm shadow-emerald-100"
-                        : "bg-white/50 border-slate-200/60"
+                        ? "bg-white/70 border-white/90"
+                        : "bg-white/60 border-white/90"
                 }`}>
                     <div className="flex items-center gap-2">
                         <div className={`h-7 w-7 rounded-lg flex items-center justify-center ${
-                            counts.normal > 0 ? "bg-emerald-100" : "bg-slate-100/60"
+                            counts.normal > 0 ? "bg-blue-100/70" : "bg-slate-100/80"
                         }`}>
-                            <ShieldCheck className={`h-3.5 w-3.5 ${counts.normal > 0 ? "text-emerald-600" : "text-slate-400"}`} />
+                            <ShieldCheck className={`h-3.5 w-3.5 ${counts.normal > 0 ? "text-blue-600" : "text-slate-400"}`} />
                         </div>
-                        <span className={`text-sm font-bold ${counts.normal > 0 ? "text-emerald-800" : "text-slate-500"}`}>ปกติ</span>
+                        <span className={`text-sm font-bold ${counts.normal > 0 ? "text-blue-800" : "text-slate-500"}`}>ปกติ</span>
                     </div>
-                    <span className={`text-xl font-black tabular-nums ${counts.normal > 0 ? "text-emerald-700" : "text-slate-300"}`}>{counts.normal}</span>
+                    <span className={`text-xl font-semibold tabular-nums ${counts.normal > 0 ? "text-blue-700" : "text-slate-300"}`}>{counts.normal}</span>
                 </div>
             </div>
 
@@ -249,7 +249,7 @@ export default async function DoctorStationPage() {
                         : "พยาบาลคัดกรองคนไข้เรียบร้อยจะเข้ามาที่นี่อัตโนมัติ"}
                 />
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     {list.map((v) => {
                         const p = Array.isArray(v.patients) ? v.patients[0] : v.patients;
                         const allergies = (p?.patient_allergies || []).filter((a: { is_active: boolean }) => a.is_active);
@@ -260,7 +260,7 @@ export default async function DoctorStationPage() {
                         const wait = waitMinutes(v.created_at);
 
                         const triageMeta = {
-                            normal: { bg: "bg-emerald-100", text: "text-emerald-700", label: "ปกติ", icon: ShieldCheck, ring: "ring-emerald-100", accent: "from-emerald-500 to-emerald-600", btnShadow: "shadow-emerald-500/30" },
+                            normal: { bg: "bg-blue-100/70", text: "text-blue-700", label: "ปกติ", icon: ShieldCheck, ring: "ring-blue-100", accent: "from-emerald-500 to-emerald-600", btnShadow: "shadow-emerald-500/30" },
                             urgent: { bg: "bg-amber-100", text: "text-amber-700", label: "เร่งด่วน", icon: AlertTriangle, ring: "ring-amber-200", accent: "from-amber-400 to-orange-500", btnShadow: "shadow-amber-500/30" },
                             emergency: { bg: "bg-red-200", text: "text-red-900", label: "ฉุกเฉิน!", icon: Flame, ring: "ring-red-300", accent: "from-red-500 to-red-600", btnShadow: "shadow-red-500/30" },
                         }[triage];
@@ -273,17 +273,13 @@ export default async function DoctorStationPage() {
                             <Link
                                 key={v.vn}
                                 href={`/dashboard/visits/${v.vn}`}
-                                className={`gonix-card-premium overflow-hidden p-5 hover:shadow-xl hover:-translate-y-0.5 transition-all group relative ${triage === "emergency" ? "ring-2 ring-red-300/50" : ""}`}
+                                className={`block overflow-hidden rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl p-4 sm:p-5 shadow-[0_4px_24px_rgba(30,58,95,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-white/90 hover:border-blue-200/80 hover:shadow-[0_8px_32px_rgba(30,58,95,0.10)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-[background-color,border-color,box-shadow] group relative ${triage === "emergency" ? "ring-2 ring-red-300/50" : ""}`}
                             >
-                                {/* Subtle accent glow on hover */}
-                                <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-30 transition-opacity ${
-                                    triage === "emergency" ? "bg-red-300" : triage === "urgent" ? "bg-amber-300" : "bg-blue-300"
-                                }`} />
-                                <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1 rounded-xl bg-gradient-to-br ${triageMeta.accent} text-white shadow-md min-w-[56px] ring-1 ring-white/20`}>
+                                        <div className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-2 rounded-xl bg-slate-800 text-white min-w-[56px] border border-slate-700`}>
                                             <div className="text-[8px] font-bold uppercase tracking-[0.15em] opacity-80 leading-none">คิว</div>
-                                            <div className="text-lg font-black font-mono tracking-wide leading-tight mt-0.5">
+                                            <div className="text-lg font-semibold font-mono tracking-wide leading-tight mt-0.5">
                                                 {queueNumber || "—"}
                                             </div>
                                         </div>
@@ -323,7 +319,7 @@ export default async function DoctorStationPage() {
                                 </div>
 
                                 {(allergies.length > 0 || chronics.length > 0 || allergySummary || diseaseSummary) && (
-                                    <div className="flex flex-wrap items-center gap-2 mb-3 px-3 py-2.5 rounded-xl bg-red-50/70 border border-red-200/70">
+                                    <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
                                         {(allergies.length > 0 || allergySummary) && (
                                             <>
                                                 <span className="text-[14px] font-bold text-red-700 self-center inline-flex items-center gap-1.5">
@@ -347,16 +343,16 @@ export default async function DoctorStationPage() {
                                         {(chronics.length > 0 || diseaseSummary) && (
                                             <>
                                                 {(allergies.length > 0 || allergySummary) && <span className="w-px self-stretch bg-red-200 mx-0.5" />}
-                                                <span className="text-[14px] font-bold text-amber-800 self-center inline-flex items-center gap-1.5">
+                                                <span className="text-[14px] font-semibold text-slate-700 self-center inline-flex items-center gap-1.5">
                                                     <Heart className="h-4 w-4" /> โรคประจำตัว
                                                 </span>
                                                 {chronics.map((c: { id: string; disease_name: string }) => (
-                                                    <span key={c.id} className="text-[14px] px-2.5 py-1 rounded-md font-bold bg-amber-100 text-amber-800">
+                                                    <span key={c.id} className="text-[14px] px-2.5 py-1 rounded-md font-bold bg-slate-200/70 text-slate-700">
                                                         {c.disease_name}
                                                     </span>
                                                 ))}
                                                 {diseaseSummary && (
-                                                    <span className="text-[14px] px-2.5 py-1 rounded-md font-bold bg-amber-100 text-amber-800">
+                                                    <span className="text-[14px] px-2.5 py-1 rounded-md font-bold bg-slate-200/70 text-slate-700">
                                                         {diseaseSummary}
                                                     </span>
                                                 )}
@@ -372,7 +368,7 @@ export default async function DoctorStationPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                                     <VitalChip value={v.temperature} unit="°C" label="TEMP" abnormal={v.temperature && (v.temperature > 37.5 || v.temperature < 36)} />
                                     <VitalChip value={v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : null} label="BP" abnormal={(v.bp_systolic && (v.bp_systolic > 140 || v.bp_systolic < 90)) || (v.bp_diastolic && (v.bp_diastolic > 90 || v.bp_diastolic < 60))} />
                                     <VitalChip value={v.pulse_rate} label="PR" abnormal={v.pulse_rate && (v.pulse_rate > 100 || v.pulse_rate < 60)} />
@@ -386,7 +382,7 @@ export default async function DoctorStationPage() {
                                             <span className="text-slate-500">ความเจ็บปวด:</span>
                                             <div className={`flex-1 h-1.5 rounded-full overflow-hidden bg-slate-200 max-w-[120px]`}>
                                                 <div
-                                                    className={`h-full rounded-full ${v.pain_score >= 7 ? "bg-red-500" : v.pain_score >= 4 ? "bg-amber-500" : "bg-emerald-500"}`}
+                                                    className={`h-full rounded-full ${v.pain_score >= 7 ? "bg-red-500" : v.pain_score >= 4 ? "bg-amber-500" : "bg-blue-500"}`}
                                                     style={{ width: `${v.pain_score * 10}%` }}
                                                 />
                                             </div>
@@ -400,14 +396,14 @@ export default async function DoctorStationPage() {
                                     )}
 
                                     {v.nurse_note && (
-                                        <div className="rounded-lg bg-blue-50/60 border border-blue-200/60 px-2.5 py-1.5 text-xs flex items-start gap-2">
+                                        <div className="rounded-xl bg-slate-50/80 border border-slate-200/60 px-2.5 py-1.5 text-xs flex items-start gap-2">
                                             <FileText className="h-3 w-3 text-blue-700 shrink-0 mt-0.5" />
                                             <span className="text-blue-900/80 leading-snug">{v.nurse_note}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200/60">
+                                <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-200/70">
                                     <div className="flex items-center gap-2 text-[13px] text-slate-600 font-medium flex-wrap">
                                         <span className="font-mono font-semibold text-slate-700">{v.vn}</span>
                                         <span className="text-slate-300">·</span>
@@ -427,7 +423,7 @@ export default async function DoctorStationPage() {
                                         />
                                         <Button
                                             size="sm"
-                                            className={`rounded-lg gap-1 bg-gradient-to-r ${triageMeta.accent} text-white shadow-md ${triageMeta.btnShadow} ring-1 ring-white/20 group-hover:shadow-lg`}
+                                            className={`rounded-xl gap-1 bg-blue-700 hover:bg-blue-800 text-white shadow-sm focus-visible:ring-blue-600`}
                                         >
                                             เริ่มตรวจ <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                                         </Button>
@@ -452,7 +448,7 @@ function VitalChip({
 }) {
     const hasValue = value !== null && value !== undefined && value !== "";
     return (
-        <div className={`rounded-lg px-2 py-2 flex flex-col items-center justify-center gap-0.5 ${abnormal ? "bg-red-50 ring-1 ring-red-200" : hasValue ? "bg-slate-50" : "bg-slate-50/50"}`}>
+        <div className={`rounded-xl border border-slate-200/60 px-2 py-2.5 flex flex-col items-center justify-center gap-0.5 ${abnormal ? "bg-red-50 ring-1 ring-red-200" : hasValue ? "bg-white/65" : "bg-white/40"}`}>
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">{label}</div>
             <div className={`text-sm font-bold leading-tight tabular-nums ${abnormal ? "text-red-700" : hasValue ? "text-slate-800" : "text-slate-300"}`}>
                 {hasValue ? `${value}${unit || ""}` : "—"}
