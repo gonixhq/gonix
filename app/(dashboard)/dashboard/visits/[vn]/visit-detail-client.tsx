@@ -483,6 +483,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {showSoapTab && (
                             <TabsContent forceMount value="soap" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
                                 <SoapForm
+                                    beforeExamination={<DrugOrderForm diagnosisOnly compact vn={vn} hn={patient.hn} defaultIcd10={visit.icd10_primary || ""} defaultDiagnosisText={visit.diagnosis_text || ""} />}
                                     vn={vn}
                                     visitType={visit.visit_type || "opd"}
                                     defaultValues={{
@@ -491,7 +492,6 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                         aesthetic_records: visit.aesthetic_records || {},
                                     }}
                                 />
-                                <div className="mt-5 border-t border-slate-100 pt-4"><DrugOrderForm diagnosisOnly compact vn={vn} hn={patient.hn} defaultIcd10={visit.icd10_primary || ""} defaultDiagnosisText={visit.diagnosis_text || ""} /></div>
                             </TabsContent>
                         )}
 

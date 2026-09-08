@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +16,7 @@ const PE_TEMPLATES: { key: string; text: string }[] = [
 ];
 
 interface SoapFormProps {
+    beforeExamination?: ReactNode;
     vn: string;
     visitType?: string;
     defaultValues: {
@@ -26,7 +27,7 @@ interface SoapFormProps {
     };
 }
 
-export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapFormProps) {
+export default function SoapForm({ vn, visitType = "opd", defaultValues, beforeExamination }: SoapFormProps) {
     const router = useRouter();
     const supabase = createClient();
 
@@ -106,6 +107,8 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                     )}
                 </div>
             </div>
+
+            {beforeExamination}
 
             <div className="space-y-5">
                 <div className="space-y-2">
