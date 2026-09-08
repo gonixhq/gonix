@@ -116,25 +116,25 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
     if (products.length === 0) return null;   // ไม่มีสินค้าฉีด → ไม่ต้องโชว์
 
     return (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4 space-y-3">
+        <div className="rounded-2xl border border-white/90 bg-white/75 p-4 sm:p-5 space-y-5 shadow-sm backdrop-blur-xl">
             <div className="flex items-center gap-2">
-                <Syringe className="h-4 w-4 text-violet-700" />
-                <h3 className="text-sm font-bold text-violet-900">บันทึกการฉีด</h3>
+                <Syringe className="h-4 w-4 text-blue-700" />
+                <h3 className="text-sm font-semibold text-blue-900">บันทึกการฉีด</h3>
             </div>
 
             {/* รายการที่บันทึกแล้ว */}
             {rows.length > 0 && (
-                <div className="space-y-1">
+                <div className="space-y-3">
                     {rows.map(r => (
-                        <div key={r.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 text-sm">
-                            <div className="min-w-0">
+                        <div key={r.id} className="flex items-center justify-between gap-3 border border-slate-200/70 bg-slate-50/70 rounded-xl px-3 py-3 text-sm">
+                            <div className="min-w-0 break-words leading-relaxed">
                                 <span className="font-semibold text-slate-800">{r.item_name}</span>
                                 {r.brand && <span className="text-xs text-slate-500"> · {r.brand}</span>}
                                 <span className="text-slate-600"> — {r.qty} {r.unit_label || ""}</span>
-                                {r.sale_price != null && <span className="font-semibold text-violet-700"> = ฿{Number(r.sale_price).toLocaleString()}</span>}
+                                {r.sale_price != null && <span className="font-semibold text-blue-700"> = ฿{Number(r.sale_price).toLocaleString()}</span>}
                                 {r.site && <span className="text-xs text-slate-500"> @ {r.site}</span>}
                             </div>
-                            <button onClick={() => remove(r.id)} disabled={pending} className="text-slate-300 hover:text-rose-600 shrink-0"><Trash2 className="h-4 w-4" /></button>
+                            <button type="button" aria-label={`ลบรายการ ${r.item_name}`} onClick={() => remove(r.id)} disabled={pending} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 shrink-0 focus-visible:ring-2 focus-visible:ring-blue-600"><Trash2 className="h-4 w-4" /></button>
                         </div>
                     ))}
                 </div>
@@ -142,16 +142,16 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
 
             {/* STEP 1: เลือกสินค้า (chip คลิกเดียว) */}
             <div className="space-y-1.5">
-                <p className="text-[11px] font-semibold text-violet-900/70">1. เลือกสินค้าที่ฉีด</p>
-                <div className="flex flex-wrap gap-1.5">
+                <p className="text-sm font-semibold text-blue-900/70">1. เลือกสินค้าที่ฉีด</p>
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
                     {products.map(p => {
                         const active = p.id === itemId;
                         return (
-                            <button key={p.id} type="button" onClick={() => pickProduct(p.id)}
-                                className={`px-3 py-1.5 rounded-lg text-[13px] font-semibold border transition-colors inline-flex items-center gap-1 ${active ? "bg-violet-600 text-white border-violet-600" : "bg-white text-slate-700 border-slate-200 hover:border-violet-300"}`}>
+                            <button key={p.id} type="button" aria-pressed={active} onClick={() => pickProduct(p.id)}
+                                className={`px-3 py-3 rounded-xl min-w-0 text-left flex-wrap text-sm font-medium border transition-colors inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${active ? "bg-blue-700 text-white border-blue-700" : "bg-white/90 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50"}`}>
                                 {active && <Check className="h-3.5 w-3.5" />}
                                 {p.item_name}{p.brand ? ` (${p.brand})` : ""}
-                                <span className={active ? "text-violet-200" : "text-slate-400"}> · เหลือ {Number(p.stock_qty || 0).toLocaleString()} {p.capacity_unit_label || p.unit || ""}</span>
+                                <span className={active ? "text-blue-200" : "text-slate-500"}> · เหลือ {Number(p.stock_qty || 0).toLocaleString()} {p.capacity_unit_label || p.unit || ""}</span>
                             </button>
                         );
                     })}
@@ -160,33 +160,33 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
 
             {/* STEP 2: จำนวน + ราคา + จุด (โผล่เมื่อเลือกสินค้า) */}
             {sel && (
-                <div className="space-y-2 rounded-xl bg-white border border-violet-100 p-3">
+                <div className="space-y-5 rounded-2xl bg-slate-50/70 border border-slate-200/70 p-4">
                     {/* จำนวน + presets */}
-                    <div className="space-y-1">
-                        <p className="text-[11px] font-semibold text-violet-900/70">2. จำนวนที่ฉีด ({capLabel}) — ตัดสต๊อกจริง</p>
+                    <div className="space-y-3">
+                        <p className="text-sm font-semibold text-blue-900/70">2. จำนวนที่ฉีด ({capLabel}) — ตัดสต๊อกจริง</p>
                         <div className="flex flex-wrap items-center gap-1.5">
                             {qtyPresets(capLabel).map(v => (
                                 <button key={v} type="button" onClick={() => { setQty(String(v)); qtyRef.current?.focus(); }}
-                                    className={`px-2.5 py-1 rounded-lg text-[13px] font-bold border transition-colors ${qty === String(v) ? "bg-violet-100 text-violet-700 border-violet-300" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-violet-300"}`}>
+                                    className={`min-h-10 min-w-10 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${qty === String(v) ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300"}`}>
                                     {v}
                                 </button>
                             ))}
                             <input ref={qtyRef} type="number" min={0} value={qty} onChange={e => setQty(e.target.value)} onKeyDown={onKey}
-                                placeholder="หรือพิมพ์" className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
+                                placeholder="หรือพิมพ์" className="w-24 h-11 rounded-xl border border-slate-200 px-2 text-sm text-right tabular-nums" />
                             <span className="text-xs text-slate-500">{capLabel}</span>
                         </div>
                     </div>
                     {/* ราคา + จุด */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4">
                         <div className="flex items-center gap-1.5">
                             <span className="text-xs text-slate-500 w-14 shrink-0">3. ราคาขาย</span>
                             <span className="text-xs text-slate-500">฿</span>
                             <input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} onKeyDown={onKey}
-                                placeholder="ก้อน (เว้นว่างได้)" className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm text-right tabular-nums" />
+                                placeholder="ก้อน (เว้นว่างได้)" className="flex-1 min-w-0 h-11 rounded-xl border border-slate-200 px-2 text-sm text-right tabular-nums" />
                         </div>
                         <div className="flex items-center gap-1.5">
                             <span className="text-xs text-slate-500 shrink-0 whitespace-nowrap">{siteLabel(prodType, capLabel)}</span>
-                            <select value={site} onChange={e => setSite(e.target.value)} className="flex-1 min-w-0 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
+                            <select value={site} onChange={e => setSite(e.target.value)} className="flex-1 min-w-0 h-11 rounded-xl border border-slate-200 px-2 text-sm bg-white">
                                 <option value="">— เลือก —</option>
                                 {siteOptions(prodType, capLabel).map(s => <option key={s} value={s}>{s}</option>)}
                                 <option value="__custom__">อื่นๆ (พิมพ์เอง)</option>
@@ -195,16 +195,16 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
                     </div>
                     {site === "__custom__" && (
                         <input value={customSite} onChange={e => setCustomSite(e.target.value)} onKeyDown={onKey}
-                            placeholder="พิมพ์ตำแหน่งที่ฉีด" className="w-full h-9 rounded-lg border border-slate-200 px-2 text-sm" autoFocus />
+                            placeholder="พิมพ์ตำแหน่งที่ฉีด" className="w-full h-11 rounded-xl border border-slate-200 px-2 text-sm" autoFocus />
                     )}
-                    <Button onClick={add} disabled={pending} className="w-full h-10 rounded-lg bg-violet-600 hover:bg-violet-700 text-white gap-1 font-bold">
+                    <Button onClick={add} disabled={pending} className="w-full min-h-11 h-auto py-3 whitespace-normal rounded-xl bg-blue-700 hover:bg-blue-800 text-white gap-1 font-semibold">
                         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                         เพิ่ม {sel.item_name}{qty ? ` ${qty} ${capLabel}` : ""}{effectiveSite ? ` @ ${effectiveSite}` : ""}
                     </Button>
                 </div>
             )}
 
-            <p className="text-[11px] text-slate-500">คลิกสินค้า → กดจำนวน → เลือกจุด → เพิ่ม (Enter ก็ได้) · สินค้าค้างไว้ ฉีดจุดถัดไปต่อได้เลย</p>
+            <p className="text-sm text-slate-500">คลิกสินค้า → กดจำนวน → เลือกจุด → เพิ่ม (Enter ก็ได้) · สินค้าค้างไว้ ฉีดจุดถัดไปต่อได้เลย</p>
             {err && <p className="text-xs text-rose-600">{err}</p>}
         </div>
     );
