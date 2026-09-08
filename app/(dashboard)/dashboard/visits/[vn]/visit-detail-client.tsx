@@ -111,7 +111,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             visit.visit_type === 'follow_up' ? (language === "en" ? "Follow Up" : 'ติดตามอาการ') :
                 visit.visit_type === 'procedure' ? (language === "en" ? "Procedure" : 'ทำหัตถการ') : (visit.visit_type || "—");
 
-    const tabTriggerClass = "w-auto md:w-full shrink-0 flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/80 hover:text-blue-800 data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-colors justify-start";
+    const tabTriggerClass = "w-auto md:w-full min-w-0 shrink-0 flex items-center whitespace-normal text-left break-words leading-relaxed [&>span]:min-w-0 gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/80 hover:text-blue-800 data-[state=active]:bg-blue-700 data-[state=active]:text-white data-[state=active]:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 transition-colors justify-start";
 
     return (
         <div className={`${styles.workspace} space-y-5 max-w-7xl mx-auto animate-fade-in relative z-10 p-3 sm:p-5 pb-8`}>
@@ -152,7 +152,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                     </div>
 
                     {/* Demographics + Visit info */}
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-sm [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words">
                         <div className="flex items-baseline gap-2">
                             <span className="text-slate-500 shrink-0 w-20">เพศ / อายุ</span>
                             <span className="text-slate-700 font-semibold">
@@ -378,7 +378,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                 })()}
 
                 {/* Vitals inline */}
-                <div className="px-4 sm:px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+                <div className="px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                     {[
                         { label: 'BP', unit: 'mmHg', value: (vitals?.bp_systolic || visit?.bp_systolic) ? `${vitals?.bp_systolic || visit?.bp_systolic || '-'}/${vitals?.bp_diastolic || visit?.bp_diastolic || '-'}` : null },
                         { label: 'PR', unit: 'bpm', value: vitals?.pulse_rate ?? visit?.pulse_rate ?? null },
@@ -386,9 +386,9 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         { label: 'O2', unit: '%', value: vitals?.o2_saturation ?? visit?.o2_saturation ?? null },
                         { label: 'Wt/Ht', unit: '', value: (vitals?.weight_kg || visit?.weight_kg) ? `${vitals?.weight_kg || visit?.weight_kg || '-'}kg / ${vitals?.height_cm || visit?.height_cm || '-'}cm` : null },
                     ].map((v, i) => (
-                        <div key={i} className="inline-flex flex-wrap items-baseline gap-1.5 rounded-xl border border-slate-200/60 bg-white/65 px-3 py-2">
+                        <div key={i} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
                             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{v.label}</span>
-                            <span className={`font-semibold text-base ${v.value ? "text-slate-800" : "text-slate-300"}`}>
+                            <span className={`font-semibold text-sm tabular-nums ${v.value ? "text-slate-800" : "text-slate-300"}`}>
                                 {v.value || "—"}
                             </span>
                             {v.unit && v.value && <span className="text-xs text-slate-400">{v.unit}</span>}
@@ -400,7 +400,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             {/* Main Workspace Tabs - Sidebar layout */}
             <div className="backdrop-blur-xl bg-white/65 border border-white/90 shadow-[0_4px_24px_rgba(30,58,95,0.06)] rounded-2xl p-2 sm:p-3">
                 <Tabs defaultValue={defaultTab} orientation="vertical" className="w-full">
-                    <div className="grid grid-cols-1 md:grid-cols-[170px_minmax(0,1fr)] gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-3">
                         {/* ── LEFT SIDEBAR ── */}
                         <aside className="md:sticky md:top-4 md:self-start">
                             <TabsList className="flex flex-wrap md:flex-col md:flex-nowrap items-stretch justify-start gap-1 h-auto bg-slate-100/65 border border-white/90 p-1.5 rounded-xl w-full">
