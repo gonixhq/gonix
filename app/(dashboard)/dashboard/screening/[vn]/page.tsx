@@ -114,6 +114,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [submitAttempted, setSubmitAttempted] = useState(false);
     const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
 
@@ -167,6 +168,10 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         () => patient?.gender === "F" && age.y >= 12 && age.y <= 55,
         [patient?.gender, age.y]
     );
+
+    const historySummary = (value: unknown) => { const text = String(value ?? "").trim(); return /^[-–—\s]*$/.test(text) ? "" : text; };
+    const allergySummary = historySummary(patient?.allergy_summary);
+    const diseaseSummary = historySummary(patient?.disease_summary);
 
     /* Load data */
     const loadData = useCallback(async () => {
@@ -298,6 +303,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
         // Validate required fields before sending to doctor
         if (sendToDoctor) {
+            setSubmitAttempted(true);
             const missing: string[] = [];
             if (!vitals.bp_systolic) missing.push("BP Sys");
             if (!vitals.bp_diastolic) missing.push("BP Dia");
@@ -595,7 +601,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
                         {/* Allergies */}
                         <div className="flex items-start gap-2 flex-wrap pt-1">
-                            <span className="text-[17px] font-semibold text-red-700 shrink-0 mt-0.5 inline-flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${allergies.length || allergySummary ? "text-red-700" : "text-slate-600"} shrink-0 mt-0.5 inline-flex items-center gap-1.5`}>
                                 <AlertTriangle className="h-5 w-5" /> แพ้
                             </span>
                             {allergies.map(a => (
@@ -608,13 +614,13 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 </span>
                             ))}
                             {/* Legacy free-text fallback */}
-                            {patient.allergy_summary && (
+                            {allergySummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-[14px] italic">
-                                    {patient.allergy_summary}
+                                    {allergySummary}
                                     <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {allergies.length === 0 && !patient.allergy_summary && (
+                            {allergies.length === 0 && !allergySummary && (
                                 <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
                             )}
                             <button onClick={() => setShowAddAllergy(!showAddAllergy)}
@@ -659,7 +665,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
                         {/* Chronic diseases */}
                         <div className="flex items-start gap-2 flex-wrap pt-1">
-                            <span className="text-[17px] font-semibold text-amber-700 shrink-0 mt-0.5 inline-flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${chronic.length || diseaseSummary ? "text-amber-700" : "text-slate-600"} shrink-0 mt-0.5 inline-flex items-center gap-1.5`}>
                                 <Heart className="h-5 w-5" /> โรคประจำ
                             </span>
                             {chronic.map(c => (
@@ -676,13 +682,13 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 </span>
                             ))}
                             {/* Legacy free-text fallback */}
-                            {patient.disease_summary && (
+                            {diseaseSummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[14px] italic">
-                                    {patient.disease_summary}
+                                    {diseaseSummary}
                                     <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {chronic.length === 0 && !patient.disease_summary && (
+                            {chronic.length === 0 && !diseaseSummary && (
                                 <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
                             )}
                             <button onClick={() => setShowAddChronic(!showAddChronic)}
@@ -754,7 +760,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 </div>
 
                 {/* Service Category + Pain Score in same row */}
-                <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)] gap-4 items-start">
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">ประเภทบริการ</Label>
                         <ServiceCategoryPicker value={serviceCategory} onChange={setServiceCategory} />
@@ -807,14 +813,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     </div>
                     <p className="mb-3 text-xs text-slate-500">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <VitalInput required label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
-                        <VitalInput required label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
-                        <VitalInput required label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
+                        <VitalInput required showError={submitAttempted} label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
+                        <VitalInput required showError={submitAttempted} label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
+                        <VitalInput required showError={submitAttempted} label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
                         <VitalInput label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
                         <VitalInput label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
                         <VitalInput label="DTX" thaiLabel="น้ำตาลในเลือด" unit="mg/dL" value={vitals.dtx} onChange={v => setVital("dtx", v)} />
-                        <VitalInput required label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
-                        <VitalInput required label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
+                        <VitalInput required showError={submitAttempted} label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
+                        <VitalInput required showError={submitAttempted} label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
                     </div>
                 </div>
 
@@ -915,7 +921,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
                     </div>
                 )}
-                <div className="text-xs text-slate-500 text-center">
+                <div className="text-xs text-slate-500 text-right">
                     <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-400" />
                     ส่งให้ {SERVICE_LABEL[serviceCategory]}
                 </div>
@@ -931,23 +937,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     </div>
                 )}
 
-                <Button disabled={saving} onClick={() => {
-                    // ตรวจค่าที่จำเป็นก่อนส่งตรวจ
-                    const missing: string[] = [];
-                    if (!vitals.bp_systolic) missing.push("BP Sys");
-                    if (!vitals.bp_diastolic) missing.push("BP Dia");
-                    if (!vitals.pulse_rate) missing.push("Pulse");
-                    if (!vitals.weight_kg) missing.push("Weight");
-                    if (!vitals.height_cm) missing.push("Height");
-                    if (missing.length > 0) {
-                        toast.error(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        return;
-                    }
-                    setError("");
-                    handleSave(true);
-                }}
-                    className="w-full rounded-xl gap-2 h-12 bg-blue-700 hover:bg-blue-800 shadow-md text-base font-semibold">
+                <Button disabled={saving} onClick={() => void handleSave(true)}
+                    className="ml-auto flex w-auto min-w-40 rounded-xl px-6 gap-2 h-11 bg-blue-700 hover:bg-blue-800 shadow-md text-base font-semibold">
                     {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     ส่งตรวจ <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -982,7 +973,7 @@ function ServiceCategoryPicker({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className={`group flex items-center gap-2.5 w-full h-11 rounded-lg border-2 px-3 text-left transition-all ${
+                className={`group flex items-center gap-2.5 w-full min-h-11 py-2 rounded-lg border-2 px-3 text-left transition-all ${
                     open
                         ? `${current.bg} border-current ${current.text}`
                         : `bg-white border-slate-300 hover:border-slate-400 ${current.text}`
@@ -991,7 +982,7 @@ function ServiceCategoryPicker({
                 <div className={`h-7 w-7 rounded-md ${current.bg} flex items-center justify-center shrink-0 ${current.text}`}>
                     <CurrentIcon className="h-4 w-4" />
                 </div>
-                <span className="flex-1 text-base font-semibold text-slate-800 truncate">
+                <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800 whitespace-normal leading-snug">
                     {current.label}
                 </span>
                 <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -1029,7 +1020,7 @@ function ServiceCategoryPicker({
 }
 
 function VitalInput({
-    label, thaiLabel, unit, value, onChange, step, required,
+    label, thaiLabel, unit, value, onChange, step, required, showError = false,
 }: {
     label: string;
     thaiLabel?: string;
@@ -1038,8 +1029,9 @@ function VitalInput({
     onChange: (v: string) => void;
     step?: string;
     required?: boolean;
+    showError?: boolean;
 }) {
-    const isEmpty = required && !value;
+    const isEmpty = !!(showError && required && !value);
     return (
         <div className="space-y-1">
             <div className="px-1 flex items-baseline gap-1.5 flex-wrap leading-none">
@@ -1054,6 +1046,7 @@ function VitalInput({
                     type="number"
                     aria-label={`${thaiLabel || label} (${unit})`}
                     aria-required={required}
+                    aria-invalid={isEmpty}
                     inputMode="decimal"
                     step={step || "1"}
                     value={value}
