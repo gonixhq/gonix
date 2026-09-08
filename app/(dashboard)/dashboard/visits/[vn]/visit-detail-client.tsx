@@ -358,7 +358,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                     const hasChronic = chronicList.length > 0 || !!patient.disease_summary;
                     const chronicText = chronicList.length > 0
                         ? chronicList.join(", ")
-                        : patient.disease_summary || (language === "en" ? "None" : "ไม่มี");
+                        : patient.disease_summary || (language === "en" ? "Not recorded" : "ยังไม่ระบุ");
                     return (
                         <div className={`px-5 py-2.5 border-y flex items-center gap-x-5 gap-y-1 flex-wrap text-sm ${
                             hasAllergy ? "bg-red-50/40 border-red-100" : "bg-slate-50/40 border-slate-100"
@@ -368,7 +368,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                                 <span className="text-slate-600 font-semibold">แพ้:</span>
                                 {hasAllergy
                                     ? <span className="text-red-700 font-semibold">{allergyText}</span>
-                                    : <span className="text-slate-400">ไม่มี</span>}
+                                    : <span className="text-slate-400">ยังไม่ระบุ</span>}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Heart className={`h-4 w-4 ${hasChronic ? "text-amber-600" : "text-slate-300"}`} />

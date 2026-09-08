@@ -52,6 +52,7 @@ interface DrugPreset {
 }
 
 interface DrugOrderFormProps {
+    compact?: boolean;
     vn: string;
     hn: string;
     defaultIcd10?: string;
@@ -80,7 +81,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [] }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -370,7 +371,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
     }
 
     return (
-        <div className="space-y-6">
+        <div className={compact ? "space-y-4" : "space-y-6"}>
 
             {/* ── ICD-10 Diagnosis ─────────────────────────────── */}
             <div>
@@ -648,9 +649,10 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
 
                 {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">{error}</p>}
 
-                {orderLines.length > 0 && (
-                    <div className="flex justify-end pt-2">
-                        <Button onClick={handleSave} disabled={loading} size="sm">
+                {(compact || orderLines.length > 0) && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                        {compact && <p className="text-xs text-slate-500">เลือกยา ระบุจำนวนและวิธีใช้ แล้วกดบันทึกคำสั่งยา</p>}
+                        <Button onClick={handleSave} disabled={loading || orderLines.length === 0} size="sm">
                             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> :
                                 saved ? <CheckCircle className="h-4 w-4 mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                             {saved ? "บันทึกแล้ว" : "บันทึกคำสั่งยา"}

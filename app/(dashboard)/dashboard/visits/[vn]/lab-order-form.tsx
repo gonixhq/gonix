@@ -40,9 +40,9 @@ function toDTLocal(iso: string | null | undefined): string {
     return new Date(new Date(iso).getTime() + 7 * 3600 * 1000).toISOString().slice(0, 16);
 }
 
-export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels, report }: {
+export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels, report, compact = false }: {
     vn: string; hn: string; cc?: string;
-    catalog: LabCatalogItem[]; orders: LabOrder[]; panels: AnonPanel[]; report: LabReport;
+    catalog: LabCatalogItem[]; orders: LabOrder[]; panels: AnonPanel[]; report: LabReport; compact?: boolean;
 }) {
     const router = useRouter();
     const [busy, startBusy] = useTransition();
@@ -175,7 +175,10 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
             </div>
 
             {/* Lab report header info */}
-            <LabReportInfo vn={vn} orders={orders} report={report} busy={busy} run={run} />
+            {compact ? <details className="rounded-xl border border-slate-200 bg-slate-50/40">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-700">รายละเอียดใบรายงานผล · ตัวอย่างตรวจและผู้รายงานผล</summary>
+                <div className="p-3 pt-0"><LabReportInfo vn={vn} orders={orders} report={report} busy={busy} run={run} /></div>
+            </details> : <LabReportInfo vn={vn} orders={orders} report={report} busy={busy} run={run} />}
         </div>
     );
 }
