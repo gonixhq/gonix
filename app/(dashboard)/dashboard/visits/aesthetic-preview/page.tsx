@@ -1,0 +1,79 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import ChartPad from "./chart-pad";
+
+const tabs = ["บันทึกการตรวจ", "บันทึกหัตถการ", "สั่ง Lab", "สั่งยา", "ประวัติ & ผล Lab"];
+const products = ["Botox · ผลิตภัณฑ์จำลอง A", "Botox · ผลิตภัณฑ์จำลอง B", "Filler · ผลิตภัณฑ์จำลอง C", "Filler · ผลิตภัณฑ์จำลอง D", "Skinbooster · ผลิตภัณฑ์จำลอง E"];
+const input = "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200";
+const button = "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 disabled:opacity-40 focus-visible:outline-blue-600";
+type Treatment = { id: number; product: string; qty: string; unit: string; site: string; lot: string };
+type Order = { id: number; name: string; qty: string; note: string };
+
+function OrderPanel({ kind, catalog, rows, setRows }: { kind: string; catalog: string[]; rows: Order[]; setRows: (rows: Order[]) => void }) {
+    const [search, setSearch] = useState("");
+    return <div className="space-y-5"><p className="text-sm text-slate-500">รายการจำลองสำหรับทดลอง {kind} ยังไม่ส่งคำสั่งหรือเปลี่ยนยอดคงเหลือจริง</p><input aria-label={`ค้นหา${kind}`} placeholder={`ค้นหา${kind}`} className={input} value={search} onChange={e => setSearch(e.target.value)} /><div className="flex flex-wrap gap-2">{catalog.filter(n => n.toLowerCase().includes(search.toLowerCase())).map(n => <button className={button} key={n} onClick={() => setRows([...rows, { id: Date.now(), name: n, qty: "1", note: "" }])}>+ {n}</button>)}</div><h3 className="font-medium">รายการที่เลือก ({rows.length})</h3>{!rows.length && <p className="rounded-xl bg-slate-50 p-6 text-sm text-slate-500">ยังไม่มีรายการ</p>}{rows.map(r => <div key={r.id} className="space-y-3 rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><span>{r.name}</span><button className={button} onClick={() => setRows(rows.filter(o => o.id !== r.id))}>ลบ</button></div><label className="block text-xs text-slate-500">จำนวน<input className={`${input} mt-1`} type="number" min="1" value={r.qty} onChange={e => setRows(rows.map(o => o.id === r.id ? { ...o, qty: e.target.value } : o))} /></label><label className="block text-xs text-slate-500">{kind === "ยา" ? "วิธีใช้ / คำสั่งแพทย์" : "หมายเหตุ"}<textarea className={`${input} mt-1`} value={r.note} onChange={e => setRows(rows.map(o => o.id === r.id ? { ...o, note: e.target.value } : o))} /></label></div>)}</div>;
+}
+
+export default function AestheticPreview() {
+    const [tab, setTab] = useState(0);
+    const [notes, setNotes] = useState("");
+    const [catalogView, setCatalogView] = useState("สินค้า");
+    const [query, setQuery] = useState("");
+    const [filter, setFilter] = useState("ทั้งหมด");
+    const [favorites, setFavorites] = useState<string[]>([]);
+    const [recent, setRecent] = useState<string[]>([]);
+    const [treatments, setTreatments] = useState<Treatment[]>([]);
+    const [labs, setLabs] = useState<Order[]>([]);
+    const [drugs, setDrugs] = useState<Order[]>([]);
+    const [courses, setCourses] = useState<Order[]>([]);
+    const [sheets, setSheets] = useState(1);
+    const [summary, setSummary] = useState(false);
+    const [care, setCare] = useState("");
+    const [followup, setFollowup] = useState("");
+    const [finished, setFinished] = useState(false);
+    const shown = (filter === "รายการโปรด" ? favorites : filter === "ใช้ล่าสุด" ? recent : products).filter(p => p.toLowerCase().includes(query.toLowerCase()) && (!["Botox", "Filler"].includes(filter) || p.startsWith(filter)));
+    const valid = !!notes.trim() && treatments.every(t => Number(t.qty) > 0 && t.site.trim()) && [...labs, ...drugs, ...courses].every(r => Number(r.qty) > 0) && drugs.every(d => d.note.trim());
+    function selectProduct(product: string) { setTreatments(old => [...old, { id: Date.now(), product, qty: "", unit: product.startsWith("Botox") ? "unit" : "ml", site: "", lot: "" }]); setRecent(old => [product, ...old.filter(p => p !== product)]); }
+    return <main className="mx-auto max-w-[1600px] -mt-2 md:-mt-3 lg:-mt-4 space-y-3 rounded-2xl bg-gradient-to-br from-slate-100/80 via-blue-50/60 to-white/80 p-2 text-slate-700 sm:p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm" href="/dashboard/doctor-station">← กลับห้องแพทย์</Link><span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">ต้นแบบ • ใช้ข้อมูลสมมติ • ไม่เชื่อมเวชระเบียนจริง</span></div>
+        <header className="rounded-2xl border border-white bg-white/85 px-4 py-2 shadow-sm backdrop-blur-xl sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <h1 className="text-xl font-semibold text-slate-900">น.ส. คนไข้ จำลอง A</h1>
+                        <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">กำลังตรวจ · จำลอง</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span className="font-mono text-blue-700">HN DEMO-001</span><span>หญิง · 35 ปี</span><span className="font-mono">VN DEMO-VISIT-001</span><span>ตรวจความงาม</span>
+                    </div>
+                </div>
+                <button className={`${button} shrink-0 !bg-blue-700 !text-white`} onClick={() => { setSummary(true); setFinished(false); }}>สรุปและจบการตรวจ</button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-sm">
+                {["แพ้ยา", "โรคประจำตัว", "ยาที่ใช้"].map(label => <span key={label}><span className="text-slate-500">{label}: </span><span className="font-medium text-amber-700">ยังไม่ได้ซักประวัติ</span></span>)}
+            </div>
+            <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1.5 text-sm" aria-label="สัญญาณชีพจำลอง">
+                {[["BP", "120/80", "mmHg"], ["PR", "76", "bpm"], ["Temp", "36.5", "°C"], ["SpO₂", "99", "%"], ["น้ำหนัก", "55", "kg"], ["ส่วนสูง", "160", "cm"]].map(([label, value, unit]) => <span key={label} className="inline-flex items-baseline gap-1 whitespace-nowrap"><span className="text-xs text-slate-500">{label}</span><span className="font-medium tabular-nums text-slate-800">{value}</span><span className="text-xs text-slate-500">{unit}</span></span>)}
+                <span className="text-xs text-slate-500">วัด 8 ก.ย. 2569 · 17:00 น. (ข้อมูลจำลอง)</span>
+            </div>
+            <details className="mt-1 text-xs text-slate-500">
+                <summary className="w-fit cursor-pointer rounded py-1 text-blue-700 focus-visible:outline-blue-600">ข้อมูลคนไข้เพิ่มเติม</summary>
+                <dl className="mt-2 grid gap-x-6 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">
+                    {[["ที่อยู่", "ยังไม่ระบุในเคสจำลอง"], ["เลขบัตรประชาชน", "ไม่มีข้อมูลในต้นแบบ"], ["โทรศัพท์", "ยังไม่ระบุ"], ["ผู้ติดต่อฉุกเฉิน", "ยังไม่ระบุ"]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-slate-700">{value}</dd></div>)}
+                </dl>
+            </details>
+        </header>
+        <nav aria-label="เมนูหน้าตรวจ" className="flex flex-wrap gap-2">{tabs.map((name, i) => <button key={name} aria-pressed={tab === i} className={`${button} ${tab === i ? "!bg-blue-700 !text-white" : ""}`} onClick={() => setTab(i)}>{name}</button>)}</nav>
+        <section className="min-w-0 rounded-2xl border border-white bg-white/85 p-3 shadow-sm sm:p-4">
+            <div hidden={tab !== 0} className="space-y-4"><div><h2 className="text-xl font-semibold">บันทึกการตรวจ</h2><p className="mt-1 text-sm text-slate-500">จดปัญหา ประวัติ การประเมิน และแผนการรักษารวมในบันทึกเดียว</p></div><button className={button} onClick={() => setNotes(n => n + (n ? "\n\n" : "") + "ปัญหา / ประวัติ:\n\nตรวจและประเมิน:\n\nแผนการรักษา:\n")}>+ แทรกหัวข้อช่วยจด</button><textarea aria-label="บันทึกการตรวจ" className={`${input} min-h-[420px] leading-7`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="หมอจดบันทึกได้ที่นี่…" /><p className="text-xs text-slate-500">ข้อมูลคงอยู่ขณะสลับเมนู รีเฟรชแล้วเริ่มใหม่</p></div>
+            <div hidden={tab !== 1}><div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.9fr)]"><div className="min-w-0 space-y-3"><h2 className="text-xl font-semibold">บันทึกหัตถการ</h2><div className="flex gap-2 rounded-xl bg-slate-100/70 p-1.5">{["สินค้า", "คอร์ส / บริการ"].map(view => <button key={view} className={`${button} flex-1 ${catalogView === view ? "!bg-blue-700 !text-white" : ""}`} aria-pressed={catalogView === view} onClick={() => setCatalogView(view)}>{view}{view === "คอร์ส / บริการ" ? ` (${courses.length})` : ""}</button>)}</div><div hidden={catalogView !== "คอร์ส / บริการ"}><div className="mt-4"><div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm">คอร์สจำลอง: ดูแลผิว 5 ครั้ง · ใช้แล้ว 2 · เหลือ 3 ครั้ง<br />การเพิ่มรายการด้านล่างยังไม่ตัดสิทธิ์จริง</div><OrderPanel kind="คอร์ส" catalog={["ใช้คอร์สดูแลผิว (จำลอง)", "เพิ่มบริการครั้งเดียว (จำลอง)"]} rows={courses} setRows={setCourses} /></div></div><div hidden={catalogView !== "สินค้า"} className="space-y-4"><input aria-label="ค้นหาผลิตภัณฑ์" className={input} placeholder="ค้นหาชื่อสินค้า / ยี่ห้อ" value={query} onChange={e => setQuery(e.target.value)} /><div className="flex flex-wrap gap-2">{["ทั้งหมด", "Botox", "Filler", "รายการโปรด", "ใช้ล่าสุด"].map(f => <button key={f} aria-pressed={filter === f} className={`${button} ${filter === f ? "!bg-blue-50 !border-blue-400" : ""}`} onClick={() => setFilter(f)}>{f}</button>)}</div><p className="text-xs text-slate-500">แค็ตตาล็อกจำลอง · กด ☆ เพื่อเก็บรายการโปรด</p><div className="space-y-2">{!shown.length && <p className="p-4 text-sm text-slate-500">ไม่มีรายการในตัวกรองนี้</p>}{shown.map(p => <div key={p} className="flex gap-2"><button className={`${button} flex-1 text-left`} onClick={() => selectProduct(p)}>+ {p}</button><button aria-label={`รายการโปรด ${p}`} aria-pressed={favorites.includes(p)} className={button} onClick={() => setFavorites(old => old.includes(p) ? old.filter(x => x !== p) : [...old, p])}>{favorites.includes(p) ? "★" : "☆"}</button></div>)}</div></div><h3 className="pt-2 font-medium">รายการทำจริง ({treatments.length})</h3>{treatments.map(t => <div key={t.id} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4"><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{t.product}</p><button className={button} onClick={() => setTreatments(old => old.filter(r => r.id !== t.id))}>ลบ</button></div><div className="grid gap-3 sm:grid-cols-2">{([['qty', `ปริมาณ (${t.unit})`], ['site', 'ตำแหน่ง / ด้าน'], ['lot', 'Lot / วันหมดอายุ']] as const).map(([key, label]) => <label key={key} className="text-xs text-slate-500">{label}<input className={`${input} mt-1`} type={key === 'qty' ? 'number' : 'text'} min={key === 'qty' ? '0' : undefined} step={key === 'qty' ? 'any' : undefined} value={t[key]} onChange={e => setTreatments(old => old.map(r => r.id === t.id ? { ...r, [key]: e.target.value } : r))} /></label>)}</div></div>)}</div><ChartPad onCount={setSheets} /></div></div>
+            <div hidden={tab !== 2}><h2 className="mb-4 text-xl font-semibold">สั่ง Lab</h2><OrderPanel kind="Lab" catalog={["CBC (จำลอง)", "Glucose (จำลอง)", "Lipid profile (จำลอง)"]} rows={labs} setRows={setLabs} /></div>
+            <div hidden={tab !== 3}><h2 className="mb-4 text-xl font-semibold">สั่งยา</h2><OrderPanel kind="ยา" catalog={["ยารับประทาน A (จำลอง)", "ยาทาภายนอก B (จำลอง)"]} rows={drugs} setRows={setDrugs} /></div>
+
+            <div hidden={tab !== 4} className="space-y-4"><h2 className="text-xl font-semibold">ประวัติ & ผล Lab</h2><article className="rounded-xl border border-slate-200 p-4"><p className="font-medium">ครั้งก่อน · ข้อมูลจำลอง</p><p className="mt-2 text-sm">ปรึกษาปัญหาผิวและแผนดูแล ยังไม่ได้ทำหัตถการ</p></article><article className="rounded-xl border border-slate-200 p-4"><p className="font-medium">ผล Lab</p><p className="mt-2 text-sm text-slate-500">ยังไม่มีผลตรวจในเคสจำลองนี้ รายการสั่งใหม่ดูได้ที่เมนูสั่ง Lab</p></article></div>
+        </section>
+        {summary && <div role="dialog" aria-modal="true" aria-label="สรุปการตรวจ" className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm"><div className="mx-auto my-5 max-w-3xl space-y-5 rounded-2xl bg-white p-6"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">สรุปการตรวจ</h2><button autoFocus className={button} onClick={() => setSummary(false)}>กลับไปแก้ไข</button></div><p className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-4 text-sm leading-relaxed">{notes || "ยังไม่ได้บันทึกการตรวจ"}</p><h3 className="font-medium">หัตถการ {treatments.length} รายการ · แผ่นวาด {sheets} แผ่น</h3>{treatments.map(t => <p className="break-words text-sm" key={t.id}>{t.product} · {t.qty || "—"} {t.unit} · {t.site || "ยังไม่ระบุตำแหน่ง"} · {t.lot || "ยังไม่ระบุ Lot / วันหมดอายุ"}</p>)}{[["Lab", labs], ["ยา", drugs], ["คอร์ส", courses]].map(([label, orders]) => <div key={String(label)}><h3 className="font-medium">{String(label)} ({(orders as Order[]).length})</h3>{(orders as Order[]).map(o => <p key={o.id} className="break-words text-sm leading-relaxed">{o.name} × {o.qty || "—"} {o.note}</p>)}</div>)}<label className="block text-sm">คำแนะนำ<textarea className={`${input} mt-2`} value={care} onChange={e => setCare(e.target.value)} /></label><label className="block text-sm">นัดติดตาม<input className={`${input} mt-2`} value={followup} onChange={e => setFollowup(e.target.value)} /></label>{!valid && <p className="text-sm text-amber-700">เติมบันทึกการตรวจ จำนวนและตำแหน่งของหัตถการ จำนวนรายการสั่ง และวิธีใช้ยาที่เลือก ก่อนทดลองจบการตรวจ</p>}<button className={`${button} !bg-blue-700 !text-white`} disabled={!valid} onClick={() => setFinished(true)}>ยืนยันจบการตรวจจำลอง</button>{finished && <p role="status" className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">ทดลองจบแล้ว ไม่มีการส่งคำสั่ง Lab ยา คิดเงิน หรือตัดคอร์สจริง</p>}<p className="text-xs text-slate-500">แผ่นวาดดาวน์โหลดได้จากเมนูบันทึกหัตถการ ข้อมูลอื่นยังอยู่เฉพาะหน้านี้</p></div></div>}
+    </main>;
+}

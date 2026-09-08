@@ -1,17 +1,22 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { revalidatePath } from "next/cache";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-async function ctx() {
+async function ctx(write = false) {
+    const auth = await getEffectivePermissionsForUser();
+    if (!auth.userId || !auth.clinicId || !auth.isApproved || !auth.isActive || !auth.permissions[write ? "visits.edit" : "visits.view"]) throw new Error("ไม่มีสิทธิ์ใช้งานการตรวจ");
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Unauthorized");
-    const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
-    if (!profile?.clinic_id) throw new Error("Clinic not found");
-    return { supabase, userId: user.id, clinicId: profile.clinic_id as string };
+    return { supabase, userId: auth.userId, clinicId: auth.clinicId };
+}
+
+async function editableVisit(supabase: Awaited<ReturnType<typeof createClient>>, vn: string, clinicId: string) {
+    const { data } = await supabase.from("visits").select("hn,doctor_id,status,service_category").eq("clinic_id", clinicId).eq("vn", vn).maybeSingle();
+    if (!data || data.service_category !== "aesthetic" || !["waiting", "triaged", "with_doctor", "with_nurse"].includes(data.status)) throw Error("ไม่พบ visit ความงามที่เปิดให้บันทึก");
+    return data;
 }
 
 /** รายการสินค้าฉีดฝั่งความงาม (injectable_vial + segment=aesthetic) — ให้หมอเลือกตอนบันทึก
@@ -34,11 +39,12 @@ export async function getInjectableProducts() {
  *  qty = จำนวนที่ฉีด (ยูนิต/cc/shot → ตัดสต๊อก) · sale_price = ราคาขายก้อน (คิดเงิน, optional) */
 export async function saveVisitInjection(input: { vn: string; item_id: string; qty: number; sale_price?: number | null; site?: string }) {
     try {
-        const { supabase, userId, clinicId } = await ctx();
-        if (!(input.qty > 0)) return { success: false, error: "จำนวนต้องมากกว่า 0" };
-        const { data: visit } = await supabase.from("visits").select("hn, doctor_id, clinic_id").eq("vn", input.vn).maybeSingle();
-        if (!visit || visit.clinic_id !== clinicId) return { success: false, error: "ไม่พบ visit" };
-        const { data: inv } = await supabase.from("inventory").select("capacity_unit_label, unit").eq("id", input.item_id).maybeSingle();
+        const { supabase, userId, clinicId } = await ctx(true);
+        if (!Number.isFinite(input.qty) || !(input.qty > 0)) return { success: false, error: "จำนวนต้องมากกว่า 0" };
+        const visit = await editableVisit(supabase, input.vn, clinicId);
+        if (input.sale_price != null && (!Number.isFinite(input.sale_price) || input.sale_price < 0)) throw Error("ราคาไม่ถูกต้อง");
+        const { data: inv } = await supabase.from("inventory").select("capacity_unit_label, unit").eq("clinic_id", clinicId).eq("id", input.item_id).eq("is_active", true).eq("segment", "aesthetic").eq("deduction_type", "injectable_vial").maybeSingle();
+        if (!inv) throw Error("ไม่พบสินค้าในคลินิกนี้");
 
         const { error } = await supabase.from("visit_injections").insert({
             clinic_id: clinicId, vn: input.vn, hn: visit.hn, item_id: input.item_id,
@@ -76,8 +82,9 @@ export async function getVisitInjections(vn: string) {
 
 export async function deleteVisitInjection(id: string, vn: string) {
     try {
-        const { supabase, clinicId } = await ctx();
-        const { error } = await supabase.from("visit_injections").delete().eq("id", id).eq("clinic_id", clinicId);
+        const { supabase, clinicId } = await ctx(true);
+        await editableVisit(supabase, vn, clinicId);
+        const { error } = await supabase.from("visit_injections").delete().eq("id", id).eq("vn", vn).eq("clinic_id", clinicId);
         if (error) return { success: false, error: error.message };
         revalidatePath(`/dashboard/visits/${vn}`);
         return { success: true };

@@ -95,8 +95,8 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
 
     return (
         <div className="space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b">
-                <h2 className="text-base font-bold text-slate-800">ซักประวัติ &amp; ตรวจร่างกาย (PE)</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200/70">
+                <h2 className="text-base font-semibold text-slate-800">ซักประวัติ &amp; ตรวจร่างกาย (PE)</h2>
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 h-6">
                     {status === "saving" && (
                         <><Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังบันทึก...</>
@@ -114,11 +114,11 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                             บันทึกผลการตรวจร่างกาย (Physical Examination)
                         </Label>
                         <div className="flex items-center gap-1 flex-wrap">
-                            <span className="text-[10px] text-slate-400 font-semibold">เทมเพลต:</span>
+                            <span className="text-xs text-slate-400 font-semibold">เทมเพลต:</span>
                             {PE_TEMPLATES.map((tpl) => (
                                 <button key={tpl.key} type="button"
                                     onClick={() => handleChange("soap_o", values.soap_o ? values.soap_o + "\n" + tpl.text : tpl.text)}
-                                    className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100">
+                                    className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-blue-50/70 text-blue-700 border border-blue-200 hover:bg-blue-100">
                                     {tpl.key}
                                 </button>
                             ))}
@@ -129,7 +129,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                         value={values.soap_o}
                         onChange={(e) => handleChange("soap_o", e.target.value)}
                         rows={5}
-                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-sm"
+                        className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-sm"
                         placeholder="บันทึกผลการตรวจร่างกาย (Physical Examination)..."
                     />
                 </div>
@@ -143,7 +143,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                         value={values.soap_p}
                         onChange={(e) => handleChange("soap_p", e.target.value)}
                         rows={5}
-                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-sm"
+                        className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shadow-sm"
                         placeholder="บันทึกเพิ่มเติมสำหรับแพทย์, แผนการรักษา, หรือข้อสังเกตอื่นๆ..."
                     />
                 </div>
@@ -156,21 +156,21 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                                 <Label htmlFor="procedure_name">ชื่อหัตถการ / โปรแกรม</Label>
                                 <input id="procedure_name" value={aestheticValues.procedure_name}
                                     onChange={(e) => handleAestheticChange("procedure_name", e.target.value)}
-                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     placeholder="เช่น Botox, Filler, เลเซอร์หน้าใส" />
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="treated_area">บริเวณที่ทำ (Treated Area)</Label>
                                 <input id="treated_area" value={aestheticValues.treated_area}
                                     onChange={(e) => handleAestheticChange("treated_area", e.target.value)}
-                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     placeholder="เช่น หน้าผาก, หางตา, กราม" />
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="lot_number">Lot No. / Serial Number ยาที่ใช้</Label>
                                 <input id="lot_number" value={aestheticValues.lot_number}
                                     onChange={(e) => handleAestheticChange("lot_number", e.target.value)}
-                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     placeholder="ระบุ Lot ยาเพื่อตรวจสอบย้อนหลัง" />
                             </div>
                             <div className="space-y-1.5">
@@ -178,7 +178,7 @@ export default function SoapForm({ vn, visitType = "opd", defaultValues }: SoapF
                                 <textarea id="aesthetic_note" value={aestheticValues.aesthetic_note}
                                     onChange={(e) => handleAestheticChange("aesthetic_note", e.target.value)}
                                     rows={3}
-                                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="flex w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-3 text-sm leading-relaxed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     placeholder="เช่น ใช้โบท็อกซ์ 50U เทคนิค Micro-droplet" />
                             </div>
                         </div>

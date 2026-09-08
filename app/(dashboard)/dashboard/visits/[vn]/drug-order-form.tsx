@@ -52,6 +52,8 @@ interface DrugPreset {
 }
 
 interface DrugOrderFormProps {
+    compact?: boolean;
+    showDiagnosis?: boolean;
     vn: string;
     hn: string;
     defaultIcd10?: string;
@@ -80,7 +82,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [] }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false, showDiagnosis = true }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -370,11 +372,11 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
     }
 
     return (
-        <div className="space-y-6">
+        <div className={compact ? "space-y-4" : "space-y-6"}>
 
             {/* ── ICD-10 Diagnosis ─────────────────────────────── */}
-            <div>
-                <p className="text-sm font-bold text-red-600 mb-2 flex items-center gap-1.5">
+            {showDiagnosis && <div>
+                <p className="text-sm font-semibold text-red-600 mb-2 flex items-center gap-1.5">
                     <FlaskConical className="h-4 w-4" />
                     การวินิจฉัยโรค (Diagnosis ICD-10)
                 </p>
@@ -392,7 +394,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                             {icd10Results.map(item => (
                                 <button key={item.code} type="button" onClick={() => selectIcd10(item)}
                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 border-b last:border-0 flex gap-3 items-start">
-                                    <span className="font-mono font-bold text-primary text-xs pt-0.5 w-14 shrink-0">{item.code}</span>
+                                    <span className="font-mono font-semibold text-primary text-xs pt-0.5 w-14 shrink-0">{item.code}</span>
                                     <div>
                                         <div className="font-medium text-slate-800">{item.description_th || item.description_en}</div>
                                         {item.description_th && <div className="text-xs text-slate-400">{item.description_en}</div>}
@@ -416,12 +418,12 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                         <span className="text-slate-600">{diagnosisText}</span>
                     </p>
                 )}
-            </div>
+            </div>}
 
             {/* ── Drug Prescription ────────────────────────────── */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-emerald-700 flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-emerald-700 flex items-center gap-1.5">
                         <Pill className="h-4 w-4" />
                         สั่งยา (Prescription)
                     </p>
@@ -479,11 +481,11 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                                         <div className="flex justify-between items-start gap-3">
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <span className="font-bold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                                    <span className="font-semibold text-sm text-slate-800 group-hover:text-emerald-700 transition-colors">
                                                         {drug.item_name}
                                                     </span>
                                                     {drug.category === "supply" && (
-                                                        <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                                                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                                                             เวชภัณฑ์
                                                         </span>
                                                     )}
@@ -496,10 +498,10 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                                                 )}
                                             </div>
                                             <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${!inStock ? "bg-red-100 text-red-700" : lowStock ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${!inStock ? "bg-red-100 text-red-700" : lowStock ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
                                                     {!inStock ? "หมด" : lowStock ? `เหลือ ${drug.stock_qty}` : `${drug.stock_qty} ${drug.unit || ""}`}
                                                 </span>
-                                                <span className="font-bold text-emerald-700 text-sm">
+                                                <span className="font-semibold text-emerald-700 text-sm">
                                                     ฿{drug.sell_price?.toLocaleString() || "—"}
                                                 </span>
                                             </div>
@@ -521,13 +523,13 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                         <div className="rounded-xl bg-red-50 border-2 border-red-300 p-3 mb-2 flex items-start gap-2">
                             <span className="text-lg leading-none"></span>
                             <div className="text-sm text-red-800">
-                                <div className="font-bold">เตือน: มียาที่ตรงกับประวัติแพ้ของผู้ป่วย!</div>
+                                <div className="font-semibold">เตือน: มียาที่ตรงกับประวัติแพ้ของผู้ป่วย!</div>
                                 <ul className="mt-1 space-y-0.5">
                                     {conflicts.map((c, i) => (
                                         <li key={i}>• <b>{c.line.item_name}</b> — แพ้ <b>{c.allergen}</b></li>
                                     ))}
                                 </ul>
-                                <div className="text-[11px] text-red-600 mt-1">โปรดทบทวนก่อนสั่งจ่าย (ตรวจชื่อยาเทียบรายการแพ้เท่านั้น ไม่รวมยาตีกัน)</div>
+                                <div className="text-xs text-red-600 mt-1">โปรดทบทวนก่อนสั่งจ่าย (ตรวจชื่อยาเทียบรายการแพ้เท่านั้น ไม่รวมยาตีกัน)</div>
                             </div>
                         </div>
                     );
@@ -558,7 +560,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                                         <div className="font-medium flex items-center gap-1.5">
                                             {line.item_name}
                                             {allergyConflict(line.item_name, line.generic_name, allergens) && (
-                                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">แพ้</span>
+                                                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">แพ้</span>
                                             )}
                                         </div>
                                         {line.generic_name && <div className="text-xs text-slate-400">{line.generic_name}</div>}
@@ -595,7 +597,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                                                         onClick={() => setSigPickerIdx(null)}
                                                     />
                                                     <div className="absolute right-0 top-9 mt-0.5 bg-white border rounded-xl shadow-lg z-50 w-72 max-h-56 overflow-y-auto">
-                                                        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b bg-slate-50/60">
+                                                        <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400 border-b bg-slate-50/60">
                                                             เลือก preset วิธีใช้
                                                         </div>
                                                         {commonSigs.map(s => (
@@ -629,7 +631,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                             <tfoot className="bg-slate-50 border-t">
                                 <tr>
                                     <td colSpan={3} className="px-4 py-2.5 text-sm text-slate-500">รวมค่ายาเบื้องต้น</td>
-                                    <td className="px-3 py-2.5 text-right font-bold text-red-600" colSpan={2}>
+                                    <td className="px-3 py-2.5 text-right font-semibold text-red-600" colSpan={2}>
                                         {totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })} ฿
                                     </td>
                                 </tr>
@@ -639,7 +641,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                             <tfoot className="bg-slate-50 border-t">
                                 <tr>
                                     <td colSpan={3} className="px-4 py-2.5 text-sm text-slate-400">รวมค่ายาเบื้องต้น</td>
-                                    <td className="px-3 py-2.5 text-right font-bold text-red-500 text-sm" colSpan={2}>0.00 ฿</td>
+                                    <td className="px-3 py-2.5 text-right font-semibold text-red-500 text-sm" colSpan={2}>0.00 ฿</td>
                                 </tr>
                             </tfoot>
                         )}
@@ -648,9 +650,10 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
 
                 {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-md">{error}</p>}
 
-                {orderLines.length > 0 && (
-                    <div className="flex justify-end pt-2">
-                        <Button onClick={handleSave} disabled={loading} size="sm">
+                {(compact || orderLines.length > 0) && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                        {compact && <p className="text-xs text-slate-500">เลือกยา ระบุจำนวนและวิธีใช้ แล้วกดบันทึกคำสั่งยา</p>}
+                        <Button onClick={handleSave} disabled={loading || orderLines.length === 0} size="sm">
                             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> :
                                 saved ? <CheckCircle className="h-4 w-4 mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
                             {saved ? "บันทึกแล้ว" : "บันทึกคำสั่งยา"}

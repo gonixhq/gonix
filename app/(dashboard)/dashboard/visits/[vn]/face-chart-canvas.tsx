@@ -230,7 +230,7 @@ export default function FaceChartCanvas({ vn, initial }: Props) {
     return (
         <div className="space-y-3">
             {/* Toolbar */}
-            <div className="flex items-center gap-2 flex-wrap p-3 rounded-xl bg-white border-2 border-slate-200">
+            <div className="flex items-center gap-3 flex-wrap p-3 rounded-2xl bg-white/85 border border-slate-200/70 shadow-sm">
                 {/* Tools */}
                 <div className="flex items-center gap-1 pr-3 border-r border-slate-200">
                     <ToolButton active={tool === "pen"} onClick={() => setTool("pen")} title="ปากกาวาด">
@@ -276,11 +276,11 @@ export default function FaceChartCanvas({ vn, initial }: Props) {
                 {/* Save */}
                 <div className="ml-auto flex items-center gap-2">
                     {dirty && <span className="text-xs text-amber-700 font-medium">มีการเปลี่ยนแปลง</span>}
-                    {saved && <span className="text-xs text-emerald-700 font-bold inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> บันทึกแล้ว</span>}
+                    {saved && <span className="text-xs text-emerald-700 font-semibold inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> บันทึกแล้ว</span>}
                     <Button
                         onClick={handleSave}
                         disabled={saving || !dirty}
-                        className="rounded-lg h-9 gap-1.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-sm font-bold disabled:opacity-50"
+                        className="rounded-xl h-10 gap-1.5 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50"
                     >
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                         บันทึก
@@ -289,7 +289,7 @@ export default function FaceChartCanvas({ vn, initial }: Props) {
             </div>
 
             {/* Canvas Area */}
-            <div ref={wrapRef} className="relative mx-auto rounded-2xl border-2 border-slate-200 bg-white overflow-hidden shadow-sm" style={{ maxWidth: CANVAS_WIDTH }}>
+            <div ref={wrapRef} className="relative mx-auto rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm" style={{ maxWidth: CANVAS_WIDTH }}>
                 {/* Face background */}
                 <div
                     className="absolute inset-0 pointer-events-none"
@@ -336,7 +336,7 @@ export default function FaceChartCanvas({ vn, initial }: Props) {
                                 />
                                 {p.label && (
                                     <div
-                                        className="absolute left-1/2 -translate-x-1/2 mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white whitespace-nowrap shadow-sm max-w-[140px] truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                                        className="absolute left-1/2 -translate-x-1/2 mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-white whitespace-nowrap shadow-sm max-w-[140px] truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                                         style={{ backgroundColor: hex, top: "100%" }}
                                     >
                                         {p.label}
@@ -382,7 +382,7 @@ function ToolButton({
             onClick={onClick}
             disabled={disabled}
             title={title}
-            className={`h-9 w-9 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+            className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
                 active
                     ? "bg-blue-600 text-white shadow-sm"
                     : danger
@@ -409,9 +409,9 @@ function PinEditModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={onClose}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="bg-white/95 backdrop-blur-xl border border-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between p-5 border-b border-slate-200">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                         <MapPin className="h-5 w-5 text-rose-600" />
                         {initial ? "แก้ไขหมุด" : "เพิ่มหมุด"}
                     </h3>
@@ -422,7 +422,7 @@ function PinEditModal({
 
                 <div className="p-5 space-y-4">
                     <div>
-                        <label className="text-sm font-bold text-slate-700 block mb-1.5">ข้อความ</label>
+                        <label className="text-sm font-semibold text-slate-700 block mb-1.5">ข้อความ</label>
                         <input
                             type="text"
                             value={label}
@@ -433,7 +433,7 @@ function PinEditModal({
                         />
                     </div>
                     <div>
-                        <label className="text-sm font-bold text-slate-700 block mb-1.5">สี</label>
+                        <label className="text-sm font-semibold text-slate-700 block mb-1.5">สี</label>
                         <div className="flex items-center gap-2">
                             {PEN_COLORS.map(c => (
                                 <button

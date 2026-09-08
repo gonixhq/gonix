@@ -1,0 +1,145 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Undo2, Redo2, MapPin, Pencil, Eraser, Plus } from "lucide-react";
+import type { PointerEvent } from "react";
+
+import type { ChartStroke as Stroke, ChartPin as Pin, ChartSheet as Sheet } from "@/lib/visit-workspace-types";
+type Drawing = { strokes: Stroke[]; pins: Pin[] };
+const button = "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 disabled:opacity-40";
+import { BODY_CHART_BACKGROUND as body } from "@/lib/visit-workspace-types";
+
+export default function ChartPad({ onCount, initial, onChange, onUpload }: {
+    onCount: (count: number) => void;
+    initial?: Sheet[];
+    onChange?: (sheets: Sheet[]) => void;
+    onUpload?: (file: File) => Promise<{ background: string; storagePath: string }>;
+}) {
+    const [sheets, setSheets] = useState<Sheet[]>(initial?.length ? initial : [{ id: 1, name: "Face 1", background: "/face-chart.png", strokes: [], pins: [] }]);
+    const [active, setActive] = useState(initial?.[0]?.id ?? 1);
+    useEffect(() => { onChange?.(sheets); }, [sheets, onChange]);
+    const [color, setColor] = useState("#2563eb");
+    const [erase, setErase] = useState(false);
+    const [redo, setRedo] = useState<Drawing[]>([]);
+    const [undo, setUndo] = useState<Drawing[]>([]);
+    const [pinMode, setPinMode] = useState(false);
+    const [draftPin, setDraftPin] = useState<Pin | null>(null);
+    const [message, setMessage] = useState("");
+    const drawing = useRef(false);
+    const container = useRef<HTMLDivElement>(null);
+    const addMenu = useRef<HTMLDetailsElement>(null);
+    const uploadInput = useRef<HTMLInputElement>(null);
+    const cameraInput = useRef<HTMLInputElement>(null);
+    function closeAddMenu() { if (addMenu.current) addMenu.current.open = false; }
+    useEffect(() => {
+        const outside = (event: globalThis.PointerEvent) => { if (!addMenu.current?.contains(event.target as Node)) closeAddMenu(); };
+        const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && addMenu.current?.open) { closeAddMenu(); addMenu.current.querySelector("summary")?.focus(); } };
+        document.addEventListener("pointerdown", outside);
+        document.addEventListener("keydown", escape);
+        return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+    }, []);
+    const [expanded, setExpanded] = useState(false);
+    const [renaming, setRenaming] = useState(false);
+    useEffect(() => {
+        const sync = () => setExpanded(document.fullscreenElement === container.current);
+        document.addEventListener("fullscreenchange", sync);
+        return () => document.removeEventListener("fullscreenchange", sync);
+    }, []);
+    async function toggleFullscreen() {
+        try {
+            if (document.fullscreenElement === container.current) await document.exitFullscreen();
+            else await container.current?.requestFullscreen();
+        } catch { setMessage("อุปกรณ์นี้ไม่รองรับการขยายเต็มจอ"); }
+    }
+    const sheet = sheets.find(s => s.id === active)!;
+    function edit(patch: Partial<Sheet>) { setSheets(old => old.map(s => s.id === active ? { ...s, ...patch } : s)); setMessage(""); }
+    function checkpoint() { setUndo(old => [...old, { strokes: sheet.strokes, pins: sheet.pins }]); setRedo([]); }
+    function undoDrawing() {
+        if (!undo.length) return;
+        setRedo(old => [...old, { strokes: sheet.strokes, pins: sheet.pins }]);
+        edit(undo[undo.length - 1]); setUndo(old => old.slice(0, -1)); setDraftPin(null);
+    }
+    function redoDrawing() {
+        if (!redo.length) return;
+        setUndo(old => [...old, { strokes: sheet.strokes, pins: sheet.pins }]);
+        edit(redo[redo.length - 1]); setRedo(old => old.slice(0, -1)); setDraftPin(null);
+    }
+    function savePin() {
+        if (!draftPin || !Number.isFinite(Number(draftPin.amount)) || Number(draftPin.amount) <= 0) return;
+        checkpoint();
+        edit({ pins: [...sheet.pins.filter(p => p.id !== draftPin.id), draftPin] }); setDraftPin(null);
+    }
+    function add(name: string, background: string, storagePath?: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, ...(storagePath ? { storagePath } : {}), strokes: [], pins: [] }]); setActive(id); setRedo([]); setUndo([]); setDraftPin(null); onCount(sheets.length + 1); setMessage(""); }
+    function point(e: PointerEvent<SVGSVGElement>) { const r = e.currentTarget.getBoundingClientRect(); return `${Math.max(0, Math.min(600, (e.clientX - r.left) * 600 / r.width)).toFixed(1)},${Math.max(0, Math.min(800, (e.clientY - r.top) * 800 / r.height)).toFixed(1)}`; }
+    function finish() { drawing.current = false; }
+    async function photo(file?: File) {
+        if (!file) return;
+        if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) { setMessage("เลือกรูปภาพไม่เกิน 10 MB"); return; }
+        if (onUpload) {
+            try { setMessage("กำลังอัปโหลดภาพ…"); const result = await onUpload(file); add(file.name, result.background, result.storagePath); }
+            catch (error) { setMessage(error instanceof Error ? error.message : "อัปโหลดไม่สำเร็จ"); }
+            return;
+        }
+        const reader = new FileReader(); reader.onload = () => add(file.name, String(reader.result)); reader.onerror = () => setMessage("อ่านภาพไม่สำเร็จ"); reader.readAsDataURL(file);
+    }
+    function save() {
+        const url = URL.createObjectURL(new Blob([JSON.stringify({ version: 1, sheets })], { type: "application/json" }));
+        const a = document.createElement("a"); a.href = url; a.download = "gonix-demo-charts.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setMessage("ส่งไฟล์แผ่นวาดให้เบราว์เซอร์ดาวน์โหลดแล้ว");
+    }
+    async function restore(file?: File) {
+        if (!file) return;
+        try {
+            if (file.size > 30 * 1024 * 1024) throw Error();
+            const data = JSON.parse(await file.text());
+            if (data.version !== 1 || !Array.isArray(data.sheets) || !data.sheets.length || data.sheets.length > 30) throw Error();
+            const restored: Sheet[] = data.sheets.map((s: Sheet, i: number) => {
+                if (typeof s.name !== "string" || typeof s.background !== "string" || !(s.background === "" || s.background === "/face-chart.png" || /^data:image\/(png|jpeg|webp|gif);base64,/.test(s.background) || s.background === body) || !Array.isArray(s.strokes) || !s.strokes.every(t => /^#[0-9a-f]{6}$/i.test(t.color) && typeof t.points === "string" && /^[0-9., ]+$/.test(t.points))) throw Error();
+                const pins = s.pins ?? [];
+                if (!Array.isArray(pins) || !pins.every(p => Number.isFinite(p.id) && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 600 && p.y >= 0 && p.y <= 800 && typeof p.amount === "string" && Number.isFinite(Number(p.amount)) && Number(p.amount) > 0 && /^#[0-9a-f]{6}$/i.test(p.color))) throw Error();
+                return { ...s, id: i + 1, pins };
+            });
+            setSheets(restored); setActive(restored[0].id); onCount(restored.length); setRedo([]); setUndo([]); setDraftPin(null); setMessage("เปิดแผ่นวาดแล้ว สามารถวาดต่อได้");
+        } catch { setMessage("เปิดไฟล์ไม่ได้ กรุณาเลือกไฟล์แผ่นวาดจากต้นแบบนี้"); }
+    }
+    return <div ref={container} className={`space-y-2 rounded-2xl border border-slate-200 p-3 ${expanded ? "overflow-y-auto bg-white" : "bg-slate-50/60"}`}>
+        <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3>
+            <div className="flex shrink-0 items-center gap-2">
+                <details ref={addMenu} className="relative">
+                    <summary aria-label="เพิ่มแผ่นวาดหรือภาพ" title="เพิ่มแผ่นวาดหรือภาพ" className={`${button} flex h-9 w-9 cursor-pointer list-none items-center justify-center !px-0 text-blue-700 [&::-webkit-details-marker]:hidden focus-visible:outline-blue-600`}><Plus size={20} /></summary>
+                    <div className="absolute right-0 top-full z-20 mt-2 grid w-44 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                        <button className={`${button} text-left`} onClick={() => { add("Face", "/face-chart.png"); closeAddMenu(); }}>Face chart</button>
+                        <button className={`${button} text-left`} onClick={() => { add("Body", body); closeAddMenu(); }}>Body chart</button>
+                        <button className={`${button} text-left`} onClick={() => { add("กระดาษเปล่า", ""); closeAddMenu(); }}>กระดาษเปล่า</button>
+                        <button className={`${button} text-left`} onClick={() => { uploadInput.current?.click(); closeAddMenu(); }}>อัปโหลดภาพ</button>
+                        <button className={`${button} text-left`} onClick={() => { cameraInput.current?.click(); closeAddMenu(); }}>ถ่ายภาพ</button>
+                    </div>
+                </details>
+                <button className={button} onClick={() => void toggleFullscreen()}>{expanded ? "ย่อกลับ" : "ขยายเต็มจอ"}</button>
+            </div>
+            <input ref={uploadInput} hidden type="file" accept="image/*" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
+        </div>
+
+        {renaming && <label className="block text-xs text-slate-500">ชื่อแผ่น<input autoFocus className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} /></label>}
+        <div className="flex flex-wrap items-center gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} title="กดแผ่นที่เลือกเพื่อเปลี่ยนชื่อ" onClick={() => { setRenaming(active === s.id ? !renaming : false); if (active !== s.id) { setRedo([]); setUndo([]); setDraftPin(null); } setActive(s.id); }}>{s.name}</button>)}<label className="text-xs">สี <input aria-label="สีปากกา" type="color" value={color} onChange={e => { setColor(e.target.value); setErase(false); }} /></label><button className={button} title="ปากกา" aria-label="ปากกา" aria-pressed={!erase && !pinMode} onClick={() => { setErase(false); setPinMode(false); }}><Pencil size={18} /></button><button className={`${button} ${erase ? "!bg-blue-100" : ""}`} title="ลบเส้น" aria-label="ลบเส้น" aria-pressed={erase} onClick={() => { setErase(true); setPinMode(false); }}><Eraser size={18} /></button><button className={`${button} inline-flex items-center gap-1 ${pinMode ? "!bg-blue-100" : ""}`} aria-pressed={pinMode} onClick={() => { setPinMode(true); setErase(false); }}><MapPin size={16} /> จุด / cc</button><button className={button} title="ย้อนกลับ" aria-label="ย้อนกลับ" disabled={!undo.length} onClick={undoDrawing}><Undo2 size={18} /></button><button className={button} title="ทำซ้ำ" aria-label="ทำซ้ำ" disabled={!redo.length} onClick={redoDrawing}><Redo2 size={18} /></button></div>
+        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc(68dvh * 0.75))" : "min(100%, 300px, calc(48dvh * 0.75))", aspectRatio: "3 / 4" }} onPointerDown={e => { if (erase) return; if (pinMode) { const [x, y] = point(e).split(",").map(Number); setDraftPin({ id: Date.now(), x, y, amount: "", color }); return; } checkpoint(); e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
+            {sheet.background && <image href={sheet.background} width="600" height="800" preserveAspectRatio="xMidYMid meet" />}
+            {sheet.strokes.map((s, i) => <polyline key={i} points={s.points} stroke={s.color} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents={erase ? "stroke" : "none"} onPointerDown={e => { if (erase) { e.stopPropagation(); checkpoint(); edit({ strokes: sheet.strokes.filter((_, n) => n !== i) }); setRedo([]); } }} />)}
+            {sheet.pins.map(p => <g key={p.id} role="button" tabIndex={0} aria-label={`แก้ไขจุด ${p.amount} cc`} className="cursor-pointer outline-none focus:opacity-60" onPointerDown={e => { e.stopPropagation(); setDraftPin({ ...p }); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDraftPin({ ...p }); } }}>
+                <circle cx={p.x} cy={p.y} r={15} fill={p.color} stroke="white" strokeWidth={3} />
+                <text x={Math.max(70, Math.min(530, p.x))} y={p.y > 755 ? p.y - 24 : p.y + 34} textAnchor="middle" fontSize={24} fontWeight={600} fill={p.color} stroke="white" strokeWidth={5} paintOrder="stroke">{p.amount} cc</text>
+            </g>)}
+        </svg>
+        {draftPin && <form onSubmit={e => { e.preventDefault(); savePin(); }} className="flex flex-wrap items-end gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <label className="text-sm">จำนวน cc<input autoFocus type="number" min="0.001" step="any" required className="mt-1 block w-28 rounded-lg border border-slate-200 bg-white p-2" value={draftPin.amount} onChange={e => setDraftPin({ ...draftPin, amount: e.target.value })} /></label>
+            <button type="submit" className={`${button} !bg-blue-700 !text-white`}>บันทึกจุด</button>
+            {sheet.pins.some(p => p.id === draftPin.id) && <button type="button" className={button} onClick={() => { checkpoint(); edit({ pins: sheet.pins.filter(p => p.id !== draftPin.id) }); setDraftPin(null); }}>ลบจุด</button>}
+            <button type="button" className={button} onClick={() => setDraftPin(null)}>ยกเลิก</button>
+        </form>}
+        {pinMode && !draftPin && <p className="text-xs text-blue-700">แตะบนภาพเพื่อปักจุด กดจุดเดิมเพื่อแก้ไขจำนวนหรือลบ</p>}
+        {sheet.pins.length > 0 && <p className="text-sm text-slate-600">{sheet.pins.length} จุด · รวมบนแผ่นนี้ {Number(sheet.pins.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(3))} cc <span className="text-xs">(ยังไม่เชื่อมปริมาณสินค้า)</span></p>}
+        <div className="flex flex-wrap gap-2"><button className={button} onClick={save}>ดาวน์โหลดแผ่นวาด</button>{!onUpload && <label className={`${button} cursor-pointer`}>เปิดไฟล์แผ่นวาด<input type="file" accept=".json" className="sr-only" onChange={e => { void restore(e.target.files?.[0]); e.target.value = ""; }} /></label>}</div>
+        <p className="text-xs leading-relaxed text-slate-500">{onUpload ? "กดบันทึกการตรวจเพื่อเก็บแผ่นวาดและจุดใน visit • Body เป็นภาพร่างด้านหน้า" : "ต้นแบบเก็บภาพกับรอยวาดแยกกันในไฟล์ เปิดกลับมาแก้ได้ • Body เป็นภาพร่างด้านหน้า • การเปิดกล้องขึ้นอยู่กับอุปกรณ์"}</p><p role="status" className="text-sm text-blue-700">{message}</p>
+    </div>;
+}

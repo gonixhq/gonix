@@ -32,7 +32,7 @@ const PAGE_TITLES: TitleEntry[] = [
     // Dynamic routes (regex)
     { pattern: /^\/dashboard\/screening\/[^/]+$/, th: "ซักประวัติ", en: "Screening", sub: { th: "บันทึก Vital Signs + คัดกรอง", en: "Vitals + Triage" } },
     { pattern: /^\/dashboard\/visits\/new$/, th: "สร้าง Visit ใหม่", en: "New Visit", sub: { th: "เคาท์เตอร์ลงทะเบียน", en: "Front-desk registration" } },
-    { pattern: /^\/dashboard\/visits\/[^/]+$/, th: "ตรวจคนไข้", en: "Examination", sub: { th: "Doctor workspace", en: "Doctor workspace" } },
+    { pattern: /^\/dashboard\/visits\/[^/]+(?:\/workspace)?$/, th: "ตรวจคนไข้", en: "Examination", sub: { th: "Doctor workspace", en: "Doctor workspace" } },
     { pattern: /^\/dashboard\/patients\/new$/, th: "เพิ่มผู้ป่วยใหม่", en: "New Patient" },
     { pattern: /^\/dashboard\/patients\/deleted-log$/, th: "ประวัติการลบผู้ป่วย", en: "Deleted Patients Log" },
     { pattern: /^\/dashboard\/patients\/[^/]+$/, th: "ข้อมูลผู้ป่วย", en: "Patient Profile" },
