@@ -91,7 +91,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
 
         if (ageYears === 0 && ageMonths === 0) return `${ageDays} ${ds}`;
         if (ageYears === 0) return `${ageMonths} ${mos} ${ageDays} ${ds}`;
-        return `${ageYears} ${yrs} ${ageMonths} ${mos} ${ageDays} ${ds}`;
+        return `${ageYears} ${yrs} ${ageMonths} ${mos}`;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,12 +101,13 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allergies: { allergen_name: string; severity: string }[] = (patient.patient_allergies || []).filter((a: any) => a.is_active);
 
-    const rightsLabel = patient.nhso_rights === 'none' ? (language === "en" ? "Self-Pay" : 'ชำระเงินเอง') :
+    const rightsLabel = (patient.nhso_rights === 'none' || patient.nhso_rights === 'self_pay') ? (language === "en" ? "Self-Pay" : 'ชำระเงินเอง') :
         patient.nhso_rights === 'uc' ? 'บัตรทอง (UC)' :
             patient.nhso_rights === 'sss' ? 'ประกันสังคม' :
                 patient.nhso_rights === 'csmbs' ? 'ข้าราชการ' : (patient.nhso_rights || "—");
 
-    const visitTypeLabel = visit.visit_type === 'opd_general' ? (language === "en" ? "General OPD" : 'ตรวจโรคทั่วไป') :
+    const visitTypeLabel = visit.visit_type === 'opd' ? (language === "en" ? "Outpatient" : 'ผู้ป่วยนอก') :
+        visit.visit_type === 'opd_general' ? (language === "en" ? "General OPD" : 'ตรวจโรคทั่วไป') :
         visit.visit_type === 'aesthetic' ? (language === "en" ? "Aesthetic" : 'เสริมความงาม') :
             visit.visit_type === 'follow_up' ? (language === "en" ? "Follow Up" : 'ติดตามอาการ') :
                 visit.visit_type === 'procedure' ? (language === "en" ? "Procedure" : 'ทำหัตถการ') : (visit.visit_type || "—");
@@ -152,62 +153,71 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                     </div>
 
                     {/* Demographics + Visit info */}
-                    <div className="space-y-2 text-sm [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-slate-500 shrink-0 w-20">เพศ / อายุ</span>
-                            <span className="text-slate-700 font-semibold">
+                    <div className="space-y-2.5 text-sm leading-relaxed [&>div]:min-w-0 [&>div>*:last-child]:min-w-0 [&>div>*:last-child]:break-words">
+                        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                            <span className="text-slate-500">เพศ</span>
+                            <span className="text-slate-700">
                                 {patient.gender === 'M' ? 'ชาย' : patient.gender === 'F' ? 'หญิง' : 'อื่นๆ'}
-                                <span className="text-slate-300 mx-1">·</span>
-                                {calculateAge(patient.dob)}
+
                             </span>
                         </div>
+                        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                            <span className="text-slate-500">อายุ</span>
+                            <span className="text-slate-700">{calculateAge(patient.dob)}</span>
+                        </div>
                         {patient.blood_group && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">กรุ๊ปเลือด</span>
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">กรุ๊ปเลือด</span>
                                 <span className="text-red-700 font-semibold">{patient.blood_group}</span>
                             </div>
                         )}
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-slate-500 shrink-0 w-20">สิทธิ์</span>
-                            <span className="text-blue-800 font-semibold">{rightsLabel}</span>
+                        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                            <span className="text-slate-500">สิทธิ์</span>
+                            <span className="text-slate-700">{rightsLabel}</span>
                         </div>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-slate-500 shrink-0 w-20">ประเภท</span>
-                            <span className="text-cyan-700 font-semibold">{visitTypeLabel}</span>
+                        <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                            <span className="text-slate-500">ประเภท</span>
+                            <span className="text-slate-700">{visitTypeLabel}</span>
                         </div>
                         {patient.thai_id_card && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">เลขบัตร</span>
-                                <MaskedId value={patient.thai_id_card} className="text-slate-700" />
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">เลขบัตร</span>
+                                <MaskedId value={patient.thai_id_card} className="text-slate-700 text-xs whitespace-nowrap [&>span]:whitespace-nowrap" />
                             </div>
                         )}
                         {patient.phone && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">โทรศัพท์</span>
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">โทรศัพท์</span>
                                 <span className="font-mono text-slate-700">{patient.phone}</span>
                             </div>
                         )}
                         {patient.occupation && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">อาชีพ</span>
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">อาชีพ</span>
                                 <span className="text-slate-700">{patient.occupation}</span>
                             </div>
                         )}
                         {patient.marital_status && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">สถานภาพ</span>
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">สถานภาพ</span>
                                 <span className="text-slate-700">{patient.marital_status}</span>
                             </div>
                         )}
-                        {(patient.race || patient.nationality) && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">เชื้อชาติ</span>
-                                <span className="text-slate-700">{patient.race || "—"} / {patient.nationality || "—"}</span>
+                        {patient.race && (
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">เชื้อชาติ</span>
+                                <span className="text-slate-700">{patient.race}</span>
+                            </div>
+                        )}
+                        {patient.nationality && (
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">สัญชาติ</span>
+                                <span className="text-slate-700">{patient.nationality}</span>
                             </div>
                         )}
                         {patient.first_visit_date && (
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-slate-500 shrink-0 w-20">ลงทะเบียน</span>
+                            <div className="grid grid-cols-[64px_minmax(0,1fr)] items-baseline gap-2">
+                                <span className="text-slate-500">ลงทะเบียน</span>
                                 <span className="text-slate-700">
                                     {new Date(patient.first_visit_date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
                                 </span>
