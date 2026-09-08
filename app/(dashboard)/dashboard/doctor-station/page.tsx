@@ -51,20 +51,18 @@ export default async function DoctorStationPage() {
     const supabase = await createClient();
     const today = bangkokDate();
 
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    const fromDate = bangkokDate(twoDaysAgo);
-
     // ── Doctor identity ──
     const { data: { user } } = await supabase.auth.getUser();
     const { data: currentProfile } = user
-        ? await supabase.from("profiles").select("full_name, role").eq("id", user.id).single()
+        ? await supabase.from("profiles").select("full_name, role, clinic_id").eq("id", user.id).single()
         : { data: null };
     const { data: currentStaff } = user
         ? await supabase.from("staff").select("specialties").eq("profile_id", user.id).maybeSingle()
         : { data: null };
 
-    const doctorName = currentProfile?.full_name || "—";
+    if (!currentProfile?.clinic_id) throw new Error("ไม่พบข้อมูลคลินิกของผู้ใช้งาน");
+
+    const doctorName = currentProfile.full_name || "—";
     const doctorRole = currentProfile?.role || "";
     const rolePrefix = ROLE_PREFIX[doctorRole] || "";
     const isClinician = CLINICIAN_ROLES.includes(doctorRole);
@@ -104,7 +102,8 @@ export default async function DoctorStationPage() {
             ),
             queue_entries(queue_number)
         `)
-        .gte("visit_date", fromDate)
+        // คิวที่ยังรอแพทย์ต้องไม่หายเมื่อข้ามวัน
+        .eq("clinic_id", currentProfile.clinic_id)
         .eq("status", "with_doctor")
         .order("created_at", { ascending: true });
 
@@ -114,7 +113,8 @@ export default async function DoctorStationPage() {
     }
     // ถ้าเป็น admin view โดยไม่ check-in → เห็นทุก visit (no filter)
 
-    const { data: visits } = await visitsQuery;
+    const { data: visits, error: visitsError } = await visitsQuery;
+    if (visitsError) throw new Error("โหลดคิวห้องแพทย์ไม่สำเร็จ กรุณาลองใหม่");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const list = (visits || []) as any[];
@@ -416,7 +416,7 @@ export default async function DoctorStationPage() {
                                         <span className="tabular-nums">{v.visit_time?.slice(0, 5) || "—"} น.</span>
                                         {v.visit_date && v.visit_date !== today && (
                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[10px]">
-                                                ค้างจากวันก่อน
+                                                ค้างจาก {new Date(`${v.visit_date}T00:00:00+07:00`).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" })}
                                             </span>
                                         )}
                                     </div>
