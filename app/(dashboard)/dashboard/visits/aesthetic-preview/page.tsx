@@ -38,7 +38,33 @@ export default function AestheticPreview() {
     function selectProduct(product: string) { setTreatments(old => [...old, { id: Date.now(), product, qty: "", unit: product.startsWith("Botox") ? "unit" : "ml", site: "", lot: "" }]); setRecent(old => [product, ...old.filter(p => p !== product)]); }
     return <main className="mx-auto max-w-[1600px] space-y-5 rounded-3xl bg-gradient-to-br from-slate-100/80 via-blue-50/60 to-white/80 p-4 text-slate-700 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm" href="/dashboard/doctor-station">← กลับห้องแพทย์</Link><span className="rounded-full bg-blue-50 px-3 py-2 text-xs text-blue-800">ต้นแบบ • ใช้ข้อมูลสมมติ • ไม่เชื่อมเวชระเบียนจริง</span></div>
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white bg-white/80 p-5 shadow-sm backdrop-blur-xl"><div><p className="text-xs text-blue-700">AESTHETIC CONSULTATION</p><h1 className="mt-1 text-2xl font-semibold text-slate-900">ตรวจความงาม</h1><p className="mt-2 text-sm">คนไข้จำลอง A · 35 ปี · แพ้ยา / โรคประจำตัว: ยังไม่ได้ทบทวน</p></div><button className={`${button} !bg-blue-700 !text-white`} onClick={() => { setSummary(true); setFinished(false); }}>สรุปและจบการตรวจ</button></header>
+        <header className="rounded-2xl border border-white bg-white/85 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <h1 className="text-xl font-semibold text-slate-900">น.ส. คนไข้ จำลอง A</h1>
+                        <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">กำลังตรวจ · จำลอง</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span className="font-mono text-blue-700">HN DEMO-001</span><span>หญิง · 35 ปี</span><span className="font-mono">VN DEMO-VISIT-001</span><span>ตรวจความงาม</span>
+                    </div>
+                </div>
+                <button className={`${button} shrink-0 !bg-blue-700 !text-white`} onClick={() => { setSummary(true); setFinished(false); }}>สรุปและจบการตรวจ</button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 border-t border-slate-100 pt-2.5 text-sm">
+                {["แพ้ยา", "โรคประจำตัว", "ยาที่ใช้"].map(label => <span key={label}><span className="text-slate-500">{label}: </span><span className="font-medium text-amber-700">ยังไม่ได้ซักประวัติ</span></span>)}
+            </div>
+            <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1.5 text-sm" aria-label="สัญญาณชีพจำลอง">
+                {[["BP", "120/80", "mmHg"], ["PR", "76", "bpm"], ["Temp", "36.5", "°C"], ["SpO₂", "99", "%"], ["น้ำหนัก", "55", "kg"], ["ส่วนสูง", "160", "cm"]].map(([label, value, unit]) => <span key={label} className="inline-flex items-baseline gap-1 whitespace-nowrap"><span className="text-xs text-slate-500">{label}</span><span className="font-medium tabular-nums text-slate-800">{value}</span><span className="text-xs text-slate-500">{unit}</span></span>)}
+                <span className="text-xs text-slate-500">วัด 8 ก.ย. 2569 · 17:00 น. (ข้อมูลจำลอง)</span>
+            </div>
+            <details className="mt-2 text-xs text-slate-500">
+                <summary className="w-fit cursor-pointer rounded py-1 text-blue-700 focus-visible:outline-blue-600">ข้อมูลคนไข้เพิ่มเติม</summary>
+                <dl className="mt-2 grid gap-x-6 gap-y-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">
+                    {[["ที่อยู่", "ยังไม่ระบุในเคสจำลอง"], ["เลขบัตรประชาชน", "ไม่มีข้อมูลในต้นแบบ"], ["โทรศัพท์", "ยังไม่ระบุ"], ["ผู้ติดต่อฉุกเฉิน", "ยังไม่ระบุ"]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-words text-slate-700">{value}</dd></div>)}
+                </dl>
+            </details>
+        </header>
         <nav aria-label="เมนูหน้าตรวจ" className="flex flex-wrap gap-2">{tabs.map((name, i) => <button key={name} aria-pressed={tab === i} className={`${button} ${tab === i ? "!bg-blue-700 !text-white" : ""}`} onClick={() => setTab(i)}>{name}</button>)}</nav>
         <section className="min-w-0 rounded-2xl border border-white bg-white/85 p-4 shadow-sm sm:p-6">
             <div hidden={tab !== 0} className="space-y-4"><div><h2 className="text-xl font-semibold">บันทึกการตรวจ</h2><p className="mt-1 text-sm text-slate-500">จดปัญหา ประวัติ การประเมิน และแผนการรักษารวมในบันทึกเดียว</p></div><button className={button} onClick={() => setNotes(n => n + (n ? "\n\n" : "") + "ปัญหา / ประวัติ:\n\nตรวจและประเมิน:\n\nแผนการรักษา:\n")}>+ แทรกหัวข้อช่วยจด</button><textarea aria-label="บันทึกการตรวจ" className={`${input} min-h-[420px] leading-7`} value={notes} onChange={e => setNotes(e.target.value)} placeholder="หมอจดบันทึกได้ที่นี่…" /><p className="text-xs text-slate-500">ข้อมูลคงอยู่ขณะสลับเมนู รีเฟรชแล้วเริ่มใหม่</p></div>
