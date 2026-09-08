@@ -494,6 +494,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
                         {showDrugsTab && (
                         <TabsContent forceMount value="drugs" className="p-4 sm:p-5 m-0 data-[state=inactive]:hidden outline-none">
                             <DrugOrderForm
+                                showDiagnosis={!isAesthetic}
                                 vn={vn}
                                 hn={patient.hn}
                                 defaultIcd10={visit.icd10_primary || ""}

@@ -53,6 +53,7 @@ interface DrugPreset {
 
 interface DrugOrderFormProps {
     compact?: boolean;
+    showDiagnosis?: boolean;
     vn: string;
     hn: string;
     defaultIcd10?: string;
@@ -81,7 +82,7 @@ const commonSigs = [
     "เมื่อมีอาการ (prn)",
 ];
 
-export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false }: DrugOrderFormProps) {
+export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagnosisText = "", allergens = [], compact = false, showDiagnosis = true }: DrugOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
@@ -374,7 +375,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
         <div className={compact ? "space-y-4" : "space-y-6"}>
 
             {/* ── ICD-10 Diagnosis ─────────────────────────────── */}
-            <div>
+            {showDiagnosis && <div>
                 <p className="text-sm font-semibold text-red-600 mb-2 flex items-center gap-1.5">
                     <FlaskConical className="h-4 w-4" />
                     การวินิจฉัยโรค (Diagnosis ICD-10)
@@ -417,7 +418,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                         <span className="text-slate-600">{diagnosisText}</span>
                     </p>
                 )}
-            </div>
+            </div>}
 
             {/* ── Drug Prescription ────────────────────────────── */}
             <div className="space-y-3">
