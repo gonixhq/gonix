@@ -94,12 +94,12 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
         <div className="space-y-6">
             {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
             <datalist id="visit-sample-types">{SAMPLE_TYPES.map((x) => <option key={x} value={x} />)}</datalist>
-            <div className="flex items-center justify-between pb-3 border-b">
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200/70">
+                <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
                     <FlaskConical className="h-4 w-4 text-blue-600" /> สั่ง Lab & กรอกผล
                 </h2>
                 <a href={`/print/lab-report/${vn}`} target="_blank" rel="noreferrer"
-                    className="h-9 px-3 rounded-lg border border-slate-200 inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                    className="h-9 px-3 rounded-lg border border-slate-200 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
                     <Printer className="h-4 w-4" /> พิมพ์ใบผล (Lab Report)
                 </a>
             </div>
@@ -110,7 +110,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
                     <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-slate-500 uppercase">รายการที่สั่ง & ผล ({orders.length})</p>
                         <button disabled={busy} onClick={saveAll}
-                            className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                            className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50">
                             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} บันทึกผลทั้งหมด
                         </button>
                     </div>
@@ -130,7 +130,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
                         {activePanels.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.items.length} รายการ</option>)}
                     </select>
                     <button disabled={!addingPanel || busy} onClick={() => run(async () => { const result = await addLabPanel(vn, hn, addingPanel); if (result.ok) setAddingPanel(""); return result; })}
-                        className="h-9 px-3 rounded-lg bg-blue-600 text-white text-sm font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                        className="h-9 px-3 rounded-lg bg-blue-600 text-white text-sm font-semibold inline-flex items-center gap-1 disabled:opacity-50">
                         <Plus className="h-4 w-4" /> เพิ่มแพ็ก
                     </button>
                 </div>
@@ -141,7 +141,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
                 <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase">
                         เลือกรายการ Lab
-                        {suggested.size > 0 && <span className="ml-2 normal-case text-[11px] text-emerald-600 font-bold">· แนะนำตามอาการขึ้นก่อน</span>}
+                        {suggested.size > 0 && <span className="ml-2 normal-case text-xs text-emerald-600 font-semibold">· แนะนำตามอาการขึ้นก่อน</span>}
                     </p>
                     <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา…"
                         className="h-8 w-40 rounded-lg border border-slate-200 px-2.5 text-sm focus:border-blue-500 focus:outline-none" />
@@ -165,7 +165,7 @@ export default function LabOrderForm({ vn, hn, cc = "", catalog, orders, panels,
                                         ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                                         : <Plus className="h-4 w-4 shrink-0 text-slate-400" />}
                                     <span className="flex-1">{lab.name}</span>
-                                    {sug && !already && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 shrink-0">แนะนำ</span>}
+                                    {sug && !already && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 shrink-0">แนะนำ</span>}
                                     <span className="text-xs text-slate-400 shrink-0">฿{lab.price.toLocaleString("th-TH")}</span>
                                 </button>
                             );
@@ -201,10 +201,10 @@ function LabResultRow({ vn, order, busy, run, onDraft }: {
             <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="font-semibold text-slate-800 text-sm">{order.lab_name}</div>
                 <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${order.status === "resulted" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${order.status === "resulted" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                         {order.status === "resulted" ? "มีผลแล้ว" : "รอผล"}
                     </span>
-                    {dirty && <span className="text-[10px] font-bold text-amber-600" title="ยังไม่บันทึก">●</span>}
+                    {dirty && <span className="text-xs font-semibold text-amber-600" title="ยังไม่บันทึก">●</span>}
                     <button disabled={busy} onClick={() => run(() => removeLabOrder(order.id, vn))}
                         className="h-7 w-7 rounded-lg hover:bg-rose-50 flex items-center justify-center text-slate-400 hover:text-rose-600">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -259,12 +259,12 @@ function LabReportInfo({ vn, orders, report, busy, run }: {
         <div className="rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-4 py-2.5 border-b border-slate-100 flex items-center gap-2 bg-blue-50/50">
                 <FileText className="h-4 w-4 text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-800">ข้อมูลใบรายงานผล (Laboratory Report)</h3>
+                <h3 className="text-sm font-semibold text-slate-800">ข้อมูลใบรายงานผล (Laboratory Report)</h3>
             </div>
             <div className="p-4 space-y-3">
                 {sampleTypes.length > 1 && (
                     <div>
-                        <label className="text-[11px] font-semibold text-blue-700">เลือกชนิดตัวอย่าง — แต่ละชนิด = คนละใบ (LAB No. แยกกัน)</label>
+                        <label className="text-xs font-semibold text-blue-700">เลือกชนิดตัวอย่าง — แต่ละชนิด = คนละใบ (LAB No. แยกกัน)</label>
                         <select value={active} onChange={(e) => setActive(e.target.value)}
                             className="w-full h-9 rounded-lg border border-blue-200 bg-blue-50/40 px-2 text-sm font-semibold focus:border-blue-500 focus:outline-none">
                             {sampleTypes.map((st) => <option key={st} value={st}>{st || "— ไม่ระบุชนิดตัวอย่าง —"}</option>)}
@@ -299,35 +299,35 @@ function MetaForm({ vn, sampleType, initial, busy, run }: {
         <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                    <label className="text-[11px] font-semibold text-slate-500">LAB No.</label>
+                    <label className="text-xs font-semibold text-slate-500">LAB No.</label>
                     <input value={f.lab_no} onChange={(e) => set("lab_no", e.target.value)} placeholder="เช่น 69-2-07459" className={inp} />
                 </div>
                 <div>
-                    <label className="text-[11px] font-semibold text-slate-500">ชนิดตัวอย่าง (Sample Type)</label>
+                    <label className="text-xs font-semibold text-slate-500">ชนิดตัวอย่าง (Sample Type)</label>
                     <input value={sampleType || "— ไม่ระบุ —"} disabled className={`${inp} bg-slate-50 text-slate-500`} />
                 </div>
                 <div>
-                    <label className="text-[11px] font-semibold text-slate-500">วันเวลาเก็บตัวอย่าง (Collected)</label>
+                    <label className="text-xs font-semibold text-slate-500">วันเวลาเก็บตัวอย่าง (Collected)</label>
                     <input type="datetime-local" value={f.collected_at} onChange={(e) => set("collected_at", e.target.value)} className={inp} />
                 </div>
                 <div>
-                    <label className="text-[11px] font-semibold text-slate-500">วันเวลารับตัวอย่าง (Received)</label>
+                    <label className="text-xs font-semibold text-slate-500">วันเวลารับตัวอย่าง (Received)</label>
                     <input type="datetime-local" value={f.received_at} onChange={(e) => set("received_at", e.target.value)} className={inp} />
                 </div>
             </div>
             <div>
-                <label className="text-[11px] font-semibold text-slate-500">หมายเหตุ (Comment)</label>
+                <label className="text-xs font-semibold text-slate-500">หมายเหตุ (Comment)</label>
                 <input value={f.comment} onChange={(e) => set("comment", e.target.value)} placeholder="หมายเหตุในรายงาน (ถ้ามี)" className={inp} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้รายงานผล (Reported By)</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">ผู้รายงานผล (Reported By)</div>
                     <input value={f.reported_by_name} onChange={(e) => set("reported_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
                     <input value={f.reported_by_license} onChange={(e) => set("reported_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
                     <input type="datetime-local" value={f.reported_at} onChange={(e) => set("reported_at", e.target.value)} className={inp} />
                 </div>
                 <div className="rounded-xl border border-slate-200 p-2.5 space-y-2">
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ผู้ตรวจสอบ/อนุมัติ (Approved By)</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">ผู้ตรวจสอบ/อนุมัติ (Approved By)</div>
                     <input value={f.approved_by_name} onChange={(e) => set("approved_by_name", e.target.value)} placeholder="ชื่อ-สกุล" className={inp} />
                     <input value={f.approved_by_license} onChange={(e) => set("approved_by_license", e.target.value)} placeholder="เลขใบประกอบ / MT" className={inp} />
                     <input type="datetime-local" value={f.approved_at} onChange={(e) => set("approved_at", e.target.value)} className={inp} />
@@ -335,7 +335,7 @@ function MetaForm({ vn, sampleType, initial, busy, run }: {
             </div>
             <LabImageUploader scope="visit" caseKey={vn} sampleType={sampleType} paths={(initial.images as string[]) || []} />
             <button disabled={busy} onClick={() => run(() => saveVisitReportMeta(vn, sampleType, f))}
-                className="h-9 px-4 rounded-lg bg-blue-600 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                className="h-9 px-4 rounded-lg bg-blue-600 text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกใบนี้ ({sampleType || "ไม่ระบุชนิด"})
             </button>
         </div>

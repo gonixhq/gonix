@@ -67,7 +67,7 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                     <Sparkles className="h-5 w-5 text-rose-600" />
                 </div>
                 <div>
-                    <h2 className="text-lg font-bold text-slate-800">บันทึกหัตถการความงาม</h2>
+                    <h2 className="text-lg font-semibold text-slate-800">บันทึกหัตถการความงาม</h2>
                     <p className="text-xs text-slate-500">แผนผังใบหน้า · บันทึกการรักษา</p>
                 </div>
             </div>
@@ -83,7 +83,7 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                 <ViewTab active={view === "face_chart"} onClick={() => setView("face_chart")} icon={Pencil}>
                     แผนผังใบหน้า
                     {(initial.face_chart?.strokes?.length || 0) + (initial.face_chart?.pins?.length || 0) > 0 && (
-                        <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                        <span className="ml-1 px-1.5 rounded-full bg-rose-500 text-white text-xs font-semibold">
                             {(initial.face_chart?.strokes?.length || 0) + (initial.face_chart?.pins?.length || 0)}
                         </span>
                     )}
@@ -91,7 +91,7 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                 <ViewTab active={view === "history"} onClick={openHistory} icon={History}>
                     ประวัติย้อนหลัง
                     {pastVisits && pastVisits.length > 0 && (
-                        <span className="ml-1 px-1.5 rounded-full bg-slate-500 text-white text-[10px] font-bold">{pastVisits.length}</span>
+                        <span className="ml-1 px-1.5 rounded-full bg-slate-500 text-white text-xs font-semibold">{pastVisits.length}</span>
                     )}
                 </ViewTab>
             </div>
@@ -104,11 +104,11 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
             {view === "notes" && (
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-base font-bold text-slate-800">บันทึกการรักษาเพิ่มเติม</h3>
+                        <h3 className="text-base font-semibold text-slate-800">บันทึกการรักษาเพิ่มเติม</h3>
                         <Button
                             onClick={handleSaveNotes}
                             disabled={savingNotes}
-                            className="rounded-lg h-9 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold"
+                            className="rounded-lg h-9 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
                         >
                             {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> :
                                 notesSaved ? <CheckCircle className="h-4 w-4" /> :
@@ -143,14 +143,14 @@ export default function AestheticRecordsPanel({ vn, hn, initial }: Props) {
                         <div key={pv.vn} className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <div className="text-sm font-bold text-slate-800">
+                                    <div className="text-sm font-semibold text-slate-800">
                                         {new Date(pv.visit_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
                                     </div>
-                                    <div className="text-[11px] text-slate-500 inline-flex items-center gap-1">
+                                    <div className="text-xs text-slate-500 inline-flex items-center gap-1">
                                         <Sparkles className="h-3 w-3 text-rose-400" /> โดย {pv.doctor_name || "— ไม่ระบุแพทย์ —"}
                                     </div>
                                 </div>
-                                <span className="text-[11px] font-mono text-slate-400">{pv.vn}</span>
+                                <span className="text-xs font-mono text-slate-400">{pv.vn}</span>
                             </div>
                             {pv.records.treatment_notes?.trim() && (
                                 <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans bg-slate-50 rounded-lg p-2.5 m-0">{pv.records.treatment_notes}</pre>
@@ -192,7 +192,7 @@ function ViewTab({
         <button
             type="button"
             onClick={onClick}
-            className={`flex-1 inline-flex items-center justify-center gap-2 h-10 rounded-xl text-[14px] font-bold transition-all ${
+            className={`flex-1 inline-flex items-center justify-center gap-2 h-10 rounded-xl text-[14px] font-semibold transition-all ${
                 active
                     ? "bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/25"
                     : "text-slate-600 hover:bg-white"

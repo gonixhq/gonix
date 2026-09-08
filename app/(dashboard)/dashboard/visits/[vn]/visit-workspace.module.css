@@ -1,0 +1,36 @@
+/* จำกัดธีมเฉพาะหน้าตรวจ ไม่กระทบหน้าพิมพ์หรือหน้าอื่น */
+.workspace {
+    border-radius: 24px;
+    background: linear-gradient(135deg, rgb(241 245 249 / 70%), rgb(239 246 255 / 40%), rgb(255 255 255 / 60%));
+    color: #334155;
+}
+
+.workspace :global(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"])),
+.workspace :global(textarea),
+.workspace :global(select) {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    border-radius: 12px;
+}
+
+.workspace :global(textarea) {
+    background-color: rgb(255 255 255 / 92%);
+    min-height: 96px;
+}
+
+.workspace :global(input:focus-visible),
+.workspace :global(textarea:focus-visible),
+.workspace :global(select:focus-visible) {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.workspace :global([role="tabpanel"]) {
+    overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    .workspace {
+        background: #f1f5f9;
+    }
+}
