@@ -139,8 +139,19 @@ export default async function DoctorStationPage() {
         return `${y}`;
     }
 
-    function waitMinutes(createdAt: string): number {
-        return Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+    function waitLabel(createdAt: string): string {
+        const timestamp = new Date(createdAt).getTime();
+        if (!Number.isFinite(timestamp)) return "ไม่ทราบเวลารอ";
+        const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+        if (minutes < 60) return `รอ ${minutes} นาที`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) {
+            const remainder = minutes % 60;
+            return `รอ ${hours} ชม.${remainder ? ` ${remainder} นาที` : ""}`;
+        }
+        const days = Math.floor(hours / 24);
+        const remainder = hours % 24;
+        return `ค้าง ${days} วัน${remainder ? ` ${remainder} ชม.` : ""}`;
     }
 
     function painLabel(score: number): string {
@@ -257,7 +268,7 @@ export default async function DoctorStationPage() {
                         const allergySummary = p?.allergy_summary?.trim() || null;
                         const diseaseSummary = p?.disease_summary?.trim() || null;
                         const triage = (v.triage_level || "normal") as "normal" | "urgent" | "emergency";
-                        const wait = waitMinutes(v.created_at);
+                        const wait = waitLabel(v.created_at);
 
                         const triageMeta = {
                             normal: { bg: "bg-blue-100/70", text: "text-blue-700", label: "ปกติ", icon: ShieldCheck, ring: "ring-blue-100", accent: "from-emerald-500 to-emerald-600", btnShadow: "shadow-emerald-500/30" },
@@ -313,7 +324,7 @@ export default async function DoctorStationPage() {
                                         </Badge>
                                         <div className="flex items-center gap-1 text-sm text-slate-600 font-normal tabular-nums">
                                             <Clock className="h-3 w-3" />
-                                            รอ {wait} นาที
+                                            {wait}
                                         </div>
                                     </div>
                                 </div>
