@@ -133,13 +133,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     const [nurseNote, setNurseNote] = useState("");
     const [pastHistory, setPastHistory] = useState("");
     const [doctorId, setDoctorId] = useState<string | "">("");
-    const [assistantId, setAssistantId] = useState<string | "">("");
     const [rooms, setRooms] = useState<RoomStatus[]>([]);
     const [selectedRoomId, setSelectedRoomId] = useState<string | "">("");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [doctors, setDoctors] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [assistants, setAssistants] = useState<any[]>([]);
 
     const [vitals, setVitals] = useState({
         bp_systolic: "", bp_diastolic: "",
@@ -173,19 +171,17 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     /* Load data */
     const loadData = useCallback(async () => {
         setLoading(true);
-        const [visitRes, doctorsRes, roomsRes, assistantsRes] = await Promise.all([
+        const [visitRes, doctorsRes, roomsRes] = await Promise.all([
             supabase.from("visits").select(`
                 vn, hn, visit_date, visit_time, status, service_category,
                 chief_complaint, pain_score, triage_level, nurse_note,
                 bp_systolic, bp_diastolic, pulse_rate, temperature, weight_kg, height_cm,
-                doctor_id, assistant_id, room_id,
+                doctor_id, room_id,
                 patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, past_history, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status)
             `).eq("vn", vn).maybeSingle(),
             supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
                 .in("role", ["doctor", "owner"]).eq("is_active", true),
             supabase.from("v_room_current_status").select("*").order("display_order"),
-            supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
-                .in("role", ["assistant", "nurse", "staff"]).eq("is_active", true),
         ]);
 
         if (!visitRes.data) {
@@ -211,7 +207,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setTriageLevel(v.triage_level || "normal");
         setNurseNote(v.nurse_note || "");
         setDoctorId(v.doctor_id || "");
-        setAssistantId(v.assistant_id || "");
         setVitals({
             bp_systolic: v.bp_systolic?.toString() || "",
             bp_diastolic: v.bp_diastolic?.toString() || "",
@@ -224,7 +219,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             lmp_date: "",
         });
         setDoctors(doctorsRes.data || []);
-        setAssistants(assistantsRes.data || []);
         setRooms((roomsRes.data || []) as RoomStatus[]);
         setSelectedRoomId(v.room_id || "");
 
@@ -305,12 +299,9 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         // Validate required fields before sending to doctor
         if (sendToDoctor) {
             const missing: string[] = [];
-            if (!chiefComplaint.trim()) missing.push("อาการสำคัญ (CC)");
             if (!vitals.bp_systolic) missing.push("BP Sys");
             if (!vitals.bp_diastolic) missing.push("BP Dia");
             if (!vitals.pulse_rate) missing.push("Pulse");
-            if (!vitals.temperature) missing.push("Temp");
-            if (!vitals.o2_saturation) missing.push("O₂Sat");
             if (!vitals.weight_kg) missing.push("Weight");
             if (!vitals.height_cm) missing.push("Height");
 
@@ -348,7 +339,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             weight_kg: toNum(vitals.weight_kg),
             height_cm: toNum(vitals.height_cm),
             doctor_id: doctorId || null,
-            assistant_id: assistantId || null,
             room_id: effectiveRoomId || null,
             nurse_id: nurseStaff?.id || null,
             status: newStatus,
@@ -754,14 +744,12 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 <h2 className="text-base font-semibold text-slate-800">อาการและการคัดกรอง</h2>
                 {/* CC full-width */}
                 <div className="space-y-1.5">
-                    <Label className="text-[15px] font-semibold text-slate-800">อาการสำคัญ (CC) <span className="text-red-500">*</span></Label>
+                    <Label className="text-[15px] font-semibold text-slate-800">อาการสำคัญ (CC)</Label>
                     <textarea value={chiefComplaint} onChange={e => setChiefComplaint(e.target.value)}
                         placeholder="ปวดหัว มีไข้ 2 วัน, ทำแผลที่ขา..."
                         rows={2}
                         className={`w-full rounded-lg border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:border-blue-500 resize-none ${
-                            !chiefComplaint.trim()
-                                ? "border-red-300 focus:ring-red-500/30 bg-red-50/30"
-                                : "border-slate-300 focus:ring-blue-500/30"
+                            "border-slate-300 focus:ring-blue-500/30"
                         }`} />
                 </div>
 
@@ -817,12 +805,13 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </span>
                         )}
                     </div>
+                    <p className="mb-3 text-xs text-slate-500">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <VitalInput required label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
                         <VitalInput required label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
                         <VitalInput required label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
-                        <VitalInput required label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
-                        <VitalInput required label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
+                        <VitalInput label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
+                        <VitalInput label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
                         <VitalInput label="DTX" thaiLabel="น้ำตาลในเลือด" unit="mg/dL" value={vitals.dtx} onChange={v => setVital("dtx", v)} />
                         <VitalInput required label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
                         <VitalInput required label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
@@ -866,7 +855,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         </div>
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ <span className="text-red-500">*</span></Label>
+                        <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ (เลือกได้)</Label>
                         <select
                             value={selectedRoomId}
                             onChange={e => {
@@ -878,10 +867,10 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 if (docId) setDoctorId(docId);
                             }}
                             className={`flex h-9 w-full rounded-lg border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
-                                !selectedRoomId ? "border-red-300 bg-red-50/30" : "border-slate-300"
+                                "border-slate-300"
                             }`}
                         >
-                            <option value="">— เลือกห้องตรวจ —</option>
+                            <option value="">— ไม่ระบุห้องตรวจ —</option>
                             {rooms.map((r) => {
                                 const doctorPart = r.doctor_name
                                     ? ` · ${r.doctor_name} (อยู่ห้อง)`
@@ -900,28 +889,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             <p className="text-[11px] text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
                         )}
                     </div>
-                </div>
-
-                {/* Assistant (สำหรับคำนวณ commission ผู้ช่วย) */}
-                <div className="space-y-1.5">
-                    <Label className="text-[15px] font-semibold text-slate-800">
-                        ผู้ช่วยหัตถการ <span className="text-[11px] font-normal text-slate-400">(ถ้ามี — ใช้คำนวณค่า DF ผู้ช่วย)</span>
-                    </Label>
-                    <select
-                        value={assistantId}
-                        onChange={e => setAssistantId(e.target.value)}
-                        className="flex h-10 w-full max-w-md rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    >
-                        <option value="">— ไม่ระบุ —</option>
-                        {assistants.map((a) => {
-                            const p = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
-                            return (
-                                <option key={a.id} value={a.id}>
-                                    {p?.full_name || "—"}{p?.role ? ` (${p.role})` : ""}
-                                </option>
-                            );
-                        })}
-                    </select>
                 </div>
 
                 {/* Nurse Note */}
@@ -965,17 +932,13 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 )}
 
                 <Button disabled={saving} onClick={() => {
-                    // Validate vitals + CC + ห้อง ก่อนส่งตรวจ
+                    // ตรวจค่าที่จำเป็นก่อนส่งตรวจ
                     const missing: string[] = [];
-                    if (!chiefComplaint.trim()) missing.push("อาการสำคัญ (CC)");
                     if (!vitals.bp_systolic) missing.push("BP Sys");
                     if (!vitals.bp_diastolic) missing.push("BP Dia");
                     if (!vitals.pulse_rate) missing.push("Pulse");
-                    if (!vitals.temperature) missing.push("Temp");
-                    if (!vitals.o2_saturation) missing.push("O₂Sat");
                     if (!vitals.weight_kg) missing.push("Weight");
                     if (!vitals.height_cm) missing.push("Height");
-                    if (!selectedRoomId) missing.push("ห้องตรวจ");
                     if (missing.length > 0) {
                         toast.error(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
                         window.scrollTo({ top: 0, behavior: "smooth" });
