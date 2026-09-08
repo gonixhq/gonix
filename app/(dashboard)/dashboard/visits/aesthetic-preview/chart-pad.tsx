@@ -4,16 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { Undo2, Redo2, MapPin, Pencil, Eraser, Plus } from "lucide-react";
 import type { PointerEvent } from "react";
 
-type Stroke = { color: string; points: string };
-type Pin = { id: number; x: number; y: number; amount: string; color: string };
+import type { ChartStroke as Stroke, ChartPin as Pin, ChartSheet as Sheet } from "@/lib/visit-workspace-types";
 type Drawing = { strokes: Stroke[]; pins: Pin[] };
-type Sheet = { id: number; name: string; background: string; strokes: Stroke[]; pins: Pin[] };
 const button = "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 disabled:opacity-40";
-const body = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="white"/><g fill="none" stroke="#94a3b8" stroke-width="3"><ellipse cx="300" cy="110" rx="44" ry="55"/><path d="M278 164 L278 190 L235 205 L207 295 L180 394 L199 404 L231 318 L251 270 L254 390 L243 475 L252 655 L244 708 L282 708 L286 653 L291 497 L300 452 L309 497 L314 653 L318 708 L356 708 L348 655 L357 475 L346 390 L349 270 L369 318 L401 404 L420 394 L393 295 L365 205 L322 190 L322 164 M254 390 Q300 416 346 390 M279 237 Q300 248 321 237"/></g><text x="300" y="760" text-anchor="middle" fill="#64748b" font-size="16">Body chart · Front / schematic</text></svg>`);
+import { BODY_CHART_BACKGROUND as body } from "@/lib/visit-workspace-types";
 
-export default function ChartPad({ onCount }: { onCount: (count: number) => void }) {
-    const [sheets, setSheets] = useState<Sheet[]>([{ id: 1, name: "Face 1", background: "/face-chart.png", strokes: [], pins: [] }]);
-    const [active, setActive] = useState(1);
+export default function ChartPad({ onCount, initial, onChange, onUpload }: {
+    onCount: (count: number) => void;
+    initial?: Sheet[];
+    onChange?: (sheets: Sheet[]) => void;
+    onUpload?: (file: File) => Promise<{ background: string; storagePath: string }>;
+}) {
+    const [sheets, setSheets] = useState<Sheet[]>(initial?.length ? initial : [{ id: 1, name: "Face 1", background: "/face-chart.png", strokes: [], pins: [] }]);
+    const [active, setActive] = useState(initial?.[0]?.id ?? 1);
+    useEffect(() => { onChange?.(sheets); }, [sheets, onChange]);
     const [color, setColor] = useState("#2563eb");
     const [erase, setErase] = useState(false);
     const [redo, setRedo] = useState<Drawing[]>([]);
@@ -65,12 +69,17 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
         checkpoint();
         edit({ pins: [...sheet.pins.filter(p => p.id !== draftPin.id), draftPin] }); setDraftPin(null);
     }
-    function add(name: string, background: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, strokes: [], pins: [] }]); setActive(id); setRedo([]); setUndo([]); setDraftPin(null); onCount(sheets.length + 1); setMessage(""); }
+    function add(name: string, background: string, storagePath?: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, ...(storagePath ? { storagePath } : {}), strokes: [], pins: [] }]); setActive(id); setRedo([]); setUndo([]); setDraftPin(null); onCount(sheets.length + 1); setMessage(""); }
     function point(e: PointerEvent<SVGSVGElement>) { const r = e.currentTarget.getBoundingClientRect(); return `${Math.max(0, Math.min(600, (e.clientX - r.left) * 600 / r.width)).toFixed(1)},${Math.max(0, Math.min(800, (e.clientY - r.top) * 800 / r.height)).toFixed(1)}`; }
     function finish() { drawing.current = false; }
     async function photo(file?: File) {
         if (!file) return;
         if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) { setMessage("เลือกรูปภาพไม่เกิน 10 MB"); return; }
+        if (onUpload) {
+            try { setMessage("กำลังอัปโหลดภาพ…"); const result = await onUpload(file); add(file.name, result.background, result.storagePath); }
+            catch (error) { setMessage(error instanceof Error ? error.message : "อัปโหลดไม่สำเร็จ"); }
+            return;
+        }
         const reader = new FileReader(); reader.onload = () => add(file.name, String(reader.result)); reader.onerror = () => setMessage("อ่านภาพไม่สำเร็จ"); reader.readAsDataURL(file);
     }
     function save() {
@@ -130,7 +139,7 @@ export default function ChartPad({ onCount }: { onCount: (count: number) => void
         </form>}
         {pinMode && !draftPin && <p className="text-xs text-blue-700">แตะบนภาพเพื่อปักจุด กดจุดเดิมเพื่อแก้ไขจำนวนหรือลบ</p>}
         {sheet.pins.length > 0 && <p className="text-sm text-slate-600">{sheet.pins.length} จุด · รวมบนแผ่นนี้ {Number(sheet.pins.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(3))} cc <span className="text-xs">(ยังไม่เชื่อมปริมาณสินค้า)</span></p>}
-        <div className="flex flex-wrap gap-2"><button className={button} onClick={save}>ดาวน์โหลดแผ่นวาด</button><label className={`${button} cursor-pointer`}>เปิดไฟล์แผ่นวาด<input type="file" accept=".json" className="sr-only" onChange={e => { void restore(e.target.files?.[0]); e.target.value = ""; }} /></label></div>
-        <p className="text-xs leading-relaxed text-slate-500">ต้นแบบเก็บภาพกับรอยวาดแยกกันในไฟล์ เปิดกลับมาแก้ได้ • Body เป็นภาพร่างด้านหน้า • การเปิดกล้องขึ้นอยู่กับอุปกรณ์</p><p role="status" className="text-sm text-blue-700">{message}</p>
+        <div className="flex flex-wrap gap-2"><button className={button} onClick={save}>ดาวน์โหลดแผ่นวาด</button>{!onUpload && <label className={`${button} cursor-pointer`}>เปิดไฟล์แผ่นวาด<input type="file" accept=".json" className="sr-only" onChange={e => { void restore(e.target.files?.[0]); e.target.value = ""; }} /></label>}</div>
+        <p className="text-xs leading-relaxed text-slate-500">{onUpload ? "กดบันทึกการตรวจเพื่อเก็บแผ่นวาดและจุดใน visit • Body เป็นภาพร่างด้านหน้า" : "ต้นแบบเก็บภาพกับรอยวาดแยกกันในไฟล์ เปิดกลับมาแก้ได้ • Body เป็นภาพร่างด้านหน้า • การเปิดกล้องขึ้นอยู่กับอุปกรณ์"}</p><p role="status" className="text-sm text-blue-700">{message}</p>
     </div>;
 }

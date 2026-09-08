@@ -1,0 +1,5 @@
+export type ChartStroke = { color: string; points: string };
+export type ChartPin = { id: number; x: number; y: number; amount: string; color: string };
+export type ChartSheet = { id: number; name: string; background: string; storagePath?: string; strokes: ChartStroke[]; pins: ChartPin[] };
+
+export const BODY_CHART_BACKGROUND = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><rect width="600" height="800" fill="white"/><g fill="none" stroke="#94a3b8" stroke-width="3"><ellipse cx="300" cy="110" rx="44" ry="55"/><path d="M278 164 L278 190 L235 205 L207 295 L180 394 L199 404 L231 318 L251 270 L254 390 L243 475 L252 655 L244 708 L282 708 L286 653 L291 497 L300 452 L309 497 L314 653 L318 708 L356 708 L348 655 L357 475 L346 390 L349 270 L369 318 L401 404 L420 394 L393 295 L365 205 L322 190 L322 164 M254 390 Q300 416 346 390 M279 237 Q300 248 321 237"/></g><text x="300" y="760" text-anchor="middle" fill="#64748b" font-size="16">Body chart · Front / schematic</text></svg>`);

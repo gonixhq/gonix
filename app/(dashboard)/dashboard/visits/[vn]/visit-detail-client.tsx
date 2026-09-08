@@ -319,6 +319,7 @@ export default function VisitDetailClient({ visit, patient, drugs, vitals, statu
             {/* ╔════════ LEFT — Top Card + Workspace Tabs ════════╗ */}
             <div className="xl:order-1 min-w-0 space-y-5">
 
+            {isAesthetic && <Link href={`/dashboard/visits/${vn}/workspace`} className="inline-flex rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">เปิดหน้าตรวจแบบใหม่ →</Link>}
             {/* Unified Top Card — Clinical only (CC + Warnings + Vitals) */}
             <div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-xl overflow-hidden shadow-[0_4px_24px_rgba(30,58,95,0.06)]">
                 {/* CC + Pain */}

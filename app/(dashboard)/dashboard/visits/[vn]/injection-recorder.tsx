@@ -54,8 +54,9 @@ function qtyPresets(unit: string): number[] {
 
 /** บันทึกการฉีดแบบ structured (สินค้า/จำนวน/จุด) — ตัดสต๊อกจริงตอนคิดเงินตามบิล
  *  UX เร็ว: chip สินค้า → preset จำนวน → dropdown จุด → Enter/เพิ่ม (สินค้าค้างไว้ฉีดจุดถัดไปต่อได้) */
-export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded?: (line: string) => void }) {
+export default function InjectionRecorder({ vn, onAdded, searchable = false }: { vn: string; onAdded?: (line: string) => void; searchable?: boolean }) {
     const router = useRouter();
+    const [productSearch, setProductSearch] = useState("");
     const [products, setProducts] = useState<any[]>([]);
     const [rows, setRows] = useState<any[]>([]);
     const [itemId, setItemId] = useState("");
@@ -106,7 +107,7 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
         });
     }
     function remove(id: string) {
-        start(async () => { await deleteVisitInjection(id, vn); await reload(); router.refresh(); });
+        start(async () => { const result = await deleteVisitInjection(id, vn); if (!result.success) { setErr(result.error || "ลบไม่สำเร็จ"); return; } await reload(); router.refresh(); });
     }
     function onKey(e: KeyboardEvent<HTMLInputElement>) {
         if (e.key === "Enter") { e.preventDefault(); add(); }
@@ -140,11 +141,12 @@ export default function InjectionRecorder({ vn, onAdded }: { vn: string; onAdded
                 </div>
             )}
 
+            {searchable && <input aria-label="ค้นหาสินค้า" placeholder="ค้นหาชื่อสินค้า / ยี่ห้อ" value={productSearch} onChange={e => setProductSearch(e.target.value)} className="w-full rounded-xl border border-slate-200 p-3 text-sm" />}
             {/* STEP 1: เลือกสินค้า (chip คลิกเดียว) */}
             <div className="space-y-1.5">
                 <p className="text-sm font-semibold text-blue-900/70">1. เลือกสินค้าที่ฉีด</p>
                 <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
-                    {products.map(p => {
+                    {products.filter(p => !searchable || `${p.item_name} ${p.brand || ""}`.toLowerCase().includes(productSearch.toLowerCase())).map(p => {
                         const active = p.id === itemId;
                         return (
                             <button key={p.id} type="button" aria-pressed={active} onClick={() => pickProduct(p.id)}
