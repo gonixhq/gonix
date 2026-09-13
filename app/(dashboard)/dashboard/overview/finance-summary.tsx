@@ -30,21 +30,38 @@ export default async function FinanceSummary({ today }: { today: string }) {
         invoices.push(...(data || []));
         if ((data?.length || 0) < 500) break;
     }
-    const received = sumMoney(payments.map(p => p.amount));
+    // นิรนามบันทึกการรับเงินใน anon_cases ไม่ได้สร้าง payment_logs จึงรวมแยกแหล่ง
+    const anonPaid: { total_amount: number }[] = [];
+    const anonUnpaid: { total_amount: number }[] = [];
+    for (const paid of [true, false]) {
+        for (let offset = 0; ; offset += 500) {
+            let query = db.from("anon_cases").select("id,total_amount")
+                .eq("clinic_id", clinicId).eq("paid", paid);
+            if (paid) query = query.gte("paid_at", start).lt("paid_at", end);
+            else query = query.neq("status", "cancelled");
+            const { data, error } = await query.order("id").range(offset, offset + 499);
+            if (error) { failed = true; break; }
+            (paid ? anonPaid : anonUnpaid).push(...(data || []));
+            if ((data?.length || 0) < 500) break;
+        }
+    }
+    const regularReceived = sumMoney(payments.map(p => p.amount));
+    const anonymousReceived = sumMoney(anonPaid.map(p => p.total_amount));
+    const received = sumMoney([regularReceived, anonymousReceived]);
     const deposit = sumMoney(payments.filter(p => Number(p.amount) > 0 &&
         (p.note?.startsWith("มัดจำ") || (p.deposit_type && p.deposit_type !== "none"))).map(p => p.amount));
-    const outstanding = outstandingMoney(invoices);
+    const outstanding = sumMoney([outstandingMoney(invoices), ...anonUnpaid.map(p => p.total_amount)]);
     const money = (n: number) => `฿${n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     return <section className="gonix-card-premium p-5" data-widget="finance">
         <div className="flex justify-between gap-3 mb-3"><h2 className="font-semibold text-slate-800">การรับเงินและยอดค้าง</h2><Link href="/dashboard/finance" className="text-sm text-blue-700">ดูรายละเอียด →</Link></div>
         {failed ? <p role="alert" className="text-sm text-slate-600">โหลดข้อมูลการเงินไม่สำเร็จ กรุณารีเฟรชหน้า</p> : <div className="grid sm:grid-cols-3 gap-3">
-            {[ ["รับเงินจริงสุทธิวันนี้", received, "รวมมัดจำและรับชำระเพิ่ม หักรายการคืนเงินวันนี้"],
+            {[ ["รับเงินจริงสุทธิวันนี้", received, `ทั่วไป ${money(regularReceived)} · นิรนาม ${money(anonymousReceived)}`],
                 ["มัดจำที่บันทึกวันนี้", deposit, "เป็นส่วนหนึ่งของยอดรับเงินจริง ไม่บวกซ้ำ"],
-                ["ยอดค้างชำระทั้งหมด", outstanding, "ยอดบิลที่ยังรับไม่ครบ รวมบิลก่อนวันนี้"] ].map(([label, value, detail]) =>
+                ["ยอดค้างชำระทั้งหมด", outstanding, "รวมบิลทั่วไปและเคสนิรนามที่ยังไม่ชำระ ไม่รวมเคสยกเลิก"] ].map(([label, value, detail]) =>
                 <div key={String(label)} className="rounded-2xl bg-slate-50/70 border border-slate-200/60 p-4">
                     <p className="text-sm text-slate-600">{label}</p><p className="text-2xl font-semibold text-slate-900 tabular-nums my-1">{money(Number(value))}</p><p className="text-xs text-slate-600">{detail}</p>
                 </div>)}
         </div>}
-        <p className="text-xs text-slate-500 mt-3">เฉพาะใบเสร็จคลินิก ไม่รวมคลินิกนิรนาม · มัดจำนับเฉพาะรายการที่บันทึกระบุว่าเป็นมัดจำ · วันที่รับเงินจริงตามเวลาไทย</p>
+        <p className="text-xs text-slate-500 mt-3">รวมใบเสร็จทั่วไปและนิรนามตามวันที่รับเงินจริง (เวลาไทย) · มัดจำเป็นส่วนหนึ่งของยอดรับเงิน · นิรนามปัจจุบันรับเต็มจำนวน ไม่มีมัดจำแยก</p>
     </section>;
 }
