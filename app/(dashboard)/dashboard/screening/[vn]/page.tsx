@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import styles from "../../visits/[vn]/visit-workspace.module.css";
 import { MaskedId } from "@/components/ui/masked-id";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -113,6 +114,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [submitAttempted, setSubmitAttempted] = useState(false);
     const [success, setSuccess] = useState("");
     const [saving, setSaving] = useState(false);
 
@@ -132,13 +134,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     const [nurseNote, setNurseNote] = useState("");
     const [pastHistory, setPastHistory] = useState("");
     const [doctorId, setDoctorId] = useState<string | "">("");
-    const [assistantId, setAssistantId] = useState<string | "">("");
     const [rooms, setRooms] = useState<RoomStatus[]>([]);
     const [selectedRoomId, setSelectedRoomId] = useState<string | "">("");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [doctors, setDoctors] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [assistants, setAssistants] = useState<any[]>([]);
 
     const [vitals, setVitals] = useState({
         bp_systolic: "", bp_diastolic: "",
@@ -169,22 +169,24 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         [patient?.gender, age.y]
     );
 
+    const historySummary = (value: unknown) => { const text = String(value ?? "").trim(); return /^[-–—\s]*$/.test(text) ? "" : text; };
+    const allergySummary = historySummary(patient?.allergy_summary);
+    const diseaseSummary = historySummary(patient?.disease_summary);
+
     /* Load data */
     const loadData = useCallback(async () => {
         setLoading(true);
-        const [visitRes, doctorsRes, roomsRes, assistantsRes] = await Promise.all([
+        const [visitRes, doctorsRes, roomsRes] = await Promise.all([
             supabase.from("visits").select(`
                 vn, hn, visit_date, visit_time, status, service_category,
                 chief_complaint, pain_score, triage_level, nurse_note,
                 bp_systolic, bp_diastolic, pulse_rate, temperature, weight_kg, height_cm,
-                doctor_id, assistant_id, room_id,
+                doctor_id, room_id,
                 patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, past_history, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status)
             `).eq("vn", vn).maybeSingle(),
             supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
                 .in("role", ["doctor", "owner"]).eq("is_active", true),
             supabase.from("v_room_current_status").select("*").order("display_order"),
-            supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
-                .in("role", ["assistant", "nurse", "staff"]).eq("is_active", true),
         ]);
 
         if (!visitRes.data) {
@@ -210,7 +212,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setTriageLevel(v.triage_level || "normal");
         setNurseNote(v.nurse_note || "");
         setDoctorId(v.doctor_id || "");
-        setAssistantId(v.assistant_id || "");
         setVitals({
             bp_systolic: v.bp_systolic?.toString() || "",
             bp_diastolic: v.bp_diastolic?.toString() || "",
@@ -223,7 +224,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             lmp_date: "",
         });
         setDoctors(doctorsRes.data || []);
-        setAssistants(assistantsRes.data || []);
         setRooms((roomsRes.data || []) as RoomStatus[]);
         setSelectedRoomId(v.room_id || "");
 
@@ -303,13 +303,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
         // Validate required fields before sending to doctor
         if (sendToDoctor) {
+            setSubmitAttempted(true);
             const missing: string[] = [];
-            if (!chiefComplaint.trim()) missing.push("อาการสำคัญ (CC)");
             if (!vitals.bp_systolic) missing.push("BP Sys");
             if (!vitals.bp_diastolic) missing.push("BP Dia");
             if (!vitals.pulse_rate) missing.push("Pulse");
-            if (!vitals.temperature) missing.push("Temp");
-            if (!vitals.o2_saturation) missing.push("O₂Sat");
             if (!vitals.weight_kg) missing.push("Weight");
             if (!vitals.height_cm) missing.push("Height");
 
@@ -347,7 +345,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             weight_kg: toNum(vitals.weight_kg),
             height_cm: toNum(vitals.height_cm),
             doctor_id: doctorId || null,
-            assistant_id: assistantId || null,
             room_id: effectiveRoomId || null,
             nurse_id: nurseStaff?.id || null,
             status: newStatus,
@@ -452,7 +449,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
             </div>
         );
     }
@@ -470,7 +467,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     }
 
     return (
-        <div className="space-y-4 animate-fade-in max-w-7xl mx-auto pb-24">
+        <div className={`${styles.workspace} space-y-4 max-w-7xl mx-auto p-3 sm:p-5 pb-24`}>
             {/* Header */}
             <div className="flex items-center gap-3">
                 <Link href="/dashboard/screening">
@@ -479,10 +476,10 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     </Button>
                 </Link>
                 <div className="flex-1">
-                    <h1 className="text-lg font-bold text-slate-800">ซักประวัติ + วัด Vital Signs</h1>
-                    <p className="text-xs text-slate-500">บันทึกข้อมูลเบื้องต้น</p>
+                    <h1 className="text-lg font-semibold text-slate-800">ซักประวัติ + วัด Vital Signs</h1>
+                    <p className="text-xs text-slate-600">บันทึกข้อมูลเบื้องต้น</p>
                 </div>
-                <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">{vn}</span>
+                <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded">{vn}</span>
             </div>
 
             {error && (
@@ -496,24 +493,18 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 </div>
             )}
 
-            {/* ════ 2-Column Layout ════ */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 items-start">
-
-            {/* ╔════════ RIGHT (sticky on desktop) — Patient + History ════════╗ */}
-            <div className="lg:order-2 lg:sticky lg:top-4 space-y-4">
-
             {/* ════ Patient Card ════ */}
-            <div className="gonix-card-premium p-4 bg-gradient-to-br from-blue-50/60 to-white">
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4">
                 {/* Avatar + name centered on sidebar layout */}
                 <div className="flex items-center gap-3 pb-3 border-b border-slate-200/60 mb-3">
-                    <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-white font-black text-xl shadow-md shadow-blue-500/25 shrink-0">
+                    <div className="h-11 w-11 rounded-xl bg-slate-800 flex items-center justify-center text-white font-semibold text-xl shadow-md shadow-blue-500/25 shrink-0">
                         {patient.first_name?.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-lg font-bold text-slate-800 leading-tight">
+                        <div className="text-lg font-semibold text-slate-800 leading-tight">
                             {patient.prefix} {patient.first_name} {patient.last_name}
                         </div>
-                        <div className="text-sm font-mono font-bold text-blue-700 mt-0.5">{patient.hn}</div>
+                        <div className="text-sm font-mono font-semibold text-blue-700 mt-0.5">{patient.hn}</div>
                     </div>
                 </div>
 
@@ -539,8 +530,9 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         )}
                     </div>
 
+<details className="mt-2"><summary className="cursor-pointer text-sm text-blue-700">ข้อมูลคนไข้เพิ่มเติม</summary>
                     {/* Contact + ID grid */}
-                    <div className="grid grid-cols-1 gap-1 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">
                         {patient.thai_id_card && (
                             <div className="flex items-baseline gap-2">
                                 <span className="text-slate-500 shrink-0 w-20">เลขบัตร</span>
@@ -576,7 +568,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     {/* Emergency Contact */}
                     {(patient.emergency_contact_name || patient.emergency_contact_phone) && (
                         <div className="mt-2 pt-2 border-t border-slate-200/60">
-                            <div className="text-[13px] font-bold text-slate-600 mb-1 flex items-center gap-1.5">
+                            <div className="text-[13px] font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> ติดต่อฉุกเฉิน
                             </div>
                             <div className="text-sm">
@@ -593,32 +585,43 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         </div>
                     )}
 
+                    </details>
+                </div>
+            </div>
+
+            {/* ════ 2-Column Layout ════ */}
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
+
+            {/* ╔════════ RIGHT (sticky on desktop) — Patient + History ════════╗ */}
+            <div className="xl:order-2 space-y-4">
+
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4"><div>
                     {/* Allergies + Chronic Diseases */}
                     <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
 
                         {/* Allergies */}
                         <div className="flex items-start gap-2 flex-wrap pt-1">
-                            <span className="text-[17px] font-bold text-red-700 shrink-0 mt-0.5 inline-flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${allergies.length || allergySummary ? "text-red-700" : "text-slate-600"} shrink-0 mt-0.5 inline-flex items-center gap-1.5`}>
                                 <AlertTriangle className="h-5 w-5" /> แพ้
                             </span>
                             {allergies.map(a => (
-                                <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[15px] font-bold ${severityColor[a.severity] || severityColor.moderate}`}>
+                                <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[15px] font-semibold ${severityColor[a.severity] || severityColor.moderate}`}>
                                     {a.allergen_name}
-                                    <span className="opacity-70 text-[11px] font-semibold">({SEVERITIES.find(s => s.value === a.severity)?.label || a.severity})</span>
+                                    <span className="text-xs font-semibold">({SEVERITIES.find(s => s.value === a.severity)?.label || a.severity})</span>
                                     <button onClick={() => handleRemoveAllergy(a.id)} className="ml-0.5 hover:bg-black/10 rounded-full p-0.5">
                                         <X className="h-3 w-3" />
                                     </button>
                                 </span>
                             ))}
                             {/* Legacy free-text fallback */}
-                            {patient.allergy_summary && (
+                            {allergySummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-[14px] italic">
-                                    {patient.allergy_summary}
-                                    <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
+                                    {allergySummary}
+                                    <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {allergies.length === 0 && !patient.allergy_summary && (
-                                <span className="text-sm text-slate-400 italic mt-1">ไม่มี</span>
+                            {allergies.length === 0 && !allergySummary && (
+                                <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
                             )}
                             <button onClick={() => setShowAddAllergy(!showAddAllergy)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-red-300 text-[13px] font-semibold text-red-600 hover:bg-red-50">
@@ -662,14 +665,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
                         {/* Chronic diseases */}
                         <div className="flex items-start gap-2 flex-wrap pt-1">
-                            <span className="text-[17px] font-bold text-amber-700 shrink-0 mt-0.5 inline-flex items-center gap-1.5">
+                            <span className={`text-sm font-semibold ${chronic.length || diseaseSummary ? "text-amber-700" : "text-slate-600"} shrink-0 mt-0.5 inline-flex items-center gap-1.5`}>
                                 <Heart className="h-5 w-5" /> โรคประจำ
                             </span>
                             {chronic.map(c => (
-                                <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[15px] font-bold">
+                                <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[15px] font-semibold">
                                     {c.disease_name}
                                     {c.is_controlled !== null && c.is_controlled !== undefined && (
-                                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${c.is_controlled ? "bg-emerald-200 text-emerald-800" : "bg-amber-200 text-amber-900"}`}>
+                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${c.is_controlled ? "bg-emerald-200 text-emerald-800" : "bg-amber-200 text-amber-900"}`}>
                                             {c.is_controlled ? "controlled" : "uncontrolled"}
                                         </span>
                                     )}
@@ -679,14 +682,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 </span>
                             ))}
                             {/* Legacy free-text fallback */}
-                            {patient.disease_summary && (
+                            {diseaseSummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[14px] italic">
-                                    {patient.disease_summary}
-                                    <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
+                                    {diseaseSummary}
+                                    <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {chronic.length === 0 && !patient.disease_summary && (
-                                <span className="text-sm text-slate-400 italic mt-1">ไม่มี</span>
+                            {chronic.length === 0 && !diseaseSummary && (
+                                <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
                             )}
                             <button onClick={() => setShowAddChronic(!showAddChronic)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-amber-300 text-[13px] font-semibold text-amber-700 hover:bg-amber-50">
@@ -723,8 +726,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             </div>
 
             {/* ════ Past History (PH) — แก้ไขได้ตอนซักประวัติ ════ */}
-            <div className="gonix-card-premium p-4">
-                <label className="text-sm font-bold text-slate-700 mb-2 block">ประวัติเจ็บป่วยในอดีต (PH)</label>
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4">
+                <label className="text-sm font-semibold text-slate-700 mb-2 block">ประวัติเจ็บป่วยในอดีต (PH)</label>
                 <textarea
                     value={pastHistory}
                     onChange={e => setPastHistory(e.target.value)}
@@ -732,89 +735,38 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา — บันทึกพร้อมตอนส่งตรวจ"
                     className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">บันทึกลงประวัติผู้ป่วย (ใช้ร่วมกับทะเบียน/เวชระเบียน)</p>
+                <p className="text-xs text-slate-600 mt-1">บันทึกลงประวัติผู้ป่วย (ใช้ร่วมกับทะเบียน/เวชระเบียน)</p>
             </div>
 
-            {/* ════ Action button — ส่งตรวจ ════ */}
-            <div className="gonix-card-premium p-4 space-y-3">
-                {triageLevel !== "normal" && (
-                    <div className={`text-center px-3 py-1.5 rounded-lg text-sm font-bold ${
-                        triageLevel === "emergency" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                        {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
-                    </div>
-                )}
-                <div className="text-xs text-slate-500 text-center">
-                    <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-400" />
-                    ส่งให้ {SERVICE_LABEL[serviceCategory]}
-                </div>
-
-                {serviceCategory === "med_cert" && (
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
-                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                            <Button disabled={saving} onClick={() => saveAndPrintCert("th")} variant="outline" className="rounded-lg h-9 text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-100">บันทึก & พิมพ์ ไทย</Button>
-                            <Button disabled={saving} onClick={() => saveAndPrintCert("en")} variant="outline" className="rounded-lg h-9 text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-100">Save & Print EN</Button>
-                        </div>
-                        <p className="text-[10px] text-slate-500">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
-                    </div>
-                )}
-
-                <Button disabled={saving} onClick={() => {
-                    // Validate vitals + CC + ห้อง ก่อนส่งตรวจ
-                    const missing: string[] = [];
-                    if (!chiefComplaint.trim()) missing.push("อาการสำคัญ (CC)");
-                    if (!vitals.bp_systolic) missing.push("BP Sys");
-                    if (!vitals.bp_diastolic) missing.push("BP Dia");
-                    if (!vitals.pulse_rate) missing.push("Pulse");
-                    if (!vitals.temperature) missing.push("Temp");
-                    if (!vitals.o2_saturation) missing.push("O₂Sat");
-                    if (!vitals.weight_kg) missing.push("Weight");
-                    if (!vitals.height_cm) missing.push("Height");
-                    if (!selectedRoomId) missing.push("ห้องตรวจ");
-                    if (missing.length > 0) {
-                        toast.error(`กรุณากรอกข้อมูลให้ครบก่อนส่งตรวจ: ${missing.join(", ")}`);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        return;
-                    }
-                    setError("");
-                    handleSave(true);
-                }}
-                    className="w-full rounded-xl gap-2 h-12 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-md text-base font-bold">
-                    {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                    ส่งตรวจ <ChevronRight className="h-4 w-4" />
-                </Button>
-            </div>
 
             </div>
             {/* ╚════════ END RIGHT column ════════╝ */}
 
             {/* ╔════════ LEFT — Form ════════╗ */}
-            <div className="lg:order-1 space-y-4">
+            <div className="xl:order-1 space-y-4">
 
             {/* ════ Visit Info ════ */}
-            <div className="gonix-card-premium p-5 space-y-5">
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-5 space-y-5">
+                <h2 className="text-base font-semibold text-slate-800">อาการและการคัดกรอง</h2>
                 {/* CC full-width */}
                 <div className="space-y-1.5">
-                    <Label className="text-[15px] font-bold text-slate-800">อาการสำคัญ (CC) <span className="text-red-500">*</span></Label>
+                    <Label className="text-[15px] font-semibold text-slate-800">อาการสำคัญ (CC)</Label>
                     <textarea value={chiefComplaint} onChange={e => setChiefComplaint(e.target.value)}
                         placeholder="ปวดหัว มีไข้ 2 วัน, ทำแผลที่ขา..."
                         rows={2}
                         className={`w-full rounded-lg border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:border-blue-500 resize-none ${
-                            !chiefComplaint.trim()
-                                ? "border-red-300 focus:ring-red-500/30 bg-red-50/30"
-                                : "border-slate-300 focus:ring-blue-500/30"
+                            "border-slate-300 focus:ring-blue-500/30"
                         }`} />
                 </div>
 
                 {/* Service Category + Pain Score in same row */}
-                <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)] gap-4 items-start">
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-bold text-slate-800">ประเภทบริการ</Label>
+                        <Label className="text-[15px] font-semibold text-slate-800">ประเภทบริการ</Label>
                         <ServiceCategoryPicker value={serviceCategory} onChange={setServiceCategory} />
                         {serviceCategory === "med_cert" && (
                             <div className="mt-2">
-                                <Label className="text-xs font-bold text-emerald-800">ประเภทใบรับรอง</Label>
+                                <Label className="text-xs font-semibold text-emerald-800">ประเภทใบรับรอง</Label>
                                 <select value={medCertType} onChange={e => setMedCertType(e.target.value)}
                                     className="mt-1 w-full h-11 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 text-sm font-semibold text-slate-700">
                                     {MED_CERT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -823,11 +775,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         )}
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-bold text-slate-800">Pain Score</Label>
+                        <Label className="text-[15px] font-semibold text-slate-800">Pain Score</Label>
                         <div className="flex flex-wrap items-center gap-1">
                             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                                 <button key={n} type="button" onClick={() => setPainScore(painScore === n ? "" : n)}
-                                    className={`h-10 w-10 rounded-lg text-sm font-bold transition-all ${
+                                    className={`h-10 w-10 rounded-lg text-sm font-semibold transition-all ${
                                         painScore === n
                                             ? n >= 7 ? "bg-red-600 text-white" : n >= 4 ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"
                                             : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -844,13 +796,13 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 {/* Vital Signs */}
                 <div>
                     <div className="flex items-baseline justify-between mb-2">
-                        <Label className="text-[15px] font-bold text-slate-800 flex items-center gap-1">
+                        <Label className="text-[15px] font-semibold text-slate-800 flex items-center gap-1">
                             <Activity className="h-3 w-3" /> Vital Signs
                         </Label>
                         {bmi && (
                             <span className="text-xs text-slate-600">
                                 BMI: <strong className="text-blue-700">{bmi}</strong>{" "}
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-xs text-slate-600">
                                     {Number(bmi) < 18.5 ? "(ต่ำกว่ามาตรฐาน)" :
                                      Number(bmi) < 23 ? "(ปกติ)" :
                                      Number(bmi) < 25 ? "(เกิน)" :
@@ -859,29 +811,30 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </span>
                         )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <VitalInput required label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
-                        <VitalInput required label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
-                        <VitalInput required label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
-                        <VitalInput required label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
-                        <VitalInput required label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
+                    <p className="mb-3 text-xs text-slate-600">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <VitalInput required showError={submitAttempted} label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
+                        <VitalInput required showError={submitAttempted} label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
+                        <VitalInput required showError={submitAttempted} label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
+                        <VitalInput label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
+                        <VitalInput label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
                         <VitalInput label="DTX" thaiLabel="น้ำตาลในเลือด" unit="mg/dL" value={vitals.dtx} onChange={v => setVital("dtx", v)} />
-                        <VitalInput required label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
-                        <VitalInput required label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
+                        <VitalInput required showError={submitAttempted} label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
+                        <VitalInput required showError={submitAttempted} label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
                     </div>
                 </div>
 
                 {/* LMP — for women of childbearing age */}
                 {isWomanOfChildbearingAge && (
                     <div className="rounded-lg bg-pink-50/60 border border-pink-200 p-3 space-y-1.5">
-                        <Label className="text-[15px] font-bold text-pink-700 flex items-center gap-1.5">
+                        <Label className="text-[15px] font-semibold text-pink-700 flex items-center gap-1.5">
                             <Calendar className="h-4 w-4" /> ประจำเดือนครั้งสุดท้าย (LMP)
                         </Label>
                         <div className="flex items-center gap-2">
                             <Input type="date" value={vitals.lmp_date}
                                 onChange={e => setVital("lmp_date", e.target.value)}
                                 className="h-9 rounded-lg max-w-[200px]" />
-                            <span className="text-[11px] text-pink-700">สำคัญสำหรับการสั่งยา/X-ray</span>
+                            <span className="text-xs text-pink-700">สำคัญสำหรับการสั่งยา/X-ray</span>
                         </div>
                     </div>
                 )}
@@ -891,7 +844,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 {/* Triage + Doctor */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-bold text-slate-800">ความเร่งด่วน</Label>
+                        <Label className="text-[15px] font-semibold text-slate-800">ความเร่งด่วน</Label>
                         <div className="flex gap-1.5">
                             {([
                                 { v: "normal", l: "ปกติ", c: "bg-slate-200 text-slate-700" },
@@ -899,8 +852,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 { v: "emergency", l: "ฉุกเฉิน", c: "bg-red-600 text-white" },
                             ] as { v: TriageLevel; l: string; c: string }[]).map(t => (
                                 <button key={t.v} type="button" onClick={() => setTriageLevel(t.v)}
-                                    className={`flex-1 h-11 rounded-lg text-sm font-bold transition-all ${
-                                        triageLevel === t.v ? t.c + " shadow-sm" : "bg-slate-50 text-slate-400 border border-slate-200 hover:bg-slate-100"
+                                    className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all ${
+                                        triageLevel === t.v ? t.c + " shadow-sm" : "bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100"
                                     }`}>
                                     {t.l}
                                 </button>
@@ -908,7 +861,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         </div>
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-bold text-slate-800">ห้องตรวจ <span className="text-red-500">*</span></Label>
+                        <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ (เลือกได้)</Label>
                         <select
                             value={selectedRoomId}
                             onChange={e => {
@@ -920,10 +873,10 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 if (docId) setDoctorId(docId);
                             }}
                             className={`flex h-9 w-full rounded-lg border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
-                                !selectedRoomId ? "border-red-300 bg-red-50/30" : "border-slate-300"
+                                "border-slate-300"
                             }`}
                         >
-                            <option value="">— เลือกห้องตรวจ —</option>
+                            <option value="">— ไม่ระบุห้องตรวจ —</option>
                             {rooms.map((r) => {
                                 const doctorPart = r.doctor_name
                                     ? ` · ${r.doctor_name} (อยู่ห้อง)`
@@ -939,36 +892,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             })}
                         </select>
                         {rooms.length === 0 && (
-                            <p className="text-[11px] text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
+                            <p className="text-xs text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
                         )}
                     </div>
                 </div>
 
-                {/* Assistant (สำหรับคำนวณ commission ผู้ช่วย) */}
-                <div className="space-y-1.5">
-                    <Label className="text-[15px] font-bold text-slate-800">
-                        ผู้ช่วยหัตถการ <span className="text-[11px] font-normal text-slate-400">(ถ้ามี — ใช้คำนวณค่า DF ผู้ช่วย)</span>
-                    </Label>
-                    <select
-                        value={assistantId}
-                        onChange={e => setAssistantId(e.target.value)}
-                        className="flex h-10 w-full max-w-md rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                    >
-                        <option value="">— ไม่ระบุ —</option>
-                        {assistants.map((a) => {
-                            const p = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
-                            return (
-                                <option key={a.id} value={a.id}>
-                                    {p?.full_name || "—"}{p?.role ? ` (${p.role})` : ""}
-                                </option>
-                            );
-                        })}
-                    </select>
-                </div>
-
                 {/* Nurse Note */}
                 <div className="space-y-1.5">
-                    <Label className="text-[15px] font-bold text-slate-800">หมายเหตุพยาบาล</Label>
+                    <Label className="text-[15px] font-semibold text-slate-800">หมายเหตุพยาบาล</Label>
                     <textarea value={nurseNote} onChange={e => setNurseNote(e.target.value)}
                         placeholder="ข้อสังเกต, ยาที่กิน, ภาวะที่ต้องระวัง..."
                         rows={2}
@@ -981,6 +912,38 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
             </div>
             {/* ╚════════ END 2-Column Layout ════════╝ */}
+            {/* ════ Action button — ส่งตรวจ ════ */}
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4 space-y-3">
+                {triageLevel !== "normal" && (
+                    <div className={`text-center px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                        triageLevel === "emergency" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                        {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
+                    </div>
+                )}
+                <div className="text-xs text-slate-600 text-right">
+                    <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-500" />
+                    ส่งให้ {SERVICE_LABEL[serviceCategory]}
+                </div>
+
+                {serviceCategory === "med_cert" && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
+                        <div className="text-xs font-semibold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <Button disabled={saving} onClick={() => saveAndPrintCert("th")} variant="outline" className="rounded-lg h-9 text-xs font-semibold border-emerald-300 text-emerald-700 hover:bg-emerald-100">บันทึก & พิมพ์ ไทย</Button>
+                            <Button disabled={saving} onClick={() => saveAndPrintCert("en")} variant="outline" className="rounded-lg h-9 text-xs font-semibold border-emerald-300 text-emerald-700 hover:bg-emerald-100">Save & Print EN</Button>
+                        </div>
+                        <p className="text-xs text-slate-600">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
+                    </div>
+                )}
+
+                <Button disabled={saving} onClick={() => void handleSave(true)}
+                    className="ml-auto flex w-auto min-w-40 rounded-xl px-6 gap-2 h-11 bg-blue-700 hover:bg-blue-800 shadow-md text-base font-semibold">
+                    {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                    ส่งตรวจ <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+
 
         </div>
     );
@@ -1010,7 +973,7 @@ function ServiceCategoryPicker({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className={`group flex items-center gap-2.5 w-full h-11 rounded-lg border-2 px-3 text-left transition-all ${
+                className={`group flex items-center gap-2.5 w-full min-h-11 py-2 rounded-lg border-2 px-3 text-left transition-all ${
                     open
                         ? `${current.bg} border-current ${current.text}`
                         : `bg-white border-slate-300 hover:border-slate-400 ${current.text}`
@@ -1019,10 +982,10 @@ function ServiceCategoryPicker({
                 <div className={`h-7 w-7 rounded-md ${current.bg} flex items-center justify-center shrink-0 ${current.text}`}>
                     <CurrentIcon className="h-4 w-4" />
                 </div>
-                <span className="flex-1 text-base font-semibold text-slate-800 truncate">
+                <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800 whitespace-normal leading-snug">
                     {current.label}
                 </span>
-                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown menu */}
@@ -1057,7 +1020,7 @@ function ServiceCategoryPicker({
 }
 
 function VitalInput({
-    label, thaiLabel, unit, value, onChange, step, required,
+    label, thaiLabel, unit, value, onChange, step, required, showError = false,
 }: {
     label: string;
     thaiLabel?: string;
@@ -1066,30 +1029,35 @@ function VitalInput({
     onChange: (v: string) => void;
     step?: string;
     required?: boolean;
+    showError?: boolean;
 }) {
-    const isEmpty = required && !value;
+    const isEmpty = !!(showError && required && !value);
     return (
         <div className="space-y-1">
             <div className="px-1 flex items-baseline gap-1.5 flex-wrap leading-none">
-                <span className="text-[13px] font-bold text-slate-700">
+                <span className="text-[13px] font-semibold text-slate-700">
                     {label}
                     {required && <span className="text-red-500 ml-0.5">*</span>}
                 </span>
-                {thaiLabel && <span className="text-[11px] text-slate-500">{thaiLabel}</span>}
+                {thaiLabel && <span className="text-xs text-slate-600">{thaiLabel}</span>}
             </div>
             <div className="relative">
                 <input
                     type="number"
+                    aria-label={`${thaiLabel || label} (${unit})`}
+                    aria-required={required}
+                    aria-invalid={isEmpty}
+                    inputMode="decimal"
                     step={step || "1"}
                     value={value}
                     onChange={e => onChange(e.target.value)}
-                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-11 text-base font-bold text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
+                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-14 text-base font-semibold text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
                         isEmpty
                             ? "border-red-300 focus:ring-red-500/30 bg-red-50/30"
                             : "border-slate-300 focus:ring-blue-500/30"
                     }`}
                 />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{unit}</span>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">{unit}</span>
             </div>
         </div>
     );

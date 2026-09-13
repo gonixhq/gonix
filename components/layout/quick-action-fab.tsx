@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 
-/** ปุ่มลอย "เปิด Visit ใหม่" — กดได้จากทุกหน้า dashboard (ซ่อนในหน้าเปิด visit เอง) */
+/** ปุ่มลอย "เปิด Visit ใหม่" — กดได้จากทุกหน้า dashboard (ซ่อนในหน้าเปิด visit และแบบฟอร์มซักประวัติ) */
 export default function QuickActionFab() {
     const pathname = usePathname();
-    if (pathname?.startsWith("/dashboard/visits/new")) return null;
+    if (pathname?.startsWith("/dashboard/visits/new") || /^\/dashboard\/screening\/[^/]+\/?$/.test(pathname || "")) return null;
 
     return (
         <Link
