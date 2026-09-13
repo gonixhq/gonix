@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-    Printer, CheckCircle2, ChevronLeft, CreditCard, Banknote, QrCode,
+    Printer, CheckCircle2, ChevronLeft,
     Pill, Plus, Trash2, X, AlertCircle, Sparkles, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +19,8 @@ import type { DiscountEntry } from "@/lib/campaign-types";
 import type { ServiceCatalogItem } from "@/lib/service-types";
 import { listActivePackages, getPatientActivePackages, consumePackageSession } from "@/lib/actions/packages";
 import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
+import PaymentEditor from "./payment-editor";
+import { paymentPlan, type PaymentDraft } from "@/lib/checkout-payment";
 import CheckoutAppointmentForm from "./checkout-appointment-form";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,9 +147,7 @@ export default function CheckoutForm({
     const [promo, setPromo] = useState<ValidatedCampaign | null>(null);
     const [promoErr, setPromoErr] = useState("");
     const [promoChecking, setPromoChecking] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "credit">("cash");
-    const [paymentRef, setPaymentRef] = useState("");
-    const [amountReceived, setAmountReceived] = useState<string>("0");
+    const [paymentDraft, setPaymentDraft] = useState<PaymentDraft | null>(null);
 
     // Package picker (for selling new)
     const [showPackagePicker, setShowPackagePicker] = useState(false);
@@ -327,23 +327,11 @@ export default function CheckoutForm({
     );
     const overDiscountLimit = hasCappedPackage && totalDiscount > discountCeiling + 0.01;
 
-    // Auto-fill received amount = total เมื่อ grandTotal เปลี่ยน (ถ้ายังไม่ได้แก้)
-    const receivedTouchedRef = useRef(false);
-    useEffect(() => {
-        if (!receivedTouchedRef.current) {
-            setAmountReceived(grandTotal.toString());
-        }
-    }, [grandTotal]);
-
-    const received = parseFloat(amountReceived) || 0;
-    const change = received >= grandTotal ? received - grandTotal : 0;
-    const outstanding = received < grandTotal ? grandTotal - received : 0;
-    const isDeposit = received > 0 && received < grandTotal;
-
-    // Removed dispensing checklist — counter manages drug items directly via "เพิ่มยา"
+    const currentPaymentDraft: PaymentDraft = paymentDraft || { mode: "full", deposit: "", rows: [{ method: "cash", amount: grandTotal.toFixed(2) }] };
+    let payment: ReturnType<typeof paymentPlan> | undefined; let paymentError = "";
+    try { payment = paymentPlan(Number(grandTotal.toFixed(2)), currentPaymentDraft); } catch (e) { paymentError = (e as Error).message; }
+    const isPaymentValid = !!payment;
     const isReadyToComplete = true;
-    // Allow any amount (including 0 for ค้างชำระเต็ม) — counter judges
-    const isPaymentValid = received >= 0;
 
     const toggleDispense = (id: string) => {
         setDispensedItems(prev =>
@@ -388,8 +376,8 @@ export default function CheckoutForm({
 
     const handleComplete = async () => {
         if (loading || saved) return;
-        if (!isPaymentValid) {
-            toast.error("ยอดเงินรับน้อยกว่ายอดสุทธิ");
+        if (!payment) {
+            toast.error(paymentError || "กรุณาตรวจยอดรับเงิน");
             return;
         }
         if (items.length === 0) {
@@ -450,10 +438,9 @@ export default function CheckoutForm({
                 items: lines,
                 subtotal,
                 discount: totalDiscount,
-                total: grandTotal,
-                paid: Math.min(received, grandTotal),  // จ่ายตามที่รับมา (cap ที่ total)
-                paymentMethod,
-                paymentRef: paymentRef.trim() || undefined,
+                total: Number(grandTotal.toFixed(2)),
+                paid: payment.paid,
+                payments: payment.payments,
                 drugOrders,
                 discounts,
                 campaignId: promo?.campaign_id || null,
@@ -914,101 +901,7 @@ export default function CheckoutForm({
                             </div>
                         )}
 
-                        {/* Payment method */}
-                        <div className="pt-3 border-t border-slate-200/60 space-y-2">
-                            <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">ช่องทางชำระ</Label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {([
-                                    { v: "cash" as const, l: "เงินสด", icon: Banknote, color: "emerald" },
-                                    { v: "transfer" as const, l: "QR / โอน", icon: QrCode, color: "sky" },
-                                    { v: "credit" as const, l: "บัตรเครดิต", icon: CreditCard, color: "slate" },
-                                ]).map(opt => {
-                                    const Icon = opt.icon;
-                                    const active = paymentMethod === opt.v;
-                                    return (
-                                        <button
-                                            key={opt.v}
-                                            type="button"
-                                            onClick={() => { setPaymentMethod(opt.v); setAmountReceived(grandTotal.toString()); }}
-                                            className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all text-xs font-semibold ${
-                                                active
-                                                    ? opt.color === "emerald" ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/30"
-                                                    : opt.color === "sky" ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/30"
-                                                    : "bg-slate-800 text-white shadow-md shadow-slate-700/30"
-                                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                            }`}
-                                        >
-                                            <Icon className="h-4 w-4" />
-                                            {opt.l}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {/* อ้างอิงสำหรับโอน/บัตร (เลขท้ายสลิป) — optional */}
-                            {paymentMethod !== "cash" && (
-                                <input
-                                    value={paymentRef}
-                                    onChange={(e) => setPaymentRef(e.target.value)}
-                                    placeholder={paymentMethod === "transfer" ? "อ้างอิง / เลขท้ายสลิป 4 ตัว (ไม่บังคับ)" : "อ้างอิง / เลขท้ายบัตร (ไม่บังคับ)"}
-                                    className="w-full h-9 rounded-xl border border-slate-200 px-3 text-sm focus:border-cyan-500 focus:outline-none mt-1"
-                                />
-                            )}
-                        </div>
-
-                        {/* Cash/Payment calculator */}
-                        <div className="pt-3 border-t border-slate-200/60 space-y-2">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-semibold text-slate-600">รับเงินมา</Label>
-                                    <div className="relative">
-                                        <Input
-                                            type="number"
-                                            value={amountReceived}
-                                            onChange={(e) => { receivedTouchedRef.current = true; setAmountReceived(e.target.value); }}
-                                            className="pl-7 text-base font-semibold h-11 rounded-xl tabular-nums"
-                                        />
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">฿</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-semibold text-slate-600">
-                                        {isDeposit ? "ค้างชำระ" : "เงินทอน"}
-                                    </Label>
-                                    <div className={`h-11 rounded-xl border px-3 flex items-center justify-end text-base font-semibold tabular-nums ${
-                                        isDeposit
-                                            ? "bg-amber-50 border-amber-300 text-amber-800"
-                                            : change > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-800"
-                                    }`}>
-                                        ฿{(isDeposit ? outstanding : change).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Quick deposit presets */}
-                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                <span className="text-xs text-slate-500 font-medium">ลัด:</span>
-                                <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived(grandTotal.toString()); }}
-                                    className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium">เต็มจำนวน</button>
-                                <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived((grandTotal * 0.5).toString()); }}
-                                    className="text-xs px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 50%</button>
-                                <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived((grandTotal * 0.3).toString()); }}
-                                    className="text-xs px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 30%</button>
-                                <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived("0"); }}
-                                    className="text-xs px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 hover:bg-rose-200 font-medium">ค้างทั้งหมด</button>
-                            </div>
-
-                            {isDeposit && (
-                                <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-start gap-2">
-                                    <span className="text-base leading-none"></span>
-                                    <span><strong>มัดจำ</strong> — ค้างชำระ <strong>฿{outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> · ใบเสร็จจะมี status <strong>&ldquo;ค้างชำระ&rdquo;</strong> รับเพิ่มได้ที่หน้าการเงิน</span>
-                                </div>
-                            )}
-                            {received === 0 && grandTotal > 0 && (
-                                <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-800">
-                                    ค้างชำระเต็มจำนวน — สามารถรับเงินภายหลังที่หน้าใบเสร็จ
-                                </div>
-                            )}
-                        </div>
+                        <PaymentEditor total={Number(grandTotal.toFixed(2))} draft={currentPaymentDraft} onChange={setPaymentDraft} disabled={loading || saved} />
 
                         {/* Action */}
                         <Button
