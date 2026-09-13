@@ -48,6 +48,7 @@ const PAGE_TITLES: TitleEntry[] = [
     { pattern: "/dashboard/doctor-station", th: "ห้องแพทย์", en: "Doctor Station", sub: { th: "Doctor Room", en: "Doctor Room" } },
     { pattern: "/dashboard/doctor-schedule", th: "ตารางเวรการทำงาน", en: "Work Schedule", sub: { th: "เวรรายวัน", en: "Daily roster" } },
     { pattern: "/dashboard/compensation", th: "ค่าตอบแทนพนักงาน", en: "Compensation", sub: { th: "ค่าเวลา + DF", en: "Time pay + DF" } },
+    { pattern: /^\/dashboard\/pharmacy\/[^/]+\/?$/, th: "จัดยา & รับเงิน", en: "Dispensing & Payment" },
     { pattern: "/dashboard/pharmacy", th: "ห้องยา & รับเงิน", en: "Pharmacy & Payment" },
     { pattern: "/dashboard/lab", th: "ห้องแล็บ", en: "Lab" },
     { pattern: /^\/dashboard\/anonymous\/[^/]+$/, th: "เคสนิรนาม", en: "Anonymous Case", sub: { th: "ตรวจเลือดไม่ระบุตัวตน", en: "Anonymous testing" } },

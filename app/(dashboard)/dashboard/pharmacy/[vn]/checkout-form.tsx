@@ -480,7 +480,7 @@ export default function CheckoutForm({
     return (
         <div className="space-y-5 max-w-7xl mx-auto animate-fade-in">
             {/* Sub-header */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-white/90 bg-white/85 p-4 shadow-sm">
                 <div className="flex items-center gap-3">
                     <Link href="/dashboard/pharmacy">
                         <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 h-9 text-slate-600 hover:text-slate-800">
@@ -490,7 +490,7 @@ export default function CheckoutForm({
                     <span className="text-slate-300">·</span>
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-base font-bold text-slate-800">{p?.prefix || ""}{p?.first_name} {p?.last_name}</span>
+                            <span className="text-base font-semibold text-slate-800">{p?.prefix || ""}{p?.first_name} {p?.last_name}</span>
                             <Badge className="bg-rose-100 text-rose-700 border-0">{visit.status === "waiting_medicine" ? "รอจัดยา" : "รอชำระเงิน"}</Badge>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
@@ -503,10 +503,10 @@ export default function CheckoutForm({
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {drugOrders.length > 0 && (
                         <Button onClick={handlePrintAllLabels} variant="outline" size="sm"
-                            className="rounded-xl gap-1.5 h-9 border-amber-300 text-amber-700 hover:bg-amber-50">
+                            className="rounded-xl gap-1.5 h-9 border-slate-200 text-blue-700 hover:bg-blue-50">
                             <Pill className="h-4 w-4" /> พิมพ์ฉลากยา
                         </Button>
                     )}
@@ -524,33 +524,33 @@ export default function CheckoutForm({
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_440px] gap-5 items-start">
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-5 items-start">
 
                 {/* ═══ LEFT: Items list ═══ */}
-                <div className="space-y-5">
+                <div className="min-w-0 space-y-5">
                     {/* (Pharmacy dispense section ถูกเอาออก — หมอไม่คีย์ยาที่ visit detail แล้ว
                         เคาท์เตอร์เพิ่มยาตอน checkout ผ่านปุ่ม "เพิ่มยา" ด้านล่าง) */}
 
                     {/* คอสคงเหลือของคนไข้ — กดตัดครั้งได้ */}
                     {activePackages.length > 0 && (
-                        <div className="gonix-card-premium overflow-hidden border-2 border-rose-200">
-                            <div className="flex items-center justify-between px-5 py-3 border-b border-rose-200/60 bg-rose-50/60">
-                                <div className="flex items-center gap-2">
+                        <div className="rounded-2xl border border-white/90 bg-white/90 backdrop-blur-xl shadow-sm overflow-hidden border-2 border-rose-200">
+                            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-rose-200/60 bg-rose-50/60">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <Sparkles className="h-4 w-4 text-rose-700" />
-                                    <h2 className="text-sm font-bold text-rose-900">คอสคงเหลือของคนไข้</h2>
+                                    <h2 className="text-sm font-semibold text-rose-900">คอสคงเหลือของคนไข้</h2>
                                     <span className="text-xs text-rose-700">({activePackages.length} คอส)</span>
                                 </div>
-                                <span className="text-[11px] text-rose-700/70 italic">ถ้าวันนี้ใช้คอส กดตัดครั้งได้เลย</span>
+                                <span className="text-xs text-rose-700/70 italic">ถ้าวันนี้ใช้คอส กดตัดครั้งได้เลย</span>
                             </div>
                             <div className="p-3 space-y-2">
                                 {activePackages.map(pp => (
                                     <div key={pp.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200">
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-slate-800 text-sm truncate">{pp.package_name}</div>
-                                            <div className="text-[11px] text-slate-500 inline-flex items-center gap-2">
-                                                <span>ใช้ {pp.used_sessions}/{pp.total_sessions} ครั้ง · เหลือ <span className="font-bold text-blue-700">{pp.remaining_sessions}</span></span>
+                                            <div className="font-semibold text-slate-800 text-sm truncate">{pp.package_name}</div>
+                                            <div className="text-xs text-slate-500 inline-flex items-center gap-2">
+                                                <span>ใช้ {pp.used_sessions}/{pp.total_sessions} ครั้ง · เหลือ <span className="font-semibold text-blue-700">{pp.remaining_sessions}</span></span>
                                                 {pp.days_remaining <= 30 && (
-                                                    <span className="text-amber-700 font-bold">({pp.days_remaining} วันก่อนหมดอายุ)</span>
+                                                    <span className="text-amber-700 font-semibold">({pp.days_remaining} วันก่อนหมดอายุ)</span>
                                                 )}
                                             </div>
                                         </div>
@@ -558,7 +558,7 @@ export default function CheckoutForm({
                                             size="sm"
                                             disabled={usingPackageId === pp.id || pp.remaining_sessions <= 0}
                                             onClick={() => handleUsePackage(pp)}
-                                            className="rounded-lg gap-1.5 h-9 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold text-xs shrink-0 disabled:opacity-50"
+                                            className="rounded-lg gap-1.5 h-9 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs shrink-0 disabled:opacity-50"
                                         >
                                             {usingPackageId === pp.id ? "กำลังตัด..." : "ตัด 1 ครั้ง"}
                                         </Button>
@@ -569,10 +569,10 @@ export default function CheckoutForm({
                     )}
 
                     {/* Editable Items List */}
-                    <div className="gonix-card-premium overflow-hidden">
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/60 bg-blue-50/40">
-                            <div className="flex items-center gap-2">
-                                <h2 className="text-sm font-bold text-blue-900">รายการในใบเสร็จ</h2>
+                    <div className="rounded-2xl border border-white/90 bg-white/90 backdrop-blur-xl shadow-sm overflow-hidden">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-200/60 bg-blue-50/40">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="text-sm font-semibold text-blue-900">รายการในใบเสร็จ</h2>
                                 <span className="text-xs text-blue-700">({items.length} รายการ)</span>
                             </div>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -580,7 +580,7 @@ export default function CheckoutForm({
                                     size="sm"
                                     onClick={() => setShowDrugPicker(true)}
                                     variant="outline"
-                                    className="rounded-lg gap-1.5 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                    className="rounded-lg gap-1.5 h-8 text-xs border-slate-200 text-blue-700 hover:bg-blue-50"
                                 >
                                     <Pill className="h-3.5 w-3.5" /> เพิ่มยา / เวชภัณฑ์
                                 </Button>
@@ -588,7 +588,7 @@ export default function CheckoutForm({
                                     size="sm"
                                     onClick={() => setShowPackagePicker(true)}
                                     variant="outline"
-                                    className="rounded-lg gap-1.5 h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-50"
+                                    className="rounded-lg gap-1.5 h-8 text-xs border-slate-200 text-blue-700 hover:bg-blue-50"
                                 >
                                     <Sparkles className="h-3.5 w-3.5" /> เพิ่มคอส
                                 </Button>
@@ -608,7 +608,7 @@ export default function CheckoutForm({
                                 {/* Quick pick from preset */}
                                 {services.length > 0 && (
                                     <div>
-                                        <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">เลือกจากรายการบริการ (Preset) · เลือกแล้วเพิ่มทันที</label>
+                                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-1">เลือกจากรายการบริการ (Preset) · เลือกแล้วเพิ่มทันที</label>
                                         <select
                                             value=""
                                             onChange={e => {
@@ -640,7 +640,7 @@ export default function CheckoutForm({
 
                                 {/* Manual form */}
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
+                                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-1">
                                         {services.length > 0 ? "หรือกรอกเอง" : "รายละเอียดรายการ"}
                                     </label>
                                     <div className="grid grid-cols-12 gap-2">
@@ -687,7 +687,7 @@ export default function CheckoutForm({
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60">
-                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-3 py-2">ประเภท</th>
                                         <th className="text-left px-3 py-2">รายการ</th>
                                         <th className="text-right px-3 py-2 w-20">จำนวน</th>
@@ -699,7 +699,7 @@ export default function CheckoutForm({
                                 </thead>
                                 <tbody>
                                     {items.length === 0 ? (
-                                        <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-400">ยังไม่มีรายการ — กด &quot;เพิ่มรายการ&quot;</td></tr>
+                                        <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">ยังไม่มีรายการ — กด &quot;เพิ่มรายการ&quot;</td></tr>
                                     ) : items.map(it => {
                                         // ยา + แล็บ: หมอเป็นคนสั่ง — ห้ามแก้ qty/ราคา (ลบได้)
                                         // เคาท์เตอร์เป็นคนคีย์ทุกรายการ — แก้ไขได้ทุกฟิลด์
@@ -707,13 +707,13 @@ export default function CheckoutForm({
                                         return (
                                         <tr key={it.id} className="border-t border-slate-100 hover:bg-slate-50/40">
                                             <td className="px-3 py-2">
-                                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${ITEM_TYPE_COLOR[it.item_type] || ITEM_TYPE_COLOR.other}`}>
+                                                <span className={`text-xs px-2 py-0.5 rounded font-semibold uppercase tracking-wider ${ITEM_TYPE_COLOR[it.item_type] || ITEM_TYPE_COLOR.other}`}>
                                                     {ITEM_TYPE_LABEL[it.item_type] || it.item_type}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2 text-slate-800 font-medium">
                                                 {it.item_name}
-                                                {fieldsLocked && <span className="ml-1.5 text-[10px] text-slate-400 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
+                                                {fieldsLocked && <span className="ml-1.5 text-xs text-slate-500 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
                                             </td>
                                             <td className="px-1 py-1">
                                                 {fieldsLocked ? (
@@ -731,7 +731,7 @@ export default function CheckoutForm({
                                                             className="h-8 text-right text-sm tabular-nums"
                                                         />
                                                         {it.item_type === "injectable" && it.unit_label && (
-                                                            <span className="text-[10px] text-slate-400 shrink-0">{it.unit_label}</span>
+                                                            <span className="text-xs text-slate-500 shrink-0">{it.unit_label}</span>
                                                         )}
                                                     </div>
                                                 )}
@@ -749,7 +749,7 @@ export default function CheckoutForm({
                                                             title="ราคาขายก้อน (รวม) — ไม่ใช่ราคาต่อหน่วย"
                                                             className="h-8 text-right text-sm tabular-nums font-semibold text-violet-700"
                                                         />
-                                                        <span className="pointer-events-none absolute -bottom-3 right-0 text-[9px] text-violet-400">ก้อน</span>
+                                                        <span className="pointer-events-none absolute -bottom-3 right-0 text-xs text-violet-400">ก้อน</span>
                                                     </div>
                                                 ) : fieldsLocked ? (
                                                     <div className="h-8 px-2.5 rounded bg-slate-50 border border-slate-200 flex items-center justify-end text-sm font-semibold text-slate-700 tabular-nums">
@@ -778,9 +778,9 @@ export default function CheckoutForm({
                                                     className="h-8 text-right text-sm tabular-nums text-red-600"
                                                 />
                                             </td>
-                                            <td className="px-3 py-2 text-right font-bold text-slate-800 tabular-nums">
+                                            <td className="px-3 py-2 text-right font-semibold text-slate-800 tabular-nums">
                                                 {(Number(it.line_discount) || 0) > 0 && (
-                                                    <div className="text-[10px] font-normal text-slate-400 line-through">
+                                                    <div className="text-xs font-normal text-slate-500 line-through">
                                                         ฿{lineGross(it).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </div>
                                                 )}
@@ -789,7 +789,7 @@ export default function CheckoutForm({
                                             <td className="px-1 py-2 text-center">
                                                 <button
                                                     onClick={() => removeItem(it.id)}
-                                                    className="h-7 w-7 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors inline-flex items-center justify-center"
+                                                    className="h-7 w-7 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors inline-flex items-center justify-center"
                                                     title={fieldsLocked ? "ลบรายการ (เช่น คนไข้ไม่รับยาตัวนี้)" : "ลบรายการ"}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -808,8 +808,8 @@ export default function CheckoutForm({
                 </div>
 
                 {/* ═══ RIGHT: Billing summary + Payment ═══ */}
-                <div className="lg:sticky lg:top-4 space-y-4">
-                    <div className="gonix-card-premium p-5 space-y-4">
+                <div className="min-w-0 space-y-4">
+                    <div className="rounded-2xl border border-white/90 bg-white/90 backdrop-blur-xl shadow-sm p-5 space-y-4">
                         {/* Bill summary */}
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between text-slate-600">
@@ -829,16 +829,16 @@ export default function CheckoutForm({
                                 {promo ? (
                                     <div className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
                                         <div className="min-w-0">
-                                            <div className="text-xs font-black text-emerald-800 truncate">{promo.code} · {promo.name}</div>
-                                            <div className="text-[10px] text-emerald-700">ใช้กับยอด ฿{promo.eligible_base.toLocaleString()}</div>
+                                            <div className="text-xs font-semibold text-emerald-800 truncate">{promo.code} · {promo.name}</div>
+                                            <div className="text-xs text-emerald-700">ใช้กับยอด ฿{promo.eligible_base.toLocaleString()}</div>
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
-                                            <span className="font-bold text-emerald-700 tabular-nums text-sm">−฿{promo.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                            <button onClick={clearPromo} title="เอาโค้ดออก" className="text-slate-400 hover:text-red-600"><X className="h-3.5 w-3.5" /></button>
+                                            <span className="font-semibold text-emerald-700 tabular-nums text-sm">−฿{promo.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                            <button onClick={clearPromo} title="เอาโค้ดออก" className="text-slate-500 hover:text-red-600"><X className="h-3.5 w-3.5" /></button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Input
                                             value={promoCode}
                                             onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoErr(""); }}
@@ -852,7 +852,7 @@ export default function CheckoutForm({
                                         </Button>
                                     </div>
                                 )}
-                                {promoErr && <div className="text-[11px] text-red-600">{promoErr}</div>}
+                                {promoErr && <div className="text-xs text-red-600">{promoErr}</div>}
                             </div>
 
                             <div className="flex items-center justify-between gap-3">
@@ -865,7 +865,7 @@ export default function CheckoutForm({
                                         onChange={e => setDiscount(Math.max(0, Number(e.target.value) || 0))}
                                         className="pl-7 h-9 text-right text-red-600 font-semibold tabular-nums"
                                     />
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">฿</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">฿</span>
                                 </div>
                             </div>
                             {discount > 0 && (
@@ -878,14 +878,14 @@ export default function CheckoutForm({
                             )}
 
                             {totalDiscount > 0 && (
-                                <div className="flex justify-between border-t border-dashed border-slate-200 pt-2 text-red-600 font-bold">
+                                <div className="flex justify-between border-t border-dashed border-slate-200 pt-2 text-red-600 font-semibold">
                                     <span>ส่วนลดรวม</span>
                                     <span className="tabular-nums">−฿{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
                             {/* เตือนเมื่อส่วนลดเกินเพดาน max_discount ต่อคอส (ไม่บล็อก — flag ขออนุมัติ) */}
                             {overDiscountLimit && (
-                                <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
+                                <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
                                     <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                                     <span>ส่วนลดเกินเพดานของคอส (ลดได้สูงสุด ฿{discountCeiling.toLocaleString(undefined, { maximumFractionDigits: 0 })}) — ชำระได้ปกติ แต่จะถูกส่งขออนุมัติเป็นกรณี “เกินเพดาน”</span>
                                 </div>
@@ -894,8 +894,8 @@ export default function CheckoutForm({
 
                         {/* Grand total */}
                         <div className="pt-4 border-t-2 border-dashed border-slate-200 flex items-end justify-between">
-                            <span className="text-sm font-bold text-slate-700">ยอดสุทธิ</span>
-                            <span className="text-3xl font-black text-emerald-600 tracking-tight tabular-nums">
+                            <span className="text-sm font-semibold text-slate-700">ยอดสุทธิ</span>
+                            <span className="text-3xl font-semibold text-emerald-600 tracking-tight tabular-nums">
                                 ฿{grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                         </div>
@@ -903,12 +903,12 @@ export default function CheckoutForm({
                         {/* ออกใบเสร็จย้อนหลัง (เฉพาะ owner/admin) */}
                         {canBackdate && (
                             <div className="pt-3 border-t border-slate-200/60 space-y-1.5">
-                                <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                                     วันที่บนใบเสร็จ (ออกย้อนหลัง)
-                                    {billDate && billDate !== todayStr && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ย้อนหลัง</span>}
+                                    {billDate && billDate !== todayStr && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">ย้อนหลัง</span>}
                                 </Label>
                                 <Input type="date" value={billDate} max={todayStr} onChange={e => setBillDate(e.target.value)} className="h-9" />
-                                <p className="text-[10px] text-slate-400">
+                                <p className="text-xs text-slate-500">
                                     ว่าง = วันนี้ · การเงิน/ปิดยอด/สต๊อก ยังนับที่<b>วันนี้</b>เสมอ (แค่วันที่บนกระดาษย้อนหลัง) · บันทึก audit ทุกครั้ง
                                 </p>
                             </div>
@@ -916,7 +916,7 @@ export default function CheckoutForm({
 
                         {/* Payment method */}
                         <div className="pt-3 border-t border-slate-200/60 space-y-2">
-                            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">ช่องทางชำระ</Label>
+                            <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">ช่องทางชำระ</Label>
                             <div className="grid grid-cols-3 gap-2">
                                 {([
                                     { v: "cash" as const, l: "เงินสด", icon: Banknote, color: "emerald" },
@@ -930,7 +930,7 @@ export default function CheckoutForm({
                                             key={opt.v}
                                             type="button"
                                             onClick={() => { setPaymentMethod(opt.v); setAmountReceived(grandTotal.toString()); }}
-                                            className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all text-xs font-bold ${
+                                            className={`h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all text-xs font-semibold ${
                                                 active
                                                     ? opt.color === "emerald" ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/30"
                                                     : opt.color === "sky" ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/30"
@@ -959,22 +959,22 @@ export default function CheckoutForm({
                         <div className="pt-3 border-t border-slate-200/60 space-y-2">
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-600">รับเงินมา</Label>
+                                    <Label className="text-xs font-semibold text-slate-600">รับเงินมา</Label>
                                     <div className="relative">
                                         <Input
                                             type="number"
                                             value={amountReceived}
                                             onChange={(e) => { receivedTouchedRef.current = true; setAmountReceived(e.target.value); }}
-                                            className="pl-7 text-base font-bold h-11 rounded-xl tabular-nums"
+                                            className="pl-7 text-base font-semibold h-11 rounded-xl tabular-nums"
                                         />
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">฿</span>
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">฿</span>
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-slate-600">
+                                    <Label className="text-xs font-semibold text-slate-600">
                                         {isDeposit ? "ค้างชำระ" : "เงินทอน"}
                                     </Label>
-                                    <div className={`h-11 rounded-xl border px-3 flex items-center justify-end text-base font-bold tabular-nums ${
+                                    <div className={`h-11 rounded-xl border px-3 flex items-center justify-end text-base font-semibold tabular-nums ${
                                         isDeposit
                                             ? "bg-amber-50 border-amber-300 text-amber-800"
                                             : change > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-800"
@@ -986,15 +986,15 @@ export default function CheckoutForm({
 
                             {/* Quick deposit presets */}
                             <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                <span className="text-[11px] text-slate-500 font-medium">ลัด:</span>
+                                <span className="text-xs text-slate-500 font-medium">ลัด:</span>
                                 <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived(grandTotal.toString()); }}
-                                    className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium">เต็มจำนวน</button>
+                                    className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium">เต็มจำนวน</button>
                                 <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived((grandTotal * 0.5).toString()); }}
-                                    className="text-[11px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 50%</button>
+                                    className="text-xs px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 50%</button>
                                 <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived((grandTotal * 0.3).toString()); }}
-                                    className="text-[11px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 30%</button>
+                                    className="text-xs px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">มัดจำ 30%</button>
                                 <button type="button" onClick={() => { receivedTouchedRef.current = true; setAmountReceived("0"); }}
-                                    className="text-[11px] px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 hover:bg-rose-200 font-medium">ค้างทั้งหมด</button>
+                                    className="text-xs px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 hover:bg-rose-200 font-medium">ค้างทั้งหมด</button>
                             </div>
 
                             {isDeposit && (
@@ -1012,7 +1012,7 @@ export default function CheckoutForm({
 
                         {/* Action */}
                         <Button
-                            className="w-full h-12 rounded-xl text-base font-bold gap-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white shadow-lg shadow-blue-500/25"
+                            className="w-full min-h-12 h-auto py-3 whitespace-normal leading-relaxed rounded-xl text-base font-semibold gap-2 bg-blue-700 hover:bg-blue-800 text-white shadow-lg shadow-blue-500/25"
                             onClick={handleComplete}
                             disabled={loading || saved || !isReadyToComplete || !isPaymentValid || items.length === 0}
                         >
@@ -1022,9 +1022,9 @@ export default function CheckoutForm({
                             {saved ? "สำเร็จ!" :
                                 items.length === 0 ? "ไม่มีรายการ" :
                                 !isPaymentValid ? "ยอดเงินไม่พอ" :
-                                    "พิมพ์ใบเสร็จรับเงิน & เสร็จสิ้น"}
+                                    "รับเงินและออกใบเสร็จ"}
                         </Button>
-                        <p className="text-center text-[11px] text-slate-400">
+                        <p className="text-center text-xs text-slate-500">
                             ระบบจะอัปเดตสถานะเป็น &quot;เสร็จสิ้น&quot; + ตัดสต๊อกยา + บันทึกใบเสร็จรับเงิน + payment log
                         </p>
                     </div>
@@ -1037,7 +1037,7 @@ export default function CheckoutForm({
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                         <div className="flex items-center justify-between p-5 border-b border-slate-100">
                             <div>
-                                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                <h2 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
                                     <Pill className="h-5 w-5 text-amber-600" />
                                     เพิ่มยา / เวชภัณฑ์
                                 </h2>
@@ -1060,7 +1060,7 @@ export default function CheckoutForm({
                         <div className="flex-1 overflow-y-auto p-3">
                             {inventoryDrugs.length === 0 ? (
                                 <div className="p-8 text-center text-slate-500 text-sm">
-                                    ไม่มียาในคลัง — <Link href="/dashboard/inventory/new" className="text-blue-600 font-bold underline">เพิ่มยา</Link>
+                                    ไม่มียาในคลัง — <Link href="/dashboard/inventory/new" className="text-blue-600 font-semibold underline">เพิ่มยา</Link>
                                 </div>
                             ) : (() => {
                                 const q = drugSearch.toLowerCase().trim();
@@ -1084,19 +1084,19 @@ export default function CheckoutForm({
                                             >
                                                                 <div className="flex items-center gap-1.5 mb-1">
                                                     {d.category === "supply" ? (
-                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-bold uppercase">เวชภัณฑ์</span>
+                                                        <span className="text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold uppercase">เวชภัณฑ์</span>
                                                     ) : (
-                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold uppercase">ยา</span>
+                                                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold uppercase">ยา</span>
                                                     )}
                                                 </div>
-                                                <div className="font-bold text-slate-800 text-sm">
+                                                <div className="font-semibold text-slate-800 text-sm">
                                                     {d.item_name}
                                                     {d.strength && <span className="text-slate-500 font-normal ml-1">{d.strength}</span>}
                                                 </div>
-                                                {d.generic_name && <div className="text-[11px] text-slate-500">{d.generic_name}</div>}
+                                                {d.generic_name && <div className="text-xs text-slate-500">{d.generic_name}</div>}
                                                 <div className="flex items-center justify-between mt-1.5 text-xs">
-                                                    <span className="text-slate-500">คงเหลือ <span className={`font-bold ${d.stock_qty > 0 ? "text-slate-700" : "text-red-600"}`}>{d.stock_qty}</span> {d.unit}</span>
-                                                    <span className="font-bold text-amber-700 tabular-nums">฿{Number(d.sell_price).toLocaleString()}</span>
+                                                    <span className="text-slate-500">คงเหลือ <span className={`font-semibold ${d.stock_qty > 0 ? "text-slate-700" : "text-red-600"}`}>{d.stock_qty}</span> {d.unit}</span>
+                                                    <span className="font-semibold text-amber-700 tabular-nums">฿{Number(d.sell_price).toLocaleString()}</span>
                                                 </div>
                                             </button>
                                         ))}
@@ -1114,7 +1114,7 @@ export default function CheckoutForm({
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                         <div className="flex items-center justify-between p-5 border-b border-slate-100">
                             <div>
-                                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                <h2 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
                                     <Sparkles className="h-5 w-5 text-rose-500" />
                                     เลือกคอสบริการ
                                 </h2>
@@ -1127,7 +1127,7 @@ export default function CheckoutForm({
                         <div className="flex-1 overflow-y-auto p-5">
                             {packages.length === 0 ? (
                                 <div className="p-8 text-center text-slate-500 text-sm">
-                                    ไม่มีคอสในระบบ — <Link href="/dashboard/inventory/packages" className="text-blue-600 font-bold underline">เพิ่มคอสใหม่</Link>
+                                    ไม่มีคอสในระบบ — <Link href="/dashboard/inventory/packages" className="text-blue-600 font-semibold underline">เพิ่มคอสใหม่</Link>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1139,15 +1139,15 @@ export default function CheckoutForm({
                                             className="text-left p-3 rounded-xl border-2 border-slate-200 hover:border-rose-400 hover:bg-rose-50/30 transition-all"
                                         >
                                             <div className="flex items-center gap-1.5 mb-1">
-                                                <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{p.code}</span>
+                                                <span className="font-mono text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{p.code}</span>
                                                 {p.category && (
-                                                    <Badge className="border-0 bg-rose-100 text-rose-700 text-[10px] font-bold uppercase">{p.category}</Badge>
+                                                    <Badge className="border-0 bg-rose-100 text-rose-700 text-xs font-semibold uppercase">{p.category}</Badge>
                                                 )}
                                             </div>
-                                            <div className="font-bold text-slate-800 text-sm line-clamp-1">{p.name}</div>
+                                            <div className="font-semibold text-slate-800 text-sm line-clamp-1">{p.name}</div>
                                             <div className="flex items-center justify-between mt-1 text-xs">
                                                 <span className="text-slate-500">{p.total_sessions} ครั้ง · {p.validity_days}d</span>
-                                                <span className="font-bold text-blue-700 tabular-nums">฿{Number(p.price).toLocaleString()}</span>
+                                                <span className="font-semibold text-blue-700 tabular-nums">฿{Number(p.price).toLocaleString()}</span>
                                             </div>
                                         </button>
                                     ))}
