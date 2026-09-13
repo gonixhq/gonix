@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import PrintTrigger from "@/app/print/visits/[vn]/print-trigger";
 import type { Metadata } from "next";
+import { parseLabelSelection } from "@/lib/drug-label-selection";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ function pickInv(d: any) {
     return Array.isArray(d.inventory) ? d.inventory[0] : d.inventory;
 }
 
-export default async function DrugLabelsPrintPage({ params }: { params: Promise<{ vn: string }> }) {
+export default async function DrugLabelsPrintPage({ params, searchParams }: { params: Promise<{ vn: string }>; searchParams: Promise<{ items?: string | string[] }> }) {
     await gatePermission("pharmacy.view");
     const { vn } = await params;
     const supabase = await createClient();
@@ -68,13 +69,41 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
 
     if (!visit) return <div className="p-10 text-center text-slate-500">ไม่พบ Visit นี้</div>;
 
-    const { data: drugOrders } = await supabase
+    const { data: drugOrders, error: ordersError } = await supabase
         .from("drug_orders")
         .select(`id, item_id, qty, unit, sig_text, inventory!inner ( item_name, generic_name, strength, indication, warning_label, label_type, expiry_date )`)
         .eq("vn", vn)
         .order("id");
 
-    const drugs = drugOrders || [];
+    if (ordersError) return <div className="p-10">โหลดรายการยาไม่สำเร็จ กรุณาลองใหม่</div>;
+    // A checkout print uses the exact current bill selection, without saving or charging it.
+    let drugs = drugOrders || [];
+    const query = await searchParams;
+    if (query.items !== undefined) {
+        try {
+            if (typeof query.items !== "string") throw new Error("รายการฉลากไม่ถูกต้อง");
+            const selection = parseLabelSelection(query.items);
+            const inventoryIds = selection.filter(s => s.source === "inventory").map(s => s.id);
+            const { data: inventory, error } = inventoryIds.length ? await supabase.from("inventory")
+                .select("id, unit, item_name, generic_name, strength, indication, warning_label, label_type, expiry_date")
+                .eq("clinic_id", visit.clinic_id).eq("category", "drug").in("id", inventoryIds)
+                : { data: [], error: null };
+            if (error) throw new Error("โหลดข้อมูลฉลากไม่สำเร็จ กรุณาลองใหม่");
+            drugs = selection.map((selected, index) => {
+                if (selected.source === "order") {
+                    const order = drugOrders?.find(d => d.id === selected.id);
+                    if (!order) throw new Error("ไม่พบรายการยาของ Visit นี้ กรุณากลับไปตรวจสอบรายการ");
+                    return { ...order, id: `${order.id}-${index}`, qty: selected.qty };
+                }
+                const item = inventory?.find(d => d.id === selected.id);
+                if (!item) throw new Error("ไม่พบยาในคลัง กรุณากลับไปตรวจสอบรายการ");
+                return { id: `inventory-${index}`, item_id: item.id, qty: selected.qty, unit: item.unit,
+                    sig_text: "", inventory: [item] };
+            });
+        } catch (error) {
+            return <div className="p-10 text-center">{error instanceof Error ? error.message : "โหลดรายการฉลากไม่สำเร็จ"}</div>;
+        }
+    }
 
     // วันหมดอายุ: อ่านจากล็อต (inventory_lots) ที่ยังมีของ เลือกวันใกล้สุด (FEFO)
     // แม่นกว่า inventory.expiry_date ที่ sync เฉพาะตอนตัดสต๊อก (รับล็อตเข้าไม่ได้ sync)
@@ -117,7 +146,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
         <>
             <div className="no-print mx-auto" style={{ maxWidth: "80mm" }}><PrintTrigger /></div>
 
-            <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000" }}>
+            <div style={{ fontFamily: "'Noto Sans Thai', sans-serif", color: "#000", lineHeight: 1.35 }}>
                 {drugs.map((d, i) => {
                     const inv = pickInv(d);
                     const name = inv?.item_name || "ยา";
@@ -141,17 +170,17 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={logoUrl} alt="" style={{ height: "11mm", width: "11mm", objectFit: "contain", flexShrink: 0 }} />
                                 <div style={{ minWidth: 0, lineHeight: 1.2 }}>
-                                    <div style={{ fontSize: "13px", fontWeight: 800 }}>{clinicName}</div>
-                                    {clinicAddr && <div style={{ fontSize: "8.5px", color: "#444" }}>{clinicAddr}</div>}
-                                    {phone && <div style={{ fontSize: "8.5px", color: "#444" }}>โทร {phone}</div>}
+                                    <div style={{ fontSize: "12px", fontWeight: 700, lineHeight: 1.3 }}>{clinicName}</div>
+                                    {clinicAddr && <div style={{ fontSize: "8.5px", color: "#333", lineHeight: 1.35 }}>{clinicAddr}</div>}
+                                    {phone && <div style={{ fontSize: "8.5px", color: "#333", lineHeight: 1.35 }}>โทร {phone}</div>}
                                 </div>
                             </div>
 
                             <div style={{ borderTop: "1.5px solid #000", margin: "2mm 0 1.5mm" }} />
 
                             {/* ── ผู้ป่วย ── */}
-                            <div style={{ fontSize: "12px" }}><span style={{ fontWeight: 700 }}>ชื่อ</span> {ptName}</div>
-                            <div style={{ fontSize: "11px", color: "#333", marginTop: "0.5mm" }}>
+                            <div style={{ fontSize: "11.5px", lineHeight: 1.4, overflowWrap: "anywhere" }}><span style={{ fontWeight: 700 }}>ชื่อ</span> {ptName}</div>
+                            <div style={{ fontSize: "9.5px", color: "#333", lineHeight: 1.35, marginTop: "0.5mm" }}>
                                 <span style={{ fontWeight: 700 }}>อายุ</span> {ptAge}
                                 <span style={{ margin: "0 5px", color: "#bbb" }}>·</span>
                                 <span style={{ fontWeight: 700 }}>HN</span> <span style={{ fontFamily: "monospace" }}>{visit.hn}</span>
@@ -161,7 +190,7 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
 
                             {/* ── ชื่อยา + เครื่องหมายยาอันตราย ── */}
                             <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap", marginTop: "1.5mm" }}>
-                                <span style={{ fontSize: "17px", fontWeight: 900, lineHeight: 1.05 }}>
+                                <span style={{ fontSize: "16px", fontWeight: 700, lineHeight: 1.25, overflowWrap: "anywhere" }}>
                                     {name}{showStrength ? ` ${strength}` : ""}
                                 </span>
                                 {dangerous && (
@@ -171,25 +200,25 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
                                 )}
                             </div>
                             {(generic || indication) && (
-                                <div style={{ fontSize: "12.5px", color: "#000", fontStyle: "italic", lineHeight: 1.2 }}>
+                                <div style={{ fontSize: "10px", color: "#333", fontStyle: "normal", lineHeight: 1.4, overflowWrap: "anywhere" }}>
                                     {generic}{generic && indication ? " · " : ""}{indication}
                                 </div>
                             )}
 
                             {/* ── วิธีใช้ (ข้อความจากระบบ) ── */}
-                            <div style={{ fontSize: "14px", marginTop: "2mm", lineHeight: 1.3 }}>
-                                <span style={{ fontWeight: 700, fontSize: "11px", color: "#444" }}>วิธีใช้ </span>
+                            <div style={{ fontSize: "12.5px", marginTop: "2mm", lineHeight: 1.45, overflowWrap: "anywhere" }}>
+                                <span style={{ fontWeight: 500, fontSize: "10px", color: "#333" }}>วิธีใช้ </span>
                                 <span style={{ fontWeight: 700 }}>{sig}</span>
                             </div>
 
                             {/* ── meta: วันหมดอายุ · ประเภท · จำนวน ── */}
-                            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", fontSize: "10.5px", color: "#333", marginTop: "auto", paddingTop: "1.5mm", borderTop: "1px dotted #bbb" }}>
+                            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", fontSize: "9px", lineHeight: 1.4, color: "#333", marginTop: "auto", paddingTop: "1.5mm", borderTop: "1px dotted #bbb" }}>
                                 {exp && <span><span style={{ fontWeight: 700 }}>วันหมดอายุ</span> {exp}</span>}
                                 {labelType && !dangerous && <span><span style={{ fontWeight: 700 }}>ประเภท</span> {labelType}</span>}
                                 <span style={{ marginLeft: "auto", fontWeight: 700 }}>จำนวน {Number(d.qty || 0)} {thUnit(d.unit)}</span>
                             </div>
                             {warning && (
-                                <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#c0161d", marginTop: "1mm" }}>
+                                <div style={{ fontSize: "10px", fontWeight: 700, lineHeight: 1.4, overflowWrap: "anywhere", color: "#c0161d", marginTop: "1mm" }}>
                                     <IcWarn /> คำเตือน: {warning}
                                 </div>
                             )}
