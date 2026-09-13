@@ -334,27 +334,33 @@ export default function FinanceClient({
                     </div>
                 </div>
 
-                <div className="px-5 py-3 space-y-3 border-b border-slate-100">
-                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20 shrink-0">สถานะ:</span>
-
-                        <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด</FilterChip>
-                        <FilterChip active={filter === "outstanding"} onClick={() => setFilter("outstanding")} color="amber">
-                            ค้างชำระ ({outstandingCount})
-                        </FilterChip>
-                        <FilterChip active={filter === "paid"} onClick={() => setFilter("paid")} color="emerald">ชำระแล้ว</FilterChip>
-                        <FilterChip active={filter === "voided"} onClick={() => setFilter("voided")}>ยกเลิก/คืน</FilterChip>
-</div><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20 shrink-0">ช่องทาง:</span>
-                        <FilterChip active={payFilter === "all"} onClick={() => setPayFilter("all")}>ทุกช่องทาง</FilterChip>
-                        <FilterChip active={payFilter === "cash"} onClick={() => setPayFilter("cash")} color="emerald">เงินสด</FilterChip>
-                        <FilterChip active={payFilter === "transfer"} onClick={() => setPayFilter("transfer")}>โอน/QR</FilterChip>
-                        <FilterChip active={payFilter === "credit"} onClick={() => setPayFilter("credit")}>บัตร</FilterChip>
-                    </div>
-                </div>
-                <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100 text-sm">
-                    <span className="text-sm text-slate-600 w-20 shrink-0">ประเภท:</span>
-                    <FilterChip active={source === "all"} onClick={() => setSource("all")}>ทั้งหมด</FilterChip>
-                    <FilterChip active={source === "normal"} onClick={() => setSource("normal")}>ทั่วไป</FilterChip>
-                    <FilterChip active={source === "anon"} onClick={() => setSource("anon")}>นิรนาม</FilterChip>
+                <div className="px-5 py-3 flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-slate-100 text-sm">
+                    <label className="flex items-center gap-2 text-slate-600">
+                        สถานะ:
+                        <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทั้งหมด</option>
+                            <option value="outstanding">ค้างชำระ ({outstandingCount})</option>
+                            <option value="paid">ชำระแล้ว</option>
+                            <option value="voided">ยกเลิก/คืน</option>
+                        </select>
+                    </label>
+                    <label className="flex items-center gap-2 text-slate-600">
+                        ช่องทาง:
+                        <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทุกช่องทาง</option>
+                            <option value="cash">เงินสด</option>
+                            <option value="transfer">โอน/QR</option>
+                            <option value="credit">บัตร</option>
+                        </select>
+                    </label>
+                    <label className="flex items-center gap-2 text-slate-600">
+                        ประเภท:
+                        <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทั้งหมด</option>
+                            <option value="normal">ทั่วไป</option>
+                            <option value="anon">นิรนาม</option>
+                        </select>
+                    </label>
                     <span className="text-slate-500 ml-auto">{rangeCount} รายการในช่วงที่เลือก</span>
                 </div>
                 {filteredInvoices.length === 0 ? (
@@ -697,29 +703,5 @@ export default function FinanceClient({
                 </div>
             )}
         </div>
-    );
-}
-
-/** กราฟแท่งรายรับรายวัน — SVG ล้วน ไม่ต้องพึ่ง chart library */
-function FilterChip({
-    active, onClick, children,
-}: {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-    color?: "slate" | "amber" | "emerald";
-}) {
-    const activeStyles = "bg-blue-700 text-white";
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
-            className={`px-3 h-9 rounded-xl text-sm font-medium transition-all ${
-                active ? activeStyles : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-        >
-            {children}
-        </button>
     );
 }
