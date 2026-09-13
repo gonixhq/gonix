@@ -45,6 +45,8 @@ interface Invoice {
     patients: Patient | Patient[];
     is_anon?: boolean;
     route?: string;
+    received_original?: number;
+    refunded_amount?: number;
     pay_methods?: string[];   // cash / transfer / credit (จาก payment_logs)
 }
 
@@ -144,12 +146,12 @@ export default function FinanceClient({
         };
         const lines: string[] = [];
         lines.push("รายการใบเสร็จตามตัวกรอง (ยอดชำระสะสม ไม่ใช่ยอดรับเงินรายวัน)");
-        lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "ชำระแล้ว", "คงเหลือ", "สถานะ"].map(cell).join(","));
+        lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "รับเดิมสะสม", "คืนแล้วตามรายการ", "คงเหลือ", "สถานะ"].map(cell).join(","));
         for (const inv of filteredInvoices) {
             const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
             const name = inv.is_anon ? "นิรนาม" : `${pt?.prefix || ""}${pt?.first_name || ""} ${pt?.last_name || ""}`.trim();
             lines.push([inv.id, inv.invoice_date, name, inv.is_anon ? "นิรนาม" : "ปกติ",
-                Number(inv.total_amount || 0), Number(inv.paid_amount || 0), Number(inv.balance_due || 0),
+                Number(inv.total_amount || 0), Number(inv.received_original ?? inv.paid_amount ?? 0), Number(inv.refunded_amount || 0), Number(inv.balance_due || 0),
                 statusLabel[inv.status] || inv.status].map(cell).join(","));
         }
         lines.push("");
@@ -329,21 +331,25 @@ export default function FinanceClient({
                         <Button onClick={exportCSV} variant="outline" size="sm" className="rounded-lg h-7 text-xs gap-1 border-slate-300 text-slate-600 hover:bg-slate-50">
                             <Download className="h-3.5 w-3.5" /> ส่งออก CSV
                         </Button>
-                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
+                    </div>
+                </div>
+
+                <div className="px-5 py-3 space-y-3 border-b border-slate-100">
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20">สถานะ:</span>
+
                         <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด</FilterChip>
                         <FilterChip active={filter === "outstanding"} onClick={() => setFilter("outstanding")} color="amber">
                             ค้างชำระ ({outstandingCount})
                         </FilterChip>
                         <FilterChip active={filter === "paid"} onClick={() => setFilter("paid")} color="emerald">ชำระแล้ว</FilterChip>
                         <FilterChip active={filter === "voided"} onClick={() => setFilter("voided")}>ยกเลิก/คืน</FilterChip>
-                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
+</div><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20">ช่องทาง:</span>
                         <FilterChip active={payFilter === "all"} onClick={() => setPayFilter("all")}>ทุกช่องทาง</FilterChip>
                         <FilterChip active={payFilter === "cash"} onClick={() => setPayFilter("cash")} color="emerald">เงินสด</FilterChip>
                         <FilterChip active={payFilter === "transfer"} onClick={() => setPayFilter("transfer")}>โอน/QR</FilterChip>
                         <FilterChip active={payFilter === "credit"} onClick={() => setPayFilter("credit")}>บัตร</FilterChip>
                     </div>
                 </div>
-
                 <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100 text-sm">
                     <span className="text-slate-600">ประเภท:</span>
                     <FilterChip active={source === "all"} onClick={() => setSource("all")}>ทั้งหมด</FilterChip>
@@ -390,7 +396,7 @@ export default function FinanceClient({
                                             onClick={() => window.location.href = inv.route || `/dashboard/finance/${inv.id}`}
                                         >
                                             <td className="px-4 py-3">
-                                                <span className={`font-mono text-[11px] font-bold px-2 py-1 rounded ${inv.is_anon ? "text-[#2B54F0] bg-[#2B54F0]/10" : "text-slate-600 bg-slate-100"}`}>
+                                                <span className={`font-mono text-sm font-medium px-2 py-1 rounded ${inv.is_anon ? "text-[#2B54F0] bg-[#2B54F0]/10" : "text-slate-600 bg-slate-100"}`}>
                                                     {inv.id}
                                                 </span>
                                             </td>
@@ -399,7 +405,7 @@ export default function FinanceClient({
                                                     {pt?.prefix}{pt?.first_name} {pt?.last_name}
                                                     {inv.is_anon && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700">นิรนาม</span>}
                                                 </div>
-                                                <div className="text-[11px] font-mono text-slate-500">{inv.is_anon ? "คลินิกนิรนาม" : `HN: ${inv.hn}`}</div>
+                                                <div className="text-sm font-mono text-slate-700">{inv.is_anon ? "คลินิกนิรนาม" : `HN: ${inv.hn}`}</div>
                                             </td>
                                             <td className="px-4 py-3 hidden md:table-cell">
                                                 <span className="font-mono text-sm text-slate-600">{inv.vn}</span>
@@ -415,7 +421,15 @@ export default function FinanceClient({
                                                     ฿{Number(inv.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right tabular-nums text-slate-700">฿{Number(inv.paid_amount || 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
+                                            <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                                                {inv.status === "refunded" || Number(inv.refunded_amount) > 0 ? <div className="space-y-1 whitespace-nowrap text-sm">
+                                                    <div>รับเดิม ฿{Number(inv.received_original ?? inv.paid_amount ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                    {Number(inv.refunded_amount) > 0 ? <>
+                                                        <div className="text-rose-700">คืนแล้ว ฿{Number(inv.refunded_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                        <div className="font-medium">สุทธิ ฿{((Math.round(Number(inv.received_original ?? inv.paid_amount ?? 0) * 100) - Math.round(Number(inv.refunded_amount) * 100)) / 100).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                    </> : <div className="text-amber-700">ไม่พบรายการยอดคืน</div>}
+                                                </div> : <>฿{Number(inv.paid_amount || 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</>}
+                                            </td>
                                             <td className="px-4 py-3 text-right">
                                                 <span className={`font-bold tabular-nums ${balance > 0 ? "text-amber-700" : "text-slate-300"}`}>
                                                     ฿{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}

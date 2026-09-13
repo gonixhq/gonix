@@ -120,12 +120,18 @@ export default async function FinancePage({
 
     // ── ช่องทางชำระของแต่ละบิล (ใช้กรองในตาราง) ──
     const invIds = (invoices || []).map((i) => i.id as string);
+    const receiptsByInv = new Map<string, { received: number; refunded: number }>();
     const methodByInv = new Map<string, string[]>();
     for (let chunk = 0; chunk < invIds.length; chunk += 100) {
         const invPays = await readAll((start, end) => supabase
             .from("payment_logs").select("inv_id, payment_method, amount")
             .eq("clinic_id", clinicId).in("inv_id", invIds.slice(chunk, chunk + 100)).order("id").range(start, end));
         for (const p of invPays || []) {
+            const totals = receiptsByInv.get(p.inv_id) || { received: 0, refunded: 0 };
+            const cents = Math.round(Number(p.amount || 0) * 100);
+            if (cents > 0) totals.received += cents;
+            if (cents < 0) totals.refunded -= cents;
+            receiptsByInv.set(p.inv_id, totals);
             if (Number(p.amount || 0) <= 0) continue;   // ข้ามรายการคืนเงิน (ยอดติดลบ)
             const m = p.payment_method as string;
             const k = m === "cash" ? "cash" : (m === "transfer" || m === "qr_promptpay") ? "transfer" : m === "credit_card" ? "credit" : "transfer";
@@ -137,7 +143,7 @@ export default async function FinancePage({
 
     // ── รวมเคสนิรนามเข้ารายการ ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const normalRows = (invoices || []).map((i: any) => ({ ...i, _ts: i.created_at as string, pay_methods: methodByInv.get(i.id) || [] }));
+    const normalRows = (invoices || []).map((i: any) => ({ ...i, received_original: receiptsByInv.has(i.id) ? receiptsByInv.get(i.id)!.received / 100 : Number(i.paid_amount || 0), refunded_amount: (receiptsByInv.get(i.id)?.refunded || 0) / 100, _ts: i.created_at as string, pay_methods: methodByInv.get(i.id) || [] }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anonRows = (anonPaid || []).map((a: any) => ({
         id: (a.receipt_no || a.verify_code || a.case_code || String(a.id).slice(0, 8)) as string,
