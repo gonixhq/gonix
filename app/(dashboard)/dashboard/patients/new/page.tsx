@@ -12,8 +12,9 @@ import {
     ArrowLeft, Save, Loader2, CheckCircle, AlertTriangle,
     User, Phone, Heart, Camera, MapPin, Undo2, Search, X, ShieldCheck, CreditCard, UserCheck
 } from "lucide-react";
-import { HorizontalForm, Section, FieldRow, SubHeader, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
+import { HorizontalForm, Section, FieldRow, FORM_INPUT_CLS, FORM_SELECT_CLS } from "./registration-form";
 import { PDPAModal } from "@/components/ui/pdpa-modal";
+import styles from "../../visits/[vn]/visit-workspace.module.css";
 import PreRegisterPicker, { type PendingFull } from "./pre-register-picker";
 import { markPendingAsUsed, countPendingRegistrations } from "@/lib/actions/pending-registrations";
 import { lookupAffiliateByCode } from "@/lib/actions/affiliates";
@@ -366,7 +367,7 @@ export default function NewPatientPage() {
     }
 
     return (
-        <div className="space-y-4 animate-fade-in pb-24 max-w-6xl mx-auto">
+        <div className={`${styles.workspace} space-y-5 animate-fade-in max-w-6xl mx-auto p-3 sm:p-6 pb-8`}>
             <PDPAModal open={showPDPA} onClose={() => setShowPDPA(false)} clinicName={clinicName} />
             <PreRegisterPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handlePickPreReg} />
 
@@ -375,13 +376,13 @@ export default function NewPatientPage() {
                     <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
                     <div>
                         <p className="font-semibold text-orange-800">บัญชีนี้ยังไม่ได้เชื่อมกับคลินิก</p>
-                        <p className="text-sm text-orange-700 mt-1">กรุณา Run ไฟล์ <code className="font-mono bg-orange-100 px-1 rounded">007_fix_missing_clinic_id.sql</code></p>
+                        <p className="text-sm text-orange-700 mt-1">กรุณาติดต่อผู้ดูแลระบบเพื่อเชื่อมบัญชีกับคลินิกก่อนลงทะเบียน</p>
                     </div>
                 </div>
             )}
 
             {/* Sub-header */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl p-4 sm:p-5 shadow-sm">
                 <div className="flex items-center gap-2">
                     <Link href="/dashboard/patients">
                         <Button variant="ghost" size="sm" className="rounded-xl gap-1.5 h-9 text-slate-600 hover:text-slate-800">
@@ -389,7 +390,7 @@ export default function NewPatientPage() {
                         </Button>
                     </Link>
                     <span className="text-slate-300">·</span>
-                    <span className="text-[15px] font-medium text-slate-500">กรอกข้อมูลผู้ป่วยใหม่ — HN สร้างอัตโนมัติ</span>
+                    <div><h1 className="text-xl font-semibold text-slate-800">เพิ่มผู้ป่วยใหม่</h1><p className="text-sm text-slate-600 mt-1">กรอกข้อมูลเพื่อลงทะเบียนผู้ป่วย</p></div>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" size="sm"
@@ -398,7 +399,7 @@ export default function NewPatientPage() {
                     >
                         <UserCheck className="h-3.5 w-3.5" /> ดึงข้อมูลล่วงหน้า
                         {pendingCount > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                            <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 rounded-full bg-red-600 text-white text-xs font-semibold flex items-center justify-center ring-2 ring-white">
                                 {pendingCount}
                             </span>
                         )}
@@ -436,33 +437,33 @@ export default function NewPatientPage() {
 
             <form onSubmit={handleSubmit} key={formKey}>
                 {/* ── ID Card Preview (รูปถ่าย + HN + วันที่ลงทะเบียน) ── */}
-                <div className="rounded-2xl border border-[#2B54F0]/15 bg-gradient-to-br from-[#2B54F0]/5 via-white to-[#00A6C0]/5 shadow-sm p-4 mb-4 flex items-center gap-5">
+                <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4 sm:p-5 mb-5 flex flex-wrap items-center gap-4">
                     <label className="cursor-pointer shrink-0">
                         {photoPreview ? (
                             <img
                                 src={photoPreview}
-                                alt="Patient"
+                                alt="รูปผู้ป่วย"
                                 className="h-24 w-24 rounded-2xl object-cover border-2 border-[#2B54F0]/25 shadow-md hover:opacity-90 transition-opacity"
                             />
                         ) : (
                             <div className="h-24 w-24 rounded-2xl border-2 border-dashed border-[#2B54F0]/30 bg-white flex flex-col items-center justify-center hover:bg-[#2B54F0]/5 transition-colors">
                                 <Camera className="h-7 w-7 text-[#2B54F0]/60" />
-                                <span className="text-[10px] text-[#2B54F0] mt-0.5 font-medium">เพิ่มรูป</span>
+                                <span className="text-xs text-[#2B54F0] mt-0.5 font-medium">เพิ่มรูป</span>
                             </div>
                         )}
                         <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
                     </label>
 
                     <div className="flex-1">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2B54F0]/70">Hospital Number</div>
-                        <div className="font-mono font-black text-2xl text-[#2B54F0] leading-tight mt-0.5">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-[#2B54F0]/70">Hospital Number</div>
+                        <div className="font-mono font-semibold text-2xl text-[#2B54F0] leading-tight mt-0.5">
                             {previewHN || <Loader2 className="h-5 w-5 animate-spin text-[#2B54F0]/50" />}
                         </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">วันที่ลงทะเบียน</div>
-                        <div className="font-bold text-base text-slate-700 mt-0.5">
+                    <div className="text-left sm:text-right shrink-0">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">วันที่ลงทะเบียน</div>
+                        <div className="font-semibold text-base text-slate-700 mt-0.5">
                             {new Date().toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}
                         </div>
                     </div>
@@ -470,7 +471,7 @@ export default function NewPatientPage() {
 
                 <HorizontalForm>
                     {/* ── ข้อมูลทั่วไป ── */}
-                    <Section title="ข้อมูลทั่วไป (Identity)" icon={User} color="teal">
+                    <Section title="ข้อมูลทั่วไป" icon={User} color="teal">
                         <FieldRow label="เพศ" required>
                             <select name="gender" defaultValue={pulledData?.gender || ""} className={FORM_SELECT_CLS}>
                                 <option value="">—</option>
@@ -595,7 +596,7 @@ export default function NewPatientPage() {
                     </Section>
 
                     {/* ── ที่อยู่ & ติดต่อ ── */}
-                    <Section title="ที่อยู่ และการติดต่อ" icon={MapPin} color="amber">
+                    <Section title="ที่อยู่ และการติดต่อ" icon={MapPin} color="teal">
                         <FieldRow label="เบอร์โทรศัพท์" required>
                             <Input name="phone" type="tel" defaultValue={pulledData?.phone || ""} placeholder="08X-XXX-XXXX" className={FORM_INPUT_CLS} />
                         </FieldRow>
@@ -617,7 +618,7 @@ export default function NewPatientPage() {
 
                         <FieldRow label="ค้นหาตำบล" colSpan={2} align="start" hint="พิมพ์ชื่อตำบล หรือรหัสไปรษณีย์">
                             <div className="relative">
-                                <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                                <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-500 pointer-events-none" />
                                 <Input
                                     value={tambonQuery}
                                     onChange={(e) => searchTambon(e.target.value)}
@@ -652,7 +653,7 @@ export default function NewPatientPage() {
                     </Section>
 
                     {/* ── ผู้ติดต่อฉุกเฉิน ── */}
-                    <Section title="ผู้ติดต่อฉุกเฉิน" icon={Phone} color="emerald">
+                    <Section title="ผู้ติดต่อฉุกเฉิน" icon={Phone} color="teal">
                         <FieldRow label="ชื่อผู้ติดต่อ" colSpan={2}>
                             <Input name="emergency_contact_name" defaultValue={pulledData?.emergency_contact_name || ""} placeholder="ชื่อ-สกุล" className={FORM_INPUT_CLS} />
                         </FieldRow>
@@ -665,7 +666,7 @@ export default function NewPatientPage() {
                     </Section>
 
                     {/* ── ข้อมูลทางการแพทย์ ── */}
-                    <Section title="ข้อมูลทางการแพทย์" icon={Heart} color="rose">
+                    <Section title="ข้อมูลทางการแพทย์" icon={Heart} color="teal">
                         <FieldRow label="ประวัติแพ้ยา" colSpan={2} align="start">
                             <textarea
                                 name="allergy_summary"
@@ -692,6 +693,9 @@ export default function NewPatientPage() {
                                 placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา (ถ้ามี)"
                             />
                         </FieldRow>
+                    </Section>
+
+                    <Section title="ข้อมูลการแนะนำ" icon={UserCheck} color="teal">
                         <FieldRow label="รหัสแนะนำ (เซลล์/Affiliate)">
                             <Input name="affiliate_code" placeholder="ถ้ามีเซลล์แนะนำมา ใส่รหัส" className={`${FORM_INPUT_CLS} font-mono uppercase`} />
                         </FieldRow>
@@ -701,7 +705,7 @@ export default function NewPatientPage() {
                     </Section>
 
                     {/* ── PDPA + Registrar ── */}
-                    <Section title="ความยินยอม (PDPA)" icon={ShieldCheck} color="sky">
+                    <Section title="ความยินยอม (PDPA)" icon={ShieldCheck} color="teal">
                         <div className="col-span-full space-y-3 px-2">
                             <label className="flex items-start gap-3 cursor-pointer">
                                 <input type="checkbox" name="pdpa_consent" defaultChecked={pulledData?.pdpa_consent === true} className="h-5 w-5 mt-0.5 rounded accent-blue-600" />
@@ -725,12 +729,12 @@ export default function NewPatientPage() {
                     </Section>
                 </HorizontalForm>
 
-                {/* Sticky Submit Bar */}
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur-md border-t-2 border-slate-200 flex justify-end gap-3 z-50 px-6 sm:pl-72 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.15)]">
+                {/* ปุ่มบันทึกท้ายแบบฟอร์ม */}
+                <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-white/90 backdrop-blur-xl border border-white shadow-sm flex flex-wrap justify-end gap-3">
                     <Link href="/dashboard/patients">
-                        <Button variant="outline" type="button" className="rounded-xl px-7 h-12 text-[16px] font-bold border-2">ยกเลิก</Button>
+                        <Button variant="outline" type="button" className="rounded-xl px-5 h-11 text-sm font-semibold">ยกเลิก</Button>
                     </Link>
-                    <Button type="submit" disabled={loading} className="rounded-xl px-9 h-12 text-[16px] font-bold bg-gradient-to-r from-[#2B54F0] to-[#00A6C0] hover:opacity-90 shadow-lg shadow-[#2B54F0]/25 text-white gap-2">
+                    <Button type="submit" disabled={loading} className="rounded-xl px-6 h-11 text-sm font-semibold bg-blue-700 hover:bg-blue-800 shadow-sm text-white gap-2">
                         {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
                         {loading ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
                     </Button>
