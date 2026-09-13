@@ -90,24 +90,24 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
 
     return (
         <>
-            <div className="gonix-card-premium p-4 hover:border-blue-300 hover:shadow-md transition-all group">
-                <div className="flex items-center gap-4">
+            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+                <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
                     {/* Queue number */}
-                    <Link href={`/dashboard/screening/${visit.vn}`} className="flex flex-col items-center justify-center h-14 w-14 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-md shadow-blue-500/20 ring-1 ring-white/30 shrink-0 text-white">
-                        <div className="text-[9px] uppercase tracking-wider font-bold opacity-80">คิว</div>
-                        <div className="text-xl font-black leading-none">{queueNumber}</div>
+                    <Link href={`/dashboard/screening/${visit.vn}`} className="flex flex-col items-center justify-center h-14 w-14 rounded-xl bg-slate-800 shadow-sm ring-1 ring-white/30 shrink-0 text-white">
+                        <div className="text-xs uppercase tracking-wider font-semibold opacity-80">คิว</div>
+                        <div className="text-xl font-semibold leading-none">{queueNumber}</div>
                     </Link>
 
                     {/* Patient info — clickable */}
                     <Link href={`/dashboard/screening/${visit.vn}`} className="flex-1 min-w-0 block">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-base font-bold text-slate-800 group-hover:text-blue-900 transition-colors">
+                            <span className="text-base font-semibold text-slate-800 group-hover:text-blue-900 transition-colors">
                                 {pt?.prefix} {pt?.first_name} {pt?.last_name}
                             </span>
-                            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                            <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
                                 {visit.hn}
                             </span>
-                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${triageColor[triage]}`}>
+                            <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${triageColor[triage]}`}>
                                 {triageLabel[triage]}
                             </span>
                         </div>
@@ -123,13 +123,13 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                                     </span>
                                 </>
                             )}
-                            {pt?.allergy_summary && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-[10px] font-bold">
+                            {pt?.allergy_summary && !/^[-–—\s]*$/.test(pt.allergy_summary) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-100 text-red-800 text-xs font-semibold">
                                     <AlertTriangle className="h-2.5 w-2.5" /> แพ้: {pt.allergy_summary}
                                 </span>
                             )}
-                            {pt?.disease_summary && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                            {pt?.disease_summary && !/^[-–—\s]*$/.test(pt.disease_summary) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-semibold">
                                     <HeartPulse className="h-2.5 w-2.5" /> โรคประจำตัว: {pt.disease_summary}
                                 </span>
                             )}
@@ -137,30 +137,31 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                     </Link>
 
                     {/* Service + time */}
-                    <div className="text-right shrink-0 hidden sm:block">
+                    <div className="text-left sm:text-right min-w-0 w-full sm:w-auto sm:ml-auto">
                         <div className="text-sm font-semibold text-slate-700">
                             {SERVICE_LABEL[cat] || cat}
                         </div>
-                        <div className="text-[11px] text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+                        <div className="text-xs text-slate-500 flex items-center sm:justify-end gap-1 mt-0.5">
                             <Clock className="h-3 w-3" />
                             {visit.visit_time?.slice(0, 5) || "—"} · รอ {timeAgo(visit.created_at)}
                         </div>
                     </div>
 
                     {/* CTAs */}
-                    <div className="shrink-0 flex items-center gap-1.5">
+                    <div className="shrink-0 flex items-center gap-2 ml-auto">
                         <button
                             type="button"
                             onClick={() => setShowCancelConfirm(true)}
                             disabled={pending}
                             title="ยกเลิกคิว"
-                            className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                            aria-label="ยกเลิกคิว"
+                            className="inline-flex items-center justify-center h-11 w-11 rounded-xl border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
                         >
                             <Trash2 className="h-4 w-4" />
                         </button>
                         <Link
                             href={`/dashboard/screening/${visit.vn}`}
-                            className="inline-flex items-center gap-1 h-9 px-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-xs font-bold transition-colors shadow-sm shadow-blue-500/20"
+                            className="inline-flex items-center gap-1 h-11 px-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold transition-colors shadow-sm shadow-blue-500/20"
                         >
                             <Activity className="h-3.5 w-3.5" /> ซักประวัติ
                             <ChevronRight className="h-3 w-3" />
@@ -170,8 +171,8 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
 
                 {/* Brief note */}
                 {visit.chief_complaint && (
-                    <Link href={`/dashboard/screening/${visit.vn}`} className="block mt-2 pt-2 border-t border-slate-100 text-xs text-slate-600 truncate">
-                        <span className="text-slate-400">บันทึก:</span> {visit.chief_complaint}
+                    <Link href={`/dashboard/screening/${visit.vn}`} className="block mt-2 pt-2 border-t border-slate-100 text-sm text-slate-600 break-words">
+                        <span className="text-slate-500">บันทึก:</span> {visit.chief_complaint}
                     </Link>
                 )}
             </div>
@@ -185,10 +186,10 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                                 <AlertTriangle className="h-5 w-5 text-red-700" />
                             </div>
                             <div className="flex-1">
-                                <h3 className="text-lg font-bold text-slate-900">ยกเลิกคิว?</h3>
+                                <h3 className="text-lg font-semibold text-slate-900">ยกเลิกคิว?</h3>
                                 <p className="text-sm text-slate-600 mt-0.5">
                                     <span className="font-semibold">{pt?.prefix}{pt?.first_name} {pt?.last_name}</span>
-                                    <span className="text-slate-400 ml-1">({visit.vn})</span>
+                                    <span className="text-slate-500 ml-1">({visit.vn})</span>
                                 </p>
                             </div>
                             <button onClick={() => setShowCancelConfirm(false)} className="rounded-lg p-1 hover:bg-slate-100">
@@ -197,7 +198,7 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                                 เหตุผล (ไม่บังคับ)
                             </label>
                             <textarea
@@ -233,7 +234,7 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                                 type="button"
                                 onClick={handleCancel}
                                 disabled={pending}
-                                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold disabled:opacity-50 inline-flex items-center gap-1.5"
+                                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
                             >
                                 <Trash2 className="h-4 w-4" />
                                 {pending ? "กำลังยกเลิก..." : "ยืนยันยกเลิก"}

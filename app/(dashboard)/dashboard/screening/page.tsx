@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, ChevronRight } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 import { bangkokDate } from "@/lib/utils/date";
+import styles from "../visits/[vn]/visit-workspace.module.css";
 import ScreeningRow from "./screening-row";
 
 export const dynamic = "force-dynamic";
@@ -32,20 +33,20 @@ export default async function ScreeningQueuePage() {
     const items = (visits || []) as any[];
 
     return (
-        <div className="space-y-4 max-w-6xl mx-auto animate-fade-in">
+        <div className={`${styles.workspace} space-y-5 max-w-6xl mx-auto animate-fade-in p-3 sm:p-6 pb-24`}>
             {/* Sub-header — compact (Top Navbar shows page title) */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl p-4 sm:p-5 shadow-sm">
                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 font-bold text-blue-700">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-blue-700">
                         <ClipboardList className="h-4 w-4" />
-                        วัด Vital Signs + คัดกรอง
+                        เปิด Visit & ซักประวัติ
                     </span>
                     <span className="text-slate-300">·</span>
-                    <span>รอซักประวัติ <span className="font-bold text-slate-700 tabular-nums">{items.length}</span> ราย</span>
+                    <span>คิววันนี้ <span className="font-semibold text-slate-700 tabular-nums">{items.length}</span> ราย</span>
                 </p>
                 <Link href="/dashboard/visits/new">
-                    <Button className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white shadow-sm shadow-cyan-500/20">
-                        <ChevronRight className="h-3.5 w-3.5 rotate-180" /> สร้าง Visit ใหม่
+                    <Button className="rounded-xl gap-1.5 h-11 bg-blue-700 hover:bg-blue-800 text-white shadow-sm shadow-blue-500/20">
+                        <Plus className="h-4 w-4" /> สร้าง Visit ใหม่
                     </Button>
                 </Link>
             </div>
@@ -56,11 +57,11 @@ export default async function ScreeningQueuePage() {
                     <div className="h-16 w-16 rounded-2xl bg-blue-100/60 flex items-center justify-center mx-auto mb-3">
                         <ClipboardList className="h-8 w-8 text-blue-600" />
                     </div>
-                    <p className="text-base font-bold text-slate-700">ไม่มีผู้ป่วยรอซักประวัติ</p>
-                    <p className="text-xs text-slate-500 mt-1">รอเคาท์เตอร์สร้าง Visit ใหม่...</p>
+                    <p className="text-base font-semibold text-slate-700">ไม่มีผู้ป่วยรอซักประวัติ</p>
+                    <p className="text-sm text-slate-600 mt-1">กด “สร้าง Visit ใหม่” เพื่อเลือกผู้ป่วยและส่งเข้าคิว</p>
                 </div>
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {items.map((v, i) => (
                         <ScreeningRow key={v.vn} visit={v} queueNumber={i + 1} />
                     ))}
