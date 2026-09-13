@@ -5,7 +5,7 @@ export interface FunnelBucket {
     key: string;
     label: string;
     count: number;
-    overdue: number; // จำนวนที่รอเกิน 15 นาที
+    overdue: number; // จำนวนที่เปิด Visit เกิน 15 นาที
     tile: string;
     text: string;
     href: string;
@@ -19,10 +19,10 @@ export function QueueFunnel({ buckets }: { buckets: FunnelBucket[] }) {
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <Users2 className="h-4 w-4 text-[#2B54F0]" />
-                    <h2 className="text-base font-bold text-slate-800">สถานะคิววันนี้</h2>
+                    <h2 className="text-base font-bold text-slate-800">สถานะคิวที่ยังไม่เสร็จ</h2>
                     {totalOverdue > 0 && (
-                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 ring-1 ring-red-300 animate-pulse">
-                            รอเกิน 15 นาที {totalOverdue} ราย
+                        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700 ring-1 ring-red-300 ">
+                            เปิด Visit เกิน 15 นาที {totalOverdue} ราย
                         </span>
                     )}
                 </div>
@@ -37,9 +37,9 @@ export function QueueFunnel({ buckets }: { buckets: FunnelBucket[] }) {
                         }`}
                     >
                         <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${b.tile}`}>
-                            <span className={`text-sm font-black ${b.text}`}>{b.count}</span>
+                            <span className={`text-xl font-semibold ${b.text}`}>{b.count}</span>
                         </div>
-                        <div className="text-xs font-bold text-slate-700 leading-tight">{b.label}</div>
+                        <div className="text-sm font-medium text-slate-700 leading-tight">{b.label}</div>
                         {b.overdue > 0 && (
                             <div className="mt-1 text-[10px] font-bold text-red-600">รอเกิน {b.overdue} ราย</div>
                         )}
@@ -62,7 +62,7 @@ export interface RoomLight {
 export function RoomStatusBoard({ rooms }: { rooms: RoomLight[] }) {
     const cfg = {
         free: { dot: "bg-emerald-500", ring: "ring-emerald-200", bg: "bg-emerald-50/50 border-emerald-200/70", label: "ว่าง", Icon: DoorOpen, ic: "text-emerald-600" },
-        busy: { dot: "bg-red-500 animate-pulse", ring: "ring-red-200", bg: "bg-red-50/50 border-red-200/70", label: "ใช้งาน", Icon: DoorClosed, ic: "text-red-600" },
+        busy: { dot: "bg-red-500 ", ring: "ring-red-200", bg: "bg-red-50/50 border-red-200/70", label: "ใช้งาน", Icon: DoorClosed, ic: "text-red-600" },
         off: { dot: "bg-slate-400", ring: "ring-slate-200", bg: "bg-slate-50/60 border-slate-200/70", label: "ปิด", Icon: Wrench, ic: "text-slate-400" },
     } as const;
 

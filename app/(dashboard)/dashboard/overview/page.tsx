@@ -1,15 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
-    Users, TrendingUp, Stethoscope,
-    LayoutDashboard, Clock, CalendarDays, ArrowRight,
+    Users, Stethoscope,
+    Clock, CalendarDays, ArrowRight,
     Pill, UserCog, ClipboardList, CalendarClock, Wallet,
 } from "lucide-react";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { getAlerts } from "@/lib/actions/alerts";
 import { getOnDutyDoctors, getDoctorsNotCheckedIn } from "@/lib/actions/doctor-shifts";
 import { bangkokDate } from "@/lib/utils/date";
-import { getAnonRevenue } from "@/lib/actions/anonymous";
+import FinanceSummary from "./finance-summary";
 import { listRoomStatuses } from "@/lib/actions/rooms";
 import { getActiveAnnouncements } from "@/lib/actions/announcements";
 import { getExpiringPackagesCount } from "@/lib/actions/packages";
@@ -21,7 +21,7 @@ import { AutoRefresh, WaitBadge, RealtimeRefresh } from "./overview-live";
 import { QueueFunnel, RoomStatusBoard, type FunnelBucket, type RoomLight } from "./queue-funnel";
 import { AnnouncementBoard, AddAnnouncementButton } from "./announcement-board";
 import { SegmentToggle, type Seg } from "./segment-toggle";
-import { Activity, Target, Receipt, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 // service_category → segment (ความงาม = aesthetic, ที่เหลือ = medical)
 const AESTHETIC_CATS = new Set(["aesthetic"]);
@@ -74,14 +74,19 @@ export default async function DashboardPage({
     const supabase = await createClient();
     const { permissions, clinicId } = await getEffectivePermissionsForUser();
 
+    if (!clinicId) return <div role="alert">ไม่พบข้อมูลคลินิก</div>;
+    const showFinance = permissions["finance.view"] === true;
     const today = bangkokDate();
-    const monthStart = today.slice(0, 7) + "-01";
 
+
+    const queueQuery = () => supabase.from("visits")
+        .select("vn, visit_date, visit_time, created_at, status, chief_complaint, service_category, room_id, hn, patients!inner(first_name, last_name)")
+        .eq("clinic_id", clinicId).lte("visit_date", today).neq("status", "completed").neq("status", "cancelled")
+        .order("created_at", { ascending: true }).order("vn");
     // Parallel fetch
     const [
         patientsRes,
         visitsRes,
-        invoicesMonthRes,
         staffRes,
         todayQueueRes,
         todayAppointmentsRes,
@@ -89,53 +94,39 @@ export default async function DashboardPage({
         lowStockRes,
     ] = await Promise.all([
         // 1) Active patients count
-        supabase.from("patients").select("hn", { count: "exact", head: true }).eq("is_active", true),
+        supabase.from("patients").select("hn", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("is_active", true),
         // 2) Today's visits count
-        supabase.from("visits").select("vn", { count: "exact", head: true }).eq("visit_date", today),
-        // 3) Monthly revenue (รวม total_amount เดือนนี้ — ตัดใบที่ยกเลิก/คืนเงิน, อิง invoice_date)
-        supabase.from("invoice_headers").select("total_amount, status").gte("invoice_date", monthStart).lte("invoice_date", today),
+        supabase.from("visits").select("vn", { count: "exact", head: true }).eq("clinic_id", clinicId).eq("visit_date", today).neq("status", "cancelled"),
         // 4) Active staff count
         supabase.from("profiles").select("id", { count: "exact", head: true })
-            .eq("approval_status", "approved").eq("is_active", true),
-        // 5) Today's queue (ทั้งหมดที่ active — ใช้ทำ funnel + list)
-        supabase.from("visits")
-            .select("vn, visit_time, created_at, status, chief_complaint, service_category, room_id, hn, patients!inner(first_name, last_name)")
-            .eq("visit_date", today)
-            .neq("status", "completed")
-            .neq("status", "cancelled")
-            .order("created_at", { ascending: true }),
+            .eq("approval_status", "approved").eq("clinic_id", clinicId).eq("is_active", true),
+        queueQuery().range(0, 499),
         // 7) Today's appointments (top 6)
         supabase.from("appointments")
-            .select("id, appt_start, status, hn, patients!inner(first_name, last_name)")
+            .select("id, appt_start, status, hn, patients!inner(first_name, last_name)", { count: "exact" }).eq("clinic_id", clinicId)
             .eq("appt_date", today)
             .neq("status", "cancelled")
             .order("appt_start", { ascending: true })
             .limit(6),
         // 8) Pending staff count
         supabase.from("profiles").select("id", { count: "exact", head: true })
-            .eq("approval_status", "pending"),
+            .eq("clinic_id", clinicId).eq("approval_status", "pending"),
         // 9) Low stock items
         supabase.from("inventory").select("id, item_name, stock_qty, min_stock, unit", { count: "exact" })
-            .eq("is_active", true)
+            .eq("clinic_id", clinicId).eq("is_active", true)
             .gt("min_stock", 0)
             .limit(50),
     ]);
 
-    const anonMonthRev = await getAnonRevenue(monthStart, today); // + รายรับคลินิกนิรนาม
-    const monthlyRevenue = (invoicesMonthRes.data || [])
-        .filter((inv: { status: string | null }) => inv.status !== "voided" && inv.status !== "refunded")
-        .reduce((sum: number, inv: { total_amount: number | null }) => sum + (inv.total_amount || 0), 0)
-        + anonMonthRev.total;
-
-    // รายได้ "วันนี้" — สำหรับการ์ด performance ตาม role
-    const [todayInvRes, anonTodayRev] = await Promise.all([
-        supabase.from("invoice_headers").select("total_amount, status").eq("invoice_date", today),
-        getAnonRevenue(today, today),
-    ]);
-    const todayRevenue = (todayInvRes.data || [])
-        .filter((inv: { status: string | null }) => inv.status !== "voided" && inv.status !== "refunded")
-        .reduce((sum: number, inv: { total_amount: number | null }) => sum + (inv.total_amount || 0), 0)
-        + anonTodayRev.total;
+    let queueError = !!todayQueueRes.error;
+    if (!todayQueueRes.error && todayQueueRes.data?.length === 500) {
+        for (let offset = 500; ; offset += 500) {
+            const next = await queueQuery().range(offset, offset + 499);
+            if (next.error) { queueError = true; break; }
+            todayQueueRes.data.push(...(next.data || []));
+            if ((next.data?.length || 0) < 500) break;
+        }
+    }
 
     // Low stock = items where stock_qty <= min_stock
     const lowStock = (lowStockRes.data || []).filter(
@@ -143,7 +134,6 @@ export default async function DashboardPage({
             (i.stock_qty ?? 0) <= (i.min_stock ?? 0)
     );
 
-    const showFinance = permissions["finance.view"] === true;
     const showStaff = permissions["staff.manage"] === true;
     const showInventory = permissions["inventory.view"] === true;
     const canQueueAction = permissions["visits.edit"] === true;
@@ -183,8 +173,8 @@ export default async function DashboardPage({
 
     const funnelBuckets: FunnelBucket[] = [
         { key: "waiting", label: "รอซักประวัติ", count: countBy(["waiting"]), overdue: overdueBy(["waiting"]), tile: "bg-amber-100", text: "text-amber-700", href: "/dashboard/screening" },
-        { key: "triaged", label: "คัดกรอง/รอตรวจ", count: countBy(["triaged"]), overdue: overdueBy(["triaged"]), tile: "bg-blue-100", text: "text-blue-700", href: "/dashboard/screening" },
-        { key: "with_doctor", label: "กำลังพบแพทย์", count: countBy(["with_doctor", "with_nurse"]), overdue: 0, tile: "bg-indigo-100", text: "text-indigo-700", href: "/dashboard/screening" },
+        { key: "triaged", label: "รอพบแพทย์", count: countBy(["triaged"]), overdue: overdueBy(["triaged"]), tile: "bg-blue-100", text: "text-blue-700", href: "/dashboard/doctor-station" },
+        { key: "with_doctor", label: "กำลังพบแพทย์", count: countBy(["with_doctor", "with_nurse"]), overdue: 0, tile: "bg-indigo-100", text: "text-indigo-700", href: "/dashboard/doctor-station" },
         { key: "waiting_medicine", label: "รอรับยา", count: countBy(["waiting_medicine"]), overdue: overdueBy(["waiting_medicine"]), tile: "bg-purple-100", text: "text-purple-700", href: "/dashboard/pharmacy" },
         { key: "waiting_payment", label: "รอชำระเงิน", count: countBy(["waiting_payment"]), overdue: overdueBy(["waiting_payment"]), tile: "bg-orange-100", text: "text-orange-700", href: "/dashboard/pharmacy" },
     ];
@@ -232,11 +222,11 @@ export default async function DashboardPage({
         const { data: pastAppts } = await supabase
             .from("appointments")
             .select("hn, status")
-            .in("hn", apptHns)
+            .eq("clinic_id", clinicId).in("hn", apptHns)
             .lt("appt_date", today);
         for (const r of pastAppts || []) {
             const st = (r as { status: string }).status;
-            if (st === "cancelled" || st === "confirmed" || st === "no_show") {
+            if (st === "no_show") {
                 const hn = (r as { hn: string }).hn;
                 noShowByHn.set(hn, (noShowByHn.get(hn) || 0) + 1);
             }
@@ -257,16 +247,15 @@ export default async function DashboardPage({
     // การ์ดภาพรวมธุรกิจ — เฉพาะผู้จัดการ/เจ้าของ (พนักงานทั่วไปเห็นแค่ "ผลงานวันนี้")
     // "คิววันนี้" ตัดออก เพราะซ้ำกับ "เคสวันนี้" ใน ผลงานวันนี้
     const statCards = [
-        ...(showStaff ? [{ label: "ผู้ป่วยทั้งหมด", value: patientsRes.count?.toLocaleString() || "0", sub: "Active records", icon: Users, tile: "bg-[#2B54F0]/10", iconColor: "text-[#2B54F0]", glow: "from-[#2B54F0]/20 to-[#5F85FF]/5" }] : []),
-        ...(showFinance ? [{ label: "รายได้เดือนนี้", value: `฿${monthlyRevenue.toLocaleString()}`, sub: "This month", icon: TrendingUp, tile: "bg-[#10B981]/10", iconColor: "text-[#10B981]", glow: "from-[#15FF83]/25 to-[#10B981]/5" }] : []),
-        ...(showStaff ? [{ label: "พนักงาน", value: staffRes.count?.toString() || "0", sub: "Active staff", icon: Stethoscope, tile: "bg-[#6366F1]/10", iconColor: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" }] : []),
+        ...(showStaff ? [{ label: "ผู้ป่วยทั้งหมด", value: patientsRes.count?.toLocaleString() || "0", sub: "ทะเบียนที่ใช้งานอยู่", icon: Users, tile: "bg-[#2B54F0]/10", iconColor: "text-[#2B54F0]", glow: "from-[#2B54F0]/20 to-[#5F85FF]/5" }] : []),
+        ...(showStaff ? [{ label: "พนักงาน", value: staffRes.count?.toString() || "0", sub: "พนักงานที่ใช้งานอยู่", icon: Stethoscope, tile: "bg-[#6366F1]/10", iconColor: "text-[#6366F1]", glow: "from-[#6366F1]/20 to-[#8B5CF6]/5" }] : []),
     ];
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
             {/* ════════ Hero banner — branded, ties to login orb ════════ */}
             <div
-                className="relative overflow-hidden rounded-3xl p-6 sm:p-8"
+                className="relative overflow-hidden rounded-3xl p-5 sm:p-6"
                 style={{
                     background: "rgba(255,255,255,0.55)",
                     backdropFilter: "blur(20px) saturate(150%)",
@@ -301,12 +290,12 @@ export default async function DashboardPage({
 
                 <div className="relative z-10">
                     <p className="text-sm font-semibold" style={{ color: "#2B54F0" }}>{greeting}</p>
-                    <h1 className="text-2xl sm:text-[32px] font-black text-slate-800 tracking-tight mt-1 leading-tight truncate">
+                    <h1 className="text-xl sm:text-2xl font-semibold text-slate-800 tracking-tight mt-1 leading-tight truncate">
                         {displayName}
                     </h1>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
                         <p className="text-slate-500 text-sm inline-flex items-center gap-2" suppressHydrationWarning>
-                            <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate}
+                            <CalendarDays className="h-4 w-4 text-[#2B54F0]" /> {fullDate} · อัปเดต {new Date().toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })}
                         </p>
                         {clinicId && <RealtimeRefresh clinicId={clinicId} />}
                         <AutoRefresh seconds={180} />
@@ -319,7 +308,7 @@ export default async function DashboardPage({
                 <div className="flex items-center gap-3 flex-wrap">
                     <SegmentToggle current={seg} />
                     {seg !== "all" && (
-                        <span className="text-xs text-slate-400">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
+                        <span className="text-xs text-slate-500">กำลังกรอง: คิว + ห้องตรวจ ตามแผนก{seg === "aesthetic" ? "ความงาม" : "เวชกรรม"}</span>
                     )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -333,9 +322,135 @@ export default async function DashboardPage({
                 <AnnouncementBoard announcements={announcements} canManage={showStaff} />
             </div>
 
+            <section className="gonix-card-premium p-5" data-widget="perf">
+                <h2 className="text-base font-semibold text-slate-800 mb-3">งานวันนี้</h2>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                        { label: "เคสวันนี้", value: visitsRes.error ? "—" : visitsRes.count || 0, href: "/dashboard/screening" },
+                        { label: "รอพบแพทย์", value: queueError ? "—" : countBy(["triaged"]), href: "/dashboard/doctor-station" },
+                        { label: "รอรับยา / ชำระเงิน", value: queueError ? "—" : countBy(["waiting_medicine", "waiting_payment"]), href: "/dashboard/pharmacy" },
+                        { label: "นัดหมายวันนี้", value: todayAppointmentsRes.error ? "—" : todayAppointmentsRes.count || 0, href: "/dashboard/appointments" },
+                    ].map(card => <Link key={card.label} href={card.href} className="rounded-2xl bg-white/70 border border-slate-200 p-4 hover:border-blue-300">
+                        <p className="text-sm text-slate-600">{card.label}</p><p className="text-3xl font-semibold text-slate-900 mt-1 tabular-nums">{card.value}</p>
+                    </Link>)}
+                </div>
+                <p className="text-xs text-slate-600 mt-3">เคสและนัดหมายวันนี้: ทั้งคลินิก · คิวรอ: ตามแผนกที่เลือก รวมคิวค้างจากวันก่อน</p>
+            </section>
+
+            {/* Queue funnel — สถานะคิววันนี้ + เตือนรอเกิน 15 นาที */}
+            <div data-widget="funnel">
+                {queueError ? <p role="alert" className="gonix-card-premium p-5">โหลดคิวไม่ครบ กรุณารีเฟรชหน้า</p> : <QueueFunnel buckets={funnelBuckets} />}
+            </div>
+
+            {/* Row: Today's queue + appointments */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" data-widget="queues">
+                {/* Today's queue */}
+                <div className="gonix-card-premium overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-slate-50/40">
+                        <div className="flex items-center gap-2">
+                            <ClipboardList className="h-4 w-4 text-slate-600" />
+                            <h2 className="text-sm font-bold text-slate-800">คิวที่ต้องจัดการ</h2>
+                            <span className="text-xs text-slate-500">({segVisits.length} รายการ · แสดง {queueList.length})</span>
+                        </div>
+                        <Link href="/dashboard/screening" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
+                            ดูคิวทั้งหมด <ArrowRight className="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {queueError ? <p role="alert" className="p-5">โหลดคิวไม่สำเร็จ กรุณารีเฟรชหน้า</p> : queueList.length === 0 ? (
+                            <div className="p-8 text-center text-sm text-slate-500">ไม่มีคิวที่ต้องจัดการ</div>
+                        ) : (
+                            queueList.map((v) => {
+                                const p = v.patients;
+                                const name = p ? `${p.first_name} ${p.last_name}` : "—";
+                                const status = v.status as string;
+                                const visitTime = v.visit_time as string;
+                                const chiefComplaint = v.chief_complaint;
+                                const vn = v.vn as string;
+                                const waiting = WAITING_STATUSES.has(status);
+                                return (
+                                    <div key={vn} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
+                                        <div className="text-xs font-mono text-slate-500 w-12">{visitTime?.slice(0, 5) || "—"}</div>
+                                        <Link href={status === "waiting" ? `/dashboard/screening/${vn}` : ["waiting_medicine", "waiting_payment"].includes(status) ? `/dashboard/pharmacy/${vn}` : `/dashboard/visits/${vn}`} className="flex-1 min-w-0">
+                                            <div className="text-sm font-semibold text-slate-800 truncate hover:text-[#2B54F0]">{name}</div>
+                                            {chiefComplaint && <div className="text-sm text-slate-600 truncate">{chiefComplaint}</div>}
+                                        </Link>
+                                        {v.visit_date < today && <span className="text-xs text-amber-700">คิวค้าง</span>}
+                                        {waiting && <span title="เวลาตั้งแต่เปิด Visit"><WaitBadge since={v.created_at} /></span>}
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}>
+                                            {STATUS_LABEL[status] || status}
+                                        </span>
+                                        {canQueueAction && <QueueAdvance vn={vn} status={status} />}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Today's appointments */}
+                <div className="gonix-card-premium overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-slate-50/40">
+                        <div className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-slate-600" />
+                            <h2 className="text-sm font-bold text-slate-800">นัดหมายวันนี้</h2>
+                            <span className="text-xs text-slate-500">({todayAppointmentsRes.count || 0} รายการ)</span>
+                        </div>
+                        <Link href="/dashboard/appointments" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
+                            ดูทั้งหมด <ArrowRight className="h-3 w-3" />
+                        </Link>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {todayAppointmentsRes.error ? <p role="alert" className="p-5">โหลดนัดหมายไม่สำเร็จ กรุณารีเฟรชหน้า</p> : (todayAppointmentsRes.data || []).length === 0 ? (
+                            <div className="p-8 text-center text-sm text-slate-500">ไม่มีนัดหมายวันนี้</div>
+                        ) : (
+                            (todayAppointmentsRes.data || []).map((a) => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const p = (a as any).patients;
+                                const name = p ? `${p.first_name} ${p.last_name}` : "—";
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const status = (a as any).status as string;
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const start = (a as any).appt_start as string;
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const id = (a as any).id as string;
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const hn = (a as any).hn as string;
+                                const noShows = noShowByHn.get(hn) || 0;
+                                return (
+                                    <div key={id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
+                                        <div className="text-xs font-mono text-slate-500 w-12 flex items-center gap-1">
+                                            <Clock className="h-3 w-3 text-slate-500" />
+                                            {start?.slice(0, 5) || "—"}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                                                {name}
+                                                {noShows >= 2 && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-700 shrink-0" title="เคยไม่มาตามนัดหลายครั้ง — ควรโทรย้ำ">
+                                                        เสี่ยงไม่มา ×{noShows}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-slate-500 capitalize">{status}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Room traffic light */}
+            <div data-widget="rooms">
+                <RoomStatusBoard rooms={roomLights} />
+            </div>
+
+            {showFinance && <FinanceSummary today={today} />}
             {/* Stat cards (ภาพรวมธุรกิจ — แสดงเฉพาะเมื่อมีการ์ด) */}
             {statCards.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                     {statCards.map((s, i) => {
                         const Icon = s.icon;
                         return (
@@ -347,67 +462,13 @@ export default async function DashboardPage({
                                     </div>
                                     <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight">{s.value}</h3>
                                     <p className="text-sm font-semibold text-slate-600 mt-1">{s.label}</p>
-                                    <p className="text-xs text-slate-400 mt-0.5">{s.sub}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{s.sub}</p>
                                 </div>
                             </div>
                         );
                     })}
                 </div>
             )}
-
-            {/* Role-based performance — owner เห็นรายได้, พนักงานเห็นเฉพาะเคส/คิว */}
-            <div className="gonix-card-premium p-5" data-widget="perf">
-                <div className="flex items-center gap-2 mb-4">
-                    <Activity className="h-4 w-4 text-[#2B54F0]" />
-                    <h2 className="text-base font-bold text-slate-800">ผลงานวันนี้</h2>
-                    <span className="text-xs text-slate-400">{showFinance ? "(มุมมองผู้บริหาร)" : "(มุมมองพนักงาน)"}</span>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="rounded-2xl bg-[#2B54F0]/5 border border-[#2B54F0]/15 p-4">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Users className="h-3.5 w-3.5" /> เคสวันนี้</div>
-                        <div className="text-2xl font-extrabold text-slate-800">{visitsRes.count?.toLocaleString() || "0"}</div>
-                    </div>
-                    <div className="rounded-2xl bg-amber-50/70 border border-amber-200/60 p-4">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Clock className="h-3.5 w-3.5" /> กำลังรอในคิว</div>
-                        <div className="text-2xl font-extrabold text-slate-800">{allActiveVisits.length}</div>
-                    </div>
-                    {showFinance ? (
-                        <>
-                            <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200/60 p-4">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><TrendingUp className="h-3.5 w-3.5" /> รายได้วันนี้</div>
-                                <div className="text-2xl font-extrabold text-emerald-700">฿{todayRevenue.toLocaleString()}</div>
-                            </div>
-                            <div className="rounded-2xl bg-violet-50/70 border border-violet-200/60 p-4">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Receipt className="h-3.5 w-3.5" /> เฉลี่ย/เคส</div>
-                                <div className="text-2xl font-extrabold text-slate-800">
-                                    ฿{((visitsRes.count || 0) > 0 ? Math.round(todayRevenue / (visitsRes.count || 1)) : 0).toLocaleString()}
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="rounded-2xl bg-blue-50/70 border border-blue-200/60 p-4">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><CalendarDays className="h-3.5 w-3.5" /> นัดหมายวันนี้</div>
-                                <div className="text-2xl font-extrabold text-slate-800">{(todayAppointmentsRes.data || []).length}</div>
-                            </div>
-                            <div className="rounded-2xl bg-indigo-50/70 border border-indigo-200/60 p-4">
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1"><Target className="h-3.5 w-3.5" /> หมอเข้าเวร</div>
-                                <div className="text-2xl font-extrabold text-slate-800">{onDuty.length}</div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Queue funnel — สถานะคิววันนี้ + เตือนรอเกิน 15 นาที */}
-            <div data-widget="funnel">
-                <QueueFunnel buckets={funnelBuckets} />
-            </div>
-
-            {/* Room traffic light */}
-            <div data-widget="rooms">
-                <RoomStatusBoard rooms={roomLights} />
-            </div>
 
             {/* Row: On-duty + Alerts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start" data-widget="onduty">
@@ -417,7 +478,7 @@ export default async function DashboardPage({
                     <div className="flex items-center gap-2">
                         <CalendarClock className="h-4 w-4 text-[#2B54F0]" />
                         <h2 className="text-base font-bold text-slate-800">หมอเข้าเวรวันนี้</h2>
-                        <span className="text-xs text-slate-400">({onDuty.length})</span>
+                        <span className="text-xs text-slate-500">({onDuty.length})</span>
                     </div>
                     {showStaff && (
                         <Link href="/dashboard/doctor-schedule" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
@@ -431,7 +492,7 @@ export default async function DashboardPage({
                     </div>
                 )}
                 {onDuty.length === 0 ? (
-                    <p className="text-sm text-slate-400 py-2">ยังไม่ได้ลงเวรแพทย์สำหรับวันนี้</p>
+                    <p className="text-sm text-slate-500 py-2">ยังไม่ได้ลงเวรแพทย์สำหรับวันนี้</p>
                 ) : (
                     <div className="flex flex-wrap gap-2">
                         {onDuty.map((d) => (
@@ -564,105 +625,6 @@ export default async function DashboardPage({
                                 <div className="text-sm font-bold text-emerald-800 mb-1"> ไม่มีรายการเร่งด่วน</div>
                                 <div className="text-xs text-emerald-700">ระบบทำงานปกติ</div>
                             </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Row: Today's queue + appointments */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5" data-widget="queues">
-                {/* Today's queue */}
-                <div className="gonix-card-premium overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-slate-50/40">
-                        <div className="flex items-center gap-2">
-                            <ClipboardList className="h-4 w-4 text-slate-600" />
-                            <h2 className="text-sm font-bold text-slate-800">คิววันนี้</h2>
-                            <span className="text-xs text-slate-400">({segVisits.length} รายการ)</span>
-                        </div>
-                        <Link href="/dashboard/screening" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
-                            ซักประวัติ <ArrowRight className="h-3 w-3" />
-                        </Link>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                        {queueList.length === 0 ? (
-                            <div className="p-8 text-center text-sm text-slate-400">ยังไม่มีคนไข้ในคิววันนี้</div>
-                        ) : (
-                            queueList.map((v) => {
-                                const p = v.patients;
-                                const name = p ? `${p.first_name} ${p.last_name}` : "—";
-                                const status = v.status as string;
-                                const visitTime = v.visit_time as string;
-                                const chiefComplaint = v.chief_complaint;
-                                const vn = v.vn as string;
-                                const waiting = WAITING_STATUSES.has(status);
-                                return (
-                                    <div key={vn} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
-                                        <div className="text-xs font-mono text-slate-500 w-12">{visitTime?.slice(0, 5) || "—"}</div>
-                                        <Link href={`/dashboard/visits/${vn}`} className="flex-1 min-w-0">
-                                            <div className="text-sm font-semibold text-slate-800 truncate hover:text-[#2B54F0]">{name}</div>
-                                            {chiefComplaint && <div className="text-xs text-slate-500 truncate">{chiefComplaint}</div>}
-                                        </Link>
-                                        {waiting && <WaitBadge since={v.created_at} />}
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}>
-                                            {STATUS_LABEL[status] || status}
-                                        </span>
-                                        {canQueueAction && <QueueAdvance vn={vn} status={status} />}
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
-
-                {/* Today's appointments */}
-                <div className="gonix-card-premium overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-slate-50/40">
-                        <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-slate-600" />
-                            <h2 className="text-sm font-bold text-slate-800">นัดหมายวันนี้</h2>
-                            <span className="text-xs text-slate-400">({(todayAppointmentsRes.data || []).length} รายการ)</span>
-                        </div>
-                        <Link href="/dashboard/appointments" className="text-xs font-semibold text-[#2B54F0] hover:text-[#0026A1] inline-flex items-center gap-1">
-                            ตารางนัด <ArrowRight className="h-3 w-3" />
-                        </Link>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                        {(todayAppointmentsRes.data || []).length === 0 ? (
-                            <div className="p-8 text-center text-sm text-slate-400">ไม่มีนัดหมายวันนี้</div>
-                        ) : (
-                            (todayAppointmentsRes.data || []).map((a) => {
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const p = (a as any).patients;
-                                const name = p ? `${p.first_name} ${p.last_name}` : "—";
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const status = (a as any).status as string;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const start = (a as any).appt_start as string;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const id = (a as any).id as string;
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const hn = (a as any).hn as string;
-                                const noShows = noShowByHn.get(hn) || 0;
-                                return (
-                                    <div key={id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/60 transition-colors">
-                                        <div className="text-xs font-mono text-slate-500 w-12 flex items-center gap-1">
-                                            <Clock className="h-3 w-3 text-slate-400" />
-                                            {start?.slice(0, 5) || "—"}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
-                                                {name}
-                                                {noShows >= 2 && (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-red-100 text-red-700 shrink-0" title="เคยไม่มาตามนัดหลายครั้ง — ควรโทรย้ำ">
-                                                        เสี่ยงไม่มา ×{noShows}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="text-xs text-slate-500 capitalize">{status}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })
                         )}
                     </div>
                 </div>

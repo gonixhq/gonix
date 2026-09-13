@@ -7,8 +7,9 @@ const STORAGE_KEY = "gonix-overview-hidden";
 
 const WIDGETS: { key: string; label: string }[] = [
     { key: "announce", label: "ประกาศจากผู้จัดการ" },
-    { key: "perf", label: "ผลงานวันนี้" },
-    { key: "funnel", label: "สถานะคิววันนี้" },
+    { key: "perf", label: "งานวันนี้" },
+    { key: "funnel", label: "สถานะคิวที่ยังไม่เสร็จ" },
+    { key: "finance", label: "การรับเงินและยอดค้าง" },
     { key: "rooms", label: "สถานะห้องตรวจ" },
     { key: "forecast", label: "พยากรณ์คิวแน่น" },
     { key: "onduty", label: "หมอเวร + แจ้งเตือน" },
