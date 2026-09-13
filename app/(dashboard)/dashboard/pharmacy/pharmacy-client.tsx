@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import styles from "./pharmacy-workspace.module.css";
 import { Pill, ArrowRight, Clock, Receipt, BriefcaseMedical } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
@@ -39,16 +39,16 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
     const paymentPending = visits.filter(v => v.status === "waiting_payment");
 
     return (
-        <div className="space-y-4 max-w-6xl mx-auto animate-fade-in">
+        <div className={`${styles.workspace} space-y-4 max-w-6xl mx-auto animate-fade-in p-3 sm:p-6 pb-24`}>
             {/* Sub-header */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+            <div className="flex items-center justify-between gap-3 flex-wrap rounded-2xl bg-white/80 border border-white/90 p-4 shadow-sm">
                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 font-bold text-blue-700">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-blue-700">
                         <Pill className="h-4 w-4" />
                         {language === "en" ? "Dispensing + Payment Queue" : "จัดยา + ชำระเงิน"}
                     </span>
                     <span className="text-slate-300">·</span>
-                    <span>{language === "en" ? "Total" : "ทั้งหมด"} <span className="font-bold text-slate-700 tabular-nums">{visits.length}</span> {language === "en" ? "patients" : "ราย"}</span>
+                    <span>{language === "en" ? "Total" : "ทั้งหมด"} <span className="font-semibold text-slate-700 tabular-nums">{visits.length}</span> {language === "en" ? "patients" : "ราย"}</span>
                 </p>
             </div>
 
@@ -56,34 +56,34 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className={`rounded-2xl border backdrop-blur-md px-4 py-3 flex items-center justify-between gap-2 ${
                     waitingMeds.length > 0
-                        ? "bg-gradient-to-br from-amber-50 to-orange-50/60 border-amber-200 shadow-sm shadow-amber-100"
+                        ? "bg-white/85 border-blue-200 shadow-sm"
                         : "bg-white/50 border-slate-200/60"
                 }`}>
                     <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${waitingMeds.length > 0 ? "bg-amber-100" : "bg-slate-100/60"}`}>
-                            <Pill className={`h-4 w-4 ${waitingMeds.length > 0 ? "text-amber-600" : "text-slate-400"}`} strokeWidth={2.5} />
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${waitingMeds.length > 0 ? "bg-blue-50" : "bg-slate-100/60"}`}>
+                            <Pill className={`h-4 w-4 ${waitingMeds.length > 0 ? "text-blue-600" : "text-slate-500"}`} strokeWidth={2.5} />
                         </div>
-                        <span className={`text-sm font-bold ${waitingMeds.length > 0 ? "text-amber-800" : "text-slate-500"}`}>
+                        <span className={`text-sm font-semibold ${waitingMeds.length > 0 ? "text-blue-800" : "text-slate-500"}`}>
                             {language === "en" ? "Waiting Dispensing" : "รอจัดยา"}
                         </span>
                     </div>
-                    <span className={`text-2xl font-black tabular-nums ${waitingMeds.length > 0 ? "text-amber-700" : "text-slate-300"}`}>{waitingMeds.length}</span>
+                    <span className={`text-2xl font-semibold tabular-nums ${waitingMeds.length > 0 ? "text-blue-700" : "text-slate-300"}`}>{waitingMeds.length}</span>
                 </div>
 
                 <div className={`rounded-2xl border backdrop-blur-md px-4 py-3 flex items-center justify-between gap-2 ${
                     paymentPending.length > 0
-                        ? "bg-gradient-to-br from-rose-50 to-pink-50/60 border-rose-200 shadow-sm shadow-rose-100"
+                        ? "bg-white/85 border-blue-200 shadow-sm"
                         : "bg-white/50 border-slate-200/60"
                 }`}>
                     <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${paymentPending.length > 0 ? "bg-rose-100" : "bg-slate-100/60"}`}>
-                            <Receipt className={`h-4 w-4 ${paymentPending.length > 0 ? "text-rose-600" : "text-slate-400"}`} strokeWidth={2.5} />
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${paymentPending.length > 0 ? "bg-blue-50" : "bg-slate-100/60"}`}>
+                            <Receipt className={`h-4 w-4 ${paymentPending.length > 0 ? "text-blue-600" : "text-slate-500"}`} strokeWidth={2.5} />
                         </div>
-                        <span className={`text-sm font-bold ${paymentPending.length > 0 ? "text-rose-800" : "text-slate-500"}`}>
+                        <span className={`text-sm font-semibold ${paymentPending.length > 0 ? "text-blue-800" : "text-slate-500"}`}>
                             {language === "en" ? "Waiting Payment" : "รอชำระเงิน"}
                         </span>
                     </div>
-                    <span className={`text-2xl font-black tabular-nums ${paymentPending.length > 0 ? "text-rose-700" : "text-slate-300"}`}>{paymentPending.length}</span>
+                    <span className={`text-2xl font-semibold tabular-nums ${paymentPending.length > 0 ? "text-blue-700" : "text-slate-300"}`}>{paymentPending.length}</span>
                 </div>
             </div>
 
@@ -93,7 +93,7 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
                     <div className="h-16 w-16 rounded-2xl bg-blue-100/60 flex items-center justify-center mx-auto mb-3">
                         <BriefcaseMedical className="h-8 w-8 text-blue-600" />
                     </div>
-                    <p className="text-base font-bold text-slate-700">
+                    <p className="text-base font-semibold text-slate-700">
                         {language === "en" ? "No active queues" : "ไม่มีคิวรอจัดยาหรือชำระเงิน"}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
@@ -113,37 +113,37 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
                             <Link
                                 key={v.vn}
                                 href={`/dashboard/pharmacy/${v.vn}`}
-                                className="gonix-card-premium block p-4 hover:border-blue-300 hover:shadow-md transition-all group"
+                                className="rounded-2xl border border-white/90 bg-white/85 backdrop-blur-xl shadow-sm block p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group"
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-wrap items-center gap-4">
                                     {/* Queue badge */}
                                     <div className={`flex flex-col items-center justify-center h-14 w-14 rounded-xl shrink-0 text-white shadow-md ring-1 ring-white/30 ${
                                         isWaitingMeds
-                                            ? "bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/20"
-                                            : "bg-gradient-to-br from-rose-500 to-pink-600 shadow-rose-500/20"
+                                            ? "bg-slate-800"
+                                            : "bg-slate-800"
                                     }`}>
-                                        <div className="text-[9px] uppercase tracking-wider font-bold opacity-80">คิว</div>
-                                        <div className="text-base font-black font-mono leading-none">{queueNumber || "—"}</div>
+                                        <div className="text-xs uppercase tracking-wider font-semibold opacity-80">คิว</div>
+                                        <div className="text-base font-semibold font-mono leading-none">{queueNumber || "—"}</div>
                                     </div>
 
                                     {/* Patient info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-base font-bold text-slate-800 truncate group-hover:text-blue-700 transition-colors">
+                                            <span className="text-base font-semibold text-slate-800 break-words group-hover:text-blue-700 transition-colors">
                                                 {p?.prefix}{p?.first_name} {p?.last_name}
                                             </span>
-                                            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                                            <span className="font-mono text-xs font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
                                                 {v.hn}
                                             </span>
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                                isWaitingMeds ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
+                                            <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                                isWaitingMeds ? "bg-blue-50 text-blue-700" : "bg-blue-50 text-blue-700"
                                             }`}>
                                                 {isWaitingMeds
                                                     ? (language === "en" ? "Dispensing" : "รอจัดยา")
                                                     : (language === "en" ? "Payment" : "รอชำระเงิน")}
                                             </span>
                                             {isCarryOver && (
-                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[10px]">
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-xs">
                                                     ค้างจากวันก่อน
                                                 </span>
                                             )}
@@ -169,26 +169,25 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
                                             )}
                                         </div>
                                         {v.chief_complaint && (
-                                            <div className="text-xs text-slate-600 mt-1 truncate">
-                                                <span className="text-slate-400">CC:</span> {v.chief_complaint}
+                                            <div className="text-sm text-slate-700 mt-1 break-words">
+                                                <span className="text-slate-500">CC:</span> {v.chief_complaint}
                                             </div>
                                         )}
                                     </div>
 
                                     {/* CTA */}
-                                    <Button
-                                        size="sm"
-                                        className={`rounded-xl gap-1 text-xs font-bold shadow-sm ${
+                                    <span
+                                        className={`inline-flex items-center justify-center h-11 px-4 shrink-0 ml-auto rounded-xl gap-1 text-sm font-semibold shadow-sm ${
                                             isWaitingMeds
-                                                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-500/20"
-                                                : "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/20"
+                                                ? "bg-blue-700 hover:bg-blue-800 text-white"
+                                                : "bg-blue-700 hover:bg-blue-800 text-white"
                                         }`}
                                     >
                                         {isWaitingMeds
                                             ? (language === "en" ? "Dispense" : "จัดยา")
                                             : (language === "en" ? "Collect" : "รับเงิน")}
                                         <ArrowRight className="h-3.5 w-3.5" />
-                                    </Button>
+                                    </span>
                                 </div>
                             </Link>
                         );

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { listActiveServices } from "@/lib/actions/services";
 import { getVisitInjections } from "@/lib/actions/injections";
+import styles from "../pharmacy-workspace.module.css";
 import CheckoutForm from "./checkout-form";
 
 export default async function PharmacyCheckoutPage({ params }: { params: Promise<{ vn: string }> }) {
@@ -80,7 +81,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     const canBackdate = prof?.role === "owner" || prof?.role === "admin";
 
     return (
-        <div className="space-y-6 animate-fade-in max-w-7xl mx-auto pb-24">
+        <div className={`${styles.workspace} space-y-6 animate-fade-in max-w-[1600px] mx-auto p-3 sm:p-5 pb-8`}>
             <CheckoutForm
                 visit={visit}
                 drugOrders={drugOrders || []}

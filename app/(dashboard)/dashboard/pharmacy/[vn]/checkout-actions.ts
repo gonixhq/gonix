@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { deductFEFO } from "@/lib/inventory-fefo";
 import { deductVials } from "@/lib/inventory-vials";
+import { validatePayments, type PaymentEntry } from "@/lib/checkout-payment";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import type { DiscountEntry } from "@/lib/campaign-types";
 
 export interface InvoiceItemInput {
@@ -25,8 +27,7 @@ export interface CheckoutInput {
     discount: number;
     total: number;
     paid: number;
-    paymentMethod: string;
-    paymentRef?: string;   // อ้างอิง เช่น เลขท้ายสลิป 4 ตัว (โอน/บัตร)
+    payments: PaymentEntry[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     drugOrders: any[];
     discounts?: DiscountEntry[];      // breakdown ส่วนลดทุกก้อน
@@ -39,14 +40,19 @@ export async function completeCheckout(input: CheckoutInput) {
     const supabase = await createClient();
 
     try {
-        const { vn, items, subtotal, discount, total, paid, paymentMethod, paymentRef, drugOrders,
+        const { vn, items, subtotal, discount, total, paid, payments, drugOrders,
             discounts, campaignId, campaignLabel } = input;
+
+        const actor = await getEffectivePermissionsForUser();
+        if (!actor.userId || !actor.clinicId || !actor.isActive || !actor.isApproved || !actor.permissions["finance.collect"]) throw Error("ไม่มีสิทธิ์รับชำระเงิน");
+        validatePayments(total, paid, payments);
 
         // Fetch visit (clinic_id, hn)
         const { data: visit, error: vErr } = await supabase
             .from("visits")
             .select("clinic_id, hn")
             .eq("vn", vn)
+            .eq("clinic_id", actor.clinicId)
             .single();
 
         if (vErr || !visit) throw new Error("Visit not found");
@@ -133,6 +139,17 @@ export async function completeCheckout(input: CheckoutInput) {
             }
         }
 
+        // หัวบิล + รายการ + รับเงินทุกช่องทางสำเร็จพร้อมกัน ก่อนตัดสต๊อก
+        const invId = `INV-${new Date().getTime().toString().slice(-6)}-${vn.slice(-4)}`;
+        const { data: invoice, error: invoiceError } = await supabase.rpc("create_checkout_invoice", {
+            p_invoice: { id: invId, vn, subtotal: Number(subtotal.toFixed(2)), discount: Number(discount.toFixed(2)), total,
+                bill_date: billDate, campaign_id: campaignId || null, campaign: campaignLabel || null },
+            p_items: items.map(it => ({ ...it, line_total: Number(it.line_total.toFixed(2)), discount_amount: Number((it.discount_amount || 0).toFixed(2)) })),
+            p_payments: payments,
+        });
+        if (invoiceError) throw Error(`บันทึกใบเสร็จและรับเงินไม่สำเร็จ: ${invoiceError.message}`);
+        const itemIds: string[] = invoice?.item_ids || [];
+
         // 1. Mark visit as completed
         const { error: visitError } = await supabase
             .from("visits")
@@ -181,58 +198,6 @@ export async function completeCheckout(input: CheckoutInput) {
                         }
                     }
                 }
-            }
-        }
-
-        // 4. Create Invoice Header (ใช้ Asia/Bangkok date)
-        const invId = `INV-${new Date().getTime().toString().slice(-6)}-${vn.slice(-4)}`;
-        // Status ตามยอดที่ชำระ: ครบ=paid, บางส่วน=partial, ไม่ได้รับ=issued
-        const invoiceStatus = paid >= total ? "paid" : paid > 0 ? "partial" : "issued";
-        const { error: invErr } = await supabase
-            .from("invoice_headers")
-            .insert({
-                id: invId,
-                clinic_id: clinicId,
-                vn,
-                hn,
-                invoice_date: today,     // posting/การเงิน = วันนี้เสมอ (คีย์ EOD/รายงาน/commission)
-                bill_date: billDate,     // วันที่พิมพ์ (= วันนี้ หรือย้อนหลัง)
-                subtotal,
-                discount_amount: discount,
-                total_amount: total,
-                paid_amount: paid,
-                status: invoiceStatus,
-                campaign_id: campaignId || null,
-                campaign: campaignLabel || null,
-            });
-
-        if (invErr) {
-            console.error("Invoice header error:", invErr);
-            throw new Error(`สร้างใบแจ้งหนี้ไม่สำเร็จ: ${invErr.message}`);
-        }
-
-
-        // 5. Create invoice_items (เก็บ id กลับมาเพื่อผูกส่วนลดรายรายการ)
-        let itemIds: string[] = [];
-        if (items.length > 0) {
-            const rows = items.map(it => ({
-                inv_id: invId,
-                clinic_id: clinicId,
-                item_type: it.item_type,
-                item_ref_id: it.item_ref_id || null,
-                item_name: it.item_name,
-                qty: it.qty,
-                unit_price: it.unit_price,
-                line_total: it.line_total,
-                discount_amount: it.discount_amount || 0,
-                segment: it.segment || null,
-            }));
-            const { data: inserted, error: itemsErr } = await supabase.from("invoice_items").insert(rows).select("id");
-            if (itemsErr) {
-                console.error("Invoice items error:", itemsErr);
-                // non-blocking
-            } else {
-                itemIds = (inserted || []).map(r => r.id as string);
             }
         }
 
@@ -341,25 +306,6 @@ export async function completeCheckout(input: CheckoutInput) {
             }
         } catch (e) {
             console.warn("[checkout] injectable vial deduction failed:", e);
-        }
-
-        // 6. Create payment log (เฉพาะถ้ามีการชำระจริง)
-        if (paid > 0) {
-            const dbPaymentMethod = paymentMethod === "credit" ? "credit_card" : paymentMethod;
-            const { error: payErr } = await supabase
-                .from("payment_logs")
-                .insert({
-                    inv_id: invId,
-                    clinic_id: clinicId,
-                    payment_method: dbPaymentMethod,
-                    amount: paid,
-                    transaction_ref: paymentRef?.trim() || null,
-                    note: paid < total ? `มัดจำ — ค้าง ฿${(total - paid).toLocaleString()}` : null,
-                });
-
-            if (payErr) {
-                console.error("Payment log error:", payErr);
-            }
         }
 
         // 7. Create patient_packages for package items
