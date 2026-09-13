@@ -335,7 +335,7 @@ export default function FinanceClient({
                 </div>
 
                 <div className="px-5 py-3 space-y-3 border-b border-slate-100">
-                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20">สถานะ:</span>
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20 shrink-0">สถานะ:</span>
 
                         <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด</FilterChip>
                         <FilterChip active={filter === "outstanding"} onClick={() => setFilter("outstanding")} color="amber">
@@ -343,7 +343,7 @@ export default function FinanceClient({
                         </FilterChip>
                         <FilterChip active={filter === "paid"} onClick={() => setFilter("paid")} color="emerald">ชำระแล้ว</FilterChip>
                         <FilterChip active={filter === "voided"} onClick={() => setFilter("voided")}>ยกเลิก/คืน</FilterChip>
-</div><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20">ช่องทาง:</span>
+</div><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-slate-600 w-20 shrink-0">ช่องทาง:</span>
                         <FilterChip active={payFilter === "all"} onClick={() => setPayFilter("all")}>ทุกช่องทาง</FilterChip>
                         <FilterChip active={payFilter === "cash"} onClick={() => setPayFilter("cash")} color="emerald">เงินสด</FilterChip>
                         <FilterChip active={payFilter === "transfer"} onClick={() => setPayFilter("transfer")}>โอน/QR</FilterChip>
@@ -351,7 +351,7 @@ export default function FinanceClient({
                     </div>
                 </div>
                 <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100 text-sm">
-                    <span className="text-slate-600">ประเภท:</span>
+                    <span className="text-sm text-slate-600 w-20 shrink-0">ประเภท:</span>
                     <FilterChip active={source === "all"} onClick={() => setSource("all")}>ทั้งหมด</FilterChip>
                     <FilterChip active={source === "normal"} onClick={() => setSource("normal")}>ทั่วไป</FilterChip>
                     <FilterChip active={source === "anon"} onClick={() => setSource("anon")}>นิรนาม</FilterChip>
