@@ -58,6 +58,7 @@ interface LineItem {
     id: string;             // local UI id
     item_type: string;      // doctor_fee, drug, lab, ...
     item_ref_id?: string;   // reference to drug_order.id / lab_order.id (optional)
+    label_source?: "order" | "inventory";
     item_name: string;
     qty: number;
     unit_price: number;
@@ -164,6 +165,7 @@ export default function CheckoutForm({
             id: uid(),
             item_type: isInjectable ? "injectable" : (drug.category === "supply" ? "supply" : "drug"),
             item_ref_id: drug.id,
+            label_source: "inventory",
             item_name: `${drug.item_name}${drug.strength ? ` ${drug.strength}` : ""}`,
             qty: 1,
             unit_price: Number(drug.sell_price),
@@ -232,6 +234,7 @@ export default function CheckoutForm({
                 id: uid(),
                 item_type: "drug",
                 item_ref_id: d.id,
+                label_source: "order",
                 item_name: invName,
                 qty: Number(d.qty || 1),
                 unit_price: Number(d.cost_per_unit || 0),
@@ -370,7 +373,14 @@ export default function CheckoutForm({
     }
 
     const handlePrintAllLabels = () => {
-        window.open(`/print/drug-labels/${visit.vn}`, "_blank");
+        const selected = items.filter(it => it.item_type === "drug" && it.qty > 0);
+        if (selected.some(it => !it.label_source || !it.item_ref_id)) {
+            toast.error("รายการยาที่กรอกเองไม่มีข้อมูลฉลาก กรุณาเลือกยาจากคลังผ่านปุ่มเพิ่มยา / เวชภัณฑ์");
+            return;
+        }
+        const labels = selected.map(it => ({ source: it.label_source, id: it.item_ref_id, qty: it.qty }));
+        const query = new URLSearchParams({ items: JSON.stringify(labels) });
+        window.open(`/print/drug-labels/${encodeURIComponent(visit.vn)}?${query}`, "_blank", "noopener,noreferrer");
         setDispensedItems(drugOrders.map((d: DrugOrder) => d.id));
     };
 
@@ -491,7 +501,7 @@ export default function CheckoutForm({
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    {drugOrders.length > 0 && (
+                    {items.some(it => it.item_type === "drug" && it.qty > 0) && (
                         <Button onClick={handlePrintAllLabels} variant="outline" size="sm"
                             className="rounded-xl gap-1.5 h-9 border-slate-200 text-blue-700 hover:bg-blue-50">
                             <Pill className="h-4 w-4" /> พิมพ์ฉลากยา

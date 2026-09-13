@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { gatePermission } from "@/lib/auth/guard";
 import PrintTrigger from "@/app/print/visits/[vn]/print-trigger";
 import type { Metadata } from "next";
+import { parseLabelSelection } from "@/lib/drug-label-selection";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ function pickInv(d: any) {
     return Array.isArray(d.inventory) ? d.inventory[0] : d.inventory;
 }
 
-export default async function DrugLabelsPrintPage({ params }: { params: Promise<{ vn: string }> }) {
+export default async function DrugLabelsPrintPage({ params, searchParams }: { params: Promise<{ vn: string }>; searchParams: Promise<{ items?: string | string[] }> }) {
     await gatePermission("pharmacy.view");
     const { vn } = await params;
     const supabase = await createClient();
@@ -68,13 +69,41 @@ export default async function DrugLabelsPrintPage({ params }: { params: Promise<
 
     if (!visit) return <div className="p-10 text-center text-slate-500">ไม่พบ Visit นี้</div>;
 
-    const { data: drugOrders } = await supabase
+    const { data: drugOrders, error: ordersError } = await supabase
         .from("drug_orders")
         .select(`id, item_id, qty, unit, sig_text, inventory!inner ( item_name, generic_name, strength, indication, warning_label, label_type, expiry_date )`)
         .eq("vn", vn)
         .order("id");
 
-    const drugs = drugOrders || [];
+    if (ordersError) return <div className="p-10">โหลดรายการยาไม่สำเร็จ กรุณาลองใหม่</div>;
+    // A checkout print uses the exact current bill selection, without saving or charging it.
+    let drugs = drugOrders || [];
+    const query = await searchParams;
+    if (query.items !== undefined) {
+        try {
+            if (typeof query.items !== "string") throw new Error("รายการฉลากไม่ถูกต้อง");
+            const selection = parseLabelSelection(query.items);
+            const inventoryIds = selection.filter(s => s.source === "inventory").map(s => s.id);
+            const { data: inventory, error } = inventoryIds.length ? await supabase.from("inventory")
+                .select("id, unit, item_name, generic_name, strength, indication, warning_label, label_type, expiry_date")
+                .eq("clinic_id", visit.clinic_id).eq("category", "drug").in("id", inventoryIds)
+                : { data: [], error: null };
+            if (error) throw new Error("โหลดข้อมูลฉลากไม่สำเร็จ กรุณาลองใหม่");
+            drugs = selection.map((selected, index) => {
+                if (selected.source === "order") {
+                    const order = drugOrders?.find(d => d.id === selected.id);
+                    if (!order) throw new Error("ไม่พบรายการยาของ Visit นี้ กรุณากลับไปตรวจสอบรายการ");
+                    return { ...order, id: `${order.id}-${index}`, qty: selected.qty };
+                }
+                const item = inventory?.find(d => d.id === selected.id);
+                if (!item) throw new Error("ไม่พบยาในคลัง กรุณากลับไปตรวจสอบรายการ");
+                return { id: `inventory-${index}`, item_id: item.id, qty: selected.qty, unit: item.unit,
+                    sig_text: "", inventory: [item] };
+            });
+        } catch (error) {
+            return <div className="p-10 text-center">{error instanceof Error ? error.message : "โหลดรายการฉลากไม่สำเร็จ"}</div>;
+        }
+    }
 
     // วันหมดอายุ: อ่านจากล็อต (inventory_lots) ที่ยังมีของ เลือกวันใกล้สุด (FEFO)
     // แม่นกว่า inventory.expiry_date ที่ sync เฉพาะตอนตัดสต๊อก (รับล็อตเข้าไม่ได้ sync)
