@@ -449,7 +449,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
             </div>
         );
     }
@@ -477,7 +477,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 </Link>
                 <div className="flex-1">
                     <h1 className="text-lg font-semibold text-slate-800">ซักประวัติ + วัด Vital Signs</h1>
-                    <p className="text-xs text-slate-500">บันทึกข้อมูลเบื้องต้น</p>
+                    <p className="text-xs text-slate-600">บันทึกข้อมูลเบื้องต้น</p>
                 </div>
                 <span className="font-mono text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded">{vn}</span>
             </div>
@@ -607,7 +607,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             {allergies.map(a => (
                                 <span key={a.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[15px] font-semibold ${severityColor[a.severity] || severityColor.moderate}`}>
                                     {a.allergen_name}
-                                    <span className="opacity-70 text-[11px] font-semibold">({SEVERITIES.find(s => s.value === a.severity)?.label || a.severity})</span>
+                                    <span className="text-xs font-semibold">({SEVERITIES.find(s => s.value === a.severity)?.label || a.severity})</span>
                                     <button onClick={() => handleRemoveAllergy(a.id)} className="ml-0.5 hover:bg-black/10 rounded-full p-0.5">
                                         <X className="h-3 w-3" />
                                     </button>
@@ -617,7 +617,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             {allergySummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-300 bg-red-50 text-red-800 text-[14px] italic">
                                     {allergySummary}
-                                    <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
+                                    <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
                             {allergies.length === 0 && !allergySummary && (
@@ -672,7 +672,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                 <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[15px] font-semibold">
                                     {c.disease_name}
                                     {c.is_controlled !== null && c.is_controlled !== undefined && (
-                                        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${c.is_controlled ? "bg-emerald-200 text-emerald-800" : "bg-amber-200 text-amber-900"}`}>
+                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${c.is_controlled ? "bg-emerald-200 text-emerald-800" : "bg-amber-200 text-amber-900"}`}>
                                             {c.is_controlled ? "controlled" : "uncontrolled"}
                                         </span>
                                     )}
@@ -685,7 +685,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             {diseaseSummary && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[14px] italic">
                                     {diseaseSummary}
-                                    <span className="text-[10px] opacity-70 not-italic">(จากข้อมูลผู้ป่วย)</span>
+                                    <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
                             {chronic.length === 0 && !diseaseSummary && (
@@ -735,7 +735,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     placeholder="โรค/ผ่าตัด/การรักษาที่ผ่านมา — บันทึกพร้อมตอนส่งตรวจ"
                     className="w-full text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">บันทึกลงประวัติผู้ป่วย (ใช้ร่วมกับทะเบียน/เวชระเบียน)</p>
+                <p className="text-xs text-slate-600 mt-1">บันทึกลงประวัติผู้ป่วย (ใช้ร่วมกับทะเบียน/เวชระเบียน)</p>
             </div>
 
 
@@ -802,7 +802,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         {bmi && (
                             <span className="text-xs text-slate-600">
                                 BMI: <strong className="text-blue-700">{bmi}</strong>{" "}
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-xs text-slate-600">
                                     {Number(bmi) < 18.5 ? "(ต่ำกว่ามาตรฐาน)" :
                                      Number(bmi) < 23 ? "(ปกติ)" :
                                      Number(bmi) < 25 ? "(เกิน)" :
@@ -811,7 +811,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </span>
                         )}
                     </div>
-                    <p className="mb-3 text-xs text-slate-500">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
+                    <p className="mb-3 text-xs text-slate-600">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <VitalInput required showError={submitAttempted} label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
                         <VitalInput required showError={submitAttempted} label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
@@ -834,7 +834,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             <Input type="date" value={vitals.lmp_date}
                                 onChange={e => setVital("lmp_date", e.target.value)}
                                 className="h-9 rounded-lg max-w-[200px]" />
-                            <span className="text-[11px] text-pink-700">สำคัญสำหรับการสั่งยา/X-ray</span>
+                            <span className="text-xs text-pink-700">สำคัญสำหรับการสั่งยา/X-ray</span>
                         </div>
                     </div>
                 )}
@@ -853,7 +853,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             ] as { v: TriageLevel; l: string; c: string }[]).map(t => (
                                 <button key={t.v} type="button" onClick={() => setTriageLevel(t.v)}
                                     className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all ${
-                                        triageLevel === t.v ? t.c + " shadow-sm" : "bg-slate-50 text-slate-400 border border-slate-200 hover:bg-slate-100"
+                                        triageLevel === t.v ? t.c + " shadow-sm" : "bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100"
                                     }`}>
                                     {t.l}
                                 </button>
@@ -892,7 +892,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             })}
                         </select>
                         {rooms.length === 0 && (
-                            <p className="text-[11px] text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
+                            <p className="text-xs text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
                         )}
                     </div>
                 </div>
@@ -921,19 +921,19 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
                     </div>
                 )}
-                <div className="text-xs text-slate-500 text-right">
-                    <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-400" />
+                <div className="text-xs text-slate-600 text-right">
+                    <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-500" />
                     ส่งให้ {SERVICE_LABEL[serviceCategory]}
                 </div>
 
                 {serviceCategory === "med_cert" && (
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
-                        <div className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
+                        <div className="text-xs font-semibold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
                         <div className="grid grid-cols-2 gap-1.5">
                             <Button disabled={saving} onClick={() => saveAndPrintCert("th")} variant="outline" className="rounded-lg h-9 text-xs font-semibold border-emerald-300 text-emerald-700 hover:bg-emerald-100">บันทึก & พิมพ์ ไทย</Button>
                             <Button disabled={saving} onClick={() => saveAndPrintCert("en")} variant="outline" className="rounded-lg h-9 text-xs font-semibold border-emerald-300 text-emerald-700 hover:bg-emerald-100">Save & Print EN</Button>
                         </div>
-                        <p className="text-[10px] text-slate-500">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
+                        <p className="text-xs text-slate-600">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
                     </div>
                 )}
 
@@ -985,7 +985,7 @@ function ServiceCategoryPicker({
                 <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800 whitespace-normal leading-snug">
                     {current.label}
                 </span>
-                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown menu */}
@@ -1039,7 +1039,7 @@ function VitalInput({
                     {label}
                     {required && <span className="text-red-500 ml-0.5">*</span>}
                 </span>
-                {thaiLabel && <span className="text-[11px] text-slate-500">{thaiLabel}</span>}
+                {thaiLabel && <span className="text-xs text-slate-600">{thaiLabel}</span>}
             </div>
             <div className="relative">
                 <input
@@ -1051,13 +1051,13 @@ function VitalInput({
                     step={step || "1"}
                     value={value}
                     onChange={e => onChange(e.target.value)}
-                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-11 text-base font-semibold text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
+                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-14 text-base font-semibold text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
                         isEmpty
                             ? "border-red-300 focus:ring-red-500/30 bg-red-50/30"
                             : "border-slate-300 focus:ring-blue-500/30"
                     }`}
                 />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">{unit}</span>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">{unit}</span>
             </div>
         </div>
     );
