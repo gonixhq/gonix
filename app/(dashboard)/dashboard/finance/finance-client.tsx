@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-    Banknote, Plus, TrendingUp, Clock, CheckCircle2, Receipt, CreditCard,
-    Trash2, X, Loader2, ArrowDownCircle, Package, Download, Search, Eye, ArrowLeftRight, AlertCircle,
+    Banknote, Plus, TrendingUp, CheckCircle2, Receipt, CreditCard,
+    Trash2, X, Loader2, ArrowDownCircle, Download, Search, Eye, ArrowLeftRight, AlertCircle,
     FileSignature, Printer,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
@@ -45,6 +45,8 @@ interface Invoice {
     patients: Patient | Patient[];
     is_anon?: boolean;
     route?: string;
+    received_original?: number;
+    refunded_amount?: number;
     pay_methods?: string[];   // cash / transfer / credit (จาก payment_logs)
 }
 
@@ -56,6 +58,7 @@ export default function FinanceClient({
     range,
     rangeRevenue,
     rangeCount,
+    depositAmount, regularRevenue, anonymousRevenue,
     channels,
     pendingAmount,
     pettyTotal,
@@ -73,6 +76,7 @@ export default function FinanceClient({
     range: RangeInfo;
     rangeRevenue: number;
     rangeCount: number;
+    depositAmount: number; regularRevenue: number; anonymousRevenue: number;
     channels: { cash: number; transfer: number; credit: number };
     pendingAmount: number;
     pettyTotal: number;
@@ -90,6 +94,9 @@ export default function FinanceClient({
     const [filter, setFilter] = useState<"all" | "outstanding" | "paid" | "voided">("all");
     const [payFilter, setPayFilter] = useState<"all" | "cash" | "transfer" | "credit">("all");
     const [search, setSearch] = useState("");
+    const [source, setSource] = useState<"all" | "normal" | "anon">("all");
+    const [page, setPage] = useState(1);
+    useEffect(() => setPage(1), [search, source, filter, payFilter, invoices]);
 
     const rangeLabel = range.preset === "today" ? "วันนี้" : range.preset === "week" ? "สัปดาห์นี้" : range.preset === "month" ? "เดือนนี้" : range.preset === "quarter" ? "ไตรมาสนี้" : `${range.from} – ${range.to}`;
     function setPreset(preset: string) {
@@ -133,21 +140,22 @@ export default function FinanceClient({
     function exportCSV() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cell = (v: any) => {
-            const s = String(v ?? "");
+            const raw = String(v ?? "");
+            const s = /^[=+@\t\r]/.test(raw) || (raw.startsWith("-") && !/^-[0-9.]+$/.test(raw)) ? `'${raw}` : raw;
             return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
         const lines: string[] = [];
-        lines.push("รายรับ (ใบเสร็จล่าสุด)");
-        lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "ชำระแล้ว", "คงเหลือ", "สถานะ"].map(cell).join(","));
+        lines.push("รายการใบเสร็จตามตัวกรอง (ยอดชำระสะสม ไม่ใช่ยอดรับเงินรายวัน)");
+        lines.push(["เลขที่", "วันที่", "ผู้ป่วย", "ประเภท", "ยอดรวม", "รับเดิมสะสม", "คืนแล้วตามรายการ", "คงเหลือ", "สถานะ"].map(cell).join(","));
         for (const inv of filteredInvoices) {
             const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
             const name = inv.is_anon ? "นิรนาม" : `${pt?.prefix || ""}${pt?.first_name || ""} ${pt?.last_name || ""}`.trim();
             lines.push([inv.id, inv.invoice_date, name, inv.is_anon ? "นิรนาม" : "ปกติ",
-                Number(inv.total_amount || 0), Number(inv.paid_amount || 0), Number(inv.balance_due || 0),
+                Number(inv.total_amount || 0), Number(inv.received_original ?? inv.paid_amount ?? 0), Number(inv.refunded_amount || 0), Number(inv.balance_due || 0),
                 statusLabel[inv.status] || inv.status].map(cell).join(","));
         }
         lines.push("");
-        lines.push("รายจ่ายย่อย (วันนี้)");
+        lines.push(`รายจ่ายย่อย (${range.from} ถึง ${range.to})`);
         lines.push(["หมวดหมู่", "รายละเอียด", "จำนวนเงิน", "ผู้บันทึก"].map(cell).join(","));
         for (const it of pettyItems) {
             lines.push([it.category, it.description, Number(it.amount || 0), it.recorded_by_name || ""].map(cell).join(","));
@@ -168,6 +176,7 @@ export default function FinanceClient({
     );
     const filteredInvoices = useMemo(() => {
         let list = invoices;
+        if (source !== "all") list = list.filter(i => source === "anon" ? i.is_anon : !i.is_anon);
         if (filter === "outstanding") list = list.filter(i => i.status === "issued" || i.status === "partial");
         else if (filter === "paid") list = list.filter(i => i.status === "paid");
         else if (filter === "voided") list = list.filter(i => i.status === "voided" || i.status === "refunded");
@@ -182,18 +191,11 @@ export default function FinanceClient({
             });
         }
         return list;
-    }, [invoices, filter, payFilter, search]);
+    }, [invoices, filter, payFilter, search, source]);
 
-    // กราฟรายรับรายวันในช่วง (คำนวณจากบิลที่กรองแล้ว)
-    const dailySeries = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const i of filteredInvoices) {
-            if (i.status === "voided" || i.status === "refunded") continue;
-            const d = String(i.invoice_date).slice(0, 10);
-            map.set(d, (map.get(d) || 0) + Number(i.paid_amount || 0));
-        }
-        return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, amount]) => ({ date, amount }));
-    }, [filteredInvoices]);
+    const pages = Math.max(1, Math.ceil(filteredInvoices.length / 25));
+    const currentPage = Math.min(page, pages);
+    const visibleInvoices = filteredInvoices.slice((currentPage - 1) * 25, currentPage * 25);
 
     // สรุปตามผลที่กรอง (Report Summary)
     const summary = useMemo(() => {
@@ -242,7 +244,7 @@ export default function FinanceClient({
     };
 
     return (
-        <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-10">
+        <div className="space-y-5 max-w-7xl mx-auto p-4 sm:p-6 pb-10 rounded-3xl bg-white/35 border border-white/60">
             {/* Sub-header */}
             <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
                 <p className="text-sm font-medium text-slate-500 flex items-center gap-2 flex-wrap">
@@ -266,7 +268,7 @@ export default function FinanceClient({
                             <div key={c.vn} className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-1.5 text-sm">
                                 <Printer className="h-3.5 w-3.5 text-amber-700 shrink-0" />
                                 <span className="font-semibold text-slate-700 truncate max-w-[140px]">{c.patient_name}</span>
-                                <span className="text-[10px] text-slate-400">{MEDCERT_LABEL[c.cert_type] || c.cert_type}</span>
+                                <span className="text-[10px] text-slate-500">{MEDCERT_LABEL[c.cert_type] || c.cert_type}</span>
                                 <span className="flex items-center gap-1">
                                     <a href={`/print/med-cert/${c.vn}?lang=th`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white border border-amber-200 hover:bg-amber-100 text-amber-700">ไทย</a>
                                     <a href={`/print/med-cert/${c.vn}?lang=en`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white border border-amber-200 hover:bg-amber-100 text-amber-700">EN</a>
@@ -287,269 +289,30 @@ export default function FinanceClient({
                 </div>
                 <div className="inline-flex items-center gap-1">
                     <input type="date" value={range.from} max={range.to} onChange={(e) => setCustom(e.target.value, range.to)} className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono focus:outline-none focus:border-blue-400" />
-                    <span className="text-slate-400 text-xs">–</span>
+                    <span className="text-slate-500 text-xs">–</span>
                     <input type="date" value={range.to} onChange={(e) => setCustom(range.from, e.target.value)} className="h-8 rounded-lg border border-slate-300 px-2 text-xs font-mono focus:outline-none focus:border-blue-400" />
                 </div>
                 <div className="relative ml-auto">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา ชื่อ / INV / VN"
-                        className="h-8 w-44 rounded-lg border border-slate-300 pl-8 pr-2 text-xs focus:outline-none focus:border-blue-400" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} aria-label="ค้นหาใบเสร็จ" placeholder="ค้นหาชื่อ / เลขบิล / VN / HN"
+                        className="h-10 w-64 rounded-lg border border-slate-300 pl-8 pr-2 text-xs focus:outline-none focus:border-blue-400" />
                 </div>
             </div>
 
-            {/* Stats — 4 cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {/* Today Revenue */}
-                <div className="gonix-card-premium p-5 relative overflow-hidden">
-                    <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-[#15FF83]/25 to-[#10B981]/5 blur-2xl pointer-events-none" />
-                    <div className="relative">
-                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-[#10B981]/10">
-                            <TrendingUp className="h-5 w-5 text-[#10B981]" strokeWidth={2.5} />
-                        </div>
-                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">
-                            <span className="text-lg mr-0.5 text-slate-400">฿</span>
-                            {rangeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </h3>
-                        <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? "Revenue" : "รายรับ"} ({rangeLabel})
-                        </p>
-                        {trend.growthPct != null && (
-                            <p className={`text-[11px] font-bold mt-0.5 inline-flex items-center gap-0.5 ${trend.growthPct >= 0 ? "text-emerald-600" : "text-rose-500"}`}>
-                                {trend.growthPct >= 0 ? "▲" : "▼"} {Math.abs(trend.growthPct)}% <span className="text-slate-400 font-normal">เทียบช่วงก่อน (฿{trend.prevRevenue.toLocaleString()})</span>
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                {/* Pending */}
-                <div className="gonix-card-premium p-5 relative overflow-hidden">
-                    <div className={`absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br blur-2xl pointer-events-none ${pendingAmount > 0 ? "from-amber-300/30 to-orange-200/5" : "from-slate-200/30 to-slate-100/5"}`} />
-                    <div className="relative">
-                        <div className={`h-11 w-11 rounded-2xl flex items-center justify-center mb-3 ${pendingAmount > 0 ? "bg-amber-100" : "bg-slate-100"}`}>
-                            <Clock className={`h-5 w-5 ${pendingAmount > 0 ? "text-amber-600" : "text-slate-400"}`} strokeWidth={2.5} />
-                        </div>
-                        <h3 className={`text-3xl font-extrabold tracking-tight tabular-nums ${pendingAmount > 0 ? "text-amber-700" : "text-slate-400"}`}>
-                            <span className="text-lg mr-0.5 opacity-60">฿</span>
-                            {pendingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </h3>
-                        <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? "Pending" : "รอชำระ"}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Today's invoices count */}
-                <div className="gonix-card-premium p-5 relative overflow-hidden">
-                    <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-[#00FFCC]/25 to-[#0EA5A0]/5 blur-2xl pointer-events-none" />
-                    <div className="relative">
-                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-[#0EA5A0]/10">
-                            <Receipt className="h-5 w-5 text-[#0EA5A0]" strokeWidth={2.5} />
-                        </div>
-                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">{rangeCount}</h3>
-                        <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? "Receipts" : "ใบเสร็จ"} ({rangeLabel})
-                        </p>
-                    </div>
-                </div>
-
-                {/* Deferred Revenue — มูลค่าคอร์สค้างใช้ (กดดูหน้าสรุปคอส) */}
-                <Link href="/dashboard/packages" className="gonix-card-premium p-5 relative overflow-hidden block hover:ring-2 hover:ring-violet-300 transition-all">
-                    <div className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-violet-300/25 to-fuchsia-200/5 blur-2xl pointer-events-none" />
-                    <div className="relative">
-                        <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-3 bg-violet-100">
-                            <Package className="h-5 w-5 text-violet-600" strokeWidth={2.5} />
-                        </div>
-                        <h3 className="text-3xl font-extrabold text-slate-800 tracking-tight tabular-nums">
-                            <span className="text-lg mr-0.5 text-slate-400">฿</span>
-                            {deferredValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </h3>
-                        <p className="text-sm font-semibold text-slate-600 mt-1">
-                            {language === "en" ? `Deferred (${deferredCount} pkg)` : `คอร์สค้างใช้ (${deferredCount} คอส)`} <span className="text-[11px] text-violet-500 font-normal">ดูทั้งหมด →</span>
-                        </p>
-                    </div>
-                </Link>
-            </div>
-
-            {/* Revenue by Segment (แยกแผนก) */}
-            {(() => {
-                const segMap: Record<string, number> = {};
-                for (const s of segments) segMap[s.segment] = s.amount;
-                const segTotal = SEGMENTS.reduce((a, s) => a + (segMap[s.key] || 0), 0);
-                if (segTotal <= 0) return null;
-                return (
-                    <div className="gonix-card-premium p-5">
-                        <div className="flex items-center gap-2 mb-3">
-                            <TrendingUp className="h-4 w-4 text-blue-700" />
-                            <h2 className="text-sm font-bold text-slate-800">
-                                {language === "en" ? "Revenue by Department" : "สัดส่วนรายได้ตามแผนก"} ({rangeLabel})
-                            </h2>
-                        </div>
-                        {/* stacked bar */}
-                        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100 mb-3">
-                            {SEGMENTS.map((s) => {
-                                const amt = segMap[s.key] || 0;
-                                const pct = (amt / segTotal) * 100;
-                                if (pct <= 0) return null;
-                                return <div key={s.key} className={SEGMENT_STYLE[s.key as Segment].bar} style={{ width: `${pct}%` }} title={`${s.label} ${pct.toFixed(0)}%`} />;
-                            })}
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                            {SEGMENTS.map((s) => {
-                                const amt = segMap[s.key] || 0;
-                                const pct = segTotal > 0 ? (amt / segTotal) * 100 : 0;
-                                const st = SEGMENT_STYLE[s.key as Segment];
-                                return (
-                                    <div key={s.key} className="text-center">
-                                        <div className={cn("inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-md", st.bg, st.text)}>
-                                            <span className={cn("h-2 w-2 rounded-full", st.bar)} /> {s.label}
-                                        </div>
-                                        <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                        <div className="text-[11px] text-slate-400">{pct.toFixed(0)}%</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                );
-            })()}
-
-            {/* Report summary + channels */}
-            <div className="grid md:grid-cols-2 gap-3">
-                <div className="gonix-card-premium p-4">
-                    <div className="text-xs font-bold text-slate-500 mb-2.5">สรุปยอด ({rangeLabel}{(search || filter !== "all") ? " · ตามที่กรอง" : ""})</div>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">รับจริงรวม</div></div>
-                        <div><div className="text-lg font-black text-slate-800 tabular-nums">{summary.count}</div><div className="text-[11px] text-slate-400">จำนวนใบ</div></div>
-                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div className="text-[11px] text-slate-400">เฉลี่ย/ใบ</div></div>
-                    </div>
-                    {forecast != null && (
-                        <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
-                            <span className="text-slate-500 inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5 text-violet-500" /> คาดการณ์สิ้นเดือน</span>
-                            <span className="font-black tabular-nums text-violet-700">~฿{forecast.toLocaleString()}</span>
-                        </div>
-                    )}
-                </div>
-                <div className="gonix-card-premium p-4">
-                    <div className="text-xs font-bold text-slate-500 mb-2.5 inline-flex items-center gap-1"><ArrowLeftRight className="h-3.5 w-3.5" /> รายรับตามช่องทาง ({rangeLabel})</div>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                        <div><div className="text-base font-black text-emerald-700 tabular-nums">฿{channels.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">เงินสด</div></div>
-                        <div><div className="text-base font-black text-cyan-700 tabular-nums">฿{channels.transfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">โอน</div></div>
-                        <div><div className="text-base font-black text-violet-700 tabular-nums">฿{channels.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-400">บัตร</div></div>
-                    </div>
-                </div>
-            </div>
-
-            {/* เตือน: พนักงานที่ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด) */}
-            {voidPattern.some(v => v.isOutlier) && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 space-y-1.5">
-                    <div className="text-xs font-black text-amber-900 inline-flex items-center gap-1.5">
-                        <AlertCircle className="h-3.5 w-3.5" /> ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด)
-                    </div>
-                    {voidPattern.filter(v => v.isOutlier).map((v, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-1.5">
-                            <span className="font-semibold text-slate-800">{v.name}</span>
-                            <span className="text-xs text-slate-600 tabular-nums">
-                                ยกเลิก {v.voids} · คืนเงิน {v.refunds} · <b className="text-amber-700">รวม {v.total} ครั้ง</b>
-                            </span>
-                        </div>
-                    ))}
-                    <p className="text-[10px] text-amber-700">สูงกว่าค่าเฉลี่ยของทีม 2 เท่าขึ้นไป — ตรวจสอบเหตุผลในประวัติใบเสร็จ</p>
-                </div>
-            )}
-
-            {/* กราฟรายรับรายวัน + เทียบช่วงก่อนหน้า */}
-            {dailySeries.length > 1 && (
-                <div className="gonix-card-premium p-4">
-                    <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
-                        <div className="text-xs font-bold text-slate-500 inline-flex items-center gap-1">
-                            <TrendingUp className="h-3.5 w-3.5" /> รายรับรายวัน ({rangeLabel})
-                        </div>
-                        {trend.growthPct != null && (
-                            <div className="text-[11px] font-bold">
-                                <span className="text-slate-400">ช่วงก่อนหน้า ฿{trend.prevRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} · </span>
-                                <span className={trend.growthPct >= 0 ? "text-emerald-600" : "text-rose-500"}>
-                                    {trend.growthPct >= 0 ? "▲" : "▼"} {Math.abs(trend.growthPct)}%
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    <RevenueBars data={dailySeries} />
-                </div>
-            )}
-
-            {/* Petty Cash + Net Cash Flow */}
-            <div className="gonix-card-premium overflow-hidden">
-                <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
-                    <ArrowDownCircle className="h-4 w-4 text-rose-600" />
-                    <h2 className="text-sm font-bold text-slate-800">
-                        {language === "en" ? "Petty Cash" : "รายจ่ายย่อย"} ({rangeLabel})
-                    </h2>
-                    <span className="text-xs text-slate-400">({pettyItems.length})</span>
-                    <div className="ml-auto flex items-center gap-3">
-                        {/* Net Cash Flow inline */}
-                        <div className="text-right hidden sm:block">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                {language === "en" ? "Net Cash Flow" : "กระแสเงินสดสุทธิ"}
-                            </div>
-                            <div className={cn("text-base font-black tabular-nums leading-none", netCashFlow >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                                ฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </div>
-                        </div>
-                        <Button onClick={() => setShowPetty(true)} size="sm"
-                            className="rounded-xl gap-1.5 h-9 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-500/20">
-                            <Plus className="h-4 w-4" /> {language === "en" ? "Add Expense" : "บันทึกรายจ่ายย่อย"}
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Net cash breakdown (mobile + summary line) */}
-                <div className="px-5 py-2.5 bg-slate-50/60 border-b border-slate-200/40 flex items-center gap-4 text-xs flex-wrap">
-                    <span className="text-slate-500">รายรับ ({rangeLabel}) <span className="font-bold text-emerald-700 tabular-nums">฿{rangeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
-                    <span className="text-slate-300">−</span>
-                    <span className="text-slate-500">รายจ่ายย่อย <span className="font-bold text-rose-600 tabular-nums">฿{pettyTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
-                    <span className="text-slate-300">=</span>
-                    <span className="text-slate-500">สุทธิ <span className={cn("font-black tabular-nums", netCashFlow >= 0 ? "text-emerald-700" : "text-rose-600")}>฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
-                </div>
-
-                {pettyItems.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                        {language === "en" ? "No petty cash recorded today" : "ยังไม่มีรายจ่ายย่อยวันนี้"}
-                    </div>
-                ) : (
-                    <div className="divide-y divide-slate-100">
-                        {pettyItems.map((it) => (
-                            <div key={it.id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">{it.category}</span>
-                                <span className="text-sm text-slate-700 truncate flex-1">{it.description}</span>
-                                {it.recorded_by_name && <span className="text-[11px] text-slate-400 hidden md:block shrink-0">{it.recorded_by_name}</span>}
-                                <span className="text-sm font-bold text-rose-600 tabular-nums shrink-0">−฿{it.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                <button onClick={() => removePetty(it.id)} disabled={pending}
-                                    className="text-slate-300 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-40">
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Customer LTV (เมื่อค้นเหลือคนเดียว) */}
-            {ltv && (
-                <div className="gonix-card-premium p-4 border-l-4 border-l-blue-500">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                            <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">ลูกค้ารายนี้ · มูลค่าตลอดอายุ (LTV)</div>
-                            <div className="text-lg font-black text-slate-800">{ltv.name} <span className="text-xs font-mono text-slate-400">{ltv.hn}</span></div>
-                        </div>
-                        <div className="flex items-center gap-5 flex-wrap">
-                            <div className="text-center"><div className="text-xl font-black text-blue-700 tabular-nums">฿{Number(ltv.total).toLocaleString()}</div><div className="text-[11px] text-slate-400">ใช้จ่ายสะสม</div></div>
-                            <div className="text-center"><div className="text-xl font-black text-slate-800 tabular-nums">{ltv.visitCount}</div><div className="text-[11px] text-slate-400">ครั้งที่มา</div></div>
-                            {ltv.points != null && <div className="text-center"><div className="text-xl font-black text-amber-600 tabular-nums">{Number(ltv.points).toLocaleString()}</div><div className="text-[11px] text-slate-400">แต้ม{ltv.tierName ? ` · ${ltv.tierName}` : ""}</div></div>}
-                            {ltv.firstDate && <div className="text-xs text-slate-400 self-end pb-1">ลูกค้าตั้งแต่ {new Date(ltv.firstDate + "T00:00:00").toLocaleDateString("th-TH", { month: "short", year: "2-digit" })}</div>}
-                        </div>
-                    </div>
-                </div>
-            )}
+            <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                {[
+                    { label: `รับเงินจริงสุทธิ (${rangeLabel})`, value: rangeRevenue, detail: `ทั่วไป ฿${regularRevenue.toLocaleString()} · นิรนาม ฿${anonymousRevenue.toLocaleString()}` },
+                    { label: `มัดจำที่บันทึก (${rangeLabel})`, value: depositAmount, detail: "รวมอยู่ในยอดรับเงินจริงแล้ว" },
+                    { label: "ค้างชำระทั้งหมด", value: pendingAmount, detail: "รวมบิลก่อนช่วงที่เลือกและเคสนิรนาม" },
+                    { label: `หลังหักรายจ่ายย่อย (${rangeLabel})`, value: netCashFlow, detail: `รายจ่ายย่อย ฿${pettyTotal.toLocaleString()}` },
+                ].map(card => <div key={card.label} className="gonix-card-premium p-4 sm:p-5">
+                    <p className="text-sm font-medium text-slate-600">{card.label}</p>
+                    <p className="text-2xl font-semibold text-slate-900 tabular-nums mt-2 break-words">฿{card.value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-slate-600 mt-2">{card.detail}</p>
+                    {card.value === rangeRevenue && card.label.startsWith("รับเงินจริง") && trend.growthPct != null && <p className="text-xs text-slate-600 mt-1">เทียบช่วงก่อน {trend.growthPct > 0 ? "+" : ""}{trend.growthPct}%</p>}
+                </div>)}
+            </section>
+            <p className="text-sm text-slate-600">ยอดรับเงินจริงตามวันรับเงิน รวมรับชำระบิลเก่าและหักเงินคืน · รายการด้านล่าง: บิลทั่วไปตามวันที่ออกบิล / นิรนามตามวันที่รับเงิน</p>
 
             {/* Invoice list */}
             <div className="gonix-card-premium overflow-hidden">
@@ -558,31 +321,48 @@ export default function FinanceClient({
                     <h2 className="text-sm font-bold text-slate-800">
                         {language === "en" ? "Recent Receipts" : "ใบเสร็จล่าสุด"}
                     </h2>
-                    <span className="text-xs text-slate-400">({filteredInvoices.length}{filter !== "all" ? ` / ${invoices.length}` : ""})</span>
+                    <span className="text-xs text-slate-500">({filteredInvoices.length}{filter !== "all" ? ` / ${invoices.length}` : ""})</span>
                     {voidCount > 0 && (
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-rose-50 text-rose-600 inline-flex items-center gap-1" title="ใบเสร็จที่ยกเลิก/คืนเงินในช่วงนี้ — ตรวจสอบความถี่">
                             <AlertCircle className="h-3 w-3" /> ยกเลิก/คืน {voidCount}
                         </span>
                     )}
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
                         <Button onClick={exportCSV} variant="outline" size="sm" className="rounded-lg h-7 text-xs gap-1 border-slate-300 text-slate-600 hover:bg-slate-50">
-                            <Download className="h-3.5 w-3.5" /> Export CSV
+                            <Download className="h-3.5 w-3.5" /> ส่งออก CSV
                         </Button>
-                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
-                        <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>ทั้งหมด</FilterChip>
-                        <FilterChip active={filter === "outstanding"} onClick={() => setFilter("outstanding")} color="amber">
-                            ค้างชำระ ({outstandingCount})
-                        </FilterChip>
-                        <FilterChip active={filter === "paid"} onClick={() => setFilter("paid")} color="emerald">ชำระแล้ว</FilterChip>
-                        <FilterChip active={filter === "voided"} onClick={() => setFilter("voided")}>ยกเลิก/คืน</FilterChip>
-                        <span className="w-px h-5 bg-slate-200 mx-0.5" />
-                        <FilterChip active={payFilter === "all"} onClick={() => setPayFilter("all")}>ทุกช่องทาง</FilterChip>
-                        <FilterChip active={payFilter === "cash"} onClick={() => setPayFilter("cash")} color="emerald">เงินสด</FilterChip>
-                        <FilterChip active={payFilter === "transfer"} onClick={() => setPayFilter("transfer")}>โอน/QR</FilterChip>
-                        <FilterChip active={payFilter === "credit"} onClick={() => setPayFilter("credit")}>บัตร</FilterChip>
                     </div>
                 </div>
 
+                <div className="px-5 py-3 flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-slate-100 text-sm">
+                    <label className="flex items-center gap-2 text-slate-600">
+                        สถานะ:
+                        <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทั้งหมด</option>
+                            <option value="outstanding">ค้างชำระ ({outstandingCount})</option>
+                            <option value="paid">ชำระแล้ว</option>
+                            <option value="voided">ยกเลิก/คืน</option>
+                        </select>
+                    </label>
+                    <label className="flex items-center gap-2 text-slate-600">
+                        ช่องทาง:
+                        <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as typeof payFilter)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทุกช่องทาง</option>
+                            <option value="cash">เงินสด</option>
+                            <option value="transfer">โอน/QR</option>
+                            <option value="credit">บัตร</option>
+                        </select>
+                    </label>
+                    <label className="flex items-center gap-2 text-slate-600">
+                        ประเภท:
+                        <select value={source} onChange={(e) => setSource(e.target.value as typeof source)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">ทั้งหมด</option>
+                            <option value="normal">ทั่วไป</option>
+                            <option value="anon">นิรนาม</option>
+                        </select>
+                    </label>
+                    <span className="text-slate-500 ml-auto">{rangeCount} รายการในช่วงที่เลือก</span>
+                </div>
                 {filteredInvoices.length === 0 ? (
                     <div className="py-16 flex flex-col items-center justify-center">
                         <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
@@ -599,19 +379,20 @@ export default function FinanceClient({
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50/60">
-                                <tr className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                <tr className="text-sm font-semibold text-slate-600">
                                     <th className="text-left px-4 py-2.5">เลขที่</th>
                                     <th className="text-left px-4 py-2.5">ผู้ป่วย</th>
                                     <th className="text-left px-4 py-2.5 hidden md:table-cell">VN</th>
                                     <th className="text-left px-4 py-2.5 hidden sm:table-cell">วันที่</th>
                                     <th className="text-right px-4 py-2.5">ยอดรวม</th>
-                                    <th className="text-right px-4 py-2.5 hidden lg:table-cell">คงเหลือ</th>
+                                    <th className="text-right px-4 py-2.5">รับแล้วสะสม</th>
+                                    <th className="text-right px-4 py-2.5">คงเหลือ</th>
                                     <th className="text-center px-4 py-2.5">สถานะ</th>
                                     <th className="px-2"></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredInvoices.map((inv) => {
+                                {visibleInvoices.map((inv) => {
                                     const pt = Array.isArray(inv.patients) ? inv.patients[0] : inv.patients;
                                     const balance = Number(inv.balance_due || 0);
                                     return (
@@ -621,7 +402,7 @@ export default function FinanceClient({
                                             onClick={() => window.location.href = inv.route || `/dashboard/finance/${inv.id}`}
                                         >
                                             <td className="px-4 py-3">
-                                                <span className={`font-mono text-[11px] font-bold px-2 py-1 rounded ${inv.is_anon ? "text-[#2B54F0] bg-[#2B54F0]/10" : "text-slate-600 bg-slate-100"}`}>
+                                                <span className={`font-mono text-sm font-medium px-2 py-1 rounded ${inv.is_anon ? "text-[#2B54F0] bg-[#2B54F0]/10" : "text-slate-600 bg-slate-100"}`}>
                                                     {inv.id}
                                                 </span>
                                             </td>
@@ -630,10 +411,10 @@ export default function FinanceClient({
                                                     {pt?.prefix}{pt?.first_name} {pt?.last_name}
                                                     {inv.is_anon && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700">นิรนาม</span>}
                                                 </div>
-                                                <div className="text-[11px] font-mono text-slate-500">{inv.is_anon ? "คลินิกนิรนาม" : `HN: ${inv.hn}`}</div>
+                                                <div className="text-sm font-mono text-slate-700">{inv.is_anon ? "คลินิกนิรนาม" : `HN: ${inv.hn}`}</div>
                                             </td>
                                             <td className="px-4 py-3 hidden md:table-cell">
-                                                <span className="font-mono text-xs text-slate-600">{inv.vn}</span>
+                                                <span className="font-mono text-sm text-slate-600">{inv.vn}</span>
                                             </td>
                                             <td className="px-4 py-3 hidden sm:table-cell text-xs text-slate-600 tabular-nums">
                                                 {new Date(inv.invoice_date).toLocaleDateString(language === "en" ? "en-US" : "th-TH", { day: "numeric", month: "short", year: "2-digit" })}
@@ -646,7 +427,16 @@ export default function FinanceClient({
                                                     ฿{Number(inv.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right hidden lg:table-cell">
+                                            <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                                                {inv.status === "refunded" || Number(inv.refunded_amount) > 0 ? <div className="space-y-1 whitespace-nowrap text-sm">
+                                                    <div>รับเดิม ฿{Number(inv.received_original ?? inv.paid_amount ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                    {Number(inv.refunded_amount) > 0 ? <>
+                                                        <div className="text-rose-700">คืนแล้ว ฿{Number(inv.refunded_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                        <div className="font-medium">สุทธิ ฿{((Math.round(Number(inv.received_original ?? inv.paid_amount ?? 0) * 100) - Math.round(Number(inv.refunded_amount) * 100)) / 100).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</div>
+                                                    </> : <div className="text-amber-700">ไม่พบรายการยอดคืน</div>}
+                                                </div> : <>฿{Number(inv.paid_amount || 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}</>}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
                                                 <span className={`font-bold tabular-nums ${balance > 0 ? "text-amber-700" : "text-slate-300"}`}>
                                                     ฿{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </span>
@@ -681,10 +471,182 @@ export default function FinanceClient({
                                 })}
                             </tbody>
                         </table>
+                        <nav aria-label="หน้าใบเสร็จ" className="p-4 flex items-center justify-between gap-3 border-t text-sm text-slate-600">
+                            <span>{filteredInvoices.length} รายการ · หน้าละ 25</span>
+                            <div className="flex items-center gap-3"><Button variant="outline" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</Button>
+                            <span>{currentPage} / {pages}</span><Button variant="outline" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>ถัดไป</Button></div>
+                        </nav>
                     </div>
                 )}
             </div>
 
+            <details className="gonix-card-premium p-5">
+                <summary className="cursor-pointer font-semibold text-slate-800">รายงานเพิ่มเติม · รายจ่ายย่อย · คอร์สค้างใช้</summary>
+                <div className="space-y-4 mt-4">
+                    <Link href="/dashboard/packages" className="block text-sm text-blue-700">คอร์สค้างใช้ {deferredCount} คอร์ส · ฿{deferredValue.toLocaleString("th-TH", { minimumFractionDigits: 2 })} →</Link>
+            {/* Revenue by Segment (แยกแผนก) */}
+            {(() => {
+                const segMap: Record<string, number> = {};
+                for (const s of segments) segMap[s.segment] = s.amount;
+                const segTotal = SEGMENTS.reduce((a, s) => a + (segMap[s.key] || 0), 0);
+                if (segTotal <= 0) return null;
+                return (
+                    <div className="gonix-card-premium p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                            <TrendingUp className="h-4 w-4 text-blue-700" />
+                            <h2 className="text-sm font-bold text-slate-800">
+                                {language === "en" ? "Revenue by Department" : "ยอดชำระสะสมแยกแผนกของบิลในช่วง"} ({rangeLabel})
+                            </h2>
+                        </div>
+                        {/* stacked bar */}
+                        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100 mb-3">
+                            {SEGMENTS.map((s) => {
+                                const amt = segMap[s.key] || 0;
+                                const pct = (amt / segTotal) * 100;
+                                if (pct <= 0) return null;
+                                return <div key={s.key} className={SEGMENT_STYLE[s.key as Segment].bar} style={{ width: `${pct}%` }} title={`${s.label} ${pct.toFixed(0)}%`} />;
+                            })}
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {SEGMENTS.map((s) => {
+                                const amt = segMap[s.key] || 0;
+                                const pct = segTotal > 0 ? (amt / segTotal) * 100 : 0;
+                                const st = SEGMENT_STYLE[s.key as Segment];
+                                return (
+                                    <div key={s.key} className="text-center">
+                                        <div className={cn("inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-md", st.bg, st.text)}>
+                                            <span className={cn("h-2 w-2 rounded-full", st.bar)} /> {s.label}
+                                        </div>
+                                        <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{amt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-[11px] text-slate-500">{pct.toFixed(0)}%</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Report summary + channels */}
+            <div className="grid md:grid-cols-2 gap-3">
+                <div className="gonix-card-premium p-4">
+                    <div className="text-xs font-bold text-slate-500 mb-2.5">สรุปยอด ({rangeLabel}{(search || filter !== "all") ? " · ตามที่กรอง" : ""})</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">รับจริงรวม</div></div>
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">{summary.count}</div><div className="text-[11px] text-slate-500">จำนวนใบ</div></div>
+                        <div><div className="text-lg font-black text-slate-800 tabular-nums">฿{summary.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div><div className="text-[11px] text-slate-500">เฉลี่ย/ใบ</div></div>
+                    </div>
+                    {forecast != null && (
+                        <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-slate-500 inline-flex items-center gap-1"><TrendingUp className="h-3.5 w-3.5 text-violet-500" /> คาดการณ์สิ้นเดือน</span>
+                            <span className="font-black tabular-nums text-violet-700">~฿{forecast.toLocaleString()}</span>
+                        </div>
+                    )}
+                </div>
+                <div className="gonix-card-premium p-4">
+                    <div className="text-xs font-bold text-slate-500 mb-2.5 inline-flex items-center gap-1"><ArrowLeftRight className="h-3.5 w-3.5" /> รายรับตามช่องทาง ({rangeLabel})</div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                        <div><div className="text-base font-black text-emerald-700 tabular-nums">฿{channels.cash.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">เงินสด</div></div>
+                        <div><div className="text-base font-black text-cyan-700 tabular-nums">฿{channels.transfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">โอน</div></div>
+                        <div><div className="text-base font-black text-violet-700 tabular-nums">฿{channels.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">บัตร</div></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* เตือน: พนักงานที่ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด) */}
+            {voidPattern.some(v => v.isOutlier) && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-3 space-y-1.5">
+                    <div className="text-xs font-black text-amber-900 inline-flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5" /> ยกเลิก/คืนเงินบ่อยผิดปกติ (90 วันล่าสุด)
+                    </div>
+                    {voidPattern.filter(v => v.isOutlier).map((v, i) => (
+                        <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-1.5">
+                            <span className="font-semibold text-slate-800">{v.name}</span>
+                            <span className="text-xs text-slate-600 tabular-nums">
+                                ยกเลิก {v.voids} · คืนเงิน {v.refunds} · <b className="text-amber-700">รวม {v.total} ครั้ง</b>
+                            </span>
+                        </div>
+                    ))}
+                    <p className="text-[10px] text-amber-700">สูงกว่าค่าเฉลี่ยของทีม 2 เท่าขึ้นไป — ตรวจสอบเหตุผลในประวัติใบเสร็จ</p>
+                </div>
+            )}
+
+            {/* Petty Cash + Net Cash Flow */}
+            <div className="gonix-card-premium overflow-hidden">
+                <div className="px-5 py-3 border-b border-slate-200/60 flex items-center gap-2 flex-wrap">
+                    <ArrowDownCircle className="h-4 w-4 text-rose-600" />
+                    <h2 className="text-sm font-bold text-slate-800">
+                        {language === "en" ? "Petty Cash" : "รายจ่ายย่อย"} ({rangeLabel})
+                    </h2>
+                    <span className="text-xs text-slate-500">({pettyItems.length})</span>
+                    <div className="ml-auto flex items-center gap-3">
+                        {/* Net Cash Flow inline */}
+                        <div className="text-right hidden sm:block">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                {language === "en" ? "Net Cash Flow" : "กระแสเงินสดสุทธิ"}
+                            </div>
+                            <div className={cn("text-base font-black tabular-nums leading-none", netCashFlow >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                ฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                        <Button onClick={() => setShowPetty(true)} size="sm"
+                            className="rounded-xl gap-1.5 h-9 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-500/20">
+                            <Plus className="h-4 w-4" /> {language === "en" ? "Add Expense" : "บันทึกรายจ่ายย่อย"}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Net cash breakdown (mobile + summary line) */}
+                <div className="px-5 py-2.5 bg-slate-50/60 border-b border-slate-200/40 flex items-center gap-4 text-xs flex-wrap">
+                    <span className="text-slate-500">รายรับ ({rangeLabel}) <span className="font-bold text-emerald-700 tabular-nums">฿{rangeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                    <span className="text-slate-300">−</span>
+                    <span className="text-slate-500">รายจ่ายย่อย <span className="font-bold text-rose-600 tabular-nums">฿{pettyTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                    <span className="text-slate-300">=</span>
+                    <span className="text-slate-500">สุทธิ <span className={cn("font-black tabular-nums", netCashFlow >= 0 ? "text-emerald-700" : "text-rose-600")}>฿{netCashFlow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                </div>
+
+                {pettyItems.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-500">
+                        {language === "en" ? "No petty cash recorded today" : "ยังไม่มีรายจ่ายย่อยวันนี้"}
+                    </div>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {pettyItems.map((it) => (
+                            <div key={it.id} className="px-5 py-2.5 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">{it.category}</span>
+                                <span className="text-sm text-slate-700 truncate flex-1">{it.description}</span>
+                                {it.recorded_by_name && <span className="text-[11px] text-slate-500 hidden md:block shrink-0">{it.recorded_by_name}</span>}
+                                <span className="text-sm font-bold text-rose-600 tabular-nums shrink-0">−฿{it.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                <button onClick={() => removePetty(it.id)} disabled={pending}
+                                    className="text-slate-300 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-40">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Customer LTV (เมื่อค้นเหลือคนเดียว) */}
+            {ltv && (
+                <div className="gonix-card-premium p-4 border-l-4 border-l-blue-500">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <div className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">ลูกค้ารายนี้ · มูลค่าตลอดอายุ (LTV)</div>
+                            <div className="text-lg font-black text-slate-800">{ltv.name} <span className="text-xs font-mono text-slate-500">{ltv.hn}</span></div>
+                        </div>
+                        <div className="flex items-center gap-5 flex-wrap">
+                            <div className="text-center"><div className="text-xl font-black text-blue-700 tabular-nums">฿{Number(ltv.total).toLocaleString()}</div><div className="text-[11px] text-slate-500">ใช้จ่ายสะสม</div></div>
+                            <div className="text-center"><div className="text-xl font-black text-slate-800 tabular-nums">{ltv.visitCount}</div><div className="text-[11px] text-slate-500">ครั้งที่มา</div></div>
+                            {ltv.points != null && <div className="text-center"><div className="text-xl font-black text-amber-600 tabular-nums">{Number(ltv.points).toLocaleString()}</div><div className="text-[11px] text-slate-500">แต้ม{ltv.tierName ? ` · ${ltv.tierName}` : ""}</div></div>}
+                            {ltv.firstDate && <div className="text-xs text-slate-500 self-end pb-1">ลูกค้าตั้งแต่ {new Date(ltv.firstDate + "T00:00:00").toLocaleDateString("th-TH", { month: "short", year: "2-digit" })}</div>}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+                </div>
+            </details>
             {/* Add petty cash modal */}
             {showPetty && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in p-4">
@@ -696,7 +658,7 @@ export default function FinanceClient({
                                 </div>
                                 <h3 className="text-lg font-bold text-slate-900">บันทึกรายจ่ายย่อย</h3>
                             </div>
-                            <button onClick={() => setShowPetty(false)} className="text-slate-400 hover:text-slate-700">
+                            <button onClick={() => setShowPetty(false)} className="text-slate-500 hover:text-slate-700">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
@@ -741,64 +703,5 @@ export default function FinanceClient({
                 </div>
             )}
         </div>
-    );
-}
-
-/** กราฟแท่งรายรับรายวัน — SVG ล้วน ไม่ต้องพึ่ง chart library */
-function RevenueBars({ data }: { data: { date: string; amount: number }[] }) {
-    const max = Math.max(...data.map(d => d.amount), 1);
-    const H = 88, GAP = 2;
-    const w = 100 / data.length;
-    const fmtDay = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-    // แสดง label ไม่เกิน ~8 จุด กันตัวหนังสือทับกัน
-    const labelEvery = Math.ceil(data.length / 8);
-
-    return (
-        <div>
-            <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="w-full h-24" role="img" aria-label="กราฟรายรับรายวัน">
-                {data.map((d, i) => {
-                    const h = Math.max(1, (d.amount / max) * (H - 4));
-                    return (
-                        <rect key={d.date} x={i * w + GAP / 2} y={H - h} width={Math.max(0.5, w - GAP)} height={h}
-                            rx={0.8} className="fill-blue-500/80">
-                            <title>{`${fmtDay(d.date)} · ฿${d.amount.toLocaleString()}`}</title>
-                        </rect>
-                    );
-                })}
-            </svg>
-            <div className="flex justify-between mt-1 text-[9px] text-slate-400 tabular-nums">
-                {data.map((d, i) => (
-                    <span key={d.date} className="flex-1 text-center truncate">
-                        {i % labelEvery === 0 ? fmtDay(d.date) : ""}
-                    </span>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function FilterChip({
-    active, onClick, children, color = "slate",
-}: {
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-    color?: "slate" | "amber" | "emerald";
-}) {
-    const activeStyles = {
-        slate: "bg-slate-700 text-white",
-        amber: "bg-amber-600 text-white shadow-sm shadow-amber-500/30",
-        emerald: "bg-emerald-600 text-white shadow-sm shadow-emerald-500/30",
-    }[color];
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={`px-2.5 h-7 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all ${
-                active ? activeStyles : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-        >
-            {children}
-        </button>
     );
 }
