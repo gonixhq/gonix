@@ -1,0 +1,6 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/finance-range.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:m.exports});const {monday,shiftDate,validDate,readAll}=m.exports;
+test('week begins Monday without shifting to previous Sunday in Thailand',()=>{assert.equal(monday('2026-09-14'),'2026-09-14');assert.equal(monday('2026-09-13'),'2026-09-07')});
+test('date ranges handle month boundaries and leap dates',()=>{assert.equal(shiftDate('2026-03-01',-1),'2026-02-28');assert.equal(shiftDate('2028-03-01',-1),'2028-02-29');assert.equal(validDate('2026-02-29','2026-09-13'),'2026-09-13');assert.equal(validDate('invalid','2026-09-13'),'2026-09-13')});
+test('reads more than 1000 rows without truncating totals',async()=>{const all=Array.from({length:1201},(_,id)=>({id}));const result=await readAll(async(a,b)=>({data:all.slice(a,b+1),error:null}));assert.equal(result.length,1201);assert.equal(result[1200].id,1200)});
+test('failed second page rejects rather than returning a partial total',async()=>{await assert.rejects(readAll(async(a,b)=>a?{data:null,error:{}}:{data:Array(500).fill({}),error:null}))});
