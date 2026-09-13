@@ -188,7 +188,7 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                     <th className="text-left font-bold text-slate-500 px-5 py-3 text-sm hidden lg:table-cell">เบอร์โทร</th>
                                     <th className="text-left font-bold text-slate-500 px-5 py-3 text-sm hidden md:table-cell">สิทธิ์</th>
                                     <th className="text-left font-bold text-slate-500 px-5 py-3 text-sm">Visit ล่าสุด</th>
-                                    <th className="text-center font-bold text-slate-500 px-5 py-3 text-sm">Visits</th>
+                                    <th className="text-center font-bold text-slate-500 px-5 py-3 text-sm">จำนวนครั้ง</th>
                                     <th className="w-8 px-2"></th>
                                 </tr>
                             </thead>
@@ -201,12 +201,12 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                             className="border-b border-slate-50 last:border-0 hover:bg-blue-50/40 transition-colors group cursor-pointer"
                                             onClick={() => router.push(`/dashboard/patients/${pt.hn}`)}
                                         >
-                                            <td className="px-5 py-3 hidden sm:table-cell">
-                                                <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                            <td className="px-5 py-2 hidden sm:table-cell">
+                                                <span className="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
                                                     {pt.hn}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-3">
+                                            <td className="px-5 py-2">
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                         <Link href={`/dashboard/patients/${pt.hn}`} className="text-base font-semibold text-slate-800 group-hover:text-blue-900 transition-colors">
@@ -220,7 +220,7 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                                         )}
                                                     </div>
                                                     <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                                                        <span className="sm:hidden font-mono text-blue-700">{pt.hn}</span>
+                                                        <span className="sm:hidden font-mono text-sm text-blue-700">{pt.hn}</span>
                                                         <span>{pt.gender === "M" ? "ชาย" : pt.gender === "F" ? "หญิง" : "—"}</span>
                                                         {age !== null && (
                                                             <>
@@ -239,8 +239,8 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 hidden lg:table-cell">
-                                                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-mono">
+                                            <td className="px-5 py-2 hidden lg:table-cell">
+                                                <div className="flex items-center gap-1.5 text-sm text-slate-700 font-mono">
                                                     {pt.phone ? (
                                                         <>
                                                             <Phone className="h-3 w-3 text-slate-400" />
@@ -251,17 +251,17 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 hidden md:table-cell">
+                                            <td className="px-5 py-2 hidden md:table-cell">
                                                 <span className="text-xs text-slate-600">
                                                     {pt.nhso_rights ? (NHSO_LABEL[pt.nhso_rights] || pt.nhso_rights) : "—"}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-3">
+                                            <td className="px-5 py-2">
                                                 <span className="text-xs text-slate-600">
                                                     {formatRelative(pt.last_visit_date)}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-3 text-center">
+                                            <td className="px-5 py-2 text-center">
                                                 <span className={`inline-flex items-center justify-center gap-1 h-7 px-2.5 rounded-full text-xs font-bold ${
                                                     (pt.visit_count || 0) >= 5
                                                         ? "bg-emerald-100 text-emerald-700"
@@ -273,7 +273,7 @@ export default function PatientsClient({ patients, search, isOwner, gender, age,
                                                     {pt.visit_count || 0}
                                                 </span>
                                             </td>
-                                            <td className="px-2 py-3"><div className="flex items-center gap-2 whitespace-nowrap">
+                                            <td className="px-2 py-2"><div className="flex items-center gap-2 whitespace-nowrap">
                                                 {!pt.is_blocked && <PermissionGate permKey="visits.create"><Link
                                                     href={`/dashboard/visits/new?hn=${encodeURIComponent(pt.hn)}`}
                                                     onClick={e => e.stopPropagation()}
