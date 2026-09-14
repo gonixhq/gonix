@@ -8,6 +8,8 @@ import { getSalesForecast } from "@/lib/actions/advanced-report";
 import { getSafetyMetrics } from "@/lib/actions/follow-up";
 import { getDiscountReport } from "@/lib/actions/campaigns";
 import { isSeg, type Seg } from "@/lib/report-segment";
+import { getProfitReport } from "@/lib/actions/profit-report";
+import { validDate, shiftDate } from "@/lib/finance-range";
 import ReportsClient from "./reports-client";
 
 export const dynamic = "force-dynamic";
@@ -30,18 +32,16 @@ export default async function ReportsPage({
     const [y, m] = today.split("-");
     const defaultStart = `${y}-${m}-01`;
 
-    const startDate = params.start || defaultStart;
-    const endDate = params.end || today;
+    const requestedStart = validDate(params.start, defaultStart);
+    const requestedEnd = validDate(params.end, today);
+    const startDate = requestedStart <= requestedEnd ? requestedStart : requestedEnd;
+    const endDate = requestedStart <= requestedEnd ? requestedEnd : requestedStart;
 
     // ── ช่วงก่อนหน้า (ยาวเท่ากัน อยู่ก่อน startDate) สำหรับเทียบ Period-over-Period ──
-    function isoDate(d: Date) { return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" }); }
-    const sDate = new Date(`${startDate}T00:00:00+07:00`);
-    const eDate = new Date(`${endDate}T00:00:00+07:00`);
-    const spanDays = Math.max(0, Math.round((eDate.getTime() - sDate.getTime()) / 86400000));
-    const prevEndD = new Date(sDate); prevEndD.setDate(prevEndD.getDate() - 1);
-    const prevStartD = new Date(prevEndD); prevStartD.setDate(prevStartD.getDate() - spanDays);
-    const prevStart = isoDate(prevStartD);
-    const prevEnd = isoDate(prevEndD);
+    const spanDays = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86400000);
+    const prevEnd = shiftDate(startDate, -1);
+    const prevStart = shiftDate(prevEnd, -spanDays);
+    const profit = await getProfitReport(startDate, endDate);
 
     const [summary, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin] = await Promise.all([
         getReportSummary(startDate, endDate, seg),
@@ -70,6 +70,7 @@ export default async function ReportsPage({
 
     return (
         <ReportsClient
+            profit={profit}
             summary={summary}
             prevSummary={prevSummary}
             goal={goal}
