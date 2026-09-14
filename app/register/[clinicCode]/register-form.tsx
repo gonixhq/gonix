@@ -312,7 +312,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                                 onChange={(e) => searchTambon(e.target.value)}
                                 onFocus={() => tambonResults.length > 0 && setShowTambonList(true)}
                                 placeholder={L.tambonPh}
-                                className="h-12 rounded-xl border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm"
+                                className="h-12 rounded-xl bg-white border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm appearance-none"
                             />
                             {showTambonList && (
                                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto">
@@ -462,7 +462,7 @@ function Field({
                 </select>
             ) : (
                 <Input id={name} name={name} type={type} required={required} placeholder={placeholder} maxLength={maxLength} defaultValue={defaultValue}
-                    className="h-12 rounded-xl border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm" />
+                    className="h-12 rounded-xl bg-white border-slate-300 focus:ring-cyan-500/30 focus:border-cyan-500 text-base sm:text-sm appearance-none" />
             )}
         </div>
     );
