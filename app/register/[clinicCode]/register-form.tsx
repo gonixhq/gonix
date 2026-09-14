@@ -69,7 +69,7 @@ const T = {
         consentPre: "ข้าพเจ้าได้อ่านและยินยอมให้", consentMid: "เก็บและใช้ข้อมูลส่วนบุคคลและข้อมูลสุขภาพ ตามวัตถุประสงค์ที่ระบุใน", consentLink: "นโยบาย PDPA",
         submit: "ส่งข้อมูลลงทะเบียน", submitting: "กำลังส่ง...",
         footer: "ข้อมูลจะถูกเก็บอย่างปลอดภัย — เจ้าหน้าที่จะยืนยันตัวตนเมื่อท่านมาถึงคลินิก",
-        errRequired: "กรุณากรอกชื่อ-นามสกุล และเบอร์โทร", errSubmit: "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่",
+        errRequired: "กรุณากรอกข้อมูลที่จำเป็น (ช่องที่มี *) ให้ครบ", errSubmit: "ส่งข้อมูลไม่สำเร็จ กรุณาลองใหม่",
         selectPh: "—",
     },
     en: {
@@ -93,7 +93,7 @@ const T = {
         consentPre: "I have read and consent to", consentMid: "collecting and using my personal and health data for the purposes stated in the", consentLink: "PDPA policy",
         submit: "Submit registration", submitting: "Submitting...",
         footer: "Your data is stored securely — staff will verify your identity when you arrive at the clinic.",
-        errRequired: "Please enter your first name, last name and phone number", errSubmit: "Submission failed, please try again",
+        errRequired: "Please complete all required fields (marked *)", errSubmit: "Submission failed, please try again",
         selectPh: "—",
     },
 } as const;
@@ -153,7 +153,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
         const lastName = getField("last_name");
         const phone = getField("phone");
 
-        if (!firstName || !lastName || !phone) {
+        if (!firstName || !lastName || !phone || !getField("dob") || !getField("thai_id_card") || !getField("address_detail")) {
             setError(L.errRequired);
             setSubmitting(false);
             return;
@@ -268,8 +268,8 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <Field label={L.dob} name="dob" type="date" />
-                        <Field label={L.idCard} name="thai_id_card" placeholder={L.idCardPh} maxLength={20} />
+                        <Field label={`${L.dob} *`} name="dob" type="date" required />
+                        <Field label={`${L.idCard} *`} name="thai_id_card" placeholder={L.idCardPh} maxLength={20} required />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -296,7 +296,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     <SectionTitle>{L.secAddress}</SectionTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
-                            <Field label={L.addrDetail} name="address_detail" placeholder={L.addrDetailPh} />
+                            <Field label={`${L.addrDetail} *`} name="address_detail" placeholder={L.addrDetailPh} required />
                         </div>
                         <Field label={L.moo} name="address_moo" placeholder={L.mooPh} />
                     </div>
