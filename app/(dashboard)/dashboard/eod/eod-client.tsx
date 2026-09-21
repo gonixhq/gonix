@@ -90,6 +90,8 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
     function handleClose() {
         setError(null);
         setSuccess(null);
+        // เปิดแท็บว่างตอนกด (อยู่ใน user gesture) กัน popup blocker บน iPad แล้วค่อยพาไปหน้าใบปิดกะ
+        const slipWin = typeof window !== "undefined" ? window.open("", "_blank") : null;
         startTransition(async () => {
             // ส่ง date ตามที่ user เลือก (default = today via bangkokDate)
             const res = await closeClinicDay({
@@ -102,13 +104,16 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                 reconNote: reconNote.trim() || undefined,
             });
             if (!res.success) {
+                slipWin?.close();
                 setError(res.error || "เกิดข้อผิดพลาด");
                 return;
             }
             setSuccess(` ปิดยอดวันที่ ${formatDate(summary.close_date)} สำเร็จ — Counter ถูก reset แล้ว`);
             setShowConfirm(false);
-            // เด้งหน้าพิมพ์ใบสรุปปิดกะ
-            window.open(`/print/eod/${summary.close_date}`, "_blank");
+            // พาแท็บที่เปิดไว้ไปหน้าใบปิดกะ (ถ้าโดนบล็อก → เปิดใหม่ หรือกดปุ่ม "พิมพ์ใบปิดกะ" เองได้)
+            const slipUrl = `/print/eod/${summary.close_date}`;
+            if (slipWin && !slipWin.closed) slipWin.location.href = slipUrl;
+            else window.open(slipUrl, "_blank");
             setTimeout(() => router.refresh(), 1500);
         });
     }
