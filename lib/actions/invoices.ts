@@ -312,6 +312,59 @@ export async function addPayment(input: {
     }
 }
 
+const PAY_METHODS = new Set(["cash", "transfer", "credit_card", "debit_card", "qr_promptpay"]);
+const PM_LABEL: Record<string, string> = {
+    cash: "เงินสด", transfer: "โอน/QR", credit_card: "บัตรเครดิต", debit_card: "บัตรเดบิต", qr_promptpay: "QR/พร้อมเพย์",
+};
+
+/** เปลี่ยนวิธีชำระของรายการชำระ (payment_logs) เช่น เงินสด→โอน — เก็บ audit + เคารพล็อกปิดยอด */
+export async function changePaymentMethod(paymentId: string, newMethod: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        if (!PAY_METHODS.has(newMethod)) return { success: false, error: "วิธีชำระไม่ถูกต้อง" };
+
+        const { data: pay } = await supabase.from("payment_logs")
+            .select("id, inv_id, clinic_id, payment_method, amount").eq("id", paymentId).single();
+        if (!pay) return { success: false, error: "ไม่พบรายการชำระ" };
+        if (Number(pay.amount) < 0) return { success: false, error: "แก้ไขรายการคืนเงินไม่ได้" };
+        const oldMethod = (pay.payment_method as string) || "";
+        if (oldMethod === newMethod) return { success: true };
+
+        const { data: inv } = await supabase.from("invoice_headers")
+            .select("status, invoice_date, clinic_id").eq("id", pay.inv_id).single();
+        if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
+        if (["voided", "refunded"].includes(inv.status)) return { success: false, error: "ใบเสร็จนี้ปิดแล้ว แก้ไขวิธีชำระไม่ได้" };
+        if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
+
+        const { error: upErr } = await supabase.from("payment_logs")
+            .update({ payment_method: newMethod }).eq("id", paymentId);
+        if (upErr) return { success: false, error: upErr.message };
+
+        try {
+            await supabase.from("audit_logs").insert({
+                clinic_id: inv.clinic_id,
+                table_name: "invoice_headers",
+                record_id: pay.inv_id,
+                action: "payment_method_change",
+                old_data: { payment_method: oldMethod },
+                new_data: {
+                    payment_id: paymentId, payment_method: newMethod,
+                    reason: `เปลี่ยนวิธีชำระ: ${PM_LABEL[oldMethod] || oldMethod} → ${PM_LABEL[newMethod] || newMethod}`,
+                },
+                performed_by: user.id,
+            });
+        } catch { /* audit best-effort */ }
+
+        revalidatePath("/dashboard/finance");
+        revalidatePath(`/dashboard/finance/${pay.inv_id}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** ดึงประวัติการกระทำต่อใบเสร็จ (void/refund) — สำหรับแสดงในหน้า detail */
 export async function getInvoiceAuditLogs(invId: string) {
     try {

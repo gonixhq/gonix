@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
     ArrowLeft, Printer, Receipt, X, AlertTriangle,
-    Banknote, QrCode, CreditCard, RotateCcw, Ban, FileText, User as UserIcon,
+    Banknote, QrCode, CreditCard, RotateCcw, Ban, FileText, User as UserIcon, Pencil, Loader2, Check,
 } from "lucide-react";
-import { voidInvoice, refundInvoice, addPayment } from "@/lib/actions/invoices";
+import { voidInvoice, refundInvoice, addPayment, changePaymentMethod } from "@/lib/actions/invoices";
 import { toast } from "@/lib/toast";
 
 interface Patient {
@@ -156,6 +156,20 @@ export default function InvoiceDetailClient({
     const [addPayAmount, setAddPayAmount] = useState("");
     const [addPayMethod, setAddPayMethod] = useState<"cash" | "transfer" | "credit_card" | "qr_promptpay">("cash");
     const [addPayNote, setAddPayNote] = useState("");
+    const [editPayId, setEditPayId] = useState<string | null>(null);
+    const [editPayMethod, setEditPayMethod] = useState<string>("cash");
+
+    const canEditPayments = canManage && !["voided", "refunded"].includes(invoice.status);
+    function handleChangeMethod(payId: string) {
+        setError(null);
+        startTransition(async () => {
+            const res = await changePaymentMethod(payId, editPayMethod);
+            if (!res.success) { toast.error(res.error || "แก้ไขไม่สำเร็จ"); return; }
+            toast.success("เปลี่ยนวิธีชำระแล้ว");
+            setEditPayId(null);
+            router.refresh();
+        });
+    }
 
     function handleAddPayment() {
         setError(null);
@@ -407,28 +421,44 @@ export default function InvoiceDetailClient({
                                     const Icon = PAYMENT_METHOD_ICON[p.payment_method] || Banknote;
                                     const isRefund = p.amount < 0;
                                     return (
-                                        <li key={p.id} className="px-5 py-3 flex items-center gap-3">
-                                            <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
-                                                isRefund ? "bg-rose-100" : "bg-emerald-100"
-                                            }`}>
-                                                <Icon className={`h-4 w-4 ${isRefund ? "text-rose-600" : "text-emerald-600"}`} strokeWidth={2.5} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-slate-800">
-                                                    {isRefund ? "คืนเงิน" : PAYMENT_METHOD_LABEL[p.payment_method] || p.payment_method}
+                                        <li key={p.id} className="px-5 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${isRefund ? "bg-rose-100" : "bg-emerald-100"}`}>
+                                                    <Icon className={`h-4 w-4 ${isRefund ? "text-rose-600" : "text-emerald-600"}`} strokeWidth={2.5} />
                                                 </div>
-                                                <div className="text-xs text-slate-500 mt-0.5">
-                                                    {new Date(p.paid_at).toLocaleString("th-TH", {
-                                                        day: "numeric", month: "short", year: "2-digit",
-                                                        hour: "2-digit", minute: "2-digit",
-                                                    })}
-                                                    {p.bank_name && <> · {p.bank_name}</>}
-                                                    {p.transaction_ref && <> · <span className="font-mono">{p.transaction_ref}</span></>}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-slate-800">
+                                                        {isRefund ? "คืนเงิน" : PAYMENT_METHOD_LABEL[p.payment_method] || p.payment_method}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500 mt-0.5">
+                                                        {new Date(p.paid_at).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                                        {p.bank_name && <> · {p.bank_name}</>}
+                                                        {p.transaction_ref && <> · <span className="font-mono">{p.transaction_ref}</span></>}
+                                                    </div>
+                                                </div>
+                                                {canEditPayments && !isRefund && editPayId !== p.id && (
+                                                    <button onClick={() => { setEditPayId(p.id); setEditPayMethod(p.payment_method); }}
+                                                        className="shrink-0 text-xs font-semibold text-slate-500 hover:text-[#2B54F0] inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100">
+                                                        <Pencil className="h-3.5 w-3.5" /> แก้วิธี
+                                                    </button>
+                                                )}
+                                                <div className={`text-base font-black tabular-nums ${isRefund ? "text-rose-600" : "text-emerald-700"}`}>
+                                                    {isRefund ? "−" : "+"}฿{Math.abs(Number(p.amount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </div>
                                             </div>
-                                            <div className={`text-base font-black tabular-nums ${isRefund ? "text-rose-600" : "text-emerald-700"}`}>
-                                                {isRefund ? "−" : "+"}฿{Math.abs(Number(p.amount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                            </div>
+                                            {editPayId === p.id && (
+                                                <div className="mt-2.5 ml-12 flex items-center gap-2 flex-wrap">
+                                                    <select value={editPayMethod} onChange={(e) => setEditPayMethod(e.target.value)}
+                                                        className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-[#2B54F0] focus:outline-none">
+                                                        {Object.entries(PAYMENT_METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                                    </select>
+                                                    <button disabled={pending} onClick={() => handleChangeMethod(p.id)}
+                                                        className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                                                        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} บันทึก
+                                                    </button>
+                                                    <button onClick={() => setEditPayId(null)} className="h-9 px-3 rounded-lg text-slate-500 text-sm font-semibold hover:bg-slate-100">ยกเลิก</button>
+                                                </div>
+                                            )}
                                         </li>
                                     );
                                 })}
@@ -555,8 +585,8 @@ export default function InvoiceDetailClient({
                         {auditLogs.map(log => {
                             const performer = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
                             const reason = log.new_data?.reason || "—";
-                            const actionLabel = log.action === "void" ? "ยกเลิกใบเสร็จ" : log.action === "refund" ? "คืนเงิน" : log.action;
-                            const actionColor = log.action === "void" ? "bg-slate-100 text-slate-800" : "bg-rose-100 text-rose-800";
+                            const actionLabel = log.action === "void" ? "ยกเลิกใบเสร็จ" : log.action === "refund" ? "คืนเงิน" : log.action === "payment_method_change" ? "เปลี่ยนวิธีชำระ" : log.action;
+                            const actionColor = log.action === "void" ? "bg-slate-100 text-slate-800" : log.action === "payment_method_change" ? "bg-blue-100 text-blue-800" : "bg-rose-100 text-rose-800";
                             return (
                                 <div key={log.id} className="px-4 py-3 flex items-start gap-3">
                                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${actionColor} shrink-0`}>
