@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./pharmacy-workspace.module.css";
-import { Pill, ArrowRight, Clock, Receipt, BriefcaseMedical } from "lucide-react";
+import { Pill, ArrowRight, Clock, Receipt, BriefcaseMedical, Trash2, Loader2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { cancelPharmacyQueueVisit } from "@/lib/actions/visits";
+import { toast } from "@/lib/toast";
 
 interface Patient {
     prefix?: string | null;
@@ -32,8 +36,20 @@ function waitMinutes(createdAt: string): string {
     return `${hr} ชม. ${min % 60} นาที`;
 }
 
-export default function PharmacyClient({ visits, today }: { visits: Visit[]; today: string }) {
+export default function PharmacyClient({ visits, today, isOwner }: { visits: Visit[]; today: string; isOwner: boolean }) {
     const { language } = useLanguage();
+    const router = useRouter();
+    const [pending, startTransition] = useTransition();
+
+    function delQueue(vn: string, name: string) {
+        if (!confirm(`ลบคิวค้างของ ${name || vn} ออกจากห้องยา?\n\nระบบจะตั้ง Visit นี้เป็น "ยกเลิก" และเอาออกจากคิว (ทำได้เฉพาะ owner)`)) return;
+        startTransition(async () => {
+            const res = await cancelPharmacyQueueVisit(vn);
+            if (!res.success) { toast.error(res.error || "ลบไม่สำเร็จ"); return; }
+            toast.success("ลบคิวแล้ว");
+            router.refresh();
+        });
+    }
 
     const waitingMeds = visits.filter(v => v.status === "waiting_medicine");
     const paymentPending = visits.filter(v => v.status === "waiting_payment");
@@ -188,6 +204,14 @@ export default function PharmacyClient({ visits, today }: { visits: Visit[]; tod
                                             : (language === "en" ? "Collect" : "รับเงิน")}
                                         <ArrowRight className="h-3.5 w-3.5" />
                                     </span>
+
+                                    {isOwner && (
+                                        <button type="button" disabled={pending} title="ลบคิวค้าง (owner)"
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); delQueue(v.vn, `${p?.prefix || ""}${p?.first_name || ""} ${p?.last_name || ""}`.trim()); }}
+                                            className="h-11 w-11 shrink-0 rounded-xl border border-rose-200 bg-white/80 text-rose-500 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center disabled:opacity-50">
+                                            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                        </button>
+                                    )}
                                 </div>
                             </Link>
                         );

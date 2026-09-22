@@ -10,6 +10,11 @@ export default async function PharmacyPage() {
     const supabase = await createClient();
     const today = bangkokDate();
 
+    // owner เท่านั้นที่ลบคิวค้างได้
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: prof } = user ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle() : { data: null };
+    const isOwner = (prof?.role as string) === "owner";
+
     // คิวรอจ่ายยา/รอชำระ — โชว์ทุกเคสที่ยังค้าง ไม่จำกัดวัน (ค้างข้ามหลายวันต้องไม่หาย)
     const { data: visits } = await supabase
         .from("visits")
@@ -21,5 +26,5 @@ export default async function PharmacyPage() {
         .in("status", ["waiting_medicine", "waiting_payment"])
         .order("created_at", { ascending: true });
 
-    return <PharmacyClient visits={visits || []} today={today} />;
+    return <PharmacyClient visits={visits || []} today={today} isOwner={isOwner} />;
 }

@@ -278,3 +278,33 @@ export async function cancelVisit(vn: string, reason?: string) {
     revalidatePath("/dashboard");
     return { success: true };
 }
+
+/** ลบคิวค้างหน้าห้องยา (รอจัดยา/รอชำระ) — owner เท่านั้น · ตั้ง visit=cancelled ออกจากคิว (ไม่ hard-delete) */
+export async function cancelPharmacyQueueVisit(vn: string, reason?: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Unauthorized" };
+
+    const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if ((prof?.role as string) !== "owner") {
+        return { success: false, error: "ลบคิวได้เฉพาะเจ้าของ (owner) เท่านั้น" };
+    }
+
+    const { data: visit } = await supabase.from("visits").select("status").eq("vn", vn).single();
+    if (!visit) return { success: false, error: "ไม่พบ Visit" };
+    if (!["waiting_medicine", "waiting_payment"].includes(visit.status as string)) {
+        return { success: false, error: "ลบได้เฉพาะคิวที่รอจัดยา/รอชำระเงินเท่านั้น" };
+    }
+
+    const cleanReason = reason?.trim() || "ลบคิวค้างหน้าห้องยา (owner)";
+    await supabase.from("visits").update({ status: "cancelled", completed_at: new Date().toISOString() }).eq("vn", vn);
+    await supabase.from("queue_entries").update({ status: "cancelled", done_at: new Date().toISOString() }).eq("vn", vn);
+    await supabase.from("visit_status_logs").insert({
+        vn, old_status: visit.status, new_status: "cancelled", changed_by: user.id, note: cleanReason,
+    });
+
+    revalidatePath("/dashboard/pharmacy");
+    revalidatePath("/dashboard/visits");
+    revalidatePath("/dashboard");
+    return { success: true };
+}
