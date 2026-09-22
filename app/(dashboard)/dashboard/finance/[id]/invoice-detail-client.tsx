@@ -10,7 +10,7 @@ import {
     ArrowLeft, Printer, Receipt, X, AlertTriangle,
     Banknote, QrCode, CreditCard, RotateCcw, Ban, FileText, User as UserIcon, Pencil, Loader2, Check,
 } from "lucide-react";
-import { voidInvoice, refundInvoice, addPayment, changePaymentMethod } from "@/lib/actions/invoices";
+import { voidInvoice, refundInvoice, addPayment, changePaymentMethod, unvoidInvoice } from "@/lib/actions/invoices";
 import { toast } from "@/lib/toast";
 
 interface Patient {
@@ -212,6 +212,18 @@ export default function InvoiceDetailClient({
     const positivePayments = payments.filter(p => p.amount >= 0);
     const refunds = payments.filter(p => p.amount < 0);
 
+    function handleUnvoid() {
+        if (!confirm("กู้คืนใบเสร็จนี้ (ยกเลิกการ void)?\n\nสถานะจะกลับเป็น 'ชำระแล้ว' และตัดสต๊อกกลับตามรายการ — ทำได้เฉพาะ owner/admin และวันนั้นต้องยังไม่ปิดยอด")) return;
+        setError(null);
+        startTransition(async () => {
+            const res = await unvoidInvoice(invoice.id);
+            if (!res.success) { toast.error(res.error || "กู้คืนไม่สำเร็จ"); return; }
+            toast.success("กู้คืนใบเสร็จแล้ว" + (res.warn ? " (โปรดอ่านหมายเหตุสต๊อก)" : ""));
+            if (res.warn) alert(res.warn);
+            router.refresh();
+        });
+    }
+
     function handleVoid() {
         setError(null);
         startTransition(async () => {
@@ -309,10 +321,16 @@ export default function InvoiceDetailClient({
             {invoice.status === "voided" && (
                 <div className="rounded-xl bg-slate-100 border border-slate-300 px-4 py-3 flex items-center gap-3">
                     <Ban className="h-5 w-5 text-slate-600 shrink-0" />
-                    <div>
+                    <div className="min-w-0">
                         <div className="font-bold text-slate-700">ใบเสร็จรับเงินนี้ถูกยกเลิก</div>
                         <div className="text-xs text-slate-500">ไม่มีผลทางการเงิน — ข้อมูลคงไว้สำหรับ audit</div>
                     </div>
+                    {canManage && (
+                        <button onClick={handleUnvoid} disabled={pending}
+                            className="ml-auto shrink-0 h-9 px-3 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                            <RotateCcw className="h-4 w-4" /> กู้คืนใบเสร็จ
+                        </button>
+                    )}
                 </div>
             )}
             {invoice.status === "refunded" && (
@@ -585,8 +603,8 @@ export default function InvoiceDetailClient({
                         {auditLogs.map(log => {
                             const performer = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
                             const reason = log.new_data?.reason || "—";
-                            const actionLabel = log.action === "void" ? "ยกเลิกใบเสร็จ" : log.action === "refund" ? "คืนเงิน" : log.action === "payment_method_change" ? "เปลี่ยนวิธีชำระ" : log.action;
-                            const actionColor = log.action === "void" ? "bg-slate-100 text-slate-800" : log.action === "payment_method_change" ? "bg-blue-100 text-blue-800" : "bg-rose-100 text-rose-800";
+                            const actionLabel = log.action === "void" ? "ยกเลิกใบเสร็จ" : log.action === "refund" ? "คืนเงิน" : log.action === "payment_method_change" ? "เปลี่ยนวิธีชำระ" : log.action === "unvoid" ? "กู้คืนใบเสร็จ" : log.action;
+                            const actionColor = log.action === "void" ? "bg-slate-100 text-slate-800" : log.action === "payment_method_change" ? "bg-blue-100 text-blue-800" : log.action === "unvoid" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800";
                             return (
                                 <div key={log.id} className="px-4 py-3 flex items-start gap-3">
                                     <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${actionColor} shrink-0`}>

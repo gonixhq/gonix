@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isDayClosed, DAY_LOCKED_MSG } from "@/lib/eod-lock";
 import { generateFollowUpTasks } from "./follow-up";
-import { restoreFEFO } from "@/lib/inventory-fefo";
+import { restoreFEFO, deductFEFO } from "@/lib/inventory-fefo";
 
 /** Log invoice action to audit_logs */
 async function logInvoiceAction(
@@ -360,6 +360,122 @@ export async function changePaymentMethod(paymentId: string, newMethod: string) 
         revalidatePath("/dashboard/finance");
         revalidatePath(`/dashboard/finance/${pay.inv_id}`);
         return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
+/** ตัดสต๊อกกลับ (mirror ของ restoreInvoiceStock) — ใช้ตอน "กู้คืนบิล" (unvoid) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function deductInvoiceStock(supabase: any, invId: string, clinicId: string, vn: string | null): Promise<string | null> {
+    let warn: string | null = null;
+    try {
+        const { data: items } = await supabase.from("invoice_items")
+            .select("item_type, item_ref_id, qty").eq("inv_id", invId);
+        if (!items || items.length === 0) return null;
+        const now = new Date().toISOString();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows = items as any[];
+
+        // 1. ยา — ตัดสต๊อกกลับ
+        const drugRefs = rows.filter(i => i.item_type === "drug" && i.item_ref_id);
+        if (drugRefs.length) {
+            const { data: orders } = await supabase.from("drug_orders")
+                .select("id, item_id").in("id", drugRefs.map(i => i.item_ref_id));
+            const orderMap = new Map((orders || []).map((o: { id: string; item_id: string }) => [o.id, o.item_id]));
+            for (const it of drugRefs) {
+                const itemId = orderMap.get(it.item_ref_id) as string | undefined;
+                const qty = Number(it.qty) || 0;
+                if (!itemId || qty <= 0) continue;
+                const { data: inv } = await supabase.from("inventory").select("stock_qty").eq("id", itemId).maybeSingle();
+                if (!inv) continue;
+                const bal = Number(inv.stock_qty || 0) - qty;
+                await supabase.from("inventory").update({ stock_qty: bal, updated_at: now }).eq("id", itemId);
+                await deductFEFO(supabase, clinicId, itemId, qty);
+                await supabase.from("stock_card").insert({
+                    item_id: itemId, clinic_id: clinicId, tx_type: "INVOICE",
+                    qty_delta: -qty, balance_after: bal, note: `กู้คืนบิล (${invId})`,
+                });
+            }
+        }
+
+        // 2. service kit — ตัดสต๊อกกลับ
+        const svcRefs = rows.filter(i => i.item_type === "service" && i.item_ref_id);
+        if (svcRefs.length) {
+            const svcIds = [...new Set(svcRefs.map(i => i.item_ref_id))];
+            const { data: svcs } = await supabase.from("service_catalog")
+                .select("id, inventory_item_id, consume_qty").eq("clinic_id", clinicId)
+                .in("id", svcIds).not("inventory_item_id", "is", null);
+            const svcMap = new Map((svcs || []).map((s: { id: string; inventory_item_id: string; consume_qty: number }) =>
+                [s.id, { inv: s.inventory_item_id, qty: Number(s.consume_qty) || 1 }]));
+            for (const it of svcRefs) {
+                const cfg = svcMap.get(it.item_ref_id) as { inv: string; qty: number } | undefined;
+                if (!cfg) continue;
+                const consume = cfg.qty * Math.max(1, Number(it.qty || 1));
+                const { data: inv } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.inv).maybeSingle();
+                if (!inv) continue;
+                const bal = Number(inv.stock_qty || 0) - consume;
+                await supabase.from("inventory").update({ stock_qty: bal, updated_at: now }).eq("id", cfg.inv);
+                await deductFEFO(supabase, clinicId, cfg.inv, consume);
+                await supabase.from("stock_card").insert({
+                    item_id: cfg.inv, clinic_id: clinicId, tx_type: "INVOICE",
+                    qty_delta: -consume, balance_after: bal, note: `กู้คืนบิล-บริการ (${invId})`,
+                });
+            }
+        }
+
+        // 3. ของฉีด (vial) — void ลบ vial_usage ไปแล้ว กู้อัตโนมัติไม่ได้ → เตือนให้เช็คเอง
+        if (vn && rows.some(i => i.item_type === "injectable")) {
+            warn = "บิลนี้มีรายการฉีด (vial) — สต๊อก vial ถูกคืนตอน void และกู้อัตโนมัติไม่ได้ กรุณาตรวจ/ปรับสต๊อก vial เอง";
+        }
+
+        revalidatePath("/dashboard/inventory");
+    } catch (e) {
+        warn = (warn ? warn + " · " : "") + "ตัดสต๊อกกลับบางส่วนไม่สำเร็จ กรุณาตรวจสต๊อก";
+        console.warn("[unvoid] deduct stock failed:", e);
+    }
+    return warn;
+}
+
+/** กู้คืนใบเสร็จที่ยกเลิก (unvoid) — owner/admin · ตัดสต๊อกกลับ · เคารพล็อกปิดยอด · audit */
+export async function unvoidInvoice(invId: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+        const role = (prof?.role as string) || "";
+        if (role !== "owner" && role !== "admin") return { success: false, error: "กู้คืนใบเสร็จได้เฉพาะเจ้าของ/ผู้จัดการ (owner/admin)" };
+
+        const { data: inv } = await supabase.from("invoice_headers")
+            .select("id, clinic_id, vn, invoice_date, total_amount, paid_amount, status").eq("id", invId).single();
+        if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
+        if (inv.status !== "voided") return { success: false, error: "ใบนี้ไม่ได้อยู่สถานะยกเลิก จึงไม่ต้องกู้คืน" };
+        if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
+
+        // ตัดสต๊อกกลับ (mirror void) ก่อนคืนสถานะ
+        const warn = await deductInvoiceStock(supabase, invId, inv.clinic_id, inv.vn as string | null);
+
+        const total = Number(inv.total_amount || 0);
+        const paid = Number(inv.paid_amount || 0);
+        const status = total > 0 && paid >= total ? "paid" : paid > 0 ? "partial" : "issued";
+        const { error: upErr } = await supabase.from("invoice_headers")
+            .update({ status, updated_at: new Date().toISOString() }).eq("id", invId);
+        if (upErr) return { success: false, error: upErr.message };
+
+        try {
+            await supabase.from("audit_logs").insert({
+                clinic_id: inv.clinic_id, table_name: "invoice_headers", record_id: invId,
+                action: "unvoid",
+                old_data: { status: "voided" },
+                new_data: { status, reason: "กู้คืนใบเสร็จ (ยกเลิกการ void)" + (warn ? ` · ${warn}` : "") },
+                performed_by: user.id,
+            });
+        } catch { /* audit best-effort */ }
+
+        revalidatePath("/dashboard/finance");
+        revalidatePath(`/dashboard/finance/${invId}`);
+        return { success: true, warn };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };
     }
