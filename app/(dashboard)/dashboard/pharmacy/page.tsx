@@ -10,12 +10,7 @@ export default async function PharmacyPage() {
     const supabase = await createClient();
     const today = bangkokDate();
 
-    // คำนวณวันที่ 2 วันที่แล้ว (รองรับ visit ค้างข้ามวัน)
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    const fromDate = bangkokDate(twoDaysAgo);
-
-    // Fetch visits waiting for meds or payment
+    // คิวรอจ่ายยา/รอชำระ — โชว์ทุกเคสที่ยังค้าง ไม่จำกัดวัน (ค้างข้ามหลายวันต้องไม่หาย)
     const { data: visits } = await supabase
         .from("visits")
         .select(`
@@ -23,7 +18,6 @@ export default async function PharmacyPage() {
             patients!inner(prefix, first_name, last_name, phone),
             queue_entries(queue_number)
         `)
-        .gte("visit_date", fromDate)
         .in("status", ["waiting_medicine", "waiting_payment"])
         .order("created_at", { ascending: true });
 
