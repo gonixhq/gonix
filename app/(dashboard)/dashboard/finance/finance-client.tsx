@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import {
     Banknote, Plus, TrendingUp, CheckCircle2, Receipt, CreditCard,
     Trash2, X, Loader2, ArrowDownCircle, Download, Search, Eye, ArrowLeftRight, AlertCircle,
-    FileSignature, Printer,
+    FileSignature, Printer, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { shiftDate } from "@/lib/finance-range";
 
 const MEDCERT_LABEL: Record<string, string> = {
     sick_leave: "ลาป่วย", fit_for_work: "พร้อมทำงาน", fitness: "ตรวจสุขภาพ",
@@ -99,12 +100,20 @@ export default function FinanceClient({
     useEffect(() => setPage(1), [search, source, filter, payFilter, invoices]);
 
     const rangeLabel = range.preset === "today" ? "วันนี้" : range.preset === "week" ? "สัปดาห์นี้" : range.preset === "month" ? "เดือนนี้" : range.preset === "quarter" ? "ไตรมาสนี้" : `${range.from} – ${range.to}`;
+    // ใช้ navigation แบบเต็ม (assign) — soft nav กับ searchParams เดิมมักไม่รีเฟรชข้อมูล
+    const todayISO = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+    const go = (url: string) => { window.location.assign(url); };
     function setPreset(preset: string) {
-        const url = preset === "today" ? "/dashboard/finance" : `/dashboard/finance?preset=${preset}`;
-        router.push(url);
+        go(preset === "today" ? "/dashboard/finance" : `/dashboard/finance?preset=${preset}`);
     }
     function setCustom(from: string, to: string) {
-        if (from && to) router.push(`/dashboard/finance?preset=custom&from=${from}&to=${to}`);
+        if (from && to) go(`/dashboard/finance?preset=custom&from=${from}&to=${to}`);
+    }
+    function stepDay(delta: number) {
+        const base = delta < 0 ? range.from : range.to;
+        const day = shiftDate(base, delta);
+        if (day > todayISO) return;
+        go(`/dashboard/finance?preset=custom&from=${day}&to=${day}`);
     }
 
     // ── Petty cash (รายจ่ายย่อย) ──
@@ -281,6 +290,12 @@ export default function FinanceClient({
 
             {/* Date range + search */}
             <div className="flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1">
+                    <button onClick={() => stepDay(-1)} title="วันก่อนหน้า" aria-label="วันก่อนหน้า"
+                        className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"><ChevronLeft className="h-4 w-4" /></button>
+                    <button onClick={() => stepDay(1)} disabled={range.to >= todayISO} title="วันถัดไป" aria-label="วันถัดไป"
+                        className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                </div>
                 <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
                     {([["today", "วันนี้"], ["week", "สัปดาห์นี้"], ["month", "เดือนนี้"], ["quarter", "ไตรมาสนี้"]] as const).map(([k, l]) => (
                         <button key={k} onClick={() => setPreset(k)}
