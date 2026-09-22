@@ -16,16 +16,15 @@ export default async function ScreeningQueuePage() {
 
     const today = bangkokDate();
 
-    // Fetch all visits waiting for screening today
+    // คิวรอซักประวัติ/รอตรวจ — โชว์ทุกเคสที่ยังค้าง ไม่จำกัดวัน (ค้างข้ามวันต้องไม่หาย)
     // Status 'waiting' or 'triaged' (not yet 'with_doctor')
     const { data: visits } = await supabase
         .from("visits")
         .select(`
-            vn, hn, visit_time, status, service_category, chief_complaint, triage_level, created_at,
+            vn, hn, visit_date, visit_time, status, service_category, chief_complaint, triage_level, created_at,
             weight_kg, height_cm, bp_systolic, pulse_rate,
             patients!inner(prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, phone)
         `)
-        .eq("visit_date", today)
         .in("status", ["waiting", "triaged"])
         .order("created_at", { ascending: true });
 
@@ -42,7 +41,7 @@ export default async function ScreeningQueuePage() {
                         เปิด Visit & ซักประวัติ
                     </span>
                     <span className="text-slate-300">·</span>
-                    <span>คิววันนี้ <span className="font-semibold text-slate-700 tabular-nums">{items.length}</span> ราย</span>
+                    <span>คิวรอ <span className="font-semibold text-slate-700 tabular-nums">{items.length}</span> ราย</span>
                 </p>
                 <Link href="/dashboard/visits/new">
                     <Button className="rounded-xl gap-1.5 h-11 bg-blue-700 hover:bg-blue-800 text-white shadow-sm shadow-blue-500/20">
@@ -63,7 +62,7 @@ export default async function ScreeningQueuePage() {
             ) : (
                 <div className="space-y-3">
                     {items.map((v, i) => (
-                        <ScreeningRow key={v.vn} visit={v} queueNumber={i + 1} />
+                        <ScreeningRow key={v.vn} visit={v} queueNumber={i + 1} today={today} />
                     ))}
                 </div>
             )}

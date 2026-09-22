@@ -24,6 +24,7 @@ interface Patient {
 interface Visit {
     vn: string;
     hn: string;
+    visit_date?: string | null;
     visit_time?: string | null;
     status: string;
     service_category: string;
@@ -64,7 +65,7 @@ function timeAgo(ts: string): string {
     return `${hr} ชม. ${min % 60} นาที`;
 }
 
-export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; queueNumber: number }) {
+export default function ScreeningRow({ visit, queueNumber, today }: { visit: Visit; queueNumber: number; today?: string }) {
     const router = useRouter();
     const [pending, startTransition] = useTransition();
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
@@ -110,6 +111,9 @@ export default function ScreeningRow({ visit, queueNumber }: { visit: Visit; que
                             <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${triageColor[triage]}`}>
                                 {triageLabel[triage]}
                             </span>
+                            {visit.visit_date && today && visit.visit_date !== today && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold text-xs">ค้างจากวันก่อน</span>
+                            )}
                         </div>
                         <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
                             <span>{pt?.gender === "M" ? "ชาย" : pt?.gender === "F" ? "หญิง" : "—"}</span>
