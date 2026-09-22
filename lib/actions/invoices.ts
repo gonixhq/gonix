@@ -481,6 +481,28 @@ export async function unvoidInvoice(invId: string) {
     }
 }
 
+/** ย้ายวันลงบัญชีของบิล (invoice_date + bill_date + paid_at) — owner/admin · ผ่าน RPC atomic (mig 138) */
+export async function changeInvoiceDate(invId: string, newDate: string) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return { success: false, error: "รูปแบบวันที่ไม่ถูกต้อง" };
+        const { data, error } = await supabase.rpc("fn_move_invoice_date", { p_inv_id: invId, p_new_date: newDate });
+        if (error) return { success: false, error: error.message };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = data as any;
+        if (!r?.ok) return { success: false, error: r?.error || "ย้ายวันไม่สำเร็จ" };
+        revalidatePath("/dashboard/finance");
+        revalidatePath(`/dashboard/finance/${invId}`);
+        revalidatePath("/dashboard/eod");
+        revalidatePath("/dashboard/overview");
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "Error" };
+    }
+}
+
 /** ดึงประวัติการกระทำต่อใบเสร็จ (void/refund) — สำหรับแสดงในหน้า detail */
 export async function getInvoiceAuditLogs(invId: string) {
     try {

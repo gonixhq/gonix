@@ -10,7 +10,7 @@ import {
     ArrowLeft, Printer, Receipt, X, AlertTriangle,
     Banknote, QrCode, CreditCard, RotateCcw, Ban, FileText, User as UserIcon, Pencil, Loader2, Check,
 } from "lucide-react";
-import { voidInvoice, refundInvoice, addPayment, changePaymentMethod, unvoidInvoice } from "@/lib/actions/invoices";
+import { voidInvoice, refundInvoice, addPayment, changePaymentMethod, unvoidInvoice, changeInvoiceDate } from "@/lib/actions/invoices";
 import { toast } from "@/lib/toast";
 
 interface Patient {
@@ -158,6 +158,20 @@ export default function InvoiceDetailClient({
     const [addPayNote, setAddPayNote] = useState("");
     const [editPayId, setEditPayId] = useState<string | null>(null);
     const [editPayMethod, setEditPayMethod] = useState<string>("cash");
+    const [editDate, setEditDate] = useState(false);
+    const [newDate, setNewDate] = useState<string>("");
+
+    function handleChangeDate() {
+        if (!newDate) return;
+        setError(null);
+        startTransition(async () => {
+            const res = await changeInvoiceDate(invoice.id, newDate);
+            if (!res.success) { toast.error(res.error || "ย้ายวันไม่สำเร็จ"); return; }
+            toast.success("ย้ายวันลงบัญชีแล้ว");
+            setEditDate(false);
+            router.refresh();
+        });
+    }
 
     const canEditPayments = canManage && !["voided", "refunded"].includes(invoice.status);
     function handleChangeMethod(payId: string) {
@@ -586,6 +600,30 @@ export default function InvoiceDetailClient({
                                 <span className="font-semibold text-slate-700 tabular-nums">
                                     {new Date(invoice.updated_at).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                 </span>
+                            </div>
+                        )}
+                        {canEditPayments && (
+                            <div className="pt-2 mt-1 border-t border-slate-100">
+                                {!editDate ? (
+                                    <button onClick={() => { setNewDate(invoice.invoice_date); setEditDate(true); }}
+                                        className="text-[11px] font-semibold text-[#2B54F0] hover:underline inline-flex items-center gap-1">
+                                        <Pencil className="h-3 w-3" /> แก้วันที่ใบเสร็จ (owner/admin)
+                                    </button>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <div className="text-[11px] text-slate-500">ย้ายวันลงบัญชี + วันบนใบ ไปเป็น:</div>
+                                        <div className="flex items-center gap-1.5">
+                                            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
+                                                className="h-8 rounded-lg border border-slate-300 px-2 text-xs focus:border-[#2B54F0] focus:outline-none" />
+                                            <button disabled={pending} onClick={handleChangeDate}
+                                                className="h-8 px-2.5 rounded-lg bg-[#2B54F0] text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-50">
+                                                {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} ย้าย
+                                            </button>
+                                            <button onClick={() => setEditDate(false)} className="h-8 px-2 rounded-lg text-slate-500 text-xs hover:bg-slate-100">ยกเลิก</button>
+                                        </div>
+                                        <div className="text-[10px] text-amber-600 leading-snug">⚠ ย้ายยอดรายได้/คอมมิชชั่นของบิลไปวันใหม่ · ทั้ง 2 วันต้องยังไม่ปิดยอด</div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
