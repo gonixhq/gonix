@@ -19,6 +19,8 @@ export interface InvoiceItemInput {
     discount_amount?: number;  // ส่วนลดเฉพาะรายการนี้ (เก็บแยก ไม่หักออกจาก line_total)
     segment?: string | null;   // แผนกรายได้ (denormalize จาก source)
     performer_staff_id?: string | null;  // แพทย์ผู้ทำรายการ → DF แพทย์ % (เฟส 2B, snapshot อัตราที่ DB)
+    hand_main_staff_id?: string | null;  // ผู้ปฏิบัติหลัก → ค่ามือเต็ม (เฟส 2C, คำนวณ+snapshot ที่ DB)
+    hand_asst_staff_id?: string | null;  // ผู้ช่วย → ค่ามือผู้ช่วย
 }
 
 export interface CheckoutInput {
@@ -34,6 +36,7 @@ export interface CheckoutInput {
     discounts?: DiscountEntry[];      // breakdown ส่วนลดทุกก้อน
     campaignId?: string | null;
     campaignLabel?: string | null;
+    billType?: "normal" | "review" | "free_fix";  // เคสรีวิว = ค่ามือเต็ม (ต้นทุนการตลาด) · แก้ไขฟรี = ค่ามือครึ่ง
     billDate?: string;                // วันที่พิมพ์บนใบเสร็จ (YYYY-MM-DD) — ย้อนหลังได้เฉพาะ owner/admin
 }
 
@@ -42,7 +45,7 @@ export async function completeCheckout(input: CheckoutInput) {
 
     try {
         const { vn, items, subtotal, discount, total, paid, payments, drugOrders,
-            discounts, campaignId, campaignLabel } = input;
+            discounts, campaignId, campaignLabel, billType } = input;
 
         const actor = await getEffectivePermissionsForUser();
         if (!actor.userId || !actor.clinicId || !actor.isActive || !actor.isApproved || !actor.permissions["finance.collect"]) throw Error("ไม่มีสิทธิ์รับชำระเงิน");
@@ -144,7 +147,7 @@ export async function completeCheckout(input: CheckoutInput) {
         const invId = `INV-${new Date().getTime().toString().slice(-6)}-${vn.slice(-4)}`;
         const { data: invoice, error: invoiceError } = await supabase.rpc("create_checkout_invoice", {
             p_invoice: { id: invId, vn, subtotal: Number(subtotal.toFixed(2)), discount: Number(discount.toFixed(2)), total,
-                bill_date: billDate, campaign_id: campaignId || null, campaign: campaignLabel || null },
+                bill_date: billDate, campaign_id: campaignId || null, campaign: campaignLabel || null, bill_type: billType || "normal" },
             p_items: items.map(it => ({ ...it, line_total: Number(it.line_total.toFixed(2)), discount_amount: Number((it.discount_amount || 0).toFixed(2)) })),
             p_payments: payments,
         });

@@ -17,6 +17,8 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
             status,
             visit_date,
             doctor_id,
+            nurse_id,
+            assistant_id,
             patients (
                 first_name,
                 last_name,
@@ -92,6 +94,16 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
         return { id: d.id as string, name: (p?.full_name as string) || "—" };
     });
 
+    // พนักงานที่เลือกเป็น "ผู้ปฏิบัติหลัก/ผู้ช่วย" (ค่ามือรายบรรทัด — เฟส 2C)
+    const { data: staffRows } = await supabase.from("staff")
+        .select("id, profiles!inner(full_name, role)")
+        .eq("is_active", true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handStaff = (staffRows || []).map((d: any) => {
+        const p = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
+        return { id: d.id as string, name: (p?.full_name as string) || "—", role: (p?.role as string) || "" };
+    }).sort((a, b) => a.name.localeCompare(b.name, "th"));
+
     return (
         <div className={`${styles.workspace} space-y-6 animate-fade-in max-w-[1600px] mx-auto p-3 sm:p-5 pb-8`}>
             <CheckoutForm
@@ -103,6 +115,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
                 injections={injections}
                 canBackdate={canBackdate}
                 doctors={doctors}
+                handStaff={handStaff}
             />
         </div>
     );

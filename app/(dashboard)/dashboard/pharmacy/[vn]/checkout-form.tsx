@@ -67,6 +67,8 @@ interface LineItem {
     max_discount_pct?: number | null;  // เพดานส่วนลด (เฉพาะคอส) — null = ไม่จำกัด
     line_discount?: number;   // ส่วนลดเฉพาะรายการนี้ (บาท)
     performer?: string;       // staff.id ของแพทย์ผู้ทำ | NOT_DOCTOR | "" (ยังไม่เลือก)
+    hand_main?: string;       // staff.id ผู้ปฏิบัติหลัก (ค่ามือ) | "" = ไม่มี
+    hand_asst?: string;       // staff.id ผู้ช่วย (ค่ามือ) | "" = ไม่มี
     // ── ของฉีด (injectable): ขายเป็น "ก้อน" ไม่ใช่ต่อหน่วย ──
     // qty = จำนวนที่ฉีด (ยูนิต/cc/shot → ตัดสต๊อก vial) · block_price = ราคาขายก้อน (คิดเงิน)
     block_price?: number;     // ราคาก้อน (เฉพาะ injectable) — เป็น source of truth ของยอด ไม่ผูกกับ qty
@@ -76,6 +78,14 @@ interface LineItem {
 // DF แพทย์ % (เฟส 2B): เลือก "แพทย์ผู้ทำ" รายบรรทัด — ยา/แล็บ/วัสดุ/คอส ไม่มี DF แพทย์
 const DF_ELIGIBLE = new Set(["doctor_fee", "procedure", "service", "injectable", "other"]);
 const NOT_DOCTOR = "__none__";
+// ค่ามือ (เฟส 2C): ผู้ปฏิบัติหลัก/ผู้ช่วย รายบรรทัด — อัตราจากเมนูบริการ/คลังยา คิดที่ DB
+const HAND_ELIGIBLE = new Set(["procedure", "service", "injectable", "other"]);
+const BILL_TYPES: { v: BillType; label: string; hint?: string }[] = [
+    { v: "normal", label: "ปกติ" },
+    { v: "review", label: "เคสรีวิว", hint: "ค่ามือเต็ม · นับเป็นต้นทุนการตลาด" },
+    { v: "free_fix", label: "แก้ไขฟรี", hint: "ค่ามือครึ่งหนึ่ง" },
+];
+type BillType = "normal" | "review" | "free_fix";
 
 let uidCounter = 0;
 const uid = () => `item-${Date.now()}-${++uidCounter}`;
@@ -112,6 +122,7 @@ export default function CheckoutForm({
     injections = [],
     canBackdate = false,
     doctors = [],
+    handStaff = [],
 }: {
     visit: Visit;
     drugOrders: DrugOrder[];
@@ -121,6 +132,7 @@ export default function CheckoutForm({
     injections?: Injection[];
     canBackdate?: boolean;
     doctors?: { id: string; name: string }[];
+    handStaff?: { id: string; name: string; role: string }[];
 }) {
     const router = useRouter();
     const p = Array.isArray(visit.patients) ? visit.patients[0] : (visit.patients || visit.patient);
@@ -128,6 +140,7 @@ export default function CheckoutForm({
     const ptGender = p?.gender === "M" ? "ชาย" : p?.gender === "F" ? "หญิง" : "";
 
     const [loading, setLoading] = useState(false);
+    const [billType, setBillType] = useState<BillType>("normal");
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState("");
 
@@ -401,6 +414,11 @@ export default function CheckoutForm({
             toast.error("ไม่มีรายการในใบเสร็จ");
             return;
         }
+        const sameHand = items.find(it => it.hand_main && it.hand_main === it.hand_asst);
+        if (sameHand) {
+            toast.error(`"${sameHand.item_name}": ผู้ปฏิบัติหลักกับผู้ช่วยต้องเป็นคนละคน`);
+            return;
+        }
         const unassigned = items.filter(it => DF_ELIGIBLE.has(it.item_type) && !it.performer);
         if (doctors.length > 0 && unassigned.length > 0) {
             toast.error(`กรุณาเลือก "แพทย์ผู้ทำ" ให้ครบ (${unassigned.length} รายการ) — ถ้าพยาบาลทำ ให้เลือก "ไม่ใช่แพทย์ทำ"`);
@@ -427,6 +445,8 @@ export default function CheckoutForm({
                     discount_amount: lineDisc,
                     segment: it.segment ?? null,
                     performer_staff_id: it.performer && it.performer !== NOT_DOCTOR ? it.performer : null,
+                    hand_main_staff_id: HAND_ELIGIBLE.has(it.item_type) && it.hand_main ? it.hand_main : null,
+                    hand_asst_staff_id: HAND_ELIGIBLE.has(it.item_type) && it.hand_asst ? it.hand_asst : null,
                 };
             });
 
@@ -468,6 +488,7 @@ export default function CheckoutForm({
                 discounts,
                 campaignId: promo?.campaign_id || null,
                 campaignLabel: promo ? `${promo.code} · ${promo.name}` : null,
+                billType,
                 billDate: canBackdate && billDate && billDate !== todayStr ? billDate : undefined,
             });
 
@@ -709,6 +730,35 @@ export default function CheckoutForm({
                             );
                         })()}
 
+                        {items.some(it => HAND_ELIGIBLE.has(it.item_type)) && handStaff.length > 0 && (() => {
+                            const vNurse = handStaff.find(s => s.id === visit.nurse_id);
+                            const vAsst = handStaff.find(s => s.id === visit.assistant_id);
+                            const hint = BILL_TYPES.find(b => b.v === billType)?.hint;
+                            return (
+                                <div className="mx-3 mb-2 flex items-center gap-2 flex-wrap rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-2 text-xs">
+                                    <span className="text-slate-600">ประเภทบิล:</span>
+                                    <div className="inline-flex rounded-md border border-slate-200 bg-white overflow-hidden">
+                                        {BILL_TYPES.map(b => (
+                                            <button key={b.v} type="button" onClick={() => setBillType(b.v)}
+                                                className={`h-7 px-2.5 font-semibold ${billType === b.v ? (b.v === "normal" ? "bg-slate-700 text-white" : "bg-amber-500 text-white") : "text-slate-600 hover:bg-slate-50"}`}>{b.label}</button>
+                                        ))}
+                                    </div>
+                                    {hint && <span className="text-amber-700">{hint}</span>}
+                                    <span className="text-slate-500 ml-2">ค่ามือ: เลือกผู้ปฏิบัติหลัก/ผู้ช่วย ใต้แต่ละรายการ</span>
+                                    {(vNurse || vAsst) && (
+                                        <button type="button" onClick={() => setItems(prev => prev.map(x => {
+                                            if (!HAND_ELIGIBLE.has(x.item_type)) return x;
+                                            const main = x.hand_main || vNurse?.id || "";
+                                            return { ...x, hand_main: main, hand_asst: x.hand_asst || (vAsst && vAsst.id !== main ? vAsst.id : "") };
+                                        }))}
+                                            className="ml-auto h-7 px-2.5 rounded-md bg-emerald-700 text-white font-semibold">
+                                            ที่ยังว่าง = {[vNurse?.name, vAsst && `ผู้ช่วย ${vAsst.name}`].filter(Boolean).join(" · ")}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60">
@@ -746,6 +796,20 @@ export default function CheckoutForm({
                                                         {doctors.map(d => <option key={d.id} value={d.id}>👨‍⚕️ {d.name}</option>)}
                                                         <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ (พยาบาล/อื่นๆ)</option>
                                                     </select>
+                                                )}
+                                                {HAND_ELIGIBLE.has(it.item_type) && handStaff.length > 0 && (
+                                                    <div className="mt-1 flex gap-1 flex-wrap">
+                                                        <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
+                                                            className={`h-7 max-w-[170px] rounded-md border bg-white px-1.5 text-xs font-normal ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-200 text-slate-400"}`}>
+                                                            <option value="">ผู้ปฏิบัติหลัก —</option>
+                                                            {handStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                        </select>
+                                                        <select aria-label="ผู้ช่วย" value={it.hand_asst || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_asst: e.target.value } : x))}
+                                                            className={`h-7 max-w-[150px] rounded-md border bg-white px-1.5 text-xs font-normal ${it.hand_asst ? "border-emerald-300 text-emerald-800" : "border-slate-200 text-slate-400"}`}>
+                                                            <option value="">ผู้ช่วย —</option>
+                                                            {handStaff.filter(s => s.id !== it.hand_main).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                        </select>
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-1 py-1">
