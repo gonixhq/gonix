@@ -15,7 +15,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Building2,
-    FlaskConical, Percent,
+    FlaskConical, Percent, Trash2,
     ShieldCheck,
     Ticket,
     BadgeDollarSign,
@@ -61,6 +61,7 @@ const NAV_ITEMS: NavGroup[] = [
         group: "OPERATIONS",
         items: [
             { href: "/dashboard/inventory", tKey: "inventory", icon: Box, permKey: "inventory.view" },
+            { href: "/dashboard/inventory/waste", tKey: "stockWaste", icon: Trash2, permKey: "inventory.view" },
             { href: "/dashboard/finance", tKey: "finance", icon: BadgeDollarSign, permKey: "finance.view" },
             { href: "/dashboard/commissions", tKey: "commissions", icon: HandCoins, permKey: "finance.view" },
             { href: "/dashboard/price-approvals", tKey: "priceApprovals", icon: ShieldCheck, adminOnly: true, permKey: "finance.view" },

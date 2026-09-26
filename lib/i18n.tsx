@@ -48,6 +48,7 @@ const translations = {
         services: "Services & Pricing",
         formulas: "Drug / Vitamin Formulas",
         financeRates: "Finance Rates & Card Fees",
+        stockWaste: "Stock Waste",
         save: "Save",
         cancel: "Cancel",
         // System
@@ -91,6 +92,7 @@ const translations = {
         services: "รายการบริการ & ราคา",
         formulas: "สูตรยา / วิตามิน",
         financeRates: "อัตราการเงิน / ค่าธรรมเนียมบัตร",
+        stockWaste: "ยาทิ้ง / ขวดเปิดค้าง",
         save: "บันทึกข้อมูล",
         cancel: "ยกเลิก",
         // System
