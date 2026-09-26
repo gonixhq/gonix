@@ -31,7 +31,7 @@ const EDITABLE_FIELDS = [
     // ── คอมแนะนำ (เฟส 2D) ──
     "ref_comm_mode", "ref_comm_value", "team_count_pct",
     // ── ต้นทุน (เฟส 4A) ──
-    "single_use", "opened_shelf_hours",
+    "single_use", "opened_shelf_hours", "sell_block_qty", "sell_block_price",
 ] as const;
 const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock", "units_per_pack", "df_doctor", "df_nurse", "df_assistant"]);
 

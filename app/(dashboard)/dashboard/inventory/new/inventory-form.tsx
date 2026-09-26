@@ -204,6 +204,14 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     // --- Section 3: Price, Stock & Fees ---
     // ตัวเลข: 0/ว่าง → เก็บเป็น "" (ช่องว่าง + placeholder "0") ไม่ต้องลบเลข 0 ก่อนพิมพ์
     const [sellPrice, setSellPrice] = useState(item?.sell_price ? String(item.sell_price) : "");
+    // ของฉีดขายเป็นก้อน เช่น Botox 50u = ฿5,000 → ราคาต่อหน่วยคำนวณให้ (ใช้เป็นราคาตั้งต้นตอนคิดเงิน)
+    const [blockQty, setBlockQty] = useState(item?.sell_block_qty != null ? String(item.sell_block_qty) : "");
+    const [blockPrice, setBlockPrice] = useState(item?.sell_block_price != null ? String(item.sell_block_price) : "");
+    const setBlock = (q: string, p: string) => {
+        setBlockQty(q); setBlockPrice(p);
+        const qn = parseFloat(q), pn = parseFloat(p);
+        if (qn > 0 && pn >= 0 && p !== "") setSellPrice(String(Math.round(pn / qn * 10000) / 10000));
+    };
     const [costPrice, setCostPrice] = useState(item?.cost_price ? String(item.cost_price) : "");
     const [stockQty, setStockQty] = useState(item?.stock_qty ? String(item.stock_qty) : "");
     const [minStock, setMinStock] = useState(item?.min_stock ? String(item.min_stock) : "");
@@ -235,6 +243,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
         if (p.shelfHours && !openedShelfHours) setOpenedShelfHours(String(p.shelfHours));
         setSegment("aesthetic");
         if (category === "drug" || category === "supply") setCategory("aesthetic_supply");
+        if (!blockQty) setBlockQty(v === "botox" ? "50" : v === "hifu" ? "300" : ["filler", "skinbooster", "biostimulator"].includes(v) ? "1" : "");
     }
 
     // สร้างรหัสสินค้าอัตโนมัติ: PREFIX-NNNN ตามหมวดหมู่
@@ -342,6 +351,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     dose_qty: doseQty, frequency, use_type: useType,
                     label_type: labelType.trim(), warning_label: warningLabel, sig_text_default: sigTextDefault,
                     sell_price: parseFloat(sellPrice) || 0, cost_price: parseFloat(costPrice) || 0,
+                    sell_block_qty: deductionType === "injectable_vial" && blockQty ? Number(blockQty) : null,
+                    sell_block_price: deductionType === "injectable_vial" && blockPrice ? Number(blockPrice) : null,
                     min_stock: parseFloat(minStock) || 0, expiry_date: expiryDate || null,
                     df_doctor: parseFloat(dfDoctor) || 0, df_nurse: parseFloat(dfNurse) || 0, df_assistant: parseFloat(dfAssistant) || 0,
                     ...refCommPayload(refMode, refVal),
@@ -388,6 +399,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 sig_text_default: sigTextDefault || null,
 
                 sell_price: parseFloat(sellPrice) || 0,
+                sell_block_qty: deductionType === "injectable_vial" && blockQty ? Number(blockQty) : null,
+                sell_block_price: deductionType === "injectable_vial" && blockPrice ? Number(blockPrice) : null,
                 cost_price: parseFloat(costPrice) || 0,
                 stock_qty: parseFloat(stockQty) || 0,
                 min_stock: parseFloat(minStock) || 0,
@@ -780,9 +793,21 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </div>
                         </FieldRow>
                     )}
-                    <FieldRow label={deductionType === "injectable_vial" ? `ราคาขาย/${capacityUnitLabel}` : "ราคาขาย"} required>
+                    {deductionType === "injectable_vial" ? (
+                        <FieldRow label="ราคาขาย" required colSpan={2} hint={`ขายเป็นก้อน เช่น Botox 50 unit = ฿5,000 · ตอนคิดเงินแก้ราคาก้อนได้ตามโปร · ต่อ ${capacityUnitLabel} = ฿${(Number(sellPrice) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-slate-600">ก้อนละ</span>
+                                <Input type="number" min={0} value={blockQty} onChange={e => setBlock(e.target.value, blockPrice)} placeholder="50" className={`${inputCls} tabular-nums max-w-[110px]`} />
+                                <span className="text-sm text-slate-600">{capacityUnitLabel} ราคา</span>
+                                <Input type="number" min={0} value={blockPrice} onChange={e => setBlock(blockQty, e.target.value)} placeholder="5000" className={`${inputCls} tabular-nums font-bold text-emerald-700 max-w-[160px]`} />
+                                <span className="text-sm text-slate-600">บาท</span>
+                            </div>
+                        </FieldRow>
+                    ) : (
+                    <FieldRow label="ราคาขาย" required>
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
                     </FieldRow>
+                    )}
                     <FieldRow label={deductionType === "injectable_vial" ? `ต้นทุน/${capacityUnitLabel}` : "ต้นทุน"} hint={(() => {
                         const sp = Number(sellPrice) || 0, cp = Number(costPrice) || 0;
                         if (!(sp > 0 && cp > 0)) return undefined;
@@ -865,7 +890,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             {" · "}ตัดสต๊อกเป็น <b>{u}</b>
                             {inj && Number(unitsPerPack) > 0 && <> · 1 {purchaseUnit || "ขวด"} = {Number(unitsPerPack).toLocaleString()} {u}</>}
                             {cp > 0 && <> · ทุน ฿{cp.toLocaleString()}/{u}</>}
-                            {sp > 0 && <> · ขาย ฿{sp.toLocaleString()}/{u}</>}
+                            {inj && Number(blockQty) > 0 && Number(blockPrice) > 0 ? <> · ขาย ฿{Number(blockPrice).toLocaleString()}/{Number(blockQty).toLocaleString()}{u}</> : sp > 0 && <> · ขาย ฿{sp.toLocaleString()}/{u}</>}
                             {margin != null && <> · มาร์จิ้นวัสดุ <b className={margin < marginThreshold ? "text-rose-600" : "text-emerald-700"}>{margin}%</b></>}
                             {" · "}{refLabel}
                             {inj && openedShelfHours && <> · เปิดแล้วอยู่ได้ {openedShelfHours} ชม.</>}
