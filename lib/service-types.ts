@@ -21,6 +21,8 @@ export interface ServiceCatalogItem {
     df_nurse?: number | null;           // ค่ามือพยาบาลต่อเคส
     df_assistant?: number | null;       // ค่ามือผู้ช่วยต่อเคส
     df_mode?: string | null;            // 'baht' | 'percent'
+    ref_comm_mode?: string | null;      // คอมแนะนำ: pct | fixed | per_unit | none · null = มาตรฐาน
+    ref_comm_value?: number | null;
 }
 
 export interface InventoryPick {

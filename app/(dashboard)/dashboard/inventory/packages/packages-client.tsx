@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
+import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -386,6 +387,8 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
         max_discount_pct: 0,
         hand_fee_main: 0,
         hand_fee_asst: 0,
+        ref_comm_mode: "" as string,
+        ref_comm_value: "",
         is_bundle: false,
         consume_item_id: "",
         consume_qty_per_session: "",
@@ -412,6 +415,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                 max_discount_pct: Number(form.max_discount_pct) || null,
                 hand_fee_main: Number(form.hand_fee_main) || null,
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
+                ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
                 is_active: true,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
@@ -573,6 +577,11 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                             <Input type="number" min={0} step="10" value={form.hand_fee_asst}
                                 onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">คอมแนะนำ (คอสฝั่งความงาม)</Label>
+                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} />
                     </div>
 
                     {/* ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot) */}

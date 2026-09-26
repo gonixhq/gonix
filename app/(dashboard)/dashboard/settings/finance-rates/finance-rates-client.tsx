@@ -14,7 +14,7 @@ const GROUPS: { key: RateMeta["group"]; title: string; desc: string; icon: React
     { key: "comp", title: "ค่าตอบแทนแพทย์", desc: "ค่าชั่วโมง + DF — คำนวณอัตโนมัติจากเวลาทำงานจริงและบิล", icon: Stethoscope },
 ];
 
-const fmtVal = (v: number, unit: string) => unit === "baht" ? `฿${v.toLocaleString("th-TH")}` : unit === "%" ? `${v}%` : String(v);
+const fmtVal = (v: number, unit: string) => unit === "baht" ? `฿${v.toLocaleString("th-TH")}` : unit === "%" ? `${v}%` : unit === "month" ? `${v} เดือน` : String(v);
 const fmtDate = (d: string) => d <= "2000-12-31" ? "ตั้งแต่เริ่มระบบ" : new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
 export default function FinanceRatesClient({ rows, today, canEdit }: { rows: FinanceRateRow[]; today: string; canEdit: boolean }) {
@@ -104,8 +104,8 @@ export default function FinanceRatesClient({ rows, today, canEdit }: { rows: Fin
 
                                     {editing === m.key && (
                                         <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 flex items-end gap-2 flex-wrap">
-                                            <label className="text-xs text-slate-600">อัตราใหม่ ({m.unit === "baht" ? "บาท" : "%"})
-                                                <input type="number" step="0.0001" min="0" max={m.unit === "baht" ? 1000000 : 100} value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
+                                            <label className="text-xs text-slate-600">อัตราใหม่ ({m.unit === "baht" ? "บาท" : m.unit === "month" ? "เดือน" : "%"})
+                                                <input type="number" step="0.0001" min="0" max={m.unit === "baht" ? 1000000 : m.unit === "month" ? 60 : 100} value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
                                             <label className="text-xs text-slate-600">มีผลตั้งแต่
                                                 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block h-9 rounded-lg border border-slate-300 px-2 text-sm" /></label>
                                             <label className="text-xs text-slate-600 flex-1 min-w-[160px]">หมายเหตุ

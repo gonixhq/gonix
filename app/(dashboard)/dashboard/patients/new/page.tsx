@@ -19,6 +19,8 @@ import PreRegisterPicker, { type PendingFull } from "./pre-register-picker";
 import { markPendingAsUsed, countPendingRegistrations } from "@/lib/actions/pending-registrations";
 import { lookupAffiliateByCode } from "@/lib/actions/affiliates";
 import { recordReferral } from "@/lib/actions/patient-referrals";
+import { setStaffReferral, listReferralStaff } from "@/lib/actions/staff-referrals";
+import { toast } from "@/lib/toast";
 
 /* ─── Age Calculator (precise: year, month, day) ─── */
 function calcAge(dobStr: string) {
@@ -55,6 +57,8 @@ export default function NewPatientPage() {
     const [dob, setDob] = useState("");
     const [registrarName, setRegistrarName] = useState("...");
     const [registrarId, setRegistrarId] = useState<string | null>(null);
+    const [refStaff, setRefStaff] = useState<{ id: string; name: string }[]>([]);
+    useEffect(() => { listReferralStaff().then(setRefStaff); }, []);
     const [clinicName, setClinicName] = useState("คลินิก");
     const [showPDPA, setShowPDPA] = useState(false);
     const [previewHN, setPreviewHN] = useState<string | null>(null);
@@ -350,6 +354,13 @@ export default function NewPatientPage() {
             const friendCode = (getField("referrer_code") || "").trim().toUpperCase();
             if (friendCode && hn) {
                 await recordReferral(friendCode, hn);
+            }
+
+            // พนักงานผู้แนะนำ (คอมแนะนำ) — บันทึกได้เฉพาะวันลงทะเบียนครั้งแรก
+            const refStaffId = getField("ref_staff_id");
+            if (refStaffId && hn) {
+                const rs = await setStaffReferral(hn, refStaffId);
+                if (!rs.success) toast.error(`บันทึกผู้แนะนำไม่สำเร็จ: ${rs.error}`);
             }
 
             if (pulledId && hn) {
@@ -701,6 +712,12 @@ export default function NewPatientPage() {
                         </FieldRow>
                         <FieldRow label="รหัสเพื่อนแนะนำ (Referral)">
                             <Input name="referrer_code" placeholder="ถ้าเพื่อนแนะนำมา ใส่รหัสเพื่อน (RFxxxxx)" className={`${FORM_INPUT_CLS} font-mono uppercase`} />
+                        </FieldRow>
+                        <FieldRow label="พนักงานผู้แนะนำ" hint="เฉพาะลูกค้าที่พนักงานพามาเอง (ลูกค้าจากโฆษณา/ออนไลน์ไม่นับ) · บันทึกย้อนหลังไม่ได้">
+                            <select name="ref_staff_id" defaultValue="" className={FORM_SELECT_CLS}>
+                                <option value="">— ไม่มี —</option>
+                                {refStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
                         </FieldRow>
                     </Section>
 

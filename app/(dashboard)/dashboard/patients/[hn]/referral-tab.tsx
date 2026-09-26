@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Gift, Copy, Check, Users2, Loader2, Coins, Banknote, TicketPercent } from "lucide-react";
+import StaffReferralCard from "./staff-referral-card";
 import { ensureReferralCode, getReferralsByReferrer, claimReferralReward, type ReferredItem } from "@/lib/actions/patient-referrals";
 
 export default function ReferralTab({ hn }: { hn: string }) {
@@ -32,6 +33,8 @@ export default function ReferralTab({ hn }: { hn: string }) {
 
     return (
         <div className="space-y-5">
+            <StaffReferralCard hn={hn} />
+
             {/* รหัสแนะนำ */}
             <div className="gonix-card-premium p-5">
                 <div className="flex items-center gap-2 mb-3"><Gift className="h-4 w-4 text-[#2B54F0]" /><h3 className="text-sm font-bold text-slate-800">รหัสแนะนำเพื่อน</h3></div>

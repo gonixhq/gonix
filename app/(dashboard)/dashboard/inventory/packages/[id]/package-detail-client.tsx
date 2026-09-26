@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,8 @@ interface PackageItem {
     max_discount_pct?: number | null;
     hand_fee_main?: number | null;
     hand_fee_asst?: number | null;
+    ref_comm_mode?: string | null;
+    ref_comm_value?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
@@ -375,6 +378,8 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
         max_discount_pct: Number(pkg.max_discount_pct ?? 0),
         hand_fee_main: Number(pkg.hand_fee_main || 0),
         hand_fee_asst: Number(pkg.hand_fee_asst || 0),
+        ref_comm_mode: (pkg.ref_comm_mode || "") as string,
+        ref_comm_value: pkg.ref_comm_value != null ? String(pkg.ref_comm_value) : "",
         is_bundle: !!pkg.is_bundle,
         consume_item_id: pkg.consume_item_id || "",
         consume_qty_per_session: pkg.consume_qty_per_session != null ? String(pkg.consume_qty_per_session) : "",
@@ -400,6 +405,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                 max_discount_pct: Number(form.max_discount_pct) || null,
                 hand_fee_main: Number(form.hand_fee_main) || null,
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
+                ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
                 consume_item_id: form.consume_item_id || null,
@@ -532,6 +538,11 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                             <Input type="number" min={0} step="10" value={form.hand_fee_asst}
                                 onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">คอมแนะนำ (คอสฝั่งความงาม)</Label>
+                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} />
                     </div>
 
                     <div className="space-y-1.5">

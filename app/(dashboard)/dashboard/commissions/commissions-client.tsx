@@ -21,6 +21,7 @@ const ROLE_LABEL: Record<string, string> = {
     nurse: "พยาบาล",
     assistant: "ผู้ช่วย",
     sales: "เซลล์",
+    referral: "คอมแนะนำ",
     other: "อื่นๆ",
 };
 
@@ -29,6 +30,7 @@ const ROLE_COLOR: Record<string, string> = {
     nurse: "bg-rose-100 text-rose-700 border-rose-200",
     assistant: "bg-amber-100 text-amber-700 border-amber-200",
     sales: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    referral: "bg-pink-100 text-pink-700 border-pink-200",
     other: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
@@ -37,6 +39,7 @@ const ROLE_ICON: Record<string, React.ElementType> = {
     nurse: Heart,
     assistant: User,
     sales: User,
+    referral: User,
     other: User,
 };
 

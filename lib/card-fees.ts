@@ -19,7 +19,7 @@ export const CARD_TYPE_LABEL: Record<string, string> = {
 
 export const INSTALLMENT_OPTIONS = [3, 6, 10] as const;
 
-export type RateMeta = { key: string; label: string; unit: "%" | "flag" | "baht"; group: "mdr" | "card" | "tax" | "comp"; hint?: string };
+export type RateMeta = { key: string; label: string; unit: "%" | "flag" | "baht" | "month"; group: "mdr" | "card" | "tax" | "comp"; hint?: string };
 
 // รายการอัตราที่หน้าตั้งค่าแสดง — เฟสถัดไปเพิ่ม key ต่อท้ายได้
 export const RATE_META: RateMeta[] = [
@@ -34,6 +34,8 @@ export const RATE_META: RateMeta[] = [
     { key: "vat_enabled", label: "คลินิกจด VAT", unit: "flag", group: "tax", hint: "เปิด = VAT ค่าธรรมเนียมบัตรขอคืนได้ ไม่นับเป็นต้นทุน" },
     { key: "doctor_hour_rate", label: "ค่าชั่วโมงแพทย์ (บาท/ชม.)", unit: "baht", group: "comp", hint: "คิดจากเวลาเข้า-ออกงานจริง · แพทย์ที่ตั้งเรทรายคนไว้ในหน้าค่าตอบแทนจะใช้เรทรายคนแทน" },
     { key: "df_doctor_pct", label: "DF แพทย์ (% ของยอดสุทธิ)", unit: "%", group: "comp", hint: "เฉพาะรายการที่แพทย์ทำ (เปิดใช้ในเฟส 2B)" },
+    { key: "ref_comm_pct", label: "คอมแนะนำ มาตรฐาน (% ของยอดสุทธิ)", unit: "%", group: "comp", hint: "เฉพาะฝั่งความงาม · เมนูที่ตั้งคอมแนะนำเฉพาะ (เช่น ฟิลเลอร์ ฿/cc) จะใช้อัตราของเมนูแทน" },
+    { key: "ref_lapse_months", label: "ผู้แนะนำหลุดเมื่อลูกค้าไม่มาเกิน", unit: "month", group: "comp", hint: "หลุดแล้ว พนักงานที่ตามลูกค้ากลับมาลงชื่อใหม่ได้" },
 ];
 
 /** ต้นทุนค่าธรรมเนียมจริงของแถว payment (VAT นับเป็นต้นทุนเมื่อคลินิกไม่จด VAT) */

@@ -41,6 +41,8 @@ export interface ServicePackage {
     max_discount_pct?: number | null;
     hand_fee_main?: number | null;
     hand_fee_asst?: number | null;
+    ref_comm_mode?: string | null;
+    ref_comm_value?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
