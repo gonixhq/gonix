@@ -445,10 +445,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             <FieldRow label="หน่วยที่ตัดสต๊อก" required>
                                 {/* หน่วยจริงที่นับ/ตัด (u/cc/shot) — sync ไป unit ด้วย ผู้ใช้ไม่ต้องกรอกซ้ำ */}
                                 <select value={capacityUnitLabel} onChange={e => { setCapacityUnitLabel(e.target.value); setUnit(e.target.value); }} className={selectCls}>
-                                    <option value="unit">unit (ยูนิต — Botox)</option>
-                                    <option value="shot">shot (HIFU/RF)</option>
-                                    <option value="cc">cc (Filler)</option>
-                                    {capacityUnitLabel === "ml" && <option value="ml">ml (เดิม — เปลี่ยนเป็น cc)</option>}
+                                    <option value="unit">unit</option>
+                                    <option value="shot">shot</option>
+                                    <option value="cc">cc</option>
+                                    {capacityUnitLabel === "ml" && <option value="ml">ml</option>}
                                 </select>
                             </FieldRow>
                             <FieldRow label="ชื่อภาชนะ (ขวด/กล่อง/ตลับ)">
