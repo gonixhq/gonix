@@ -55,16 +55,21 @@ const NAV_ITEMS: NavGroup[] = [
         ],
     },
     {
-        group: "DAILY", th: "งานประจำวัน", en: "Daily Work", icon: ClipboardCheck,
+        group: "DAILY", th: "งานหน้าเคาน์เตอร์", en: "Front Desk", icon: ClipboardCheck,
         items: [
             { href: "/dashboard/patients", tKey: "patients", icon: Users, permKey: "patients.view" },
             { href: "/dashboard/appointments", tKey: "appointments", icon: CalendarDays, permKey: "appointments.view" },
-            { href: "/dashboard/screening", tKey: "screening", icon: ClipboardList, permKey: "visits.edit" },
-            { href: "/dashboard/doctor-station", tKey: "doctorStation", icon: Stethoscope, permKey: "visits.edit" },
             { href: "/dashboard/pharmacy", tKey: "pharmacy", icon: Pill, permKey: "pharmacy.view" },
-            { href: "/dashboard/lab", tKey: "lab", icon: FlaskConical, permKey: "lab.view" },
             { href: "/dashboard/anonymous", tKey: "anonymous", icon: ShieldCheck, permKey: "anon.view" },
             { href: "/dashboard/checkin", tKey: "checkin", icon: CalendarClock },
+        ],
+    },
+    {
+        group: "CLINICAL", th: "งานแพทย์ / พยาบาล", en: "Clinical", icon: Stethoscope,
+        items: [
+            { href: "/dashboard/screening", tKey: "screening", icon: ClipboardList, permKey: "visits.edit" },
+            { href: "/dashboard/doctor-station", tKey: "doctorStation", icon: Stethoscope, permKey: "visits.edit" },
+            { href: "/dashboard/lab", tKey: "lab", icon: FlaskConical, permKey: "lab.view" },
         ],
     },
     {
@@ -140,8 +145,9 @@ export default function Sidebar({
     const { t, language } = useLanguage();
     const [collapsed, setCollapsed] = useState(false);
     const [query, setQuery] = useState("");
-    // หมวดที่กางอยู่ (จำไว้ใน browser) — default กาง "งานประจำวัน"
-    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ DAILY: true });
+    // หมวดที่กางอยู่ (จำไว้ใน browser) — default: แพทย์/ทันตแพทย์ กาง "งานแพทย์" · คนอื่นกาง "หน้าเคาน์เตอร์" + "งานแพทย์"
+    const isDoctor = role === "doctor" || role === "dentist";
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(isDoctor ? { CLINICAL: true } : { DAILY: true, CLINICAL: true });
     useEffect(() => {
         try { const raw = localStorage.getItem(OPEN_KEY); if (raw) setOpenGroups(JSON.parse(raw)); } catch { /* ignore */ }
     }, []);
