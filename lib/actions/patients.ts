@@ -15,7 +15,7 @@ export async function getPatients(search?: string) {
         .limit(50);
 
     if (search) {
-        query = query.or(`hn.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%`);
+        query = query.or(`hn.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,nickname.ilike.%${search}%,phone.ilike.%${search}%`);
     }
 
     const { data, error } = await query;
@@ -105,7 +105,7 @@ export async function updatePatient(hn: string, updates: Record<string, unknown>
 
     // Build audit log entries for changed fields
     const fieldLabels: Record<string, string> = {
-        first_name: "ชื่อ", last_name: "นามสกุล", prefix: "คำนำหน้า",
+        first_name: "ชื่อ", last_name: "นามสกุล", nickname: "ชื่อเล่น", prefix: "คำนำหน้า",
         dob: "วันเกิด", gender: "เพศ", phone: "โทรศัพท์", email: "อีเมล",
         address_detail: "ที่อยู่", subdistrict_code: "ตำบล/อำเภอ/จังหวัด",
         occupation: "อาชีพ", marital_status: "สถานภาพ",

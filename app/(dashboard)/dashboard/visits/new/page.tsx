@@ -112,7 +112,7 @@ export default function NewVisitPage() {
         searchTimer.current = setTimeout(async () => {
             const { data } = await supabase.from("patients")
                 .select("hn, prefix, first_name, last_name, phone, gender, dob, blood_group, allergy_summary, disease_summary, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, patient_allergies(allergen_name, severity, is_active), patient_chronic_diseases(disease_name)")
-                .or(`hn.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%`)
+                .or(`hn.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,nickname.ilike.%${q}%,phone.ilike.%${q}%`)
                 .eq("is_active", true)
                 .limit(10);
             setSearchResults((data || []) as PatientSearchResult[]);

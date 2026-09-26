@@ -1,0 +1,93 @@
+-- ════════════════════════════════════════════════════════════
+-- 154: ชื่อเล่นคนไข้ (patients.nickname) + ลงทะเบียนล่วงหน้า
+-- ════════════════════════════════════════════════════════════
+ALTER TABLE patients              ADD COLUMN IF NOT EXISTS nickname text;
+ALTER TABLE pending_registrations ADD COLUMN IF NOT EXISTS nickname text;
+COMMENT ON COLUMN patients.nickname IS 'ชื่อเล่น — ใช้เรียกคนไข้/ค้นหา';
+
+-- ── RPC ลงทะเบียนสาธารณะ (ต่อจาก mig 112) — รับ nickname ──
+CREATE OR REPLACE FUNCTION submit_pending_registration(
+    p_clinic_code text, p_data jsonb, p_ip text DEFAULT 'unknown'
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_clinic uuid;
+    v_ip text := coalesce(nullif(trim(p_ip), ''), 'unknown');
+    v_ws timestamptz;
+    v_count int;
+    v_lock timestamptz;
+    v_id uuid;
+    c_max      constant int := 5;
+    c_window   constant interval := interval '10 minutes';
+    c_lock     constant interval := interval '15 minutes';
+BEGIN
+    SELECT id INTO v_clinic FROM tenants WHERE clinic_code = upper(trim(p_clinic_code)) LIMIT 1;
+    IF v_clinic IS NULL THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'clinic_not_found');
+    END IF;
+
+    IF coalesce(nullif(trim(p_data->>'first_name'), ''), '') = ''
+       OR coalesce(nullif(trim(p_data->>'last_name'), ''), '') = ''
+       OR coalesce(nullif(trim(p_data->>'phone'), ''), '') = '' THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'missing_required');
+    END IF;
+
+    INSERT INTO pending_reg_rl(ip) VALUES (v_ip) ON CONFLICT (ip) DO NOTHING;
+    SELECT window_start, req_count, locked_until INTO v_ws, v_count, v_lock FROM pending_reg_rl WHERE ip = v_ip;
+    IF v_lock IS NOT NULL AND v_lock > now() THEN
+        RETURN jsonb_build_object('ok', false, 'error', 'rate_limited');
+    END IF;
+    IF now() - v_ws > c_window THEN
+        UPDATE pending_reg_rl SET req_count = 1, window_start = now(), locked_until = NULL WHERE ip = v_ip;
+    ELSIF v_count + 1 > c_max THEN
+        UPDATE pending_reg_rl SET req_count = req_count + 1, locked_until = now() + c_lock WHERE ip = v_ip;
+        RETURN jsonb_build_object('ok', false, 'error', 'rate_limited');
+    ELSE
+        UPDATE pending_reg_rl SET req_count = req_count + 1 WHERE ip = v_ip;
+    END IF;
+
+    INSERT INTO pending_registrations (
+        clinic_id, source, status,
+        prefix, first_name, last_name, nickname, dob, gender, thai_id_card, phone, email,
+        line_id_handle, blood_group, marital_status, occupation, race, nationality,
+        address_detail, address_moo, subdistrict_code,
+        allergy_summary, disease_summary,
+        emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
+        pdpa_consent
+    ) VALUES (
+        v_clinic, 'online_form', 'pending',
+        nullif(trim(p_data->>'prefix'), ''),
+        trim(p_data->>'first_name'),
+        trim(p_data->>'last_name'),
+        nullif(trim(p_data->>'nickname'), ''),
+        nullif(p_data->>'dob', '')::date,
+        nullif(trim(p_data->>'gender'), ''),
+        nullif(trim(p_data->>'thai_id_card'), ''),
+        trim(p_data->>'phone'),
+        nullif(trim(p_data->>'email'), ''),
+        nullif(trim(p_data->>'line_id_handle'), ''),
+        nullif(trim(p_data->>'blood_group'), ''),
+        nullif(trim(p_data->>'marital_status'), ''),
+        nullif(trim(p_data->>'occupation'), ''),
+        nullif(trim(p_data->>'race'), ''),
+        nullif(trim(p_data->>'nationality'), ''),
+        nullif(trim(p_data->>'address_detail'), ''),
+        nullif(trim(p_data->>'address_moo'), ''),
+        nullif(trim(p_data->>'subdistrict_code'), ''),
+        nullif(trim(p_data->>'allergy_summary'), ''),
+        nullif(trim(p_data->>'disease_summary'), ''),
+        nullif(trim(p_data->>'emergency_contact_name'), ''),
+        nullif(trim(p_data->>'emergency_contact_phone'), ''),
+        nullif(trim(p_data->>'emergency_contact_relation'), ''),
+        coalesce((p_data->>'pdpa_consent')::boolean, false)
+    ) RETURNING id INTO v_id;
+
+    RETURN jsonb_build_object('ok', true, 'id', v_id);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION submit_pending_registration(text, jsonb, text) TO anon, authenticated;

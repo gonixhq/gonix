@@ -186,6 +186,7 @@ export default async function PatientDetailPage({
                             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight leading-tight">
                                 {patient.prefix} {patient.first_name} {patient.last_name}
                             </h1>
+                            {patient.nickname && <p className="text-sm font-semibold text-blue-700 mt-0.5">ชื่อเล่น: {patient.nickname}</p>}
 
                             {/* โรคประจำตัว — chips เห็นตลอด (risk factor) */}
                             {chronic.length > 0 && (

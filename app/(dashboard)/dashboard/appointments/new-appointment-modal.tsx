@@ -85,7 +85,7 @@ export default function NewAppointmentModal({ onClose, doctors }: Props) {
         const { data } = await supabase
             .from("patients")
             .select("hn, first_name, last_name, phone")
-            .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,hn.ilike.%${q}%,phone.ilike.%${q}%`)
+            .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,nickname.ilike.%${q}%,hn.ilike.%${q}%,phone.ilike.%${q}%`)
             .eq("is_active", true)
             .limit(8);
         setPatients(data || []);

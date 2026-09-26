@@ -303,6 +303,7 @@ export default function NewPatientPage() {
                 prefix: getField("prefix"),
                 first_name: firstName,
                 last_name: lastName,
+                nickname: getField("nickname") || null,
                 first_name_en: getField("first_name_en"),
                 last_name_en: getField("last_name_en"),
                 dob: getField("dob"),
@@ -542,6 +543,9 @@ export default function NewPatientPage() {
                         </FieldRow>
                         <FieldRow label="นามสกุล" required>
                             <Input name="last_name" defaultValue={pulledData?.last_name || ""} required className={FORM_INPUT_CLS} />
+                        </FieldRow>
+                        <FieldRow label="ชื่อเล่น">
+                            <Input name="nickname" defaultValue={pulledData?.nickname || ""} placeholder="เช่น แนน, บอส" className={FORM_INPUT_CLS} />
                         </FieldRow>
 
                         <FieldRow label="ชื่อ (EN)">

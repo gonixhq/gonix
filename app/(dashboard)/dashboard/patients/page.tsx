@@ -24,7 +24,7 @@ export default async function PatientsPage({ searchParams }: {
     for (const word of search.split(/\s+/).filter(Boolean)) {
         const literal = word.replace(/[\\%_*]/g, "\\$&").replace(/"/g, '\\"');
         const pattern = `"%${literal}%"`;
-        query = query.or(`hn.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},phone.ilike.${pattern}`);
+        query = query.or(`hn.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},nickname.ilike.${pattern},phone.ilike.${pattern}`);
     }
     if (gender !== "all") query = query.eq("gender", gender);
     const today = bangkokDate();

@@ -44,7 +44,7 @@ export async function listPendingRegistrations(search?: string) {
         let query = supabase
             .from("pending_registrations")
             .select(`
-                id, source, prefix, first_name, last_name,
+                id, source, prefix, first_name, last_name, nickname,
                 dob, gender, phone, email, thai_id_card,
                 blood_group, allergy_summary, disease_summary,
                 pdpa_consent, status, created_at
@@ -55,7 +55,7 @@ export async function listPendingRegistrations(search?: string) {
 
         if (search?.trim()) {
             const q = search.trim();
-            query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%,thai_id_card.ilike.%${q}%`);
+            query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,nickname.ilike.%${q}%,phone.ilike.%${q}%,thai_id_card.ilike.%${q}%`);
         }
 
         const { data, error } = await query;

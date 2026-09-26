@@ -46,6 +46,7 @@ export default function EditPatientForm({ patient }: { patient: any }) {
         prefix: patient.prefix || "",
         first_name: patient.first_name || "",
         last_name: patient.last_name || "",
+        nickname: patient.nickname || "",
         dob: patient.dob || "",
         gender: patient.gender || "",
         phone: patient.phone || "",
@@ -175,6 +176,9 @@ export default function EditPatientForm({ patient }: { patient: any }) {
                     </FieldRow>
                     <FieldRow label="นามสกุล" required>
                         <Input value={form.last_name} onChange={set("last_name")} className={FORM_INPUT_CLS} />
+                    </FieldRow>
+                    <FieldRow label="ชื่อเล่น">
+                        <Input value={form.nickname} onChange={set("nickname")} placeholder="เช่น แนน, บอส" className={FORM_INPUT_CLS} />
                     </FieldRow>
 
                     <FieldRow label="วันเกิด">

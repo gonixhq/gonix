@@ -55,7 +55,7 @@ const T = {
         headerTitle: "ลงทะเบียนล่วงหน้า",
         headerSub: "กรอกข้อมูลก่อนมา เพื่อความรวดเร็วในวันรับบริการ",
         secPersonal: "ข้อมูลส่วนตัว", secContact: "การติดต่อ", secAddress: "ที่อยู่", secMedical: "ข้อมูลทางการแพทย์", secEmergency: "ผู้ติดต่อฉุกเฉิน",
-        prefix: "คำนำหน้า", gender: "เพศ", firstName: "ชื่อ *", lastName: "นามสกุล *",
+        prefix: "คำนำหน้า", gender: "เพศ", firstName: "ชื่อ *", lastName: "นามสกุล *", nickname: "ชื่อเล่น", nicknamePh: "เช่น แนน, บอส",
         dob: "วันเกิด", idCard: "เลขบัตรประชาชน / Passport No.", idCardPh: "เลขบัตร 13 หลัก หรือ Passport No.",
         blood: "กรุ๊ปเลือด", marital: "สถานะสมรส", occupation: "อาชีพ", occupationPh: "เช่น พนักงานบริษัท",
         race: "เชื้อชาติ", nationality: "สัญชาติ", racePh: "ไทย",
@@ -79,7 +79,7 @@ const T = {
         headerTitle: "Pre-registration",
         headerSub: "Fill in your details before your visit for a faster check-in",
         secPersonal: "Personal Information", secContact: "Contact", secAddress: "Address", secMedical: "Medical Information", secEmergency: "Emergency Contact",
-        prefix: "Title", gender: "Sex", firstName: "First name *", lastName: "Last name *",
+        prefix: "Title", gender: "Sex", firstName: "First name *", lastName: "Last name *", nickname: "Nickname", nicknamePh: "e.g. Nan, Boss",
         dob: "Date of birth", idCard: "National ID / Passport No.", idCardPh: "13-digit ID or Passport No.",
         blood: "Blood group", marital: "Marital status", occupation: "Occupation", occupationPh: "e.g. Company employee",
         race: "Race", nationality: "Nationality", racePh: "Thai",
@@ -165,6 +165,7 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
             prefix: getField("prefix"),
             first_name: firstName,
             last_name: lastName,
+            nickname: getField("nickname"),
             dob: getField("dob"),
             gender: getField("gender"),
             thai_id_card: getField("thai_id_card"),
@@ -265,6 +266,10 @@ export default function RegisterForm({ clinic, clinicCode }: { clinic: Clinic; c
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Field label={L.firstName} name="first_name" required />
                         <Field label={L.lastName} name="last_name" required />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Field label={L.nickname} name="nickname" placeholder={L.nicknamePh} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
