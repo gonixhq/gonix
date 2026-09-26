@@ -66,11 +66,16 @@ interface LineItem {
     segment?: string | null;  // แผนกรายได้ (จาก source)
     max_discount_pct?: number | null;  // เพดานส่วนลด (เฉพาะคอส) — null = ไม่จำกัด
     line_discount?: number;   // ส่วนลดเฉพาะรายการนี้ (บาท)
+    performer?: string;       // staff.id ของแพทย์ผู้ทำ | NOT_DOCTOR | "" (ยังไม่เลือก)
     // ── ของฉีด (injectable): ขายเป็น "ก้อน" ไม่ใช่ต่อหน่วย ──
     // qty = จำนวนที่ฉีด (ยูนิต/cc/shot → ตัดสต๊อก vial) · block_price = ราคาขายก้อน (คิดเงิน)
     block_price?: number;     // ราคาก้อน (เฉพาะ injectable) — เป็น source of truth ของยอด ไม่ผูกกับ qty
     unit_label?: string;      // u / cc / shot (แสดงข้าง qty)
 }
+
+// DF แพทย์ % (เฟส 2B): เลือก "แพทย์ผู้ทำ" รายบรรทัด — ยา/แล็บ/วัสดุ/คอส ไม่มี DF แพทย์
+const DF_ELIGIBLE = new Set(["doctor_fee", "procedure", "service", "injectable", "other"]);
+const NOT_DOCTOR = "__none__";
 
 let uidCounter = 0;
 const uid = () => `item-${Date.now()}-${++uidCounter}`;
@@ -106,6 +111,7 @@ export default function CheckoutForm({
     inventoryDrugs = [],
     injections = [],
     canBackdate = false,
+    doctors = [],
 }: {
     visit: Visit;
     drugOrders: DrugOrder[];
@@ -114,6 +120,7 @@ export default function CheckoutForm({
     inventoryDrugs?: InventoryDrug[];
     injections?: Injection[];
     canBackdate?: boolean;
+    doctors?: { id: string; name: string }[];
 }) {
     const router = useRouter();
     const p = Array.isArray(visit.patients) ? visit.patients[0] : (visit.patients || visit.patient);
@@ -394,6 +401,11 @@ export default function CheckoutForm({
             toast.error("ไม่มีรายการในใบเสร็จ");
             return;
         }
+        const unassigned = items.filter(it => DF_ELIGIBLE.has(it.item_type) && !it.performer);
+        if (doctors.length > 0 && unassigned.length > 0) {
+            toast.error(`กรุณาเลือก "แพทย์ผู้ทำ" ให้ครบ (${unassigned.length} รายการ) — ถ้าพยาบาลทำ ให้เลือก "ไม่ใช่แพทย์ทำ"`);
+            return;
+        }
 
         setLoading(true);
         setError("");
@@ -414,6 +426,7 @@ export default function CheckoutForm({
                     line_total: gross,
                     discount_amount: lineDisc,
                     segment: it.segment ?? null,
+                    performer_staff_id: it.performer && it.performer !== NOT_DOCTOR ? it.performer : null,
                 };
             });
 
@@ -681,6 +694,21 @@ export default function CheckoutForm({
                             </div>
                         )}
 
+                        {doctors.length > 0 && items.some(it => DF_ELIGIBLE.has(it.item_type)) && (() => {
+                            const visitDoc = doctors.find(d => d.id === visit.doctor_id);
+                            const pending = items.filter(it => DF_ELIGIBLE.has(it.item_type) && !it.performer).length;
+                            return (
+                                <div className="mx-3 mb-2 flex items-center gap-2 flex-wrap rounded-lg bg-blue-50/60 border border-blue-100 px-3 py-2 text-xs">
+                                    <span className="text-slate-600">แพทย์ผู้ทำ (คิด DF แพทย์):</span>
+                                    {pending > 0 ? <span className="font-semibold text-amber-700">ยังไม่เลือก {pending} รายการ</span> : <span className="font-semibold text-emerald-700">ครบแล้ว ✓</span>}
+                                    {visitDoc && (
+                                        <button type="button" onClick={() => setItems(prev => prev.map(x => DF_ELIGIBLE.has(x.item_type) && !x.performer ? { ...x, performer: visitDoc.id } : x))}
+                                            className="ml-auto h-7 px-2.5 rounded-md bg-blue-700 text-white font-semibold">ที่ยังว่าง = {visitDoc.name}</button>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60">
@@ -711,6 +739,14 @@ export default function CheckoutForm({
                                             <td className="px-3 py-2 text-slate-800 font-medium">
                                                 {it.item_name}
                                                 {fieldsLocked && <span className="ml-1.5 text-xs text-slate-500 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
+                                                {DF_ELIGIBLE.has(it.item_type) && doctors.length > 0 && (
+                                                    <select aria-label="แพทย์ผู้ทำ" value={it.performer || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, performer: e.target.value } : x))}
+                                                        className={`mt-1 block w-full max-w-[220px] h-7 rounded-md border bg-white px-1.5 text-xs font-normal ${it.performer ? "border-slate-200 text-slate-700" : "border-amber-400 text-amber-700"}`}>
+                                                        <option value="">— แพทย์ผู้ทำ? —</option>
+                                                        {doctors.map(d => <option key={d.id} value={d.id}>👨‍⚕️ {d.name}</option>)}
+                                                        <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ (พยาบาล/อื่นๆ)</option>
+                                                    </select>
+                                                )}
                                             </td>
                                             <td className="px-1 py-1">
                                                 {fieldsLocked ? (

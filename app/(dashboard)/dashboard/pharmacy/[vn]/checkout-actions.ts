@@ -18,6 +18,7 @@ export interface InvoiceItemInput {
     line_total: number;        // ราคาเต็มของรายการ (ก่อนหักส่วนลด) — ฐานค่ามือ
     discount_amount?: number;  // ส่วนลดเฉพาะรายการนี้ (เก็บแยก ไม่หักออกจาก line_total)
     segment?: string | null;   // แผนกรายได้ (denormalize จาก source)
+    performer_staff_id?: string | null;  // แพทย์ผู้ทำรายการ → DF แพทย์ % (เฟส 2B, snapshot อัตราที่ DB)
 }
 
 export interface CheckoutInput {
