@@ -68,10 +68,12 @@ export default async function FinancePage({
 
     // รับเงินจริงตาม paid_at รวมรับชำระเพิ่มบิลเก่าและเงินคืนในช่วง
     const payLogs = await readAll((start, end) => supabase.from("payment_logs")
-        .select("id, inv_id, payment_method, amount, note, deposit_type, invoice_headers!inner(status)")
+        .select("id, inv_id, payment_method, amount, note, deposit_type, card_fee, card_fee_vat, invoice_headers!inner(status)")
         .eq("clinic_id", clinicId).neq("invoice_headers.status", "voided")
         .gte("paid_at", rangeStartISO).lt("paid_at", rangeEndISO).order("id").range(start, end));
     const regularRevenue = sumMoney(payLogs.map(p => p.amount));
+    // ค่าธรรมเนียมบัตร (MDR + VAT, snapshot ตอนรับเงิน — mig 140)
+    const cardFeeTotal = sumMoney(payLogs.filter(p => Number(p.amount) > 0).flatMap(p => [p.card_fee || 0, p.card_fee_vat || 0]));
     const anonymousRevenue = sumMoney(anonPaid.map(p => p.total_amount));
     const rangeRevenue = sumMoney([regularRevenue, anonymousRevenue]);
     const depositAmount = sumMoney(payLogs.filter(p => Number(p.amount) > 0 &&
@@ -176,6 +178,7 @@ export default async function FinancePage({
             rangeRevenue={rangeRevenue}
             rangeCount={rangeCount}
             channels={channels}
+            cardFeeTotal={cardFeeTotal}
             depositAmount={depositAmount}
             regularRevenue={regularRevenue}
             anonymousRevenue={anonymousRevenue}

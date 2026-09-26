@@ -33,7 +33,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     // Fetch payment logs (table uses `paid_at`, not `created_at`)
     const { data: payments } = await supabase
         .from("payment_logs")
-        .select("id, payment_method, amount, transaction_ref, bank_name, paid_at, note")
+        .select("id, payment_method, amount, transaction_ref, bank_name, paid_at, note, card_type, card_issuer, installment_months, mdr_rate_pct, card_fee, card_fee_vat")
         .eq("inv_id", id)
         .order("paid_at", { ascending: true });
 

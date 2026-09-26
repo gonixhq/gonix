@@ -47,6 +47,7 @@ const translations = {
         rooms: "Consultation Rooms",
         services: "Services & Pricing",
         formulas: "Drug / Vitamin Formulas",
+        financeRates: "Finance Rates & Card Fees",
         save: "Save",
         cancel: "Cancel",
         // System
@@ -89,6 +90,7 @@ const translations = {
         rooms: "จัดการห้องตรวจ",
         services: "รายการบริการ & ราคา",
         formulas: "สูตรยา / วิตามิน",
+        financeRates: "อัตราการเงิน / ค่าธรรมเนียมบัตร",
         save: "บันทึกข้อมูล",
         cancel: "ยกเลิก",
         // System

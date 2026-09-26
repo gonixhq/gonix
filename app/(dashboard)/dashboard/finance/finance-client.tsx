@@ -61,6 +61,7 @@ export default function FinanceClient({
     rangeCount,
     depositAmount, regularRevenue, anonymousRevenue,
     channels,
+    cardFeeTotal,
     pendingAmount,
     pettyTotal,
     pettyItems,
@@ -79,6 +80,7 @@ export default function FinanceClient({
     rangeCount: number;
     depositAmount: number; regularRevenue: number; anonymousRevenue: number;
     channels: { cash: number; transfer: number; credit: number };
+    cardFeeTotal?: number;
     pendingAmount: number;
     pettyTotal: number;
     pettyItems: PettyCashItem[];
@@ -565,6 +567,12 @@ export default function FinanceClient({
                         <div><div className="text-base font-black text-cyan-700 tabular-nums">฿{channels.transfer.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">โอน</div></div>
                         <div><div className="text-base font-black text-violet-700 tabular-nums">฿{channels.credit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div><div className="text-[11px] text-slate-500">บัตร</div></div>
                     </div>
+                    {channels.credit > 0 && (
+                        <Link href={`/dashboard/finance/card-fees?month=${range.to.slice(0, 7)}`} className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs hover:bg-slate-50 rounded -mx-1 px-1">
+                            <span className="text-slate-500">ค่าธรรมเนียมบัตร (รวม VAT)</span>
+                            <span className="font-bold text-rose-600 tabular-nums">−฿{(cardFeeTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} ›</span>
+                        </Link>
+                    )}
                 </div>
             </div>
 

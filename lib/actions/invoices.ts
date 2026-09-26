@@ -249,6 +249,7 @@ export async function addPayment(input: {
     note?: string;
     bankName?: string;
     transactionRef?: string;
+    card?: CardInput;
 }) {
     try {
         const supabase = await createClient();
@@ -284,6 +285,7 @@ export async function addPayment(input: {
             transaction_ref: input.transactionRef || null,
             note: input.note || null,
             received_by: null,
+            ...cardColumns(input.paymentMethod, input.card),
         });
         if (payErr) return { success: false, error: `Payment log: ${payErr.message}` };
 
@@ -312,13 +314,25 @@ export async function addPayment(input: {
     }
 }
 
-const PAY_METHODS = new Set(["cash", "transfer", "credit_card", "debit_card", "qr_promptpay"]);
+// ตรงกับ enum payment_method ใน DB (ไม่มี debit_card — เดบิตเป็น "ประเภทบัตร" ของ credit_card)
+const PAY_METHODS = new Set(["cash", "transfer", "credit_card", "qr_promptpay"]);
 const PM_LABEL: Record<string, string> = {
-    cash: "เงินสด", transfer: "โอน/QR", credit_card: "บัตรเครดิต", debit_card: "บัตรเดบิต", qr_promptpay: "QR/พร้อมเพย์",
+    cash: "เงินสด", transfer: "โอน/QR", credit_card: "บัตร", qr_promptpay: "QR/พร้อมเพย์",
 };
 
+export type CardInput = { card_type?: string; card_issuer?: string; installment_months?: number | null };
+const CARD_TYPE_SET = new Set(["debit_domestic", "credit_domestic", "credit_domestic_premium", "foreign", "foreign_premium"]);
+
+/** คอลัมน์บัตรสำหรับ payment_logs — DB trigger (mig 140) คิด MDR/ค่าธรรมเนียม snapshot เอง */
+function cardColumns(method: string, card?: CardInput) {
+    if (method !== "credit_card") return { card_type: null, card_issuer: null, installment_months: null };
+    const issuer = card?.card_issuer === "kbank" ? "kbank" : "other";
+    const months = issuer === "kbank" && [3, 6, 10].includes(Number(card?.installment_months)) ? Number(card?.installment_months) : null;
+    return { card_type: card?.card_type && CARD_TYPE_SET.has(card.card_type) ? card.card_type : "unspecified", card_issuer: issuer, installment_months: months };
+}
+
 /** เปลี่ยนวิธีชำระของรายการชำระ (payment_logs) เช่น เงินสด→โอน — เก็บ audit + เคารพล็อกปิดยอด */
-export async function changePaymentMethod(paymentId: string, newMethod: string) {
+export async function changePaymentMethod(paymentId: string, newMethod: string, card?: CardInput) {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -326,11 +340,15 @@ export async function changePaymentMethod(paymentId: string, newMethod: string) 
         if (!PAY_METHODS.has(newMethod)) return { success: false, error: "วิธีชำระไม่ถูกต้อง" };
 
         const { data: pay } = await supabase.from("payment_logs")
-            .select("id, inv_id, clinic_id, payment_method, amount").eq("id", paymentId).single();
+            .select("id, inv_id, clinic_id, payment_method, amount, card_type, card_issuer, installment_months").eq("id", paymentId).single();
         if (!pay) return { success: false, error: "ไม่พบรายการชำระ" };
         if (Number(pay.amount) < 0) return { success: false, error: "แก้ไขรายการคืนเงินไม่ได้" };
         const oldMethod = (pay.payment_method as string) || "";
-        if (oldMethod === newMethod) return { success: true };
+        const cols = cardColumns(newMethod, card);
+        if (newMethod === "credit_card" && cols.card_type === "unspecified") return { success: false, error: "กรุณาเลือกประเภทบัตร" };
+        const sameCard = cols.card_type === (pay.card_type ?? null) && cols.card_issuer === (pay.card_issuer ?? null)
+            && cols.installment_months === (pay.installment_months ?? null);
+        if (oldMethod === newMethod && sameCard) return { success: true };
 
         const { data: inv } = await supabase.from("invoice_headers")
             .select("status, invoice_date, clinic_id").eq("id", pay.inv_id).single();
@@ -339,7 +357,7 @@ export async function changePaymentMethod(paymentId: string, newMethod: string) 
         if (await isDayClosed(supabase, inv.clinic_id, inv.invoice_date)) return { success: false, error: DAY_LOCKED_MSG };
 
         const { error: upErr } = await supabase.from("payment_logs")
-            .update({ payment_method: newMethod }).eq("id", paymentId);
+            .update({ payment_method: newMethod, ...cols }).eq("id", paymentId);
         if (upErr) return { success: false, error: upErr.message };
 
         try {
@@ -348,9 +366,9 @@ export async function changePaymentMethod(paymentId: string, newMethod: string) 
                 table_name: "invoice_headers",
                 record_id: pay.inv_id,
                 action: "payment_method_change",
-                old_data: { payment_method: oldMethod },
+                old_data: { payment_method: oldMethod, card_type: pay.card_type ?? null, card_issuer: pay.card_issuer ?? null },
                 new_data: {
-                    payment_id: paymentId, payment_method: newMethod,
+                    payment_id: paymentId, payment_method: newMethod, card_type: cols.card_type, card_issuer: cols.card_issuer,
                     reason: `เปลี่ยนวิธีชำระ: ${PM_LABEL[oldMethod] || oldMethod} → ${PM_LABEL[newMethod] || newMethod}`,
                 },
                 performed_by: user.id,

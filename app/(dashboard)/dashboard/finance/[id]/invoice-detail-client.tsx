@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { voidInvoice, refundInvoice, addPayment, changePaymentMethod, unvoidInvoice, changeInvoiceDate } from "@/lib/actions/invoices";
 import { toast } from "@/lib/toast";
+import { CardFields, type CardPatch } from "@/app/(dashboard)/dashboard/pharmacy/[vn]/payment-editor";
+import { CARD_TYPE_LABEL } from "@/lib/card-fees";
 
 interface Patient {
     prefix?: string | null;
@@ -60,6 +62,12 @@ interface PaymentLog {
     bank_name?: string | null;
     paid_at: string;
     note?: string | null;
+    card_type?: string | null;
+    card_issuer?: string | null;
+    installment_months?: number | null;
+    mdr_rate_pct?: number | null;
+    card_fee?: number | null;
+    card_fee_vat?: number | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -106,14 +114,14 @@ const PAYMENT_METHOD_LABEL: Record<string, string> = {
     cash: "เงินสด",
     transfer: "โอน/QR",
     credit_card: "บัตรเครดิต",
-    debit_card: "บัตรเดบิต",
+    qr_promptpay: "QR/พร้อมเพย์",
 };
 
 const PAYMENT_METHOD_ICON: Record<string, React.ElementType> = {
     cash: Banknote,
     transfer: QrCode,
     credit_card: CreditCard,
-    debit_card: CreditCard,
+    qr_promptpay: QrCode,
 };
 
 function calcAge(dob: string | null | undefined): string {
@@ -155,6 +163,8 @@ export default function InvoiceDetailClient({
     const [error, setError] = useState<string | null>(null);
     const [addPayAmount, setAddPayAmount] = useState("");
     const [addPayMethod, setAddPayMethod] = useState<"cash" | "transfer" | "credit_card" | "qr_promptpay">("cash");
+    const [addPayCard, setAddPayCard] = useState<CardPatch>({ card_type: "", card_issuer: "other", installment_months: null });
+    const [editPayCard, setEditPayCard] = useState<CardPatch>({ card_type: "", card_issuer: "other", installment_months: null });
     const [addPayNote, setAddPayNote] = useState("");
     const [editPayId, setEditPayId] = useState<string | null>(null);
     const [editPayMethod, setEditPayMethod] = useState<string>("cash");
@@ -177,7 +187,7 @@ export default function InvoiceDetailClient({
     function handleChangeMethod(payId: string) {
         setError(null);
         startTransition(async () => {
-            const res = await changePaymentMethod(payId, editPayMethod);
+            const res = await changePaymentMethod(payId, editPayMethod, editPayMethod === "credit_card" ? editPayCard : undefined);
             if (!res.success) { toast.error(res.error || "แก้ไขไม่สำเร็จ"); return; }
             toast.success("เปลี่ยนวิธีชำระแล้ว");
             setEditPayId(null);
@@ -192,6 +202,7 @@ export default function InvoiceDetailClient({
                 invId: invoice.id,
                 amount: parseFloat(addPayAmount),
                 paymentMethod: addPayMethod,
+                card: addPayMethod === "credit_card" ? addPayCard : undefined,
                 note: addPayNote || undefined,
             });
             if (!res.success) {
@@ -466,10 +477,20 @@ export default function InvoiceDetailClient({
                                                         {new Date(p.paid_at).toLocaleString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                                                         {p.bank_name && <> · {p.bank_name}</>}
                                                         {p.transaction_ref && <> · <span className="font-mono">{p.transaction_ref}</span></>}
+                                                        {p.payment_method === "credit_card" && !isRefund && (
+                                                            <div className="mt-0.5 text-slate-500">
+                                                                {CARD_TYPE_LABEL[p.card_type || "unspecified"] || p.card_type}
+                                                                {p.card_issuer === "kbank" && " · กสิกร"}
+                                                                {p.installment_months ? ` · ผ่อน ${p.installment_months} ด.` : ""}
+                                                                {p.card_fee != null && (
+                                                                    <span className="text-rose-600"> · ค่าธรรมเนียม {p.mdr_rate_pct}% = ฿{(Number(p.card_fee) + Number(p.card_fee_vat || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-slate-400">(รวม VAT)</span></span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 {canEditPayments && !isRefund && editPayId !== p.id && (
-                                                    <button onClick={() => { setEditPayId(p.id); setEditPayMethod(p.payment_method); }}
+                                                    <button onClick={() => { setEditPayId(p.id); setEditPayMethod(p.payment_method); setEditPayCard({ card_type: (p.card_type && p.card_type !== "unspecified" ? p.card_type : "") as CardPatch["card_type"], card_issuer: p.card_issuer === "kbank" ? "kbank" : "other", installment_months: p.installment_months ?? null }); }}
                                                         className="shrink-0 text-xs font-semibold text-slate-500 hover:text-[#2B54F0] inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-slate-100">
                                                         <Pencil className="h-3.5 w-3.5" /> แก้วิธี
                                                     </button>
@@ -484,6 +505,7 @@ export default function InvoiceDetailClient({
                                                         className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm focus:border-[#2B54F0] focus:outline-none">
                                                         {Object.entries(PAYMENT_METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                                     </select>
+                                                    {editPayMethod === "credit_card" && <div className="w-full sm:w-72"><CardFields row={editPayCard} onPatch={(c) => setEditPayCard(prev => ({ ...prev, ...c }))} /></div>}
                                                     <button disabled={pending} onClick={() => handleChangeMethod(p.id)}
                                                         className="h-9 px-3 rounded-lg bg-[#2B54F0] text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
                                                         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} บันทึก
@@ -706,11 +728,12 @@ export default function InvoiceDetailClient({
                                 >
                                     <option value="cash">เงินสด</option>
                                     <option value="transfer">โอน</option>
-                                    <option value="credit_card">บัตรเครดิต</option>
+                                    <option value="credit_card">บัตร (เครดิต/เดบิต)</option>
                                     <option value="qr_promptpay">QR / พร้อมเพย์</option>
                                 </select>
                             </div>
                         </div>
+                        {addPayMethod === "credit_card" && <CardFields row={addPayCard} onPatch={(p) => setAddPayCard(c => ({ ...c, ...p }))} />}
 
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-700">หมายเหตุ</label>
