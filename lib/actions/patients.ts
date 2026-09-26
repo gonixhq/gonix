@@ -240,3 +240,76 @@ export async function deletePatient(hn: string, confirmText: string) {
     }
 }
 
+
+// ════════════════ กัน HN ซ้ำ: หาประวัติเดิม + รวมข้อมูลเข้า HN เดิม ════════════════
+export interface PatientMatch { hn: string; name: string; phone: string | null; dob: string | null; visitCount: number; lastVisit: string | null; reasons: string[] }
+
+/** คนไข้เดิมที่น่าจะเป็นคนเดียวกัน — เลขบัตร/พาสปอร์ตตรง · เบอร์ตรง · ชื่อ+สกุลตรง · ชื่อ+วันเกิดตรง */
+export async function findPatientMatches(q: { phone?: string | null; thai_id_card?: string | null; passport_no?: string | null; first_name?: string | null; last_name?: string | null; dob?: string | null }): Promise<PatientMatch[]> {
+    try {
+        const supabase = await createClient();
+        const digits = (s?: string | null) => (s || "").replace(/\D/g, "");
+        const norm = (s?: string | null) => (s || "").replace(/\s+/g, "").toLowerCase();
+        const phone = digits(q.phone), id = digits(q.thai_id_card), pp = (q.passport_no || "").trim().toUpperCase();
+        const first = (q.first_name || "").trim(), last = (q.last_name || "").trim();
+        const ors: string[] = [];
+        if (id.length === 13) ors.push(`thai_id_card.eq.${id}`);
+        if (pp.length >= 5) ors.push(`passport_no.eq.${pp}`);
+        if (phone.length >= 9) ors.push(`phone.ilike.%${phone.slice(-9)}%`);
+        if (first) ors.push(`first_name.ilike."${first.replace(/[",()]/g, "")}"`);
+        if (ors.length === 0) return [];
+        const { data } = await supabase.from("patients")
+            .select("hn, prefix, first_name, last_name, phone, dob, thai_id_card, passport_no, visit_count, last_visit_date")
+            .eq("is_active", true).or(ors.join(",")).limit(30);
+        const out: PatientMatch[] = [];
+        for (const p of data || []) {
+            const reasons: string[] = [];
+            if (id.length === 13 && digits(p.thai_id_card as string) === id) reasons.push("เลขบัตรประชาชนตรง");
+            if (pp.length >= 5 && String(p.passport_no || "").toUpperCase() === pp) reasons.push("พาสปอร์ตตรง");
+            if (phone.length >= 9 && digits(p.phone as string).slice(-9) === phone.slice(-9)) reasons.push("เบอร์โทรตรง");
+            const sameName = norm(p.first_name as string) === norm(first) && norm(p.last_name as string) === norm(last);
+            if (sameName) reasons.push("ชื่อ-นามสกุลตรง");
+            if (!sameName && q.dob && p.dob === q.dob && norm(p.first_name as string) === norm(first)) reasons.push("ชื่อ+วันเกิดตรง");
+            if (reasons.length === 0) continue;
+            out.push({
+                hn: p.hn as string, name: `${p.prefix || ""}${p.first_name || ""} ${p.last_name || ""}`.trim(),
+                phone: (p.phone as string) || null, dob: (p.dob as string) || null,
+                visitCount: Number(p.visit_count || 0), lastVisit: (p.last_visit_date as string) || null, reasons,
+            });
+        }
+        return out.sort((a, b) => b.reasons.length - a.reasons.length);
+    } catch {
+        return [];
+    }
+}
+
+const MERGEABLE = [
+    "prefix", "nickname", "first_name_en", "last_name_en", "dob", "gender", "phone", "email", "thai_id_card", "passport_no",
+    "blood_group", "race", "nationality", "marital_status", "allergy_summary", "disease_summary", "past_history",
+    "nhso_rights", "nhso_main_hospital", "line_id_handle", "address_detail", "address_moo", "subdistrict_code", "occupation",
+    "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
+] as const;
+
+/** ใช้ประวัติเดิม: เติมเฉพาะช่องที่ยังว่างใน HN เดิม (ไม่ทับข้อมูลเดิม) + ปิดใบลงทะเบียนล่วงหน้า (ถ้ามี) */
+export async function mergeIntoExistingPatient(hn: string, data: Record<string, string | null>, pendingId?: string | null) {
+    try {
+        const supabase = await createClient();
+        const { data: cur } = await supabase.from("patients").select("*").eq("hn", hn).maybeSingle();
+        if (!cur) return { success: false, error: "ไม่พบประวัติเดิม" };
+        const patch: Record<string, unknown> = {};
+        for (const k of MERGEABLE) {
+            const v = data[k];
+            const empty = cur[k] == null || String(cur[k]).trim() === "" || (k === "nhso_rights" && cur[k] === "self_pay");
+            if (v != null && String(v).trim() !== "" && empty && String(cur[k] ?? "") !== String(v)) patch[k] = String(v).trim();
+        }
+        if (Object.keys(patch).length > 0) await updatePatient(hn, patch);
+        if (pendingId) {
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase.from("pending_registrations").update({ status: "used", converted_to_hn: hn, used_at: new Date().toISOString(), used_by: user?.id || null }).eq("id", pendingId);
+        }
+        revalidatePath(`/dashboard/patients/${hn}`);
+        return { success: true, filled: Object.keys(patch).length };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "รวมข้อมูลไม่สำเร็จ" };
+    }
+}

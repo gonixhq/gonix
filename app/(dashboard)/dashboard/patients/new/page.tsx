@@ -21,6 +21,7 @@ import { lookupAffiliateByCode } from "@/lib/actions/affiliates";
 import { recordReferral } from "@/lib/actions/patient-referrals";
 import { setStaffReferral, listReferralStaff } from "@/lib/actions/staff-referrals";
 import { toast } from "@/lib/toast";
+import { findPatientMatches, mergeIntoExistingPatient, type PatientMatch } from "@/lib/actions/patients";
 
 /* ─── Age Calculator (precise: year, month, day) ─── */
 function calcAge(dobStr: string) {
@@ -51,6 +52,12 @@ export default function NewPatientPage() {
     const router = useRouter();
     const supabase = createClient();
     const [loading, setLoading] = useState(false);
+    // กัน HN ซ้ำ: เจอประวัติเดิม → ให้เลือกใช้ HN เดิม (เติมข้อมูลที่ว่าง) หรือยืนยันสร้างใหม่
+    const [dupMatches, setDupMatches] = useState<PatientMatch[] | null>(null);
+    const [merging, setMerging] = useState<string | null>(null);
+    const forceNewRef = useRef(false);
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const dupDataRef = useRef<Record<string, string | null>>({});
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [idType, setIdType] = useState<"thai" | "passport">("thai");
@@ -275,6 +282,27 @@ export default function NewPatientPage() {
         if (!firstName || !lastName) { setError("กรุณากรอกชื่อและนามสกุล"); setLoading(false); return; }
         if (!form.get("dob")) { setError("กรุณากรอกวันเกิด (ใช้แจ้งเตือนวันเกิด/คูปอง)"); setLoading(false); return; }
 
+        // ── ตรวจประวัติเดิมก่อนออก HN (เช่น ลูกค้าที่เคยเปิด HN ตอนจองคิว แล้วมากรอกลงทะเบียนล่วงหน้า) ──
+        if (!forceNewRef.current) {
+            const str = (k: string) => { const v = form.get(k); return typeof v === "string" && v.trim() ? v.trim() : null; };
+            const data: Record<string, string | null> = {};
+            form.forEach((v, k) => { if (typeof v === "string") data[k] = v.trim() || null; });
+            if (idType !== "thai") data.thai_id_card = null; else data.passport_no = null;
+            if (selectedAddress?.subdistrict_code) data.subdistrict_code = selectedAddress.subdistrict_code;
+            const matches = await findPatientMatches({
+                phone: str("phone"), thai_id_card: idType === "thai" ? str("thai_id_card") : null, passport_no: idType === "passport" ? str("passport_no") : null,
+                first_name: firstName, last_name: lastName, dob: str("dob"),
+            });
+            if (matches.length > 0) {
+                dupDataRef.current = data;
+                setDupMatches(matches);
+                setLoading(false);
+                setTimeout(() => document.getElementById("dup-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                return;
+            }
+        }
+        forceNewRef.current = false;
+
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Unauthorized");
@@ -448,7 +476,7 @@ export default function NewPatientPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} key={formKey}>
+            <form ref={formRef} onSubmit={handleSubmit} key={formKey}>
                 {/* ── ID Card Preview (รูปถ่าย + HN + วันที่ลงทะเบียน) ── */}
                 <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4 sm:p-5 mb-5 flex flex-wrap items-center gap-4">
                     <label className="cursor-pointer shrink-0">
@@ -750,6 +778,38 @@ export default function NewPatientPage() {
                         </div>
                     </Section>
                 </HorizontalForm>
+
+                {dupMatches && dupMatches.length > 0 && (
+                    <div id="dup-panel" className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
+                        <div className="font-bold text-amber-900">พบประวัติเดิมที่น่าจะเป็นคนเดียวกัน {dupMatches.length} ราย — ไม่ต้องออก HN ใหม่</div>
+                        <p className="text-sm text-amber-800">เช่น ลูกค้าที่เคยเปิดประวัติตอนจองคิว แล้วมากรอกลงทะเบียนล่วงหน้า · เลือก &quot;ใช้ประวัติเดิม&quot; ระบบจะเติมข้อมูลที่ยังว่างให้ (ไม่ทับข้อมูลเดิม)</p>
+                        <div className="space-y-2">
+                            {dupMatches.map(m => (
+                                <div key={m.hn} className="flex items-center gap-3 flex-wrap rounded-xl bg-white border border-amber-200 px-3 py-2.5">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <div className="font-semibold text-slate-800"><span className="font-mono text-blue-700">{m.hn}</span> · {m.name}</div>
+                                        <div className="text-xs text-slate-500">
+                                            {m.phone || "ไม่มีเบอร์"}{m.dob ? ` · เกิด ${new Date(m.dob + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}` : ""} · มา {m.visitCount} ครั้ง
+                                        </div>
+                                        <div className="flex flex-wrap gap-1 mt-1">{m.reasons.map(x => <span key={x} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">{x}</span>)}</div>
+                                    </div>
+                                    <Button type="button" disabled={!!merging} onClick={async () => {
+                                        setMerging(m.hn);
+                                        const res = await mergeIntoExistingPatient(m.hn, dupDataRef.current, pulledId);
+                                        setMerging(null);
+                                        if (!res.success) { toast.error(res.error || "รวมข้อมูลไม่สำเร็จ"); return; }
+                                        toast.success(`ใช้ประวัติเดิม ${m.hn}${res.filled ? ` · เติมข้อมูล ${res.filled} ช่อง` : ""}`);
+                                        router.push(`/dashboard/patients/${m.hn}`);
+                                    }} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white h-10 gap-1.5">
+                                        {merging === m.hn ? <Loader2 className="h-4 w-4 animate-spin" /> : null} ใช้ประวัติเดิมนี้
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                        <button type="button" onClick={() => { forceNewRef.current = true; setDupMatches(null); formRef.current?.requestSubmit(); }}
+                            className="text-sm font-semibold text-slate-600 hover:underline">ไม่ใช่คนเดียวกัน — ออก HN ใหม่</button>
+                    </div>
+                )}
 
                 {/* ปุ่มบันทึกท้ายแบบฟอร์ม */}
                 <div className="mt-5 p-4 sm:p-5 rounded-2xl bg-white/90 backdrop-blur-xl border border-white shadow-sm flex flex-wrap justify-end gap-3">
