@@ -272,7 +272,7 @@ export default function CompensationClient({
                                     <th className="text-right px-3 py-2.5 hidden sm:table-cell">ชม.แผน</th>
                                     <th className="text-right px-3 py-2.5">ชม.จริง</th>
                                     <th className="text-right px-3 py-2.5">ค่าจ้าง</th>
-                                    <th className="text-right px-3 py-2.5 hidden sm:table-cell">DF (อนุมัติ)</th>
+                                    <th className="text-right px-3 py-2.5 hidden sm:table-cell" title="DF แพทย์ + ค่ามือ + คอมแนะนำ + คอมเซลล์ (เฉพาะที่อนุมัติในหน้าคอมมิชชั่น) + คอมทีม (อนุมัติแล้ว)">DF / คอม (อนุมัติ)</th>
                                     <th className="text-right px-4 py-2.5">สุทธิ (หลังหัก)</th>
                                     <th className="text-center px-3 py-2.5">สถานะ</th>
                                 </tr>
@@ -313,6 +313,9 @@ export default function CompensationClient({
                                                     className="w-24 h-8 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20"
                                                 />
                                             </div>
+                                            {r.rate_source !== "clinic" && r.pay_type === "hourly" && r.hourly_rate === 0 && (
+                                                <div className="text-[10px] text-amber-600 text-right mt-0.5">ยังไม่ตั้งค่าจ้าง/ชม.</div>
+                                            )}
                                             {r.rate_source === "clinic" && (
                                                 <div className="text-[10px] text-blue-600 text-right mt-0.5" title="แพทย์ไม่ได้ตั้งเรทรายคน — ใช้ค่าชั่วโมงแพทย์ของคลินิก (ตั้งค่า › อัตราการเงิน) · พิมพ์เรทใหม่ = ตั้งเรทรายคน">อัตราคลินิก</div>
                                             )}
