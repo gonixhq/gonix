@@ -48,3 +48,30 @@ export async function runEscalationFallback(): Promise<{ notified: number }> {
     }
     return { notified };
 }
+
+/** เตือนนัดล่วงหน้า 1 วันทาง LINE (นัดทั่วไป + จองคิว & มัดจำ) — ส่งครั้งเดียวต่อนัด (appointments.reminder_sent_at) */
+export async function runAppointmentReminders(): Promise<{ sent: number; skipped: number }> {
+    const supabase = createServiceClient();
+    const t = new Date(); t.setDate(t.getDate() + 1);
+    const tomorrow = t.toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+    const { data: appts } = await supabase.from("appointments")
+        .select("id, hn, clinic_id, appt_date, appt_start, appt_type, deposit_amount")
+        .eq("appt_date", tomorrow).is("reminder_sent_at", null).neq("status", "cancelled").limit(500);
+    let sent = 0, skipped = 0;
+    for (const a of appts || []) {
+        const { data: pat } = await supabase.from("patients").select("first_name, nickname, line_user_id").eq("hn", a.hn).eq("clinic_id", a.clinic_id).maybeSingle();
+        if (!pat?.line_user_id) { skipped++; continue; }
+        const { data: tn } = await supabase.from("tenants").select("clinic_name").eq("id", a.clinic_id).maybeSingle();
+        const name = (pat.nickname as string) || (pat.first_name as string) || "";
+        const d = new Date(`${a.appt_date}T00:00:00`).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long" });
+        const dep = Number(a.deposit_amount || 0) > 0 ? `
+มัดจำที่ชำระไว้ ฿${Number(a.deposit_amount).toLocaleString()} จะหักจากค่าบริการวันนัดค่ะ` : "";
+        const msg = `สวัสดีค่ะ${name ? ` คุณ${name}` : ""} 😊
+แจ้งเตือนนัดหมายพรุ่งนี้ ${d} เวลา ${String(a.appt_start).slice(0, 5)} น.${tn?.clinic_name ? ` ที่ ${tn.clinic_name}` : ""}${dep}
+หากต้องการเลื่อนนัด ตอบกลับข้อความนี้ได้เลยค่ะ`;
+        const r = await pushLineText(pat.line_user_id as string, msg);
+        if (r.ok) { await supabase.from("appointments").update({ reminder_sent_at: new Date().toISOString() }).eq("id", a.id); sent++; }
+        else skipped++;
+    }
+    return { sent, skipped };
+}

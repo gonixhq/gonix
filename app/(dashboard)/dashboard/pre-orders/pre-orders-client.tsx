@@ -11,6 +11,8 @@ import {
     type PreOrderSettings, type CompleteTreatmentInput,
 } from "@/lib/actions/pre-order";
 import { getPatients, createPatient } from "@/lib/actions/patients";
+import ScheduleBox from "./schedule-box";
+import ReportPanel from "./report-panel";
 
 const PREFIXES = ["นาย", "นาง", "นางสาว", "เด็กชาย", "เด็กหญิง"];
 
@@ -39,12 +41,14 @@ const STATUS: Record<string, { l: string; c: string }> = {
 };
 const badge = (s: string) => STATUS[s] || { l: s, c: "bg-slate-100 text-slate-600" };
 
-export default function PreOrdersClient({ initial, settings, refunds, services, canManage, canDecide, canExtend, canSettings, canRefund }: {
+export default function PreOrdersClient({ initial, settings, refunds, services, doctors = [], canManage, canDecide, canExtend, canSettings, canRefund }: {
+    doctors?: { id: string; name: string }[];
     initial: PO[]; settings: PreOrderSettings; refunds: PO[]; services: Svc[];
     canManage: boolean; canDecide: boolean; canExtend: boolean; canSettings: boolean; canRefund: boolean;
 }) {
     const router = useRouter();
     const [showCreate, setShowCreate] = useState(false);
+    const [tab, setTab] = useState<"list" | "report">("list");
     const [showSettings, setShowSettings] = useState(false);
     const [detailId, setDetailId] = useState<string | null>(null);
     const [detail, setDetail] = useState<PO | null>(null);
@@ -64,7 +68,13 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
     return (
         <div className="space-y-4 max-w-6xl mx-auto animate-fade-in pb-12">
             <div className="flex items-center justify-between pt-1">
-                <p className="text-sm font-medium text-slate-500"><span className="font-bold text-blue-700">พรีออเดอร์</span> · จองล่วงหน้า + Doctor Gate</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-sm font-medium text-slate-500"><span className="font-bold text-blue-700">จองคิว & มัดจำ</span> · ลูกค้าจองหัตถการล่วงหน้า + มัดจำ + แพทย์อนุมัติก่อนทำ</p>
+                    <div className="inline-flex rounded-xl bg-slate-100 p-0.5">
+                        <button onClick={() => setTab("list")} className={`px-3 h-8 rounded-lg text-xs font-bold ${tab === "list" ? "bg-white shadow text-blue-700" : "text-slate-500"}`}>รายการจอง</button>
+                        <button onClick={() => setTab("report")} className={`px-3 h-8 rounded-lg text-xs font-bold ${tab === "report" ? "bg-white shadow text-blue-700" : "text-slate-500"}`}>รายงาน</button>
+                    </div>
+                </div>
                 <div className="flex items-center gap-2">
                     {canSettings && (
                         <Button variant="outline" onClick={() => { setShowSettings(true); setErr(""); }} className="rounded-xl gap-1.5 h-9">
@@ -73,7 +83,7 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
                     )}
                     {canManage && (
                         <Button onClick={() => { setShowCreate(true); setErr(""); }} className="rounded-xl gap-1.5 h-9 bg-cyan-600 hover:bg-cyan-700 text-white">
-                            <Plus className="h-4 w-4" /> สร้างพรีออเดอร์
+                            <Plus className="h-4 w-4" /> สร้างการจอง
                         </Button>
                     )}
                 </div>
@@ -109,21 +119,23 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
                 </div>
             )}
 
+            {tab === "report" ? <ReportPanel /> : (
             <div className="gonix-card-premium overflow-hidden">
                 {initial.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีพรีออเดอร์</div>
+                    <div className="py-12 text-center text-sm text-slate-400">ยังไม่มีการจอง — กด &quot;สร้างการจอง&quot; เมื่อลูกค้าจองผ่าน LINE/TikTok/โทร</div>
                 ) : (
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50/60 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                            <tr><th className="text-left px-4 py-2">HN</th><th className="text-left px-4 py-2">สถานะ</th>
+                            <tr><th className="text-left px-4 py-2">ลูกค้า</th><th className="text-left px-4 py-2">สถานะ</th><th className="text-left px-4 py-2">วันนัด</th>
                                 <th className="text-left px-4 py-2">ช่องทาง</th><th className="text-left px-4 py-2 hidden sm:table-cell">มัดจำหมดอายุ</th>
                                 <th className="text-left px-4 py-2 hidden md:table-cell">สร้างเมื่อ</th></tr>
                         </thead>
                         <tbody>
                             {initial.map((p) => (
                                 <tr key={p.id} onClick={() => openDetail(p.id)} className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
-                                    <td className="px-4 py-2.5 font-mono text-slate-700">{p.hn}</td>
+                                    <td className="px-4 py-2.5">{(() => { const pt = Array.isArray(p.patients) ? p.patients[0] : p.patients; return pt ? <><div className="font-semibold text-slate-800">{`${pt.prefix || ""}${pt.first_name || ""} ${pt.last_name || ""}`.trim()}{pt.nickname ? ` (${pt.nickname})` : ""}</div><div className="text-[11px] font-mono text-slate-400">{p.hn}</div></> : <span className="font-mono text-slate-700">{p.hn}</span>; })()}</td>
                                     <td className="px-4 py-2.5"><span className={`text-[11px] font-bold px-2 py-0.5 rounded ${badge(p.status).c}`}>{badge(p.status).l}</span></td>
+                                    <td className="px-4 py-2.5 text-slate-600 tabular-nums">{(() => { const a = Array.isArray(p.appointments) ? p.appointments[0] : p.appointments; return a?.appt_date ? `${new Date(a.appt_date + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" })} ${String(a.appt_start || "").slice(0, 5)}` : <span className="text-slate-300">—</span>; })()}</td>
                                     <td className="px-4 py-2.5 text-slate-500">{CHANNELS.find(c => c.v === p.channel)?.l || p.channel}</td>
                                     <td className="px-4 py-2.5 text-slate-500 hidden sm:table-cell tabular-nums">{p.deposit_expires_at ? new Date(p.deposit_expires_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—"}</td>
                                     <td className="px-4 py-2.5 text-slate-400 hidden md:table-cell tabular-nums">{new Date(p.created_at).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}</td>
@@ -133,10 +145,11 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
                     </table>
                 )}
             </div>
+            )}
 
             {showCreate && <CreateModal services={services} onClose={() => setShowCreate(false)} onDone={() => { setShowCreate(false); refresh(); }} onError={setErr} />}
             {showSettings && <SettingsModal settings={settings} onClose={() => setShowSettings(false)} onDone={() => { setShowSettings(false); router.refresh(); }} onError={setErr} />}
-            {detailId && <DetailDrawer po={detail} services={services} minDeposit={minDeposit} canDecide={canDecide} canExtend={canExtend} canManage={canManage}
+            {detailId && <DetailDrawer po={detail} services={services} doctors={doctors} minDeposit={minDeposit} canDecide={canDecide} canExtend={canExtend} canManage={canManage}
                 onClose={() => { setDetailId(null); setDetail(null); }} onAction={refresh} onError={setErr} />}
         </div>
     );
@@ -506,7 +519,8 @@ function SettingsModal({ settings, onClose, onDone, onError }: {
 }
 
 // ══════════ Detail ══════════
-function DetailDrawer({ po, services, minDeposit, canDecide, canExtend, canManage, onClose, onAction, onError }: {
+function DetailDrawer({ po, services, doctors = [], minDeposit, canDecide, canExtend, canManage, onClose, onAction, onError }: {
+    doctors?: { id: string; name: string }[];
     po: PO | null; services: Svc[]; minDeposit: number; canDecide: boolean; canExtend: boolean; canManage: boolean;
     onClose: () => void; onAction: () => void; onError: (m: string) => void;
 }) {
@@ -566,6 +580,17 @@ function DetailDrawer({ po, services, minDeposit, canDecide, canExtend, canManag
                                 </div>
                                 <Button disabled={pending || !depAmount} onClick={() => run(() => recordDeposit(po.id, { amount: parseFloat(depAmount), payment_method: depMethod }))} className="w-full rounded-lg bg-amber-600 text-white h-9">รับมัดจำ</Button>
                             </div>
+                        )}
+                        {["pending_doctor", "scheduled"].includes(po.status) && canManage && (
+                            <>
+                                {po.appointment && (
+                                    <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-900">
+                                        นัดแล้ว: <b>{new Date(po.appointment.appt_date + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })} {String(po.appointment.appt_start).slice(0, 5)}</b> ({po.appointment.duration_min} นาที) · อยู่ในหน้านัดหมายแล้ว
+                                    </div>
+                                )}
+                                <ScheduleBox poId={po.id} doctors={doctors} onDone={onAction}
+                                    current={po.appointment ? { date: po.appointment.appt_date, start: String(po.appointment.appt_start).slice(0, 5), duration: po.appointment.duration_min, doctor_id: po.appointment.doctor_id, apptId: po.appointment.id } : null} />
+                            </>
                         )}
                         {["pending_doctor", "scheduled"].includes(po.status) && (
                             <div className="grid grid-cols-2 gap-2">

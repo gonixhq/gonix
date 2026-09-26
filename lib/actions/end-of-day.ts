@@ -19,8 +19,12 @@ async function computePaymentBreakdown(
     const next = new Date(`${date}T00:00:00+07:00`); next.setDate(next.getDate() + 1);
     const endISO = next.toISOString();
     const { data: payLogs } = await supabase
-        .from("payment_logs").select("payment_method, amount, invoice_headers(status)")
+        .from("payment_logs").select("payment_method, amount, deposit_type, invoice_headers(status)")
         .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO);
+    // มัดจำที่รับเงินจริงวันนี้ (deposit_ledger) — นับเป็นเงินเข้าวันรับ ไม่ใช่วันรักษา (mig 157)
+    const { data: deposits } = await supabase.from("deposit_ledger")
+        .select("amount, payment_method").eq("clinic_id", clinicId).eq("entry_type", "deposit_received")
+        .gte("created_at", startISO).lt("created_at", endISO);
 
     const agg: Record<string, { amount: number; count: number }> = {};
     for (const p of payLogs || []) {
@@ -28,9 +32,17 @@ async function computePaymentBreakdown(
         const ih = (p as { invoice_headers?: { status?: string } | { status?: string }[] }).invoice_headers;
         const st = Array.isArray(ih) ? ih[0]?.status : ih?.status;
         if (st === "voided" || st === "refunded") continue;
+        // หักมัดจำ/เครดิต = เงินรับไว้แล้ววันก่อน → ไม่ใช่เงินเข้าวันนี้
+        if (["applied", "credit"].includes(String((p as { deposit_type?: string }).deposit_type || "none"))) continue;
         const m = (p.payment_method as string) || "other";
         if (!agg[m]) agg[m] = { amount: 0, count: 0 };
         agg[m].amount += Number(p.amount || 0); agg[m].count += 1;
+    }
+    const DEP_METHOD: Record<string, string> = { cash: "cash", transfer: "transfer", promptpay: "qr_promptpay", card: "credit_card" };
+    for (const d of deposits || []) {
+        const k = DEP_METHOD[String(d.payment_method)] || "transfer";
+        if (!agg[k]) agg[k] = { amount: 0, count: 0 };
+        agg[k].amount += Number(d.amount || 0); agg[k].count += 1;
     }
     for (const m of anonByMethod) {
         const k = m.method || "other";
@@ -67,7 +79,7 @@ export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
 
     // 1. payment_logs (checkout ปกติ / คอส / มัดจำพรีออเดอร์)
     const { data: logs } = await supabase.from("payment_logs")
-        .select("id, inv_id, payment_method, amount, bank_name, transaction_ref, slip_ref, paid_at, received_by")
+        .select("id, inv_id, payment_method, amount, bank_name, transaction_ref, slip_ref, paid_at, received_by, deposit_type")
         .eq("clinic_id", clinicId).gte("paid_at", startISO).lt("paid_at", endISO).order("paid_at");
 
     const invIds = [...new Set((logs || []).map(l => l.inv_id).filter(Boolean) as string[])];
@@ -93,7 +105,8 @@ export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
         for (const s of st || []) staffName.set(s.id as string, s.full_name as string);
     }
 
-    const rows: DayTxn[] = (logs || []).filter(l => !(l.inv_id && voidedInv.has(l.inv_id as string))).map(l => {
+    const rows: DayTxn[] = (logs || []).filter(l => !(l.inv_id && voidedInv.has(l.inv_id as string))
+        && !["applied", "credit"].includes(String(l.deposit_type || "none"))).map(l => {
         const hn = l.inv_id ? invHn.get(l.inv_id as string) : undefined;
         return {
             id: l.id as string, source: "invoice" as const, ref: (l.inv_id as string) || "",
@@ -105,6 +118,27 @@ export async function getDayTransactions(date?: string): Promise<DayTxn[]> {
             staff: l.received_by ? (staffName.get(l.received_by as string) || null) : null,
         };
     });
+
+    // 1b. มัดจำจองคิว — เงินเข้าวันที่รับมัดจำ (หักมัดจำตอนรักษาไม่นับซ้ำ)
+    const { data: deps } = await supabase.from("deposit_ledger")
+        .select("id, hn, amount, payment_method, receipt_no, created_at, pre_order_id")
+        .eq("clinic_id", clinicId).eq("entry_type", "deposit_received").gte("created_at", startISO).lt("created_at", endISO);
+    if (deps && deps.length) {
+        const dh = [...new Set(deps.map(d => d.hn as string).filter(h => !hnName.has(h)))];
+        if (dh.length) {
+            const { data: pts2 } = await supabase.from("patients").select("hn, prefix, first_name, last_name").in("hn", dh);
+            for (const p of pts2 || []) hnName.set(p.hn as string, `${p.prefix || ""}${p.first_name} ${p.last_name}`.trim());
+        }
+        const DEP_METHOD: Record<string, string> = { cash: "cash", transfer: "transfer", promptpay: "qr_promptpay", card: "credit_card" };
+        for (const d of deps) {
+            rows.push({
+                id: d.id as string, source: "deposit", ref: (d.receipt_no as string) || `มัดจำ #${String(d.pre_order_id || "").slice(0, 8)}`,
+                time: (d.created_at as string) || null, patient: hnName.get(d.hn as string) || `HN ${d.hn}`,
+                method: DEP_METHOD[String(d.payment_method)] || "transfer", amount: Number(d.amount || 0),
+                bank: null, txn_ref: null, slip: null, staff: null,
+            });
+        }
+    }
 
     // 2. คลินิกนิรนาม (anon_cases — คนละแหล่งกับ payment_logs)
     const { data: anon } = await supabase.from("anon_cases")

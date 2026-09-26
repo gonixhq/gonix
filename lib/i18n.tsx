@@ -33,7 +33,7 @@ const translations = {
         staff: "Staff",
         lab: "Lab",
         anonymous: "Anonymous Clinic",
-        preOrders: "Pre-Orders",
+        preOrders: "Bookings & Deposits",
         campaigns: "Campaigns & Discounts",
         audit: "Activity Log",
         // Sub-menus & Actions
@@ -77,7 +77,7 @@ const translations = {
         staff: "พนักงาน",
         lab: "ห้องแล็บ",
         anonymous: "คลินิกนิรนาม",
-        preOrders: "พรีออเดอร์",
+        preOrders: "จองคิว & มัดจำ",
         campaigns: "แคมเปญ & ส่วนลด",
         audit: "ประวัติการดำเนินการ",
         // Sub-menus & Actions

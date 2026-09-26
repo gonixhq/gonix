@@ -54,7 +54,7 @@ const PAGE_TITLES: TitleEntry[] = [
     { pattern: "/dashboard/packages", th: "คอร์สค้างใช้", en: "Course Liability" },
     { pattern: "/dashboard/inventory/waste", th: "ยาทิ้ง / ขวดเปิดค้าง", en: "Stock Waste" },
     { pattern: "/dashboard/settings/finance-rates", th: "อัตราการเงิน", en: "Finance Rates" },
-    { pattern: "/dashboard/pre-orders", th: "พรีออเดอร์", en: "Pre-Orders" },
+    { pattern: "/dashboard/pre-orders", th: "จองคิว & มัดจำ", en: "Bookings & Deposits", sub: { th: "จองล่วงหน้า + มัดจำ + แพทย์อนุมัติ", en: "Advance booking + deposit" } },
     { pattern: "/dashboard/follow-up", th: "ติดตามผล", en: "Follow-up" },
     { pattern: "/dashboard/campaigns", th: "แคมเปญ & ส่วนลด", en: "Campaigns" },
     { pattern: "/dashboard/price-approvals", th: "อนุมัติส่วนลด", en: "Price Approvals" },

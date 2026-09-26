@@ -39,6 +39,7 @@ export interface CheckoutInput {
     discounts?: DiscountEntry[];      // breakdown ส่วนลดทุกก้อน
     campaignId?: string | null;
     campaignLabel?: string | null;
+    creditAmount?: number;            // ใช้เครดิตมัดจำเก่าหักบิล (mig 157)
     billType?: "normal" | "review" | "free_fix";  // เคสรีวิว = ค่ามือเต็ม (ต้นทุนการตลาด) · แก้ไขฟรี = ค่ามือครึ่ง
     billDate?: string;                // วันที่พิมพ์บนใบเสร็จ (YYYY-MM-DD) — ย้อนหลังได้เฉพาะ owner/admin
 }
@@ -49,10 +50,11 @@ export async function completeCheckout(input: CheckoutInput) {
     try {
         const { vn, items, subtotal, discount, total, paid, payments, drugOrders,
             discounts, campaignId, campaignLabel, billType } = input;
+        const creditAmount = Math.max(0, Math.round(Number(input.creditAmount || 0) * 100) / 100);
 
         const actor = await getEffectivePermissionsForUser();
         if (!actor.userId || !actor.clinicId || !actor.isActive || !actor.isApproved || !actor.permissions["finance.collect"]) throw Error("ไม่มีสิทธิ์รับชำระเงิน");
-        validatePayments(total, paid, payments);
+        validatePayments(Math.round((total - creditAmount) * 100) / 100, paid, payments);
 
         // Fetch visit (clinic_id, hn)
         const { data: visit, error: vErr } = await supabase
@@ -150,7 +152,7 @@ export async function completeCheckout(input: CheckoutInput) {
         const invId = `INV-${new Date().getTime().toString().slice(-6)}-${vn.slice(-4)}`;
         const { data: invoice, error: invoiceError } = await supabase.rpc("create_checkout_invoice", {
             p_invoice: { id: invId, vn, subtotal: Number(subtotal.toFixed(2)), discount: Number(discount.toFixed(2)), total,
-                bill_date: billDate, campaign_id: campaignId || null, campaign: campaignLabel || null, bill_type: billType || "normal" },
+                bill_date: billDate, campaign_id: campaignId || null, campaign: campaignLabel || null, bill_type: billType || "normal", credit_amount: creditAmount },
             p_items: items.map(it => ({ ...it, line_total: Number(it.line_total.toFixed(2)), discount_amount: Number((it.discount_amount || 0).toFixed(2)) })),
             p_payments: payments,
         });

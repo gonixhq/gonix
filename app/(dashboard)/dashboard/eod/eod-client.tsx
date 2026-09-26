@@ -492,7 +492,7 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                                 <td className="px-3 py-2 text-slate-800">
                                                     {t.source === "anon"
                                                         ? <span className="text-slate-500">นิรนาม <span className="text-xs text-slate-400">({t.ref})</span></span>
-                                                        : t.patient}
+                                                        : <>{t.patient}{t.source === "deposit" && <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">มัดจำจองคิว</span>}</>}
                                                 </td>
                                                 <td className="px-3 py-2">
                                                     <span className={cn("text-[11px] px-2 py-0.5 rounded font-semibold",
@@ -503,7 +503,9 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-2 text-xs text-slate-500">
-                                                    {t.source === "invoice" && t.ref
+                                                    {t.source === "deposit"
+                                                        ? <Link href="/dashboard/pre-orders" className="text-amber-700 hover:underline font-mono">{t.ref}</Link>
+                                                        : t.source === "invoice" && t.ref
                                                         ? <Link href={`/dashboard/finance/${t.ref}`} className="text-blue-600 hover:underline font-mono">{t.ref}</Link>
                                                         : <span className="font-mono">{t.ref}</span>}
                                                     {(t.bank || t.txn_ref || t.slip) && (

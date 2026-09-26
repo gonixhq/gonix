@@ -43,7 +43,7 @@ export interface EODSummary {
 /** รายการรับเงินราย transaction ของวัน (payment_logs + นิรนาม) — ไว้กระทบกับบัญชี/สลิป */
 export interface DayTxn {
     id: string;
-    source: "invoice" | "anon";
+    source: "invoice" | "anon" | "deposit";   // deposit = มัดจำจองคิว (เงินเข้าวันรับมัดจำ)
     ref: string;              // inv_id หรือ รหัสเคสนิรนาม
     time: string | null;      // paid_at
     patient: string;          // ชื่อคนไข้ หรือ "นิรนาม"

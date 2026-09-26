@@ -452,11 +452,12 @@ export async function completeTreatment(
     if (applied > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const depMethod = (ledger || []).find((l: any) => l.entry_type === "deposit_received")?.payment_method || "transfer";
+        // เงินมัดจำรับไว้แล้วตั้งแต่วันจ่ายมัดจำ (นับเข้าปิดยอดวันนั้น) → บันทึกเป็น "หักมัดจำ" ไม่นับเป็นเงินเข้าซ้ำ (mig 157)
         await supabase.from("payment_logs").insert({
             inv_id: invId, clinic_id: clinicId,
-            payment_method: METHOD_MAP[depMethod] || "transfer", amount: applied,
+            payment_method: "mixed", deposit_type: "applied", amount: applied,
             transaction_ref: `DEPOSIT:${id.slice(0, 8)}`,
-            note: "หักจากมัดจำพรีออเดอร์ (เงินรับล่วงหน้า)",
+            note: `หักจากมัดจำพรีออเดอร์ (รับไว้แล้ว · ${METHOD_MAP[depMethod] || depMethod})`,
         });
     }
     if (extraPaid > 0) {
@@ -619,7 +620,7 @@ export async function getPreOrders(filters?: { status?: string; channel?: string
     const { supabase, clinicId, perms } = await ctx();
     if (!perms["pre_order.view"]) return [];
     let q = supabase.from("pre_orders")
-        .select("id, hn, status, channel, deposit_expires_at, created_at, note")
+        .select("id, hn, status, channel, deposit_expires_at, created_at, note, patients(prefix, first_name, last_name, nickname), appointments:appointment_id(appt_date, appt_start)")
         .eq("clinic_id", clinicId).order("created_at", { ascending: false }).limit(200);
     if (filters?.status) q = q.eq("status", filters.status);
     if (filters?.channel) q = q.eq("channel", filters.channel);
@@ -634,12 +635,14 @@ export async function getPreOrder(id: string) {
     if (!perms["pre_order.view"]) return null;
     const po = await loadPO(supabase, clinicId, id);
     if (!po) return null;
-    const [{ data: items }, { data: ledger }, { data: audit }] = await Promise.all([
+    const [{ data: items }, { data: ledger }, { data: audit }, { data: appt }, { data: pt }] = await Promise.all([
         supabase.from("pre_order_items").select("*").eq("pre_order_id", id).order("created_at"),
         supabase.from("deposit_ledger").select("*").eq("pre_order_id", id).order("created_at"),
         supabase.from("pre_order_audit_log").select("*").eq("pre_order_id", id).order("created_at", { ascending: false }).limit(50),
+        po.appointment_id ? supabase.from("appointments").select("id, appt_date, appt_start, duration_min, doctor_id, status").eq("id", po.appointment_id).maybeSingle() : Promise.resolve({ data: null }),
+        supabase.from("patients").select("prefix, first_name, last_name, nickname, phone").eq("hn", po.hn).maybeSingle(),
     ]);
-    return { ...po, items: items || [], ledger: ledger || [], audit: audit || [] };
+    return { ...po, items: items || [], ledger: ledger || [], audit: audit || [], appointment: appt || null, patient: pt || null };
 }
 
 export async function getDoctorQueue() {
@@ -669,4 +672,161 @@ export async function getPatientCredit(hn: string): Promise<number> {
     const { data } = await supabase.from("patient_credit_balance")
         .select("balance").eq("clinic_id", clinicId).eq("hn", hn).maybeSingle();
     return Number(data?.balance || 0);
+}
+
+// ════════════════ เครดิตมัดจำเก่า (mig 157) ════════════════
+/** เครดิตที่ใช้หักบิลได้ (ไม่รวมมัดจำของพรีออเดอร์ที่ยังดำเนินอยู่) */
+export async function getUsableCredit(hn: string): Promise<number> {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const { data } = await supabase.rpc("fn_patient_usable_credit", { p_clinic: clinicId, p_hn: hn });
+        return Number(data || 0);
+    } catch {
+        return 0;
+    }
+}
+
+// ════════════════ นัดวันทำ → ลงปฏิทินนัดหมาย ════════════════
+export interface ScheduleSlotInput { date: string; start: string; duration_min: number; doctor_id?: string | null; note?: string }
+export interface SlotConflict { time: string; patient: string; doctor: string | null; same_doctor: boolean }
+
+const oneOf = <T,>(x: T | T[] | null | undefined): T | null => (Array.isArray(x) ? x[0] : x) ?? null;
+const hmToMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + (m || 0); };
+
+/** นัดที่ชนช่วงเวลาเดียวกัน (เตือนก่อนบันทึก) */
+export async function checkSlotConflicts(input: ScheduleSlotInput, ignoreApptId?: string | null): Promise<{ conflicts: SlotConflict[]; dayCount: number }> {
+    const { supabase, clinicId } = await ctx();
+    const s = hmToMin(input.start), e = s + (input.duration_min || 30);
+    const { data } = await supabase.from("appointments")
+        .select("id, appt_start, appt_end, doctor_id, status, patients(prefix, first_name, last_name), staff:doctor_id(profiles(full_name))")
+        .eq("clinic_id", clinicId).eq("appt_date", input.date).neq("status", "cancelled");
+    const rows = (data || []).filter(a => a.id !== ignoreApptId);
+    const conflicts: SlotConflict[] = rows.filter(a => {
+        const as = hmToMin(String(a.appt_start).slice(0, 5)), ae = hmToMin(String(a.appt_end).slice(0, 5));
+        return as < e && s < ae;
+    }).map(a => {
+        const p = oneOf(a.patients as { prefix?: string; first_name?: string; last_name?: string } | null);
+        const st = oneOf(a.staff as { profiles?: unknown } | null);
+        const dp = st ? oneOf(st.profiles as { full_name?: string } | null) : null;
+        return {
+            time: `${String(a.appt_start).slice(0, 5)}–${String(a.appt_end).slice(0, 5)}`,
+            patient: p ? `${p.prefix || ""}${p.first_name || ""} ${p.last_name || ""}`.trim() : "—",
+            doctor: dp?.full_name || null,
+            same_doctor: !!input.doctor_id && a.doctor_id === input.doctor_id,
+        };
+    });
+    return { conflicts, dayCount: rows.length };
+}
+
+/** นัดวันทำหัตถการ: สร้าง/แก้นัดในปฏิทิน (appointments) + พรีออเดอร์ → scheduled + แจ้ง LINE */
+export async function scheduleWithAppointment(id: string, input: ScheduleSlotInput): Promise<Ok | Fail> {
+    const { supabase, clinicId, userId, role, perms } = await ctx();
+    if (!perms["pre_order.manage"]) return { ok: false, error: "ไม่มีสิทธิ์" };
+    const po = await loadPO(supabase, clinicId, id);
+    if (!po) return { ok: false, error: "ไม่พบพรีออเดอร์" };
+    if (!["pending_doctor", "scheduled"].includes(po.status)) return { ok: false, error: "นัดได้หลังรับมัดจำแล้วเท่านั้น" };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.start)) return { ok: false, error: "วัน/เวลาไม่ถูกต้อง" };
+    const dur = Math.max(15, Math.min(480, Number(input.duration_min) || 30));
+    const endMin = hmToMin(input.start) + dur;
+    const end = `${String(Math.floor(endMin / 60) % 24).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+
+    const { data: dep } = await supabase.from("deposit_ledger").select("amount").eq("pre_order_id", id).eq("entry_type", "deposit_received");
+    const depositTotal = (dep || []).reduce((s: number, r: { amount: number }) => s + Number(r.amount), 0);
+    const row = {
+        hn: po.hn, appt_date: input.date, appt_start: input.start, appt_end: end, duration_min: dur,
+        doctor_id: input.doctor_id || null, appt_type: "pre_order", booked_via: String(po.channel || "staff"),
+        deposit_amount: depositTotal, deposit_paid: depositTotal > 0,
+        note: [`จองคิว & มัดจำ #${id.slice(0, 8)}`, input.note?.trim()].filter(Boolean).join(" · "), status: "confirmed",
+    };
+    let apptId = (po.appointment_id as string | null) || null;
+    if (apptId) {
+        const { error } = await supabase.from("appointments").update(row).eq("id", apptId).eq("clinic_id", clinicId);
+        if (error) return { ok: false, error: error.message };
+    } else {
+        const { data, error } = await supabase.from("appointments").insert({ ...row, clinic_id: clinicId, created_by: userId }).select("id").single();
+        if (error || !data) return { ok: false, error: error?.message || "สร้างนัดไม่สำเร็จ" };
+        apptId = data.id as string;
+    }
+    if (po.status === "pending_doctor") {
+        const { error } = await supabase.from("pre_orders").update({ status: "scheduled", appointment_id: apptId }).eq("id", id);
+        if (error) return { ok: false, error: error.message };
+        await auditLog(supabase, clinicId, id, userId, role, "pending_doctor", "scheduled", { metadata: { appointment_id: apptId, date: input.date, start: input.start } });
+    } else {
+        await supabase.from("pre_orders").update({ appointment_id: apptId }).eq("id", id);
+        await auditLog(supabase, clinicId, id, userId, role, "scheduled", "scheduled", { metadata: { rescheduled: true, appointment_id: apptId, date: input.date, start: input.start } });
+    }
+    await notifyPatient(supabase, po.hn, PRE_ORDER_MSG.scheduled(input.date));
+    revalidatePath("/dashboard/pre-orders");
+    revalidatePath("/dashboard/appointments");
+    return { ok: true };
+}
+
+// ════════════════ รายงาน จอง → มาจริง แยกช่องทาง ════════════════
+export interface FunnelRow { channel: string; created: number; deposited: number; scheduled: number; arrived: number; completed: number; cancelled: number; expired: number; noShow: number; depositAmount: number; revenue: number }
+export interface PreOrderReport { from: string; to: string; rows: FunnelRow[]; total: FunnelRow; outstandingDeposit: number; outstandingCount: number; creditBalance: number }
+
+const ARRIVED_STATUSES = new Set(["checked_in", "in_consult", "decided", "awaiting_confirmation", "in_treatment", "completed", "rejected_full"]);
+const CLOSED_STATUSES = ["completed", "cancelled", "expired", "rejected_full"];
+
+export async function getPreOrderReport(from: string, to: string): Promise<PreOrderReport | Fail> {
+    try {
+        const { supabase, clinicId } = await ctx();
+        const startISO = new Date(`${from}T00:00:00+07:00`).toISOString();
+        const endISO = new Date(new Date(`${to}T00:00:00+07:00`).getTime() + 86400000).toISOString();
+        const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+        const { data: pos } = await supabase.from("pre_orders")
+            .select("id, channel, status, appointment_id, vn, appointments:appointment_id(appt_date)")
+            .eq("clinic_id", clinicId).gte("created_at", startISO).lt("created_at", endISO);
+        const ids = (pos || []).map(p => p.id as string);
+        const { data: led } = ids.length
+            ? await supabase.from("deposit_ledger").select("pre_order_id, entry_type, amount").in("pre_order_id", ids)
+            : { data: [] as { pre_order_id: string; entry_type: string; amount: number }[] };
+        const { data: allLed } = await supabase.from("deposit_ledger").select("pre_order_id, entry_type, amount, pre_orders(status)").eq("clinic_id", clinicId);
+        const vns = (pos || []).map(p => p.vn as string).filter(Boolean);
+        const { data: invs } = vns.length
+            ? await supabase.from("invoice_headers").select("vn, total_amount, status").in("vn", vns)
+            : { data: [] as { vn: string; total_amount: number; status: string }[] };
+        const revByVn = new Map<string, number>();
+        (invs || []).forEach(i => { if (!["voided", "refunded"].includes(String(i.status))) revByVn.set(i.vn as string, (revByVn.get(i.vn as string) || 0) + Number(i.total_amount || 0)); });
+
+        const empty = (channel: string): FunnelRow => ({ channel, created: 0, deposited: 0, scheduled: 0, arrived: 0, completed: 0, cancelled: 0, expired: 0, noShow: 0, depositAmount: 0, revenue: 0 });
+        const map = new Map<string, FunnelRow>();
+        const total = empty("รวม");
+        for (const p of pos || []) {
+            const ch = String(p.channel || "other");
+            const r = map.get(ch) || empty(ch);
+            const dep = (led || []).filter(l => l.pre_order_id === p.id && l.entry_type === "deposit_received").reduce((s, l) => s + Number(l.amount), 0);
+            const st = String(p.status);
+            const apptDate = oneOf(p.appointments as { appt_date?: string } | { appt_date?: string }[] | null)?.appt_date;
+            for (const row of [r, total]) {
+                row.created++;
+                if (dep > 0) { row.deposited++; row.depositAmount += dep; }
+                if (p.appointment_id || ARRIVED_STATUSES.has(st)) row.scheduled++;
+                if (ARRIVED_STATUSES.has(st)) row.arrived++;
+                if (st === "completed") { row.completed++; row.revenue += p.vn ? (revByVn.get(p.vn as string) || 0) : 0; }
+                if (st === "cancelled") row.cancelled++;
+                if (st === "expired") row.expired++;
+                if (st === "scheduled" && apptDate && apptDate < today) row.noShow++;   // เลยวันนัดแล้วยังไม่มา
+            }
+            map.set(ch, r);
+        }
+        // มัดจำค้าง = มัดจำของพรีออเดอร์ที่ยังไม่จบ · เครดิตคงเหลือ = จากพรีออเดอร์ที่จบแล้ว/ไม่ผูกพรีออเดอร์
+        let outstandingDeposit = 0, creditBalance = 0;
+        const outIds = new Set<string>();
+        const sign = (t: string, a: number) => t === "deposit_received" ? a : ["applied_to_invoice", "refunded", "refund_pending", "forfeited"].includes(t) ? -Math.abs(a) : 0;
+        for (const l of allLed || []) {
+            const pst = oneOf(l.pre_orders as { status?: string } | { status?: string }[] | null)?.status;
+            const active = !!l.pre_order_id && !!pst && !CLOSED_STATUSES.includes(pst);
+            const v = sign(String(l.entry_type), Number(l.amount));
+            if (active) { outstandingDeposit += v; outIds.add(l.pre_order_id as string); } else creditBalance += v;
+        }
+        const r2 = (n: number) => Math.round(n * 100) / 100;
+        return {
+            from, to, total: { ...total, depositAmount: r2(total.depositAmount), revenue: r2(total.revenue) },
+            rows: [...map.values()].map(r => ({ ...r, depositAmount: r2(r.depositAmount), revenue: r2(r.revenue) })).sort((a, b) => b.created - a.created),
+            outstandingDeposit: r2(outstandingDeposit), outstandingCount: outIds.size, creditBalance: r2(Math.max(0, creditBalance)),
+        };
+    } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : "โหลดรายงานไม่สำเร็จ" };
+    }
 }

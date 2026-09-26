@@ -18,6 +18,7 @@ import { validateCampaignCode, type ValidatedCampaign } from "@/lib/actions/camp
 import type { DiscountEntry } from "@/lib/campaign-types";
 import type { ServiceCatalogItem } from "@/lib/service-types";
 import { listActivePackages, getPatientActivePackages, consumePackageSession } from "@/lib/actions/packages";
+import { getUsableCredit } from "@/lib/actions/pre-order";
 import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
 import PaymentEditor from "./payment-editor";
 import { paymentPlan, type PaymentDraft } from "@/lib/checkout-payment";
@@ -204,12 +205,16 @@ export default function CheckoutForm({
 
     // Patient's active packages (for deducting sessions)
     const [activePackages, setActivePackages] = useState<PatientPackageActive[]>([]);
+    // เครดิตมัดจำเก่า (ยกเลิก/หมดอายุ/จ่ายเกิน) — ใช้หักบิลนี้ได้ (mig 157)
+    const [creditAvail, setCreditAvail] = useState(0);
+    const [creditUse, setCreditUse] = useState("");
     const [usingPackageId, setUsingPackageId] = useState<string | null>(null);
 
     useEffect(() => {
         listActivePackages().then(setPackages);
         if (visit?.hn) {
             getPatientActivePackages(visit.hn).then(setActivePackages);
+            getUsableCredit(visit.hn).then(setCreditAvail).catch(() => setCreditAvail(0));
         }
     }, [visit?.hn]);
 
@@ -359,9 +364,12 @@ export default function CheckoutForm({
     );
     const overDiscountLimit = hasCappedPackage && totalDiscount > discountCeiling + 0.01;
 
-    const currentPaymentDraft: PaymentDraft = paymentDraft || { mode: "full", deposit: "", rows: [{ method: "cash", amount: grandTotal.toFixed(2) }] };
+    const creditApplied = Math.round(Math.min(Math.max(0, Number(creditUse) || 0), creditAvail, grandTotal) * 100) / 100;
+    const payable = Math.round((grandTotal - creditApplied) * 100) / 100;
+    const currentPaymentDraft: PaymentDraft = paymentDraft || { mode: "full", deposit: "", rows: [{ method: "cash", amount: payable.toFixed(2) }] };
     let payment: ReturnType<typeof paymentPlan> | undefined; let paymentError = "";
-    try { payment = paymentPlan(Number(grandTotal.toFixed(2)), currentPaymentDraft); } catch (e) { paymentError = (e as Error).message; }
+    if (payable <= 0) payment = { paid: 0, payments: [] } as unknown as ReturnType<typeof paymentPlan>;
+    else { try { payment = paymentPlan(payable, currentPaymentDraft); } catch (e) { paymentError = (e as Error).message; } }
     const isPaymentValid = !!payment;
     const isReadyToComplete = true;
 
@@ -497,6 +505,7 @@ export default function CheckoutForm({
                 total: Number(grandTotal.toFixed(2)),
                 paid: payment.paid,
                 payments: payment.payments,
+                creditAmount: creditApplied,
                 drugOrders,
                 discounts,
                 campaignId: promo?.campaign_id || null,
@@ -1044,7 +1053,25 @@ export default function CheckoutForm({
                             </div>
                         )}
 
-                        <PaymentEditor total={Number(grandTotal.toFixed(2))} draft={currentPaymentDraft} onChange={setPaymentDraft} disabled={loading || saved} />
+                        {creditAvail > 0 && (
+                            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="font-bold text-violet-800">เครดิตมัดจำคงเหลือ</span>
+                                    <span className="font-black tabular-nums text-violet-700">฿{creditAvail.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Input type="number" min="0" step="0.01" value={creditUse} onChange={e => { setCreditUse(e.target.value); setPaymentDraft(null); }} placeholder="ใช้เครดิต (บาท)" className="h-9 text-right tabular-nums" disabled={loading || saved} />
+                                    <Button type="button" variant="outline" disabled={loading || saved} onClick={() => { setCreditUse(String(Math.min(creditAvail, grandTotal))); setPaymentDraft(null); }} className="h-9 rounded-lg shrink-0">ใช้ทั้งหมด</Button>
+                                </div>
+                                {creditApplied > 0 && <p className="text-xs text-violet-700">หักเครดิต ฿{creditApplied.toLocaleString()} · เหลือรับเงิน ฿{payable.toLocaleString(undefined, { minimumFractionDigits: 2 })} (เงินเครดิตรับไว้แล้วตอนมัดจำ — ไม่นับเป็นเงินเข้าวันนี้)</p>}
+                            </div>
+                        )}
+
+                        {payable > 0 ? (
+                            <PaymentEditor total={payable} draft={currentPaymentDraft} onChange={setPaymentDraft} disabled={loading || saved} />
+                        ) : (
+                            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">ชำระครบด้วยเครดิตมัดจำ — ไม่ต้องรับเงินเพิ่ม</div>
+                        )}
 
                         {/* Action */}
                         <Button

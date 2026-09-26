@@ -84,10 +84,16 @@ export default async function FinancePage({
     const rangeCount = invoices.length + anonPaid.length;
     const methodKey = (m: string) => m === "cash" ? "cash" : m === "credit_card" ? "credit" : "transfer";
     const channels = { cash: 0, transfer: 0, credit: 0 };
+    // เงินเข้าจริงตามช่องทาง: ไม่นับ "หักมัดจำ/เครดิต" (รับไว้แล้ววันก่อน) แต่นับมัดจำจองคิวในวันที่รับ (mig 157)
+    const realLogs = payLogs.filter(p => !["applied", "credit"].includes(String(p.deposit_type || "none")));
+    const { data: depIn } = await supabase.from("deposit_ledger").select("amount, payment_method")
+        .eq("clinic_id", clinicId).eq("entry_type", "deposit_received").gte("created_at", rangeStartISO).lt("created_at", rangeEndISO);
+    const depKey = (m: string) => m === "cash" ? "cash" : m === "card" ? "credit" : "transfer";
     for (const key of ["cash", "transfer", "credit"] as const) {
         channels[key] = sumMoney([
-            ...payLogs.filter(p => methodKey(p.payment_method) === key).map(p => p.amount),
+            ...realLogs.filter(p => methodKey(p.payment_method) === key).map(p => p.amount),
             ...anonPaid.filter(p => methodKey(p.payment_method || "cash") === key).map(p => p.total_amount),
+            ...(depIn || []).filter(d => depKey(String(d.payment_method)) === key).map(d => Number(d.amount)),
         ]);
     }
     const pending = await readAll((start, end) => supabase.from("invoice_headers").select("id,total_amount,paid_amount")
