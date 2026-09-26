@@ -50,6 +50,8 @@ export async function createPatient(formData: FormData) {
     const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
     if (!profile) throw new Error("Profile not found");
 
+    if (!(formData.get("dob") as string)) throw new Error("กรุณากรอกวันเกิด");
+
     // Generate HN
     const { data: hn } = await supabase.rpc("fn_next_number", {
         p_clinic_id: profile.clinic_id,

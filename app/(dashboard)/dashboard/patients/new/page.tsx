@@ -273,6 +273,7 @@ export default function NewPatientPage() {
         const lastName = form.get("last_name") as string;
 
         if (!firstName || !lastName) { setError("กรุณากรอกชื่อและนามสกุล"); setLoading(false); return; }
+        if (!form.get("dob")) { setError("กรุณากรอกวันเกิด (ใช้แจ้งเตือนวันเกิด/คูปอง)"); setLoading(false); return; }
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -535,7 +536,7 @@ export default function NewPatientPage() {
                             </select>
                         </FieldRow>
                         <FieldRow label="วันเกิด" required>
-                            <Input name="dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={FORM_INPUT_CLS} />
+                            <Input name="dob" type="date" required max={new Date().toISOString().slice(0, 10)} value={dob} onChange={(e) => setDob(e.target.value)} className={FORM_INPUT_CLS} />
                         </FieldRow>
 
                         <FieldRow label="ชื่อ" required>

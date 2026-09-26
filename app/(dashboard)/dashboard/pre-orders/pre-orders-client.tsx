@@ -149,7 +149,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     const [results, setResults] = useState<any[]>([]);
     const [hn, setHn] = useState(""); const [hnLabel, setHnLabel] = useState("");
     const [newMode, setNewMode] = useState(false);
-    const [np, setNp] = useState({ prefix: "นางสาว", first_name: "", last_name: "", phone: "" });
+    const [np, setNp] = useState({ prefix: "นางสาว", first_name: "", last_name: "", phone: "", dob: "" });
     const [creating, setCreating] = useState(false);
     const [dupes, setDupes] = useState<PO[] | null>(null);
     const [channel, setChannel] = useState("line_oa");
@@ -196,6 +196,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     // ลูกค้าใหม่ที่ยังไม่มี HN — เปิดทะเบียนย่อ (ชื่อ+เบอร์) แล้วออก HN ทันที
     async function createNewPatient(force = false) {
         if (!np.first_name.trim() || !np.last_name.trim()) { onError("กรอกชื่อ-นามสกุลก่อน"); return; }
+        if (!np.dob) { onError("กรอกวันเกิดก่อน"); return; }
         setCreating(true);
         try {
             // กัน HN ซ้ำ — เตือนก่อนสร้าง ถ้าเจอคนที่น่าจะเป็นคนเดียวกัน
@@ -208,6 +209,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
             fd.set("first_name", np.first_name.trim());
             fd.set("last_name", np.last_name.trim());
             fd.set("phone", np.phone.trim());
+            fd.set("dob", np.dob);
             const r = await createPatient(fd);
             setHn(r.hn as string);
             setHnLabel(`${r.hn} · ${np.prefix}${np.first_name} ${np.last_name}${np.phone ? ` · ${np.phone}` : ""}`);
@@ -257,6 +259,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                                 <input value={np.last_name} onChange={e => { setNp({ ...np, last_name: e.target.value }); setDupes(null); }} placeholder="นามสกุล *" className="flex-1 min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                             </div>
                             <input value={np.phone} onChange={e => { setNp({ ...np, phone: e.target.value }); setDupes(null); }} placeholder="เบอร์โทร (แนะนำให้กรอก — ใช้ยืนยันตัวตอนมาถึง)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                            <label className="flex items-center gap-2 text-xs text-slate-500">วันเกิด *<input type="date" value={np.dob} max={new Date().toISOString().slice(0, 10)} onChange={e => setNp({ ...np, dob: e.target.value })} className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
 
                             {dupes && dupes.length > 0 ? (
                                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5 space-y-2">

@@ -127,6 +127,7 @@ export default function EditPatientForm({ patient }: { patient: any }) {
     }
 
     async function handleSave() {
+        if (!form.dob) { setError("กรุณากรอกวันเกิด"); return; }
         setSaving(true);
         setError("");
         try {
@@ -181,8 +182,8 @@ export default function EditPatientForm({ patient }: { patient: any }) {
                         <Input value={form.nickname} onChange={set("nickname")} placeholder="เช่น แนน, บอส" className={FORM_INPUT_CLS} />
                     </FieldRow>
 
-                    <FieldRow label="วันเกิด">
-                        <Input type="date" value={form.dob} onChange={set("dob")} className={FORM_INPUT_CLS} />
+                    <FieldRow label="วันเกิด" required>
+                        <Input type="date" required max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={set("dob")} className={FORM_INPUT_CLS} />
                     </FieldRow>
                     <FieldRow label="หมู่เลือด">
                         <select value={form.blood_group} onChange={set("blood_group")} className={FORM_SELECT_CLS}>
