@@ -8,6 +8,7 @@ import { deductVials } from "@/lib/inventory-vials";
 import { validatePayments, type PaymentEntry } from "@/lib/checkout-payment";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import type { DiscountEntry } from "@/lib/campaign-types";
+import { generateFollowUpTasks } from "@/lib/actions/follow-up";
 
 export interface InvoiceItemInput {
     item_type: string;
@@ -427,9 +428,13 @@ export async function completeCheckout(input: CheckoutInput) {
             console.warn("[checkout] service kit deduct failed:", e);
         }
 
+        // ติดตามผลหลังรักษา: สร้างคิวตาม follow_up_days ของเมนู (เดิม hook แค่ addPayment → บิลจาก checkout ไม่เกิดคิว)
+        try { await generateFollowUpTasks(invId); } catch { /* ไม่ให้กระทบการชำระ */ }
+
         revalidatePath("/dashboard/pharmacy");
         revalidatePath("/dashboard/finance");
         revalidatePath("/dashboard");
+        revalidatePath("/dashboard/follow-up");
         return { success: true, invId };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {

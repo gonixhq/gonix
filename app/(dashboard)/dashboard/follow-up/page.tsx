@@ -1,6 +1,7 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 import { getFollowUpsForDate, getClinicReviewUrl, hasLineAlertRecipient } from "@/lib/actions/follow-up";
+import { getBirthdayData } from "@/lib/actions/birthday";
 import FollowUpClient from "./follow-up-client";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +12,13 @@ export default async function FollowUpPage({ searchParams }: { searchParams: Pro
     await gatePermission("patients.view");
     const sp = await searchParams;
     const date = sp.date || bkkToday();
-    const [tasks, reviewUrl, perms, hasAlertRecipient] = await Promise.all([
+    const [tasks, reviewUrl, perms, hasAlertRecipient, birthday] = await Promise.all([
         getFollowUpsForDate(date, { includeOverdue: date === bkkToday() }),
         getClinicReviewUrl(),
         getEffectivePermissionsForUser(),
         hasLineAlertRecipient(),
+        getBirthdayData(),
     ]);
     const canEditReview = perms.role === "owner" || perms.role === "admin";
-    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} reviewUrl={reviewUrl} canEditReview={canEditReview} lineAlertConfigured={hasAlertRecipient} />;
+    return <FollowUpClient tasks={tasks} date={date} today={bkkToday()} reviewUrl={reviewUrl} canEditReview={canEditReview} lineAlertConfigured={hasAlertRecipient} birthday={"error" in birthday ? null : birthday} />;
 }

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Phone, MessageCircle, ChevronLeft, ChevronRight, Calendar, Loader2, AlertTriangle, Check, PhoneOff, RotateCcw, Circle, Star, UserPlus, Copy, Link2, Pencil } from "lucide-react";
 import { updateFollowUpStatus, setFollowUpSeverity, escalateFollowUp, logFollowUpAction, setClinicReviewUrl, type FollowUpTask, type FollowUpStatus, type Severity } from "@/lib/actions/follow-up";
+import type { BirthdayData } from "@/lib/actions/birthday";
+import BirthdayPanel from "./birthday-panel";
 
 function shiftDate(d: string, delta: number) { const dt = new Date(d + "T00:00:00"); dt.setDate(dt.getDate() + delta); return dt.toLocaleDateString("sv-SE"); }
 function dateThai(d: string) { return new Date(d + "T00:00:00").toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
@@ -14,7 +16,7 @@ const SEV_RING: Record<Severity, string> = { green: "border-l-emerald-400", yell
 const SEV_LABEL: Record<Severity, string> = { green: "ปกติ", yellow: "เฝ้าระวัง", red: "ด่วน" };
 const STATUS_LABEL: Record<string, string> = { pending: "รอติดตาม", contacted: "ติดต่อแล้ว", unreachable: "ติดต่อไม่ได้", callback: "รอโทรกลับ", done: "เสร็จ", cancelled: "ยกเลิก" };
 
-export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditReview, lineAlertConfigured = true }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null; canEditReview: boolean; lineAlertConfigured?: boolean }) {
+export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditReview, lineAlertConfigured = true, birthday = null }: { tasks: FollowUpTask[]; date: string; today: string; reviewUrl: string | null; canEditReview: boolean; lineAlertConfigured?: boolean; birthday?: BirthdayData | null }) {
     const router = useRouter();
     const overdueCount = tasks.filter(t => t.due_date < today).length;
     const redCount = tasks.filter(t => t.severity === "red").length;
@@ -44,6 +46,8 @@ export default function FollowUpClient({ tasks, date, today, reviewUrl, canEditR
             )}
 
             {canEditReview && <ReviewUrlSetter initial={reviewUrl} />}
+
+            {birthday && <BirthdayPanel data={birthday} canEdit={canEditReview} />}
 
             {tasks.length === 0 ? (
                 <div className="gonix-card-premium p-10 text-center text-slate-400">ไม่มีคิวติดตามผล{date === today ? "วันนี้" : "วันนี้"} </div>

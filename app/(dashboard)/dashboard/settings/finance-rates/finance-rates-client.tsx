@@ -12,6 +12,7 @@ const GROUPS: { key: RateMeta["group"]; title: string; desc: string; icon: React
     { key: "card", title: "VAT ค่าธรรมเนียม & การผ่อน", desc: "ใช้คำนวณต้นทุนจริงและรายงานผ่อน", icon: Percent },
     { key: "tax", title: "ภาษีมูลค่าเพิ่ม (VAT) ของคลินิก", desc: "ธนเวชยกเว้น VAT — เปิดเมื่อคลินิกจด VAT", icon: Landmark },
     { key: "comp", title: "ค่าตอบแทน / คอม / ต้นทุน", desc: "ค่าชั่วโมง DF คอมแนะนำ คอมทีม เกณฑ์มาร์จิ้น — คำนวณอัตโนมัติจากเวลาทำงานจริงและบิล", icon: Stethoscope },
+    { key: "loyalty", title: "คูปอง / ลูกค้าสัมพันธ์", desc: "คูปองวันเกิด (จะรวมกับระบบแต้ม/แลกคูปองภายหลัง)", icon: Percent },
     { key: "kpi", title: "KPI & เงินสำรอง", desc: "ใช้คำนวณ KPI หน้าแรก (เจ้าของ)", icon: Landmark },
 ];
 
