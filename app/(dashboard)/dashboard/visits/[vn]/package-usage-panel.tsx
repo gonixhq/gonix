@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
+import HandStaffPicker, { type HandPick } from "@/components/packages/hand-staff-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -206,12 +207,15 @@ function ConfirmUseModal({
     const [error, setError] = useState<string | null>(null);
     const [note, setNote] = useState("");
 
+    const [hand, setHand] = useState<HandPick>({ main: "", asst: "" });
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
             const result = await consumePackageSession({
                 patient_package_id: pp.id,
                 visit_vn: vn,
+                hand_main_staff_id: hand.main || null,
+                hand_asst_staff_id: hand.asst || null,
                 note: note || undefined,
             });
             if (result.success) {
@@ -250,6 +254,8 @@ function ConfirmUseModal({
                         </div>
                     </div>
                     <p className="mt-2 text-[11px] text-amber-600">ตัดแล้วย้อนกลับยาก — ตรวจสอบจำนวนครั้งให้ถูกต้อง</p>
+
+                    <div className="mt-3"><HandStaffPicker value={hand} onChange={setHand} /></div>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>

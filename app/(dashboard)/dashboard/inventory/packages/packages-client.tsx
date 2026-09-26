@@ -384,6 +384,8 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
         commission_doctor_pct: 0,
         commission_nurse_pct: 0,
         max_discount_pct: 0,
+        hand_fee_main: 0,
+        hand_fee_asst: 0,
         is_bundle: false,
         consume_item_id: "",
         consume_qty_per_session: "",
@@ -408,6 +410,8 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                 commission_doctor_pct: Number(form.commission_doctor_pct) || null,
                 commission_nurse_pct: Number(form.commission_nurse_pct) || null,
                 max_discount_pct: Number(form.max_discount_pct) || null,
+                hand_fee_main: Number(form.hand_fee_main) || null,
+                hand_fee_asst: Number(form.hand_fee_asst) || null,
                 is_active: true,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
@@ -555,6 +559,19 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                             <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ส่วนลดสูงสุดที่ให้ได้โดยไม่ต้องขออนุมัติ">ส่วนลดได้ ≤ %</Label>
                             <Input type="number" min={0} max={100} step="1" value={form.max_discount_pct}
                                 onChange={e => setForm({ ...form, max_discount_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="จ่ายต่อครั้งที่ตัดคอสจริง">ค่ามือหลัก ฿/ครั้ง</Label>
+                            <Input type="number" min={0} step="10" value={form.hand_fee_main}
+                                onChange={e => setForm({ ...form, hand_fee_main: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ว่าง/0 = ครึ่งหนึ่งของค่ามือหลัก">ค่ามือผู้ช่วย ฿/ครั้ง</Label>
+                            <Input type="number" min={0} step="10" value={form.hand_fee_asst}
+                                onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
                     </div>
 

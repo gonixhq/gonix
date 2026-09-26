@@ -22,6 +22,7 @@ import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
 import PaymentEditor from "./payment-editor";
 import { paymentPlan, type PaymentDraft } from "@/lib/checkout-payment";
 import CheckoutAppointmentForm from "./checkout-appointment-form";
+import HandStaffPicker, { type HandPick } from "@/components/packages/hand-staff-picker";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Visit = any;
@@ -141,6 +142,7 @@ export default function CheckoutForm({
 
     const [loading, setLoading] = useState(false);
     const [billType, setBillType] = useState<BillType>("normal");
+    const [pkgHand, setPkgHand] = useState<HandPick>({ main: visit.nurse_id || "", asst: visit.assistant_id && visit.assistant_id !== visit.nurse_id ? visit.assistant_id : "" });
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState("");
 
@@ -212,6 +214,8 @@ export default function CheckoutForm({
         const result = await consumePackageSession({
             patient_package_id: pp.id,
             visit_vn: visit.vn,
+            hand_main_staff_id: pkgHand.main || null,
+            hand_asst_staff_id: pkgHand.asst || null,
             note: "ตัดจากห้องยา/การเงิน",
         });
         setUsingPackageId(null);
@@ -574,6 +578,7 @@ export default function CheckoutForm({
                                 <span className="text-xs text-rose-700/70 italic">ถ้าวันนี้ใช้คอส กดตัดครั้งได้เลย</span>
                             </div>
                             <div className="p-3 space-y-2">
+                                {handStaff.length > 0 && <HandStaffPicker value={pkgHand} onChange={setPkgHand} staff={handStaff} />}
                                 {activePackages.map(pp => (
                                     <div key={pp.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200">
                                         <div className="flex-1 min-w-0">

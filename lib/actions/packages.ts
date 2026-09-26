@@ -242,7 +242,7 @@ export async function listActivePackages(): Promise<ServicePackage[]> {
 
         const { data } = await supabase
             .from("service_packages")
-            .select("id, code, name, description, category, total_sessions, price, validity_days, is_active, sales_commission_pct, commission_doctor_pct, commission_nurse_pct, max_discount_pct")
+            .select("id, code, name, description, category, total_sessions, price, validity_days, is_active, sales_commission_pct, commission_doctor_pct, commission_nurse_pct, max_discount_pct, hand_fee_main, hand_fee_asst")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("category")
@@ -305,6 +305,8 @@ export interface PackageInput {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    hand_fee_main?: number | null;   // ค่ามือผู้ปฏิบัติหลัก ต่อครั้ง (บาท)
+    hand_fee_asst?: number | null;   // ค่ามือผู้ช่วย ต่อครั้ง (ว่าง = ครึ่งหนึ่งของหลัก)
     is_bundle?: boolean;
     component_ids?: string[];   // service_package ids ที่รวมใน bundle
     consume_item_id?: string | null;          // ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot)
@@ -359,6 +361,8 @@ export async function createPackage(input: PackageInput) {
                 commission_doctor_pct: input.commission_doctor_pct ?? null,
                 commission_nurse_pct: input.commission_nurse_pct ?? null,
                 max_discount_pct: input.max_discount_pct ?? null,
+                hand_fee_main: input.hand_fee_main ?? null,
+                hand_fee_asst: input.hand_fee_asst ?? null,
                 is_bundle: input.is_bundle ?? false,
                 consume_item_id: input.consume_item_id || null,
                 consume_qty_per_session: input.consume_qty_per_session ?? null,
@@ -404,6 +408,8 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.commission_doctor_pct !== undefined) patch.commission_doctor_pct = input.commission_doctor_pct;
         if (input.commission_nurse_pct !== undefined) patch.commission_nurse_pct = input.commission_nurse_pct;
         if (input.max_discount_pct !== undefined) patch.max_discount_pct = input.max_discount_pct;
+        if (input.hand_fee_main !== undefined) patch.hand_fee_main = input.hand_fee_main;
+        if (input.hand_fee_asst !== undefined) patch.hand_fee_asst = input.hand_fee_asst;
         if (input.is_bundle !== undefined) patch.is_bundle = input.is_bundle;
         if (input.consume_item_id !== undefined) patch.consume_item_id = input.consume_item_id || null;
         if (input.consume_qty_per_session !== undefined) patch.consume_qty_per_session = input.consume_qty_per_session ?? null;
@@ -604,6 +610,8 @@ export async function purchasePackage(input: PurchasePackageInput) {
 
 export interface UsePackageSessionInput {
     patient_package_id: string;
+    hand_main_staff_id?: string | null;   // ผู้ปฏิบัติหลัก → ค่ามือต่อครั้ง (trigger คิด+snapshot)
+    hand_asst_staff_id?: string | null;   // ผู้ช่วย
     visit_vn?: string;
     note?: string;
 }
@@ -668,6 +676,8 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
                 session_no: sessionNo,
                 used_by: staffRow?.id || null,
                 note: input.note?.trim() || null,
+                hand_main_staff_id: input.hand_main_staff_id || null,
+                hand_asst_staff_id: input.hand_asst_staff_id || null,
             });
         if (insErr) return { success: false, error: insErr.message };
 
@@ -801,13 +811,30 @@ export async function getPatientAllPackages(hn: string): Promise<PatientPackageA
 }
 
 /** ดึงประวัติการใช้สิทธิ์ของ patient_package */
+/** พนักงานที่เลือกเป็นผู้ปฏิบัติ/ผู้ช่วยตอนตัดคอส (ค่ามือ) */
+export async function listHandStaff(): Promise<{ id: string; name: string }[]> {
+    try {
+        const supabase = await createClient();
+        const { data } = await supabase.from("staff").select("id, profiles!inner(full_name)").eq("is_active", true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (data || []).map((d: any) => {
+            const p = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
+            return { id: d.id as string, name: (p?.full_name as string) || "—" };
+        }).sort((a, b) => a.name.localeCompare(b.name, "th"));
+    } catch {
+        return [];
+    }
+}
+
 export async function getPackageUsages(patientPackageId: string): Promise<PackageUsage[]> {
     try {
         const supabase = await createClient();
         const { data } = await supabase
             .from("package_usages")
             .select(`
-                id, patient_package_id, visit_vn, session_no, used_at, used_by, note,
+                id, patient_package_id, visit_vn, session_no, used_at, used_by, note, hand_fee_main, hand_fee_asst,
+                hand_main:staff!package_usages_hand_main_staff_id_fkey(profiles(full_name)),
+                hand_asst:staff!package_usages_hand_asst_staff_id_fkey(profiles(full_name)),
                 used_by_staff:staff!package_usages_used_by_fkey(profiles(full_name))
             `)
             .eq("patient_package_id", patientPackageId)

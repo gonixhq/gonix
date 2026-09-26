@@ -39,6 +39,8 @@ export interface ServicePackage {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    hand_fee_main?: number | null;
+    hand_fee_asst?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
@@ -79,6 +81,10 @@ export interface PackageUsage {
     used_at: string;
     used_by: string | null;
     note: string | null;
+    hand_fee_main?: number | null;
+    hand_fee_asst?: number | null;
+    hand_main?: { profiles: { full_name: string } | null } | null;
+    hand_asst?: { profiles: { full_name: string } | null } | null;
 }
 
 export const PACKAGE_STATUS_LABEL: Record<PackageStatus, string> = {

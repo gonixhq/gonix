@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
+import HandStaffPicker, { type HandPick } from "@/components/packages/hand-staff-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -351,6 +352,9 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
                                                     </span>
                                                 </div>
                                                 {u.note && <div className="text-slate-500 truncate">{u.note}</div>}
+                                                {(u.hand_main || u.hand_asst) && (
+                                                    <div className="text-emerald-700 truncate">ผู้ทำ: {[u.hand_main?.profiles?.full_name, u.hand_asst?.profiles?.full_name && `ผู้ช่วย ${u.hand_asst.profiles.full_name}`].filter(Boolean).join(" · ")}</div>
+                                                )}
                                                 {u.visit_vn && (
                                                     <Link href={`/dashboard/visits/${u.visit_vn}`} className="text-cyan-600 hover:underline font-mono text-[10px]">
                                                         VN: {u.visit_vn}
@@ -398,11 +402,14 @@ function UseSessionModal({
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
+    const [hand, setHand] = useState<HandPick>({ main: "", asst: "" });
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
             const result = await consumePackageSession({
                 patient_package_id: pp.id,
+                hand_main_staff_id: hand.main || null,
+                hand_asst_staff_id: hand.asst || null,
                 note: note || undefined,
             });
             if (result.success) {
@@ -434,6 +441,8 @@ function UseSessionModal({
                             </span>
                         </div>
                     </div>
+
+                    <div className="mt-3"><HandStaffPicker value={hand} onChange={setHand} /></div>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>

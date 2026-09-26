@@ -32,6 +32,8 @@ interface PackageItem {
     commission_doctor_pct?: number | null;
     commission_nurse_pct?: number | null;
     max_discount_pct?: number | null;
+    hand_fee_main?: number | null;
+    hand_fee_asst?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
@@ -150,6 +152,7 @@ export default function PackageDetailClient({
                             <span className="px-2 py-0.5 rounded bg-cyan-50 text-cyan-700">แพทย์ {Number(pkg.commission_doctor_pct || 0)}%</span>
                             <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-700">พยาบาล {Number(pkg.commission_nurse_pct || 0)}%</span>
                             <span className="px-2 py-0.5 rounded bg-violet-50 text-violet-700">เซลล์ {Number(pkg.sales_commission_pct || 0)}%</span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700">ค่ามือ ฿{Number(pkg.hand_fee_main || 0).toLocaleString()}/ครั้ง{pkg.hand_fee_main ? ` · ผู้ช่วย ฿${Number(pkg.hand_fee_asst || Number(pkg.hand_fee_main) / 2).toLocaleString()}` : ""}</span>
                             <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700" title="ส่วนลดสูงสุดโดยไม่ต้องขออนุมัติ (module 9)">ลดได้ ≤{pkg.max_discount_pct != null ? `${pkg.max_discount_pct}%` : "—"}</span>
                         </div>
                     </div>
@@ -370,6 +373,8 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
         commission_doctor_pct: Number(pkg.commission_doctor_pct || 0),
         commission_nurse_pct: Number(pkg.commission_nurse_pct || 0),
         max_discount_pct: Number(pkg.max_discount_pct ?? 0),
+        hand_fee_main: Number(pkg.hand_fee_main || 0),
+        hand_fee_asst: Number(pkg.hand_fee_asst || 0),
         is_bundle: !!pkg.is_bundle,
         consume_item_id: pkg.consume_item_id || "",
         consume_qty_per_session: pkg.consume_qty_per_session != null ? String(pkg.consume_qty_per_session) : "",
@@ -393,6 +398,8 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                 commission_doctor_pct: Number(form.commission_doctor_pct) || null,
                 commission_nurse_pct: Number(form.commission_nurse_pct) || null,
                 max_discount_pct: Number(form.max_discount_pct) || null,
+                hand_fee_main: Number(form.hand_fee_main) || null,
+                hand_fee_asst: Number(form.hand_fee_asst) || null,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
                 consume_item_id: form.consume_item_id || null,
@@ -511,6 +518,19 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                             <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ส่วนลดสูงสุดที่ให้ได้โดยไม่ต้องขออนุมัติ (module 9)">ส่วนลดได้ ≤ %</Label>
                             <Input type="number" min={0} max={100} step="1" value={form.max_discount_pct}
                                 onChange={e => setForm({ ...form, max_discount_pct: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="จ่ายต่อครั้งที่ตัดคอสจริง">ค่ามือหลัก ฿/ครั้ง</Label>
+                            <Input type="number" min={0} step="10" value={form.hand_fee_main}
+                                onChange={e => setForm({ ...form, hand_fee_main: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="0" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ว่าง/0 = ครึ่งหนึ่งของค่ามือหลัก">ค่ามือผู้ช่วย ฿/ครั้ง</Label>
+                            <Input type="number" min={0} step="10" value={form.hand_fee_asst}
+                                onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
                     </div>
 
