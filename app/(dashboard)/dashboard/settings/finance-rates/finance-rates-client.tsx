@@ -11,7 +11,8 @@ const GROUPS: { key: RateMeta["group"]; title: string; desc: string; icon: React
     { key: "mdr", title: "ค่าธรรมเนียมบัตร (MDR)", desc: "คิดต่อการชำระเงินแต่ละแถว = ยอดรูด × MDR + VAT ของค่าธรรมเนียม · ไม่เรียกเก็บเพิ่มจากลูกค้า", icon: CreditCard },
     { key: "card", title: "VAT ค่าธรรมเนียม & การผ่อน", desc: "ใช้คำนวณต้นทุนจริงและรายงานผ่อน", icon: Percent },
     { key: "tax", title: "ภาษีมูลค่าเพิ่ม (VAT) ของคลินิก", desc: "ธนเวชยกเว้น VAT — เปิดเมื่อคลินิกจด VAT", icon: Landmark },
-    { key: "comp", title: "ค่าตอบแทนแพทย์", desc: "ค่าชั่วโมง + DF — คำนวณอัตโนมัติจากเวลาทำงานจริงและบิล", icon: Stethoscope },
+    { key: "comp", title: "ค่าตอบแทน / คอม / ต้นทุน", desc: "ค่าชั่วโมง DF คอมแนะนำ คอมทีม เกณฑ์มาร์จิ้น — คำนวณอัตโนมัติจากเวลาทำงานจริงและบิล", icon: Stethoscope },
+    { key: "kpi", title: "KPI & เงินสำรอง", desc: "ใช้คำนวณ KPI หน้าแรก (เจ้าของ)", icon: Landmark },
 ];
 
 const fmtVal = (v: number, unit: string) => unit === "baht" ? `฿${v.toLocaleString("th-TH")}` : unit === "%" ? `${v}%` : unit === "month" ? `${v} เดือน` : unit === "weight" ? `×${v}` : String(v);
@@ -105,7 +106,7 @@ export default function FinanceRatesClient({ rows, today, canEdit }: { rows: Fin
                                     {editing === m.key && (
                                         <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 flex items-end gap-2 flex-wrap">
                                             <label className="text-xs text-slate-600">อัตราใหม่ ({m.unit === "baht" ? "บาท" : m.unit === "month" ? "เดือน" : m.unit === "weight" ? "น้ำหนัก" : "%"})
-                                                <input type="number" step="0.0001" min="0" max={m.unit === "baht" ? 1000000 : m.unit === "month" ? 60 : m.unit === "weight" ? 20 : 100} value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
+                                                <input type="number" step="0.0001" min="0" max={m.unit === "baht" ? 100000000 : m.unit === "month" ? 60 : m.unit === "weight" ? 20 : 100} value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
                                             <label className="text-xs text-slate-600">มีผลตั้งแต่
                                                 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block h-9 rounded-lg border border-slate-300 px-2 text-sm" /></label>
                                             <label className="text-xs text-slate-600 flex-1 min-w-[160px]">หมายเหตุ

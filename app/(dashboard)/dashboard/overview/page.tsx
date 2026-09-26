@@ -10,6 +10,8 @@ import { getAlerts } from "@/lib/actions/alerts";
 import { getOnDutyDoctors, getDoctorsNotCheckedIn } from "@/lib/actions/doctor-shifts";
 import { bangkokDate } from "@/lib/utils/date";
 import FinanceSummary from "./finance-summary";
+import OwnerKpis from "./owner-kpis";
+import { Suspense } from "react";
 import { listRoomStatuses } from "@/lib/actions/rooms";
 import { getActiveAnnouncements } from "@/lib/actions/announcements";
 import { getExpiringPackagesCount } from "@/lib/actions/packages";
@@ -72,7 +74,7 @@ export default async function DashboardPage({
     const seg: Seg = sp.seg === "medical" || sp.seg === "aesthetic" ? sp.seg : "all";
 
     const supabase = await createClient();
-    const { permissions, clinicId } = await getEffectivePermissionsForUser();
+    const { permissions, clinicId, role } = await getEffectivePermissionsForUser();
 
     if (!clinicId) return <div role="alert">ไม่พบข้อมูลคลินิก</div>;
     const showFinance = permissions["finance.view"] === true;
@@ -448,6 +450,11 @@ export default async function DashboardPage({
             </div>
 
             {showFinance && <FinanceSummary today={today} />}
+            {role === "owner" && (
+                <Suspense fallback={<div className="rounded-2xl bg-white/60 border border-white/80 p-6 text-center text-xs text-slate-400">กำลังคำนวณ KPI การเงิน…</div>}>
+                    <OwnerKpis />
+                </Suspense>
+            )}
             {/* Stat cards (ภาพรวมธุรกิจ — แสดงเฉพาะเมื่อมีการ์ด) */}
             {statCards.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
