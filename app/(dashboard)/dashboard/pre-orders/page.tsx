@@ -20,6 +20,8 @@ export default async function PreOrdersPage() {
     // แพทย์ที่เลือกได้ตอนนัดวันทำ
     const supabase = await createClient();
     const { data: docRows } = await supabase.from("staff").select("id, profiles!inner(full_name, role)").eq("is_active", true).in("profiles.role", ["doctor", "dentist", "owner"]);
+    const { data: tn } = me.clinicId ? await supabase.from("tenants").select("clinic_code").eq("id", me.clinicId).maybeSingle() : { data: null };
+    const registerUrl = (tn?.clinic_code as string) || null;   // client ต่อเป็น origin/register/{code}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doctors = (docRows || []).map((d: any) => { const p = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles; return { id: d.id as string, name: (p?.full_name as string) || "—" }; });
     return (
@@ -29,6 +31,7 @@ export default async function PreOrdersPage() {
             refunds={refunds}
             services={svc}
             doctors={doctors}
+            registerUrl={registerUrl}
             canManage={!!me.permissions["pre_order.manage"]}
             canDecide={!!me.permissions["pre_order.decide"]}
             canExtend={!!me.permissions["pre_order.extend"]}

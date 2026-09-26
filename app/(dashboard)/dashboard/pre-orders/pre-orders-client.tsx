@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/pre-order";
 import { getPatients, createPatient } from "@/lib/actions/patients";
 import ScheduleBox from "./schedule-box";
+import { toast } from "@/lib/toast";
 import ReportPanel from "./report-panel";
 
 const PREFIXES = ["นาย", "นาง", "นางสาว", "เด็กชาย", "เด็กหญิง"];
@@ -41,8 +42,9 @@ const STATUS: Record<string, { l: string; c: string }> = {
 };
 const badge = (s: string) => STATUS[s] || { l: s, c: "bg-slate-100 text-slate-600" };
 
-export default function PreOrdersClient({ initial, settings, refunds, services, doctors = [], canManage, canDecide, canExtend, canSettings, canRefund }: {
+export default function PreOrdersClient({ initial, settings, refunds, services, doctors = [], registerUrl = null, canManage, canDecide, canExtend, canSettings, canRefund }: {
     doctors?: { id: string; name: string }[];
+    registerUrl?: string | null;
     initial: PO[]; settings: PreOrderSettings; refunds: PO[]; services: Svc[];
     canManage: boolean; canDecide: boolean; canExtend: boolean; canSettings: boolean; canRefund: boolean;
 }) {
@@ -147,7 +149,7 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
             </div>
             )}
 
-            {showCreate && <CreateModal services={services} onClose={() => setShowCreate(false)} onDone={() => { setShowCreate(false); refresh(); }} onError={setErr} />}
+            {showCreate && <CreateModal services={services} registerUrl={registerUrl} onInfo={(m) => toast.success(m)} onClose={() => setShowCreate(false)} onDone={() => { setShowCreate(false); refresh(); }} onError={setErr} />}
             {showSettings && <SettingsModal settings={settings} onClose={() => setShowSettings(false)} onDone={() => { setShowSettings(false); router.refresh(); }} onError={setErr} />}
             {detailId && <DetailDrawer po={detail} services={services} doctors={doctors} minDeposit={minDeposit} canDecide={canDecide} canExtend={canExtend} canManage={canManage}
                 onClose={() => { setDetailId(null); setDetail(null); }} onAction={refresh} onError={setErr} />}
@@ -156,7 +158,7 @@ export default function PreOrdersClient({ initial, settings, refunds, services, 
 }
 
 // ══════════ Create ══════════
-function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; onClose: () => void; onDone: () => void; onError: (m: string) => void }) {
+function CreateModal({ services, registerUrl, onClose, onDone, onError, onInfo }: { services: Svc[]; registerUrl?: string | null; onClose: () => void; onDone: () => void; onError: (m: string) => void; onInfo?: (m: string) => void }) {
     const [q, setQ] = useState("");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [results, setResults] = useState<any[]>([]);
@@ -207,15 +209,15 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     }
 
     // ลูกค้าใหม่ที่ยังไม่มี HN — เปิดทะเบียนย่อ (ชื่อ+เบอร์) แล้วออก HN ทันที
-    async function createNewPatient(force = false) {
-        if (!np.first_name.trim() || !np.last_name.trim()) { onError("กรอกชื่อ-นามสกุลก่อน"); return; }
-        if (!np.dob) { onError("กรอกวันเกิดก่อน"); return; }
+    async function createNewPatient(force = false): Promise<string | null> {
+        if (!np.first_name.trim() || !np.last_name.trim()) { onError("กรอกชื่อ-นามสกุลลูกค้าก่อน"); return null; }
+        if (!np.dob) { onError("กรอกวันเกิดลูกค้าก่อน"); return null; }
         setCreating(true);
         try {
             // กัน HN ซ้ำ — เตือนก่อนสร้าง ถ้าเจอคนที่น่าจะเป็นคนเดียวกัน
             if (!force) {
                 const hits = await findDuplicates();
-                if (hits.length > 0) { setDupes(hits); return; }
+                if (hits.length > 0) { setDupes(hits); return null; }
             }
             const fd = new FormData();
             fd.set("prefix", np.prefix);
@@ -227,18 +229,27 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
             setHn(r.hn as string);
             setHnLabel(`${r.hn} · ${np.prefix}${np.first_name} ${np.last_name}${np.phone ? ` · ${np.phone}` : ""}`);
             setNewMode(false);
+            return r.hn as string;
         } catch (e) {
             onError(e instanceof Error ? e.message : "สร้างคนไข้ใหม่ไม่สำเร็จ");
+            return null;
         } finally {
             setCreating(false);
         }
     }
 
     function submit() {
-        if (!hn) { onError("เลือกผู้ป่วยก่อน"); return; }
         if (items.length === 0) { onError("เพิ่มรายการอย่างน้อย 1"); return; }
+        if (!hn && !newMode) { onError("เลือกลูกค้าก่อน (ค้นหาลูกค้าเดิม หรือกด \"ลูกค้าใหม่\")"); return; }
         start(async () => {
-            const res = await createPreOrder({ hn, channel, note, items: items.map(i => ({ service_id: i.service_id, qty: i.qty, unit_price_snapshot: i.price })) });
+            // ลูกค้าใหม่: เปิดประวัติ (HN) ให้อัตโนมัติตอนกดสร้างการจอง
+            let useHn = hn;
+            if (!useHn) {
+                const created = await createNewPatient();
+                if (!created) return;
+                useHn = created;
+            }
+            const res = await createPreOrder({ hn: useHn, channel, note, items: items.map(i => ({ service_id: i.service_id, qty: i.qty, unit_price_snapshot: i.price })) });
             if (!res.ok) { onError(res.error); return; }
             onDone();
         });
@@ -247,12 +258,18 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 my-8">
-                <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">สร้างพรีออเดอร์</h3>
+                <div className="flex items-center justify-between"><h3 className="text-lg font-bold text-slate-900">สร้างการจอง</h3>
                     <button onClick={onClose}><X className="h-5 w-5 text-slate-500" /></button></div>
 
                 {/* patient */}
                 <div>
-                    <label className="text-xs font-bold text-slate-700">ผู้ป่วย *</label>
+                    <label className="text-xs font-bold text-slate-700">ลูกค้า *</label>
+                    {!hn && (
+                        <div className="mt-1 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                            <button type="button" onClick={() => { setNewMode(false); setDupes(null); }} className={`h-9 rounded-lg text-sm font-bold ${!newMode ? "bg-white shadow text-blue-700" : "text-slate-500"}`}>เคยมาคลินิกแล้ว</button>
+                            <button type="button" onClick={() => { setNewMode(true); setResults([]); setDupes(null); }} className={`h-9 rounded-lg text-sm font-bold ${newMode ? "bg-white shadow text-cyan-700" : "text-slate-500"}`}>ลูกค้าใหม่ (ยังไม่เคยมา)</button>
+                        </div>
+                    )}
                     {hn ? (
                         <div className="flex items-center justify-between mt-1 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm">
                             <span className="font-semibold text-emerald-800">{hnLabel}</span>
@@ -260,10 +277,9 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                         </div>
                     ) : newMode ? (
                         <div className="mt-1 space-y-2 rounded-xl border border-cyan-200 bg-cyan-50/50 p-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-cyan-800">ลูกค้าใหม่ (ระบบออก HN ให้อัตโนมัติ)</span>
-                                <button type="button" onClick={() => { setNewMode(false); setDupes(null); }} className="text-[11px] text-slate-500 hover:underline">← ค้นหาแทน</button>
-                            </div>
+                            <p className="text-xs text-cyan-900">
+                                ลูกค้ายังไม่เคยมา/ยังไม่ได้ลงทะเบียน — <b>กรอกแค่ 4 ช่องนี้พอ</b> ระบบเปิดประวัติ (HN) ให้ตอนกด &quot;สร้างการจอง&quot;
+                            </p>
                             <div className="flex gap-2">
                                 <select value={np.prefix} onChange={e => setNp({ ...np, prefix: e.target.value })} className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-sm bg-white">
                                     {PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
@@ -295,17 +311,15 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                                         ไม่ใช่คนเดียวกัน — สร้าง HN ใหม่อยู่ดี
                                     </button>
                                 </div>
-                            ) : (
-                                <Button type="button" disabled={creating} onClick={() => createNewPatient()} className="w-full h-9 rounded-lg bg-cyan-600 text-white">
-                                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้างคนไข้ + ออก HN"}
-                                </Button>
-                            )}
-                            <p className="text-[10px] text-slate-500">กรอกข้อมูลย่อพอจองได้ — ที่เหลือ (บัตร ปชช./ที่อยู่/ประวัติแพ้) ค่อยเก็บตอนมาถึงคลินิก</p>
+                            ) : null}
+                            <p className="text-[11px] text-slate-500">ข้อมูลที่เหลือ (บัตร ปชช./ที่อยู่/ประวัติแพ้) กรอกตอนลูกค้ามาถึงคลินิก
+                                {registerUrl && <> หรือ <button type="button" onClick={() => { navigator.clipboard.writeText(window.location.origin + "/register/" + registerUrl).then(() => onInfo?.("คัดลอกลิงก์ลงทะเบียนแล้ว — ส่งให้ลูกค้ากรอกเองทาง LINE ได้")).catch(() => {}); }} className="font-bold text-cyan-700 underline">คัดลอกลิงก์ลงทะเบียน</button> ส่งให้ลูกค้ากรอกเองทาง LINE</>}
+                            </p>
                         </div>
                     ) : (
                         <>
                             <div className="flex gap-2 mt-1">
-                                <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} placeholder="ค้น HN / ชื่อ / เบอร์" className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+                                <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && search()} placeholder="ค้นชื่อ / ชื่อเล่น / เบอร์ / HN แล้วกด Enter" className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
                                 <Button type="button" onClick={search} variant="outline" className="rounded-lg"><Search className="h-4 w-4" /></Button>
                             </div>
                             {results.length > 0 && (
@@ -318,10 +332,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
                                     ))}
                                 </div>
                             )}
-                            <button type="button" onClick={() => { setNewMode(true); setResults([]); setDupes(null); }}
-                                className="mt-1.5 text-xs font-bold text-cyan-700 hover:underline flex items-center gap-1">
-                                <Plus className="h-3.5 w-3.5" /> ลูกค้าใหม่ (ยังไม่มี HN)
-                            </button>
+
                         </>
                     )}
                 </div>
@@ -362,7 +373,7 @@ function CreateModal({ services, onClose, onDone, onError }: { services: Svc[]; 
 
                 <div className="flex justify-end gap-2 pt-2 border-t">
                     <Button variant="outline" onClick={onClose} disabled={pending} className="rounded-xl">ยกเลิก</Button>
-                    <Button onClick={submit} disabled={pending || !hn || items.length === 0} className="rounded-xl bg-cyan-600 text-white">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "สร้าง"}</Button>
+                    <Button onClick={submit} disabled={pending || creating || (!hn && !newMode) || items.length === 0} className="rounded-xl bg-cyan-600 text-white">{pending || creating ? <Loader2 className="h-4 w-4 animate-spin" /> : !hn && newMode ? "เปิดประวัติ + สร้างการจอง" : "สร้างการจอง"}</Button>
                 </div>
             </div>
         </div>
