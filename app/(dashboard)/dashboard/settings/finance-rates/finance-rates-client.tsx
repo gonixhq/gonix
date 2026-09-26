@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Percent, CreditCard, Landmark, History, Loader2, Check, X, CalendarClock } from "lucide-react";
+import { Percent, CreditCard, Landmark, History, Loader2, Check, X, CalendarClock, Stethoscope } from "lucide-react";
 import { RATE_META, type RateMeta } from "@/lib/card-fees";
 import { setFinanceRate, cancelScheduledRate, type FinanceRateRow } from "@/lib/actions/finance-rates";
 import { toast } from "@/lib/toast";
@@ -11,8 +11,10 @@ const GROUPS: { key: RateMeta["group"]; title: string; desc: string; icon: React
     { key: "mdr", title: "ค่าธรรมเนียมบัตร (MDR)", desc: "คิดต่อการชำระเงินแต่ละแถว = ยอดรูด × MDR + VAT ของค่าธรรมเนียม · ไม่เรียกเก็บเพิ่มจากลูกค้า", icon: CreditCard },
     { key: "card", title: "VAT ค่าธรรมเนียม & การผ่อน", desc: "ใช้คำนวณต้นทุนจริงและรายงานผ่อน", icon: Percent },
     { key: "tax", title: "ภาษีมูลค่าเพิ่ม (VAT) ของคลินิก", desc: "ธนเวชยกเว้น VAT — เปิดเมื่อคลินิกจด VAT", icon: Landmark },
+    { key: "comp", title: "ค่าตอบแทนแพทย์", desc: "ค่าชั่วโมง + DF — คำนวณอัตโนมัติจากเวลาทำงานจริงและบิล", icon: Stethoscope },
 ];
 
+const fmtVal = (v: number, unit: string) => unit === "baht" ? `฿${v.toLocaleString("th-TH")}` : unit === "%" ? `${v}%` : String(v);
 const fmtDate = (d: string) => d <= "2000-12-31" ? "ตั้งแต่เริ่มระบบ" : new Date(d + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
 export default function FinanceRatesClient({ rows, today, canEdit }: { rows: FinanceRateRow[]; today: string; canEdit: boolean }) {
@@ -82,7 +84,7 @@ export default function FinanceRatesClient({ rows, today, canEdit }: { rows: Fin
                                                 {cur?.rate_value ? "จด VAT (เปิด)" : "ยกเว้น VAT (ปิด)"}
                                             </button>
                                         ) : (
-                                            <div className="text-xl font-black tabular-nums text-slate-800">{cur ? `${cur.rate_value}%` : <span className="text-sm text-rose-600">ยังไม่ตั้ง</span>}</div>
+                                            <div className="text-xl font-black tabular-nums text-slate-800">{cur ? fmtVal(cur.rate_value, m.unit) : <span className="text-sm text-rose-600">ยังไม่ตั้ง</span>}</div>
                                         )}
                                         {canEdit && m.unit !== "flag" && editing !== m.key && (
                                             <button onClick={() => openEdit(m)} className="h-9 px-3 rounded-lg border border-blue-200 text-blue-700 text-xs font-bold hover:bg-blue-50">เปลี่ยนอัตรา</button>
@@ -95,15 +97,15 @@ export default function FinanceRatesClient({ rows, today, canEdit }: { rows: Fin
                                     {sch.map((s) => (
                                         <div key={s.id} className="mt-2 flex items-center gap-2 text-xs rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5">
                                             <CalendarClock className="h-3.5 w-3.5 text-amber-600" />
-                                            <span className="text-amber-800">ตั้งล่วงหน้า: <b>{s.rate_value}{m.unit === "%" ? "%" : ""}</b> มีผล {fmtDate(s.effective_from)}{s.note ? ` · ${s.note}` : ""}</span>
+                                            <span className="text-amber-800">ตั้งล่วงหน้า: <b>{fmtVal(s.rate_value, m.unit)}</b> มีผล {fmtDate(s.effective_from)}{s.note ? ` · ${s.note}` : ""}</span>
                                             {canEdit && <button onClick={() => cancel(s.id)} disabled={pending} className="ml-auto text-amber-700 hover:underline">ยกเลิก</button>}
                                         </div>
                                     ))}
 
                                     {editing === m.key && (
                                         <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 flex items-end gap-2 flex-wrap">
-                                            <label className="text-xs text-slate-600">อัตราใหม่ (%)
-                                                <input type="number" step="0.0001" min="0" max="100" value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
+                                            <label className="text-xs text-slate-600">อัตราใหม่ ({m.unit === "baht" ? "บาท" : "%"})
+                                                <input type="number" step="0.0001" min="0" max={m.unit === "baht" ? 1000000 : 100} value={val} onChange={(e) => setVal(e.target.value)} className="mt-1 block w-28 h-9 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></label>
                                             <label className="text-xs text-slate-600">มีผลตั้งแต่
                                                 <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block h-9 rounded-lg border border-slate-300 px-2 text-sm" /></label>
                                             <label className="text-xs text-slate-600 flex-1 min-w-[160px]">หมายเหตุ
@@ -119,7 +121,7 @@ export default function FinanceRatesClient({ rows, today, canEdit }: { rows: Fin
                                             <tbody>{hist.map((h) => (
                                                 <tr key={h.id} className="border-t border-slate-100">
                                                     <td className="py-1 text-slate-600">{fmtDate(h.effective_from)}</td>
-                                                    <td className="py-1 font-semibold tabular-nums">{h.rate_value}{m.unit === "%" ? "%" : ""}</td>
+                                                    <td className="py-1 font-semibold tabular-nums">{fmtVal(h.rate_value, m.unit)}</td>
                                                     <td className="py-1 text-slate-500">{h.note || "—"}</td>
                                                     <td className="py-1 text-slate-400 text-right">{h.created_by_name || ""}</td>
                                                 </tr>

@@ -29,6 +29,7 @@ export interface CompRow {
     role: string;
     pay_type: string;       // 'hourly' | 'monthly'
     hourly_rate: number;
+    rate_source: "staff" | "clinic";  // แพทย์ไม่ได้ตั้งเรทรายคน → ใช้ค่าชั่วโมงแพทย์ของคลินิก (finance_rates)
     monthly_salary: number;
     planned_hours: number;
     actual_hours: number;
@@ -58,6 +59,10 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
     const last = `${month}-${String(lastDay).padStart(2, "0")}`;
 
     // staff + เรท/เงินเดือน + ชื่อ
+    // ค่าชั่วโมงแพทย์ของคลินิก (ณ สิ้นเดือน) — ใช้เมื่อแพทย์ไม่ได้ตั้งเรทรายคน
+    const { data: clinicDocRate } = await supabase.rpc("fn_finance_rate", { p_clinic: clinicId, p_key: "doctor_hour_rate", p_date: last });
+    const DOCTOR_ROLES = new Set(["doctor", "dentist"]);
+
     const { data: staffRows } = await supabase
         .from("staff")
         .select("id, hourly_rate, pay_type, monthly_salary, wht_enabled, sso_enabled, profiles!inner(full_name, role)")
@@ -121,8 +126,10 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const prof = Array.isArray((s as any).profiles) ? (s as any).profiles[0] : (s as any).profiles;
         const id = s.id as string;
-        const rate = Number(s.hourly_rate || 0);
         const payType = (s.pay_type as string) || "hourly";
+        const ownRate = Number(s.hourly_rate || 0);
+        const useClinic = ownRate === 0 && payType === "hourly" && DOCTOR_ROLES.has(String(prof?.role || "")) && clinicDocRate != null;
+        const rate = useClinic ? Number(clinicDocRate) : ownRate;
         const salary = Number(s.monthly_salary || 0);
         const planned = round2((plannedMin.get(id) || 0) / 60);
         const actual = round2(actualHrs.get(id) || 0);
@@ -152,6 +159,7 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
             role: (prof?.role as string) || "",
             pay_type: payType,
             hourly_rate: rate,
+            rate_source: useClinic ? "clinic" : "staff",
             monthly_salary: salary,
             planned_hours: planned,
             actual_hours: actual,
@@ -649,4 +657,83 @@ export async function deleteCompensationPayout(staffId: string, month: string) {
     if (error) throw error;
     revalidatePath("/dashboard/compensation");
     return { success: true };
+}
+
+// ── เฟส 2A: บันทึกเวลาเข้า-ออกงานจริงของแพทย์จากหน้าตารางแพทย์ ──
+export interface DayAttendanceRow {
+    staff_id: string;
+    name: string;
+    role: string;
+    planned: { start: string; end: string } | null;   // รวมทุกเวรของวัน (เริ่มสุด–จบสุด)
+    logs: { id: string; in: string; out: string | null; source: string; hours: number | null }[];
+    hours: number;        // ชั่วโมงจริงรวม (เฉพาะที่ปิดงานแล้ว)
+    late_min: number;
+    early_min: number;
+}
+
+/** เวร (แผน) + เวลาจริง รายคนในวันที่กำหนด — สำหรับหน้าตารางแพทย์ */
+export async function getDayAttendanceDetail(date: string): Promise<DayAttendanceRow[]> {
+    const [shifts, logs, staff] = await Promise.all([getShiftsForDate(date), getTimeLogsForDate(date), getScheduleStaff()]);
+    const meta = new Map(staff.map((s) => [s.id, { name: s.name, role: s.role }]));
+    const planned = new Map<string, { start: string; end: string }>();
+    shifts.forEach((s) => {
+        const cur = planned.get(s.doctor_staff_id);
+        if (!cur) planned.set(s.doctor_staff_id, { start: s.start_time, end: s.end_time });
+        else { if (s.start_time < cur.start) cur.start = s.start_time; if (s.end_time > cur.end) cur.end = s.end_time; }
+    });
+    const byStaff = new Map<string, DayAttendanceRow["logs"]>();
+    logs.forEach((l) => {
+        const arr = byStaff.get(l.staff_id) || [];
+        arr.push({ id: l.id, in: isoToHM(l.clock_in), out: l.clock_out ? isoToHM(l.clock_out) : null, source: l.source, hours: l.hours });
+        byStaff.set(l.staff_id, arr);
+    });
+    const ids = new Set<string>([...planned.keys(), ...byStaff.keys()]);
+    const rows: DayAttendanceRow[] = [];
+    ids.forEach((id) => {
+        const p = planned.get(id) || null;
+        const ls = (byStaff.get(id) || []).sort((a, b) => a.in.localeCompare(b.in));
+        const hours = round2(ls.reduce((s, l) => s + (l.hours || 0), 0));
+        let late = 0, early = 0;
+        if (p && ls.length) {
+            late = Math.max(0, toMin(ls[0].in) - toMin(p.start));
+            const lastOut = ls.map((l) => l.out).filter(Boolean).sort().pop();
+            if (lastOut) early = Math.max(0, toMin(p.end) - toMin(lastOut));
+        }
+        const m = meta.get(id);
+        rows.push({ staff_id: id, name: m?.name || "—", role: m?.role || "", planned: p, logs: ls, hours, late_min: late, early_min: early });
+    });
+    return rows.sort((a, b) => (a.planned?.start || "99").localeCompare(b.planned?.start || "99") || a.name.localeCompare(b.name));
+}
+
+/** บันทึกเวลาจริง (แอดมิน) — คืน error แทน throw เพื่อให้ UI แสดงข้อความได้ */
+export async function recordStaffTime(input: { staff_id: string; work_date: string; start_time: string; end_time: string; note?: string | null }) {
+    try {
+        if (!/^\d{2}:\d{2}$/.test(input.start_time) || !/^\d{2}:\d{2}$/.test(input.end_time)) return { success: false, error: "เวลาไม่ถูกต้อง" };
+        const { supabase, clinicId } = await getCtx();
+        // กันกรอกซ้อนช่วงเวลาเดิมของคนเดียวกันในวันเดียวกัน
+        const { data: existing } = await supabase.from("staff_time_logs").select("clock_in, clock_out")
+            .eq("clinic_id", clinicId).eq("staff_id", input.staff_id).eq("work_date", input.work_date);
+        const s = toMin(input.start_time), e = toMin(input.end_time);
+        const overlap = (existing || []).some((l) => {
+            const ls = toMin(isoToHM(l.clock_in as string));
+            const le = l.clock_out ? toMin(isoToHM(l.clock_out as string)) : 24 * 60;
+            return s < le && e > ls;
+        });
+        if (overlap) return { success: false, error: "ช่วงเวลานี้ซ้อนกับเวลาที่บันทึกไว้แล้ว" };
+        await addManualTimeLog(input);
+        revalidatePath("/dashboard/doctor-schedule");
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : "บันทึกไม่สำเร็จ" };
+    }
+}
+
+export async function removeStaffTime(id: string) {
+    try {
+        await deleteTimeLog(id);
+        revalidatePath("/dashboard/doctor-schedule");
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : "ลบไม่สำเร็จ" };
+    }
 }

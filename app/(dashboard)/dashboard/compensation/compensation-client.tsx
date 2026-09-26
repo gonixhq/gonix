@@ -313,6 +313,9 @@ export default function CompensationClient({
                                                     className="w-24 h-8 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/20"
                                                 />
                                             </div>
+                                            {r.rate_source === "clinic" && (
+                                                <div className="text-[10px] text-blue-600 text-right mt-0.5" title="แพทย์ไม่ได้ตั้งเรทรายคน — ใช้ค่าชั่วโมงแพทย์ของคลินิก (ตั้งค่า › อัตราการเงิน) · พิมพ์เรทใหม่ = ตั้งเรทรายคน">อัตราคลินิก</div>
+                                            )}
                                             <div className="flex items-center justify-end gap-2 mt-1">
                                                 <label className="inline-flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer" title="หักภาษี ณ ที่จ่าย 3%">
                                                     <input type="checkbox" checked={r.wht_enabled} disabled={r.is_paid}
