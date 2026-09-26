@@ -22,6 +22,8 @@ import { DISCOUNT_KIND_LABEL } from "@/lib/campaign-types";
 import type { SalesForecast } from "@/lib/actions/advanced-report";
 import { sendExecSummaryToMyLine } from "@/lib/actions/advanced-report";
 import type { SafetyMetrics } from "@/lib/actions/follow-up";
+import ProfitPanel from "./profit-panel";
+import type { ProfitReport } from "@/lib/profit-report";
 import GoalCard from "./goal-card";
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
@@ -119,8 +121,9 @@ function formatDateThai(d: string): string {
 }
 
 export default function ReportsClient({
-    summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, discountReport, forecast, safety, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
+    profit, summary, prevSummary, goal, acqSources, conversion, demographics, campaigns, discountReport, forecast, safety, outstanding, biz, rfm, basket, peak, staffPerf, outstandingPkg, invMargin, seg, startDate, endDate, today,
 }: {
+    profit: ProfitReport;
     summary: ReportSummary;
     prevSummary: ReportSummary;
     goal: GoalProgress;
@@ -146,7 +149,7 @@ export default function ReportsClient({
 }) {
     const router = useRouter();
     const [showOutstanding, setShowOutstanding] = useState(false);
-    const [tab, setTab] = useState<"overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "discount" | "advanced">("overview");
+    const [tab, setTab] = useState<"profit" | "overview" | "sales" | "items" | "customers" | "behavior" | "operations" | "marketing" | "discount" | "advanced">("profit");
     const [execSending, setExecSending] = useState(false);
     const [execMsg, setExecMsg] = useState<string | null>(null);
 
@@ -265,7 +268,7 @@ export default function ReportsClient({
     }
 
     const TAB_LABEL: Record<string, string> = {
-        overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
+        profit: "กำไร–ขาดทุน / ต้นทุน", overview: "ภาพรวม", sales: "ยอดขาย", items: "รายการขายดี",
         customers: "ลูกค้า & ธุรกิจ", behavior: "พฤติกรรมการซื้อ", operations: "ปฏิบัติการ", marketing: "การตลาด", discount: "ส่วนลด", advanced: "เชิงลึก",
     };
 
@@ -333,7 +336,7 @@ export default function ReportsClient({
     }
 
     return (
-        <div className="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
+        <div className="space-y-5 max-w-7xl mx-auto animate-fade-in p-4 sm:p-6 pb-12 rounded-3xl bg-white/35 border border-white/60">
             {/* Header — title + period picker */}
             <div className="gonix-card-premium p-4 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -341,7 +344,7 @@ export default function ReportsClient({
                         <BarChart3 className="h-5 w-5 text-[#2B54F0]" />
                     </div>
                     <div>
-                        <h1 className="text-lg font-black text-slate-800 tracking-tight leading-tight">รายงาน & สถิติ</h1>
+                        <h1 className="text-lg font-black text-slate-800 tracking-tight leading-tight">รายงานคลินิก</h1>
                         <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
                             <Calendar className="h-3 w-3" /> {formatDateThai(startDate)} — {formatDateThai(endDate)}
                         </p>
@@ -358,7 +361,7 @@ export default function ReportsClient({
                     </div>
 
                     {/* Custom range */}
-                    <form method="get" className="inline-flex items-center gap-1.5">
+                    <form method="get" className="inline-flex flex-wrap items-center gap-1.5">
                         <input type="hidden" name="seg" value={seg} />
                         <input type="date" name="start" defaultValue={startDate} max={today}
                             className="h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:border-[#2B54F0] focus:outline-none" />
@@ -371,7 +374,7 @@ export default function ReportsClient({
             </div>
 
             {/* Business Unit filter (Medical/Aesthetic) */}
-            <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
+            {tab !== "profit" && <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5">
                 {(["all", "medical", "aesthetic"] as Seg[]).map(s => (
                     <button key={s} onClick={() => router.push(`/dashboard/reports?start=${startDate}&end=${endDate}&seg=${s}`)}
                         className={`h-8 px-3.5 rounded-lg text-xs font-bold transition-all ${seg === s ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600 hover:text-slate-800"}`}>
@@ -380,8 +383,9 @@ export default function ReportsClient({
                 ))}
             </div>
 
+            }
             {/* Outstanding alert */}
-            {summary.outstanding > 0 && (
+            {tab !== "profit" && summary.outstanding > 0 && (
                 <button
                     onClick={() => setShowOutstanding(true)}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border-2 border-amber-200 hover:bg-amber-100/60 transition-colors text-left"
@@ -396,27 +400,25 @@ export default function ReportsClient({
             )}
 
             {/* Top stat cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard icon={Wallet} label="รายรับ (ชำระจริง)" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" delta={pctChange(summary.totalRevenue, prevSummary.totalRevenue)} />
+            {tab !== "profit" && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard icon={Wallet} label="รับสะสมของบิลในช่วง" value={`฿${fmt(summary.totalRevenue)}`} color="emerald" delta={pctChange(summary.totalRevenue, prevSummary.totalRevenue)} />
                 <StatCard icon={AlertTriangle} label="ค้างชำระ" value={`฿${fmt(summary.outstanding)}`} color="amber" sub={`${summary.partialCount} บางส่วน`} />
                 <StatCard icon={Activity} label="Visit" value={fmt(summary.totalVisits)} color="sky" delta={pctChange(summary.totalVisits, prevSummary.totalVisits)} />
                 <StatCard icon={Users} label="ลูกค้าใหม่" value={fmt(summary.newPatients)} color="violet" delta={pctChange(summary.newPatients, prevSummary.newPatients)} />
             </div>
 
+            }
             {/* Tabs + Export toolbar */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="inline-flex items-center bg-slate-100 rounded-xl p-1 gap-0.5 flex-wrap">
-                    <TabBtn active={tab === "overview"} onClick={() => setTab("overview")}>ภาพรวม</TabBtn>
-                    <TabBtn active={tab === "sales"} onClick={() => setTab("sales")}>ยอดขาย</TabBtn>
-                    <TabBtn active={tab === "items"} onClick={() => setTab("items")}>รายการขายดี</TabBtn>
-                    <TabBtn active={tab === "customers"} onClick={() => setTab("customers")}>ลูกค้า & ธุรกิจ</TabBtn>
-                    <TabBtn active={tab === "behavior"} onClick={() => setTab("behavior")}>พฤติกรรมการซื้อ</TabBtn>
-                    <TabBtn active={tab === "operations"} onClick={() => setTab("operations")}>ปฏิบัติการ</TabBtn>
-                    <TabBtn active={tab === "marketing"} onClick={() => setTab("marketing")}>การตลาด</TabBtn>
-                    <TabBtn active={tab === "discount"} onClick={() => setTab("discount")}>ส่วนลด</TabBtn>
-                    <TabBtn active={tab === "advanced"} onClick={() => setTab("advanced")}>เชิงลึก</TabBtn>
-                </div>
+                <label className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                    หัวข้อรายงาน
+                    <select aria-label="หัวข้อรายงาน" value={tab} onChange={e=>setTab(e.target.value as typeof tab)} className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500">
+                        {Object.entries(TAB_LABEL).map(([key,label])=><option key={key} value={key}>{label}</option>)}
+                    </select>
+                    {tab === "profit" && <span className="rounded-lg bg-blue-50 px-3 py-2 text-blue-700">ทั้งคลินิก</span>}
+                </label>
 
+                {tab !== "profit" &&
                 <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
                     <button onClick={exportCSV} title="ดาวน์โหลด Excel (.csv) ทั้งรายงาน"
                         className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors">
@@ -432,9 +434,10 @@ export default function ReportsClient({
                         className="h-9 px-3 inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                         PDF ทั้งหมด
                     </button>
-                </div>
+                </div>}
             </div>
 
+            {tab === "profit" && <ProfitPanel key={`${startDate}-${endDate}`} data={profit} start={startDate} end={endDate} />}
             {/* ── OVERVIEW ── */}
             {tab === "overview" && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -447,7 +450,7 @@ export default function ReportsClient({
                         </div>
                         <div className="p-5">
                             {summary.revenueByDay.length === 0 ? (
-                                <p className="text-center text-sm text-slate-400 py-8">ไม่มีรายรับในช่วงนี้</p>
+                                <p className="text-center text-sm text-slate-500 py-8">ไม่มีรายรับในช่วงนี้</p>
                             ) : (
                                 <div className="space-y-2">
                                     {summary.revenueByDay.slice(-14).map(r => {
@@ -477,7 +480,7 @@ export default function ReportsClient({
                         </div>
                         <div className="p-5">
                             {summary.revenueByMethod.length === 0 ? (
-                                <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล</p>
+                                <p className="text-center text-sm text-slate-500 py-8">ไม่มีข้อมูล</p>
                             ) : (
                                 <div className="space-y-3">
                                     {summary.revenueByMethod.map(r => {
@@ -498,7 +501,7 @@ export default function ReportsClient({
                                                         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                             <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${pct}%` }} />
                                                         </div>
-                                                        <span className="text-[10px] text-slate-400 w-16 text-right">{r.count} ครั้ง</span>
+                                                        <span className="text-xs text-slate-500 w-16 text-right">{r.count} ครั้ง</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -517,13 +520,13 @@ export default function ReportsClient({
                         </div>
                         <div className="p-5">
                             {summary.revenueByCategory.length === 0 ? (
-                                <p className="text-center text-sm text-slate-400 py-8">ไม่มี Visit ในช่วงนี้</p>
+                                <p className="text-center text-sm text-slate-500 py-8">ไม่มี Visit ในช่วงนี้</p>
                             ) : (
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                                     {summary.revenueByCategory.map(c => (
                                         <div key={c.category} className="rounded-xl border border-slate-200 p-3 text-center">
                                             <div className="text-2xl font-black text-slate-800 tabular-nums">{c.count}</div>
-                                            <div className="text-[11px] text-slate-500 mt-0.5">{CATEGORY_LABEL[c.category] || c.category}</div>
+                                            <div className="text-xs text-slate-500 mt-0.5">{CATEGORY_LABEL[c.category] || c.category}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -542,7 +545,7 @@ export default function ReportsClient({
                     </div>
                     <div className="p-5">
                         {summary.salesByType.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-8">ไม่มียอดขายในช่วงนี้</p>
+                            <p className="text-center text-sm text-slate-500 py-8">ไม่มียอดขายในช่วงนี้</p>
                         ) : (
                             <div className="space-y-3">
                                 {(() => {
@@ -552,12 +555,12 @@ export default function ReportsClient({
                                         return (
                                             <div key={t.type}>
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase ${ITEM_TYPE_COLOR[t.type] || ITEM_TYPE_COLOR.other}`}>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded uppercase ${ITEM_TYPE_COLOR[t.type] || ITEM_TYPE_COLOR.other}`}>
                                                         {ITEM_TYPE_LABEL[t.type] || t.type}
                                                     </span>
                                                     <div className="text-sm">
                                                         <span className="font-bold text-slate-800 tabular-nums">฿{fmt2(t.amount)}</span>
-                                                        <span className="text-slate-400 ml-2 text-xs">{pct}% · {t.count} รายการ</span>
+                                                        <span className="text-slate-500 ml-2 text-xs">{pct}% · {t.count} รายการ</span>
                                                     </div>
                                                 </div>
                                                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -581,11 +584,11 @@ export default function ReportsClient({
                         <h2 className="text-sm font-bold text-slate-800">รายการขายดี (Top 15)</h2>
                     </div>
                     {summary.topItems.length === 0 ? (
-                        <p className="text-center text-sm text-slate-400 py-12">ไม่มีรายการขายในช่วงนี้</p>
+                        <p className="text-center text-sm text-slate-500 py-12">ไม่มีรายการขายในช่วงนี้</p>
                     ) : (
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50/60">
-                                <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                     <th className="text-left px-5 py-2.5 w-10">#</th>
                                     <th className="text-left px-4 py-2.5">รายการ</th>
                                     <th className="text-left px-4 py-2.5">ประเภท</th>
@@ -596,10 +599,10 @@ export default function ReportsClient({
                             <tbody>
                                 {summary.topItems.map((it, i) => (
                                     <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
-                                        <td className="px-5 py-2.5 text-slate-400 font-bold tabular-nums">{i + 1}</td>
+                                        <td className="px-5 py-2.5 text-slate-500 font-bold tabular-nums">{i + 1}</td>
                                         <td className="px-4 py-2.5 font-bold text-slate-800">{it.name}</td>
                                         <td className="px-4 py-2.5">
-                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${ITEM_TYPE_COLOR[it.type] || ITEM_TYPE_COLOR.other}`}>
+                                            <span className={`text-xs px-2 py-0.5 rounded font-bold uppercase ${ITEM_TYPE_COLOR[it.type] || ITEM_TYPE_COLOR.other}`}>
                                                 {ITEM_TYPE_LABEL[it.type] || it.type}
                                             </span>
                                         </td>
@@ -621,7 +624,7 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <Users className="h-4 w-4 text-blue-600" />
                             <h2 className="text-sm font-bold text-slate-800">รายได้: ลูกค้าใหม่ vs เก่า</h2>
-                            <span className="text-xs text-slate-400">(ในช่วงที่เลือก)</span>
+                            <span className="text-xs text-slate-500">(ในช่วงที่เลือก)</span>
                         </div>
                         <div className="p-5">
                             <div className="flex h-4 rounded-full overflow-hidden bg-slate-100 mb-3">
@@ -630,14 +633,14 @@ export default function ReportsClient({
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="rounded-xl bg-[#2B54F0]/5 border border-[#2B54F0]/15 p-3">
-                                    <div className="text-[11px] font-bold text-[#2B54F0] inline-flex items-center gap-1"><UserPlus className="h-3.5 w-3.5" /> ลูกค้าใหม่</div>
+                                    <div className="text-xs font-bold text-[#2B54F0] inline-flex items-center gap-1"><UserPlus className="h-3.5 w-3.5" /> ลูกค้าใหม่</div>
                                     <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{fmt(biz.newRevenue)}</div>
-                                    <div className="text-[11px] text-slate-500">{newPct}% · {biz.newCustomers} ราย</div>
+                                    <div className="text-xs text-slate-500">{newPct}% · {biz.newCustomers} ราย</div>
                                 </div>
                                 <div className="rounded-xl bg-[#10B981]/5 border border-[#10B981]/15 p-3">
-                                    <div className="text-[11px] font-bold text-emerald-600 inline-flex items-center gap-1"><UserCheck className="h-3.5 w-3.5" /> ลูกค้าเก่า</div>
+                                    <div className="text-xs font-bold text-emerald-600 inline-flex items-center gap-1"><UserCheck className="h-3.5 w-3.5" /> ลูกค้าเก่า</div>
                                     <div className="text-lg font-black text-slate-800 tabular-nums mt-1">฿{fmt(biz.returningRevenue)}</div>
-                                    <div className="text-[11px] text-slate-500">{retPct}% · {biz.returningCustomers} ราย</div>
+                                    <div className="text-xs text-slate-500">{retPct}% · {biz.returningCustomers} ราย</div>
                                 </div>
                             </div>
                         </div>
@@ -648,17 +651,17 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <Sparkles className="h-4 w-4 text-violet-600" />
                             <h2 className="text-sm font-bold text-slate-800">กลุ่มลูกค้า (RFM)</h2>
-                            <span className="text-xs text-slate-400">{rfm.total} ราย (ทั้งหมด)</span>
+                            <span className="text-xs text-slate-500">{rfm.total} ราย (ทั้งหมด)</span>
                         </div>
                         <div className="p-4">
                             {rfm.total > 0 && rfm.total < 30 && (
-                                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                                <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                                     <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                                     <span>ฐานลูกค้ายังน้อย ({rfm.total} ราย) — การแบ่งกลุ่ม RFM อาจยังไม่มีนัยสำคัญทางสถิติ (แนะนำ ≥ 30 ราย) ใช้ดูเป็นแนวโน้มเบื้องต้นได้</span>
                                 </div>
                             )}
                             {rfm.segments.filter(s => s.customers > 0).length === 0 ? (
-                                <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีข้อมูลลูกค้าเพียงพอ</p>
+                                <p className="text-center text-sm text-slate-500 py-8">ยังไม่มีข้อมูลลูกค้าเพียงพอ</p>
                             ) : (
                                 <>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
@@ -670,11 +673,11 @@ export default function ReportsClient({
                                                 </button>
                                                 <div className="text-sm font-bold pr-6">{s.label}</div>
                                                 <div className="text-2xl font-black tabular-nums mt-0.5">{s.customers}</div>
-                                                <div className="text-[11px] opacity-80">฿{fmt(s.revenue)}</div>
+                                                <div className="text-xs opacity-80">฿{fmt(s.revenue)}</div>
                                             </div>
                                         ))}
                                     </div>
-                                    <p className="text-[11px] text-slate-400 mt-3">
+                                    <p className="text-xs text-slate-500 mt-3">
                                         แบ่งจาก Recency (ซื้อล่าสุด) · Frequency (ความถี่) · Monetary (ยอดใช้จ่าย) — ใช้วางแผนแคมเปญ เช่น &quot;ห้ามเสียไป/เสี่ยงหาย&quot; ส่งโปรดึงกลับ, &quot;ลูกค้าชั้นยอด&quot; ดูแลพิเศษ
                                     </p>
                                 </>
@@ -702,14 +705,14 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <ShoppingBasket className="h-4 w-4 text-blue-600" />
                             <h2 className="text-sm font-bold text-slate-800">สินค้า/บริการที่มักซื้อคู่กัน</h2>
-                            <span className="text-xs text-slate-400">(ในใบเสร็จเดียวกัน)</span>
+                            <span className="text-xs text-slate-500">(ในใบเสร็จเดียวกัน)</span>
                         </div>
                         {basket.pairs.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-10">ยังไม่พบคู่ที่ซื้อร่วมกันบ่อยพอ (ต้อง ≥ 2 ครั้ง)</p>
+                            <p className="text-center text-sm text-slate-500 py-10">ยังไม่พบคู่ที่ซื้อร่วมกันบ่อยพอ (ต้อง ≥ 2 ครั้ง)</p>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60">
-                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-5 py-2.5">คู่สินค้า / บริการ</th>
                                         <th className="text-center px-4 py-2.5">ซื้อคู่กัน</th>
                                         <th className="text-center px-4 py-2.5">โอกาสซื้อคู่</th>
@@ -740,7 +743,7 @@ export default function ReportsClient({
                                 </tbody>
                             </table>
                         )}
-                        <p className="text-[11px] text-slate-400 px-5 py-2.5 border-t border-slate-100">
+                        <p className="text-xs text-slate-500 px-5 py-2.5 border-t border-slate-100">
                             <b>Lift ×{">"}1</b> = ซื้อคู่กันมากกว่าที่จะบังเอิญ — เหมาะจัดโปรขายคู่ / แนะนำเพิ่มหน้าเคาน์เตอร์
                         </p>
                     </div>
@@ -750,14 +753,14 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <ArrowRight className="h-4 w-4 text-violet-600" />
                             <h2 className="text-sm font-bold text-slate-800">ซื้อแล้ว…ครั้งถัดไปมักซื้ออะไร</h2>
-                            <span className="text-xs text-slate-400">(คนไข้คนเดิม ใบเสร็จถัดไป)</span>
+                            <span className="text-xs text-slate-500">(คนไข้คนเดิม ใบเสร็จถัดไป)</span>
                         </div>
                         {basket.transitions.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-10">ยังไม่พบลำดับการซื้อซ้ำมากพอ (ต้อง ≥ 2 ครั้ง)</p>
+                            <p className="text-center text-sm text-slate-500 py-10">ยังไม่พบลำดับการซื้อซ้ำมากพอ (ต้อง ≥ 2 ครั้ง)</p>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60">
-                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-5 py-2.5">ซื้อก่อน → ครั้งถัดไป</th>
                                         <th className="text-center px-4 py-2.5">จำนวนครั้ง</th>
                                         <th className="text-right px-5 py-2.5">เฉลี่ยห่างกัน</th>
@@ -780,7 +783,7 @@ export default function ReportsClient({
                                 </tbody>
                             </table>
                         )}
-                        <p className="text-[11px] text-slate-400 px-5 py-2.5 border-t border-slate-100">
+                        <p className="text-xs text-slate-500 px-5 py-2.5 border-t border-slate-100">
                             ใช้ตั้งเตือนติดตาม / ส่งโปรกระตุ้นซื้อซ้ำตามรอบเวลาที่ลูกค้ามักกลับมา
                         </p>
                     </div>
@@ -795,18 +798,18 @@ export default function ReportsClient({
                             <Activity className="h-4 w-4 text-sky-600" />
                             <h2 className="text-sm font-bold text-slate-800">ช่วงเวลาที่ลูกค้าแน่น (Peak Hours)</h2>
                             {peak.busiest && (
-                                <span className="text-xs text-slate-400">
+                                <span className="text-xs text-slate-500">
                                     พีคสุด: {DAYS_TH[peak.busiest.day]} {String(peak.busiest.hour).padStart(2, "0")}:00 น. · {peak.busiest.count} visit
                                 </span>
                             )}
                         </div>
                         <div className="p-4 overflow-x-auto">
                             {peak.total === 0
-                                ? <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                                ? <p className="text-center text-sm text-slate-500 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
                                 : <PeakHeatmap peak={peak} />}
                         </div>
                         <div className="px-4 pb-4">
-                            <p className="text-[11px] text-slate-400">นับจากเวลาเปิด Visit (visit_time) · สีเข้ม = ลูกค้าแน่น ใช้จัดเวรแพทย์/พนักงานให้พอในช่วงพีค ลดเวลารอคอย</p>
+                            <p className="text-xs text-slate-500">นับจากเวลาเปิด Visit (visit_time) · สีเข้ม = ลูกค้าแน่น ใช้จัดเวรแพทย์/พนักงานให้พอในช่วงพีค ลดเวลารอคอย</p>
                         </div>
                     </div>
 
@@ -817,12 +820,12 @@ export default function ReportsClient({
                             <h2 className="text-sm font-bold text-slate-800">ผลงานแพทย์/พนักงาน (จัดอันดับตามยอดขาย)</h2>
                         </div>
                         {staffPerf.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูลเคสที่ระบุผู้ดูแลในช่วงนี้</p>
+                            <p className="text-center text-sm text-slate-500 py-8">ไม่มีข้อมูลเคสที่ระบุผู้ดูแลในช่วงนี้</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60">
-                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2.5">#</th>
                                             <th className="text-left px-4 py-2.5">ผู้ดูแล</th>
                                             <th className="text-right px-3 py-2.5">เคส</th>
@@ -837,10 +840,10 @@ export default function ReportsClient({
                                     <tbody>
                                         {staffPerf.map((s, i) => (
                                             <tr key={s.staff_id} className="border-t border-slate-100 hover:bg-slate-50/40">
-                                                <td className="px-4 py-2.5 text-slate-400 tabular-nums">{i + 1}</td>
+                                                <td className="px-4 py-2.5 text-slate-500 tabular-nums">{i + 1}</td>
                                                 <td className="px-4 py-2.5">
                                                     <span className="font-bold text-slate-800">{s.name}</span>
-                                                    <span className="ml-1.5 text-[10px] text-slate-400">{ROLE_TH[s.role] || s.role}</span>
+                                                    <span className="ml-1.5 text-xs text-slate-500">{ROLE_TH[s.role] || s.role}</span>
                                                 </td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(s.cases)}</td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(s.patients)}</td>
@@ -856,7 +859,7 @@ export default function ReportsClient({
                             </div>
                         )}
                         <div className="px-4 py-3">
-                            <p className="text-[11px] text-slate-400">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · ชม.เวร/ขาย/ชม. = วัด productivity จริงจาก GPS check-in (คนทำเวรน้อยแต่ขายได้มาก = มีประสิทธิภาพสูง) · Retention = % ลูกค้ากลับมา ≥2 ครั้ง</p>
+                            <p className="text-xs text-slate-500">ยอดขาย = บิลที่ผูกกับ Visit ของผู้ดูแล (ตาม doctor_id) · ชม.เวร/ขาย/ชม. = วัด productivity จริงจาก GPS check-in (คนทำเวรน้อยแต่ขายได้มาก = มีประสิทธิภาพสูง) · Retention = % ลูกค้ากลับมา ≥2 ครั้ง</p>
                         </div>
                     </div>
 
@@ -868,25 +871,25 @@ export default function ReportsClient({
                         </div>
                         <div className="grid grid-cols-3 gap-3 p-4">
                             <div className="rounded-xl bg-slate-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-slate-500">คอสที่ยังใช้ไม่ครบ</div>
+                                <div className="text-xs uppercase font-bold text-slate-500">คอสที่ยังใช้ไม่ครบ</div>
                                 <div className="text-xl font-black text-slate-800">{fmt(outstandingPkg.count)}</div>
                             </div>
                             <div className="rounded-xl bg-slate-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-slate-500">ครั้งคงเหลือรวม</div>
+                                <div className="text-xs uppercase font-bold text-slate-500">ครั้งคงเหลือรวม</div>
                                 <div className="text-xl font-black text-slate-800">{fmt(outstandingPkg.totalRemainingSessions)}</div>
                             </div>
                             <div className="rounded-xl bg-pink-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-pink-600">มูลค่าภาระผูกพัน</div>
+                                <div className="text-xs uppercase font-bold text-pink-600">มูลค่าภาระผูกพัน</div>
                                 <div className="text-xl font-black text-pink-700">฿{fmt(outstandingPkg.totalLiability)}</div>
                             </div>
                         </div>
                         {outstandingPkg.items.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 pb-8">ไม่มีคอสค้างใช้</p>
+                            <p className="text-center text-sm text-slate-500 pb-8">ไม่มีคอสค้างใช้</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60">
-                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2.5">ลูกค้า</th>
                                             <th className="text-left px-3 py-2.5">คอส</th>
                                             <th className="text-center px-3 py-2.5">ใช้/ทั้งหมด</th>
@@ -899,12 +902,12 @@ export default function ReportsClient({
                                             <tr key={i} className="border-t border-slate-100 hover:bg-slate-50/40">
                                                 <td className="px-4 py-2.5">
                                                     <Link href={`/dashboard/patients/${p.hn}`} className="font-bold text-slate-800 hover:text-[#2B54F0]">{p.patient_name}</Link>
-                                                    <span className="ml-1.5 font-mono text-[10px] text-slate-400">{p.hn}</span>
+                                                    <span className="ml-1.5 font-mono text-xs text-slate-500">{p.hn}</span>
                                                 </td>
                                                 <td className="px-3 py-2.5 text-slate-700">{p.package_name}</td>
                                                 <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{p.used_sessions}/{p.total_sessions}</td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums font-bold text-pink-700">฿{fmt(p.unearned)}</td>
-                                                <td className="px-4 py-2.5 text-right text-[11px] text-slate-500">{formatDateThai(p.expires_at)}</td>
+                                                <td className="px-4 py-2.5 text-right text-xs text-slate-500">{formatDateThai(p.expires_at)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -912,7 +915,7 @@ export default function ReportsClient({
                             </div>
                         )}
                         <div className="px-4 py-3">
-                            <p className="text-[11px] text-slate-400">มูลค่าคงเหลือ = ยอดที่จ่าย × (ครั้งคงเหลือ ÷ ครั้งทั้งหมด) — เงินที่รับมาแล้วแต่ยังต้องให้บริการในอนาคต อย่าหมุนจนลืมเผื่อต้นทุน</p>
+                            <p className="text-xs text-slate-500">มูลค่าคงเหลือ = ยอดที่จ่าย × (ครั้งคงเหลือ ÷ ครั้งทั้งหมด) — เงินที่รับมาแล้วแต่ยังต้องให้บริการในอนาคต อย่าหมุนจนลืมเผื่อต้นทุน</p>
                         </div>
                     </div>
 
@@ -923,12 +926,12 @@ export default function ReportsClient({
                             <h2 className="text-sm font-bold text-slate-800">กำไรขั้นต้นตามประเภท (Revenue − ต้นทุน)</h2>
                         </div>
                         {invMargin.byType.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีรายการขายในช่วงนี้</p>
+                            <p className="text-center text-sm text-slate-500 py-8">ไม่มีรายการขายในช่วงนี้</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60">
-                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2.5">ประเภท</th>
                                             <th className="text-right px-3 py-2.5">รายได้</th>
                                             <th className="text-right px-3 py-2.5">ต้นทุน</th>
@@ -940,7 +943,7 @@ export default function ReportsClient({
                                         {invMargin.byType.map(r => (
                                             <tr key={r.type} className="border-t border-slate-100 hover:bg-slate-50/40">
                                                 <td className="px-4 py-2.5">
-                                                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${ITEM_TYPE_COLOR[r.type] || ITEM_TYPE_COLOR.other}`}>{ITEM_TYPE_LABEL[r.type] || r.type}</span>
+                                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${ITEM_TYPE_COLOR[r.type] || ITEM_TYPE_COLOR.other}`}>{ITEM_TYPE_LABEL[r.type] || r.type}</span>
                                                 </td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">฿{fmt(r.revenue)}</td>
                                                 <td className="px-3 py-2.5 text-right tabular-nums text-rose-500">฿{fmt(r.cogs)}</td>
@@ -962,7 +965,7 @@ export default function ReportsClient({
                             </div>
                         )}
                         <div className="px-4 py-3">
-                            <p className="text-[11px] text-slate-400">ต้นทุน = cogs_amount (ต้นทุนยา/เวชภัณฑ์ ณ ตอนขาย) · ค่าบริการ/หัตถการ ต้นทุน=0 → กำไรเกือบเต็ม · กดปุ่ม Excel ด้านบนเพื่อ export รายตัวละเอียด</p>
+                            <p className="text-xs text-slate-500">ต้นทุน = cogs_amount (ต้นทุนยา/เวชภัณฑ์ ณ ตอนขาย) · ค่าบริการ/หัตถการ ต้นทุน=0 → กำไรเกือบเต็ม · กดปุ่ม Excel ด้านบนเพื่อ export รายตัวละเอียด</p>
                         </div>
                     </div>
                 </div>
@@ -979,19 +982,19 @@ export default function ReportsClient({
                         </div>
                         <div className="p-4 space-y-2.5">
                             {acqSources.length === 0 ? (
-                                <p className="text-center text-sm text-slate-400 py-4">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                                <p className="text-center text-sm text-slate-500 py-4">ไม่มีข้อมูล visit ในช่วงนี้</p>
                             ) : acqSources.map(s => (
                                 <div key={s.source} className="flex items-center gap-3">
                                     <span className="w-40 text-xs font-bold text-slate-600 shrink-0">{s.label}</span>
                                     <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden">
                                         <div className="h-full bg-[#2B54F0]/80 rounded-lg flex items-center justify-end px-2" style={{ width: `${Math.max(s.pct, 4)}%` }}>
-                                            <span className="text-[10px] font-bold text-white tabular-nums">{s.pct}%</span>
+                                            <span className="text-xs font-bold text-white tabular-nums">{s.pct}%</span>
                                         </div>
                                     </div>
                                     <span className="w-12 text-right text-xs tabular-nums text-slate-500">{fmt(s.count)}</span>
                                 </div>
                             ))}
-                            <p className="text-[11px] text-slate-400 pt-1">จาก case_source ตอนเปิด Visit — ใช้ดูว่าช่องทางไหนพาลูกค้ามามากสุด เทียบกับงบยิงแอด</p>
+                            <p className="text-xs text-slate-500 pt-1">จาก case_source ตอนเปิด Visit — ใช้ดูว่าช่องทางไหนพาลูกค้ามามากสุด เทียบกับงบยิงแอด</p>
                         </div>
                     </div>
 
@@ -1002,12 +1005,12 @@ export default function ReportsClient({
                             <h2 className="text-sm font-bold text-slate-800">ผลแคมเปญ/โปรโมชัน</h2>
                         </div>
                         {campaigns.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีบิลที่แท็กแคมเปญ — ไปแท็กได้ที่หน้ารายละเอียดบิล (ช่อง &quot;แคมเปญ/โปรฯ&quot;)</p>
+                            <p className="text-center text-sm text-slate-500 py-8">ยังไม่มีบิลที่แท็กแคมเปญ — ไปแท็กได้ที่หน้ารายละเอียดบิล (ช่อง &quot;แคมเปญ/โปรฯ&quot;)</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60">
-                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2.5">แคมเปญ</th>
                                             <th className="text-right px-3 py-2.5">จำนวนบิล</th>
                                             <th className="text-right px-4 py-2.5">ยอดขาย</th>
@@ -1025,7 +1028,7 @@ export default function ReportsClient({
                                 </table>
                             </div>
                         )}
-                        <div className="px-4 py-3"><p className="text-[11px] text-slate-400">แท็กแคมเปญ/โค้ดโปรฯ ที่หน้ารายละเอียดบิล → เทียบว่าโปรฯ ไหนสร้างยอดได้ดีกว่ากัน</p></div>
+                        <div className="px-4 py-3"><p className="text-xs text-slate-500">แท็กแคมเปญ/โค้ดโปรฯ ที่หน้ารายละเอียดบิล → เทียบว่าโปรฯ ไหนสร้างยอดได้ดีกว่ากัน</p></div>
                     </div>
 
                     {/* Consultation Conversion */}
@@ -1033,15 +1036,15 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <Activity className="h-4 w-4 text-emerald-600" />
                             <h2 className="text-sm font-bold text-slate-800">อัตราปิดการขาย (Conversion)</h2>
-                            <span className="text-xs text-slate-400">รวม {conversion.rate}% ({fmt(conversion.closedVisits)}/{fmt(conversion.totalVisits)} visit)</span>
+                            <span className="text-xs text-slate-500">รวม {conversion.rate}% ({fmt(conversion.closedVisits)}/{fmt(conversion.totalVisits)} visit)</span>
                         </div>
                         {conversion.byDoctor.length === 0 ? (
-                            <p className="text-center text-sm text-slate-400 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
+                            <p className="text-center text-sm text-slate-500 py-8">ไม่มีข้อมูล visit ในช่วงนี้</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50/60">
-                                        <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                             <th className="text-left px-4 py-2.5">แพทย์</th>
                                             <th className="text-right px-3 py-2.5">Visit</th>
                                             <th className="text-right px-3 py-2.5">ปิดการขาย</th>
@@ -1062,7 +1065,7 @@ export default function ReportsClient({
                             </div>
                         )}
                         <div className="px-4 py-3">
-                            <p className="text-[11px] text-slate-400">ปิดการขาย = Visit ที่มีบิลชำระ &gt; 0 · ปรึกษาเยอะแต่ปิดน้อย = ทบทวนสคริปต์การขาย (กรองแผนกความงามด้วยปุ่ม BU ด้านบน)</p>
+                            <p className="text-xs text-slate-500">ปิดการขาย = Visit ที่มีบิลชำระ &gt; 0 · ปรึกษาเยอะแต่ปิดน้อย = ทบทวนสคริปต์การขาย (กรองแผนกความงามด้วยปุ่ม BU ด้านบน)</p>
                         </div>
                     </div>
 
@@ -1071,7 +1074,7 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <Users className="h-4 w-4 text-violet-600" />
                             <h2 className="text-sm font-bold text-slate-800">ข้อมูลประชากรลูกค้า (Demographics)</h2>
-                            <span className="text-xs text-slate-400">{fmt(demographics.total)} ราย</span>
+                            <span className="text-xs text-slate-500">{fmt(demographics.total)} ราย</span>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-4 p-4">
                             <div>
@@ -1083,13 +1086,13 @@ export default function ReportsClient({
                                             <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden">
                                                 <div className="h-full bg-violet-400 rounded" style={{ width: `${Math.max(g.pct, 3)}%` }} />
                                             </div>
-                                            <span className="w-16 text-right text-[11px] tabular-nums text-slate-500">{g.pct}% ({g.count})</span>
+                                            <span className="w-16 text-right text-xs tabular-nums text-slate-500">{g.pct}% ({g.count})</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                             <div>
-                                <div className="text-xs font-bold text-slate-600 mb-2">ช่วงอายุ {demographics.withDob < demographics.total && <span className="font-normal text-slate-400">(มีวันเกิด {fmt(demographics.withDob)} ราย)</span>}</div>
+                                <div className="text-xs font-bold text-slate-600 mb-2">ช่วงอายุ {demographics.withDob < demographics.total && <span className="font-normal text-slate-500">(มีวันเกิด {fmt(demographics.withDob)} ราย)</span>}</div>
                                 <div className="space-y-2">
                                     {demographics.ageBuckets.map(a => (
                                         <div key={a.label} className="flex items-center gap-2">
@@ -1097,13 +1100,13 @@ export default function ReportsClient({
                                             <div className="flex-1 h-5 rounded bg-slate-100 overflow-hidden">
                                                 <div className="h-full bg-sky-400 rounded" style={{ width: `${Math.max(a.pct, 2)}%` }} />
                                             </div>
-                                            <span className="w-16 text-right text-[11px] tabular-nums text-slate-500">{a.pct}% ({a.count})</span>
+                                            <span className="w-16 text-right text-xs tabular-nums text-slate-500">{a.pct}% ({a.count})</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                        <div className="px-4 pb-4"><p className="text-[11px] text-slate-400">ใช้ตั้งกลุ่มเป้าหมายยิงแอดออนไลน์ให้แม่นขึ้น · ข้อมูลทั้งคลินิก (ไม่ผูกช่วงวันที่/แผนก)</p></div>
+                        <div className="px-4 pb-4"><p className="text-xs text-slate-500">ใช้ตั้งกลุ่มเป้าหมายยิงแอดออนไลน์ให้แม่นขึ้น · ข้อมูลทั้งคลินิก (ไม่ผูกช่วงวันที่/แผนก)</p></div>
                     </div>
                 </div>
             )}
@@ -1114,25 +1117,25 @@ export default function ReportsClient({
                     {/* สรุปยอด */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <div className="gonix-card-premium p-4">
-                            <div className="text-[11px] font-bold text-slate-500 uppercase">ส่วนลดรวม</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase">ส่วนลดรวม</div>
                             <div className="text-2xl font-black text-red-600 tabular-nums mt-1">฿{fmt(discountReport.total)}</div>
                         </div>
                         <div className="gonix-card-premium p-4">
-                            <div className="text-[11px] font-bold text-slate-500 uppercase">% ของยอดขายเต็ม</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase">% ของยอดขายเต็ม</div>
                             <div className={`text-2xl font-black tabular-nums mt-1 ${discountReport.pctOfSales >= 15 ? "text-amber-600" : "text-slate-800"}`}>{discountReport.pctOfSales}%</div>
                         </div>
                         <div className="gonix-card-premium p-4">
-                            <div className="text-[11px] font-bold text-slate-500 uppercase">บิลที่มีส่วนลด</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase">บิลที่มีส่วนลด</div>
                             <div className="text-2xl font-black text-slate-800 tabular-nums mt-1">{fmt(discountReport.discountedBills)}</div>
                         </div>
                         <div className="gonix-card-premium p-4">
-                            <div className="text-[11px] font-bold text-slate-500 uppercase">ยอดขายเต็ม (ทั้งช่วง)</div>
+                            <div className="text-xs font-bold text-slate-500 uppercase">ยอดขายเต็ม (ทั้งช่วง)</div>
                             <div className="text-2xl font-black text-slate-800 tabular-nums mt-1">฿{fmt(discountReport.grossAll)}</div>
                         </div>
                     </div>
 
                     {discountReport.total === 0 ? (
-                        <div className="gonix-card-premium p-10 text-center text-sm text-slate-400">ช่วงนี้ยังไม่มีการให้ส่วนลด</div>
+                        <div className="gonix-card-premium p-10 text-center text-sm text-slate-500">ช่วงนี้ยังไม่มีการให้ส่วนลด</div>
                     ) : (
                         <>
                             {/* แยกตามประเภท */}
@@ -1148,11 +1151,11 @@ export default function ReportsClient({
                                             <div key={t.type} className="flex items-center gap-3">
                                                 <span className="w-52 shrink-0 text-xs font-bold text-slate-600 truncate">
                                                     {DISCOUNT_KIND_LABEL[t.type as keyof typeof DISCOUNT_KIND_LABEL] || t.type}
-                                                    <span className="text-slate-400 font-normal ml-1">({t.count})</span>
+                                                    <span className="text-slate-500 font-normal ml-1">({t.count})</span>
                                                 </span>
                                                 <div className="flex-1 h-6 rounded-lg bg-slate-100 overflow-hidden">
                                                     <div className="h-full bg-red-400/80 rounded-lg flex items-center justify-end px-2" style={{ width: `${Math.max(pct, 3)}%` }}>
-                                                        <span className="text-[10px] font-bold text-white tabular-nums">{pct}%</span>
+                                                        <span className="text-xs font-bold text-white tabular-nums">{pct}%</span>
                                                     </div>
                                                 </div>
                                                 <span className="w-24 text-right text-xs tabular-nums font-bold text-red-600">฿{fmt2(t.amount)}</span>
@@ -1167,15 +1170,15 @@ export default function ReportsClient({
                                 <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                                     <Sparkles className="h-4 w-4 text-pink-600" />
                                     <h2 className="text-sm font-bold text-slate-800">ผลแคมเปญ/โค้ดโปรฯ</h2>
-                                    <span className="text-xs text-slate-400">(ใช้โค้ดจริงตอนคิดเงิน)</span>
+                                    <span className="text-xs text-slate-500">(ใช้โค้ดจริงตอนคิดเงิน)</span>
                                 </div>
                                 {discountReport.byCampaign.length === 0 ? (
-                                    <p className="text-center text-sm text-slate-400 py-8">ช่วงนี้ยังไม่มีบิลที่ใช้โค้ดแคมเปญ</p>
+                                    <p className="text-center text-sm text-slate-500 py-8">ช่วงนี้ยังไม่มีบิลที่ใช้โค้ดแคมเปญ</p>
                                 ) : (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm min-w-[640px]">
                                             <thead className="bg-slate-50/60">
-                                                <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                                     <th className="text-left px-4 py-2.5">โค้ด / แคมเปญ</th>
                                                     <th className="text-right px-3 py-2.5">บิล</th>
                                                     <th className="text-right px-3 py-2.5">ลูกค้า</th>
@@ -1189,7 +1192,7 @@ export default function ReportsClient({
                                                         <td className="px-4 py-2.5">
                                                             <span className="font-mono font-bold text-blue-700">{c.code}</span>
                                                             <span className="text-xs text-slate-500 ml-1.5">{c.name}</span>
-                                                            {c.channel && <span className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded ml-1">{c.channel}</span>}
+                                                            {c.channel && <span className="text-xs font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded ml-1">{c.channel}</span>}
                                                         </td>
                                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(c.invoice_count)}</td>
                                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">{fmt(c.unique_patients)}</td>
@@ -1209,7 +1212,7 @@ export default function ReportsClient({
                                     <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                                         <AlertTriangle className="h-4 w-4 text-amber-500" />
                                         <h2 className="text-sm font-bold text-slate-800">ให้ส่วนลดโดย</h2>
-                                        <span className="text-xs text-slate-400">(ตรวจสอบการให้ส่วนลดผิดปกติ)</span>
+                                        <span className="text-xs text-slate-500">(ตรวจสอบการให้ส่วนลดผิดปกติ)</span>
                                     </div>
                                     <div className="divide-y divide-slate-100">
                                         {discountReport.topStaff.map((s, i) => (
@@ -1221,7 +1224,7 @@ export default function ReportsClient({
                                     </div>
                                 </div>
                             )}
-                            <p className="text-[11px] text-slate-400 px-1">ส่วนลดยึดยอดจริงจากหัวบิล — บิลเก่าที่ไม่ได้บันทึกที่มาจะรวมอยู่ใน &quot;ไม่ระบุที่มา&quot;</p>
+                            <p className="text-xs text-slate-500 px-1">ส่วนลดยึดยอดจริงจากหัวบิล — บิลเก่าที่ไม่ได้บันทึกที่มาจะรวมอยู่ใน &quot;ไม่ระบุที่มา&quot;</p>
                         </>
                     )}
                 </div>
@@ -1235,35 +1238,35 @@ export default function ReportsClient({
                         <div className="flex items-center gap-2 mb-3"><AlertTriangle className="h-4 w-4 text-rose-500" /><h2 className="text-sm font-bold text-slate-800">ความปลอดภัยเชิงคลินิก (Safety)</h2></div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             <div className="rounded-xl bg-slate-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-slate-500">เคสที่ติดตาม</div>
+                                <div className="text-xs uppercase font-bold text-slate-500">เคสที่ติดตาม</div>
                                 <div className="text-xl font-black text-slate-800">{fmt(safety.cases)}</div>
                             </div>
                             <div className="rounded-xl bg-rose-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-rose-600">% มี Complication</div>
+                                <div className="text-xs uppercase font-bold text-rose-600">% มี Complication</div>
                                 <div className="text-xl font-black text-rose-700">{safety.complicationPct}%</div>
-                                <div className="text-[10px] text-slate-400">{fmt(safety.complicationCases)} เคส</div>
+                                <div className="text-xs text-slate-500">{fmt(safety.complicationCases)} เคส</div>
                             </div>
                             <div className="rounded-xl bg-amber-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-amber-600">แจ้งเตือนแพทย์</div>
+                                <div className="text-xs uppercase font-bold text-amber-600">แจ้งเตือนแพทย์</div>
                                 <div className="text-xl font-black text-amber-700">{fmt(safety.escalations)}</div>
                             </div>
                             <div className="rounded-xl bg-slate-50 p-3">
-                                <div className="text-[10px] uppercase font-bold text-slate-500">เวลาตอบเฉลี่ย</div>
+                                <div className="text-xs uppercase font-bold text-slate-500">เวลาตอบเฉลี่ย</div>
                                 <div className="text-xl font-black text-slate-800">{safety.avgResponseMin !== null ? `${safety.avgResponseMin} น.` : "—"}</div>
                             </div>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-3">Complication = เคสที่ flag เหลือง/แดง หรือแจ้งเตือนแพทย์ · เวลาตอบ = escalate → ปิดเคส · ดู pattern ความปลอดภัยภาพรวม</p>
+                        <p className="text-xs text-slate-500 mt-3">Complication = เคสที่ flag เหลือง/แดง หรือแจ้งเตือนแพทย์ · เวลาตอบ = escalate → ปิดเคส · ดู pattern ความปลอดภัยภาพรวม</p>
                     </div>
 
                     {/* Sales forecast */}
                     <div className="gonix-card-premium p-5">
                         <div className="flex items-center gap-2 mb-3"><TrendingUp className="h-4 w-4 text-[#2B54F0]" /><h2 className="text-sm font-bold text-slate-800">พยากรณ์ยอดขายเดือนถัดไป</h2></div>
-                        {!forecast.hasData ? <p className="text-center text-sm text-slate-400 py-4">ข้อมูลย้อนหลังไม่พอสำหรับพยากรณ์</p> : (
+                        {!forecast.hasData ? <p className="text-center text-sm text-slate-500 py-4">ข้อมูลย้อนหลังไม่พอสำหรับพยากรณ์</p> : (
                             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                                 <div className="shrink-0">
-                                    <div className="text-[11px] text-slate-500">{forecast.nextMonthLabel}</div>
+                                    <div className="text-xs text-slate-500">{forecast.nextMonthLabel}</div>
                                     <div className="text-3xl font-black text-[#2B54F0]">~฿{fmt(forecast.predicted)}</div>
-                                    <div className="text-[10px] text-slate-400 mt-0.5">{forecast.method}</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">{forecast.method}</div>
                                 </div>
                                 <div className="flex-1 flex items-end gap-1 h-20">
                                     {forecast.monthly.slice(-6).map(m => {
@@ -1271,7 +1274,7 @@ export default function ReportsClient({
                                         return (
                                             <div key={m.month} className="flex-1 flex flex-col items-center gap-1" title={`${m.month}: ฿${fmt(m.revenue)}`}>
                                                 <div className="w-full rounded-t bg-slate-300" style={{ height: `${Math.max((m.revenue / mx) * 64, 2)}px` }} />
-                                                <span className="text-[9px] text-slate-400">{m.month.slice(5)}</span>
+                                                <span className="text-[9px] text-slate-500">{m.month.slice(5)}</span>
                                             </div>
                                         );
                                     })}
@@ -1282,7 +1285,7 @@ export default function ReportsClient({
                                 </div>
                             </div>
                         )}
-                        <p className="text-[11px] text-slate-400 mt-3">heuristic จากยอดย้อนหลัง (ไม่ใช่ ML) — ใช้วางแผนสต๊อก/กำลังคน/แคมเปญล่วงหน้า</p>
+                        <p className="text-xs text-slate-500 mt-3">heuristic จากยอดย้อนหลัง (ไม่ใช่ ML) — ใช้วางแผนสต๊อก/กำลังคน/แคมเปญล่วงหน้า</p>
                     </div>
 
                     {/* Churn risk */}
@@ -1290,21 +1293,21 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4 text-rose-500" />
                             <h2 className="text-sm font-bold text-slate-800">ลูกค้าเสี่ยงหาย ควรติดตาม (Churn Risk)</h2>
-                            <span className="text-xs text-slate-400">{churnCustomers.length} ราย</span>
+                            <span className="text-xs text-slate-500">{churnCustomers.length} ราย</span>
                             {churnCustomers.length > 0 && <button onClick={exportChurn} className="ml-auto text-xs font-bold text-[#2B54F0] inline-flex items-center gap-1"><Download className="h-3.5 w-3.5" /> Export</button>}
                         </div>
-                        {churnCustomers.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ยังไม่มีลูกค้ากลุ่มเสี่ยงหาย </p> : (
+                        {churnCustomers.length === 0 ? <p className="text-center text-sm text-slate-500 py-8">ยังไม่มีลูกค้ากลุ่มเสี่ยงหาย </p> : (
                             <div className="overflow-x-auto max-h-80">
                                 <table className="w-full text-sm">
-                                    <thead className="bg-slate-50/60 sticky top-0"><tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <thead className="bg-slate-50/60 sticky top-0"><tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-4 py-2">ลูกค้า</th><th className="text-left px-3 py-2">กลุ่ม</th>
                                         <th className="text-right px-3 py-2">ไม่มา (วัน)</th><th className="text-right px-4 py-2">ยอดสะสม</th>
                                     </tr></thead>
                                     <tbody>
                                         {churnCustomers.map(c => (
                                             <tr key={c.hn} className="border-t border-slate-100 hover:bg-slate-50/40">
-                                                <td className="px-4 py-2"><Link href={`/dashboard/patients/${c.hn}`} className="font-bold text-slate-800 hover:text-[#2B54F0]">{c.name}</Link>{c.phone && <span className="ml-1.5 text-[11px] text-slate-400">{c.phone}</span>}</td>
-                                                <td className="px-3 py-2"><span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">{RFM_LABEL[c.segment] || c.segment}</span></td>
+                                                <td className="px-4 py-2"><Link href={`/dashboard/patients/${c.hn}`} className="font-bold text-slate-800 hover:text-[#2B54F0]">{c.name}</Link>{c.phone && <span className="ml-1.5 text-xs text-slate-500">{c.phone}</span>}</td>
+                                                <td className="px-3 py-2"><span className="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">{RFM_LABEL[c.segment] || c.segment}</span></td>
                                                 <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmt(c.recencyDays)}</td>
                                                 <td className="px-4 py-2 text-right tabular-nums font-bold text-slate-700">฿{fmt(c.monetary)}</td>
                                             </tr>
@@ -1313,7 +1316,7 @@ export default function ReportsClient({
                                 </table>
                             </div>
                         )}
-                        <div className="px-4 py-3"><p className="text-[11px] text-slate-400">กลุ่ม ห้ามเสียไป/เสี่ยงหาย/ใกล้หาย — Export ไปบรอดแคสต์ LINE/ยิงแอด retarget ก่อนลูกค้าหายจริง</p></div>
+                        <div className="px-4 py-3"><p className="text-xs text-slate-500">กลุ่ม ห้ามเสียไป/เสี่ยงหาย/ใกล้หาย — Export ไปบรอดแคสต์ LINE/ยิงแอด retarget ก่อนลูกค้าหายจริง</p></div>
                     </div>
 
                     {/* Anomaly detection */}
@@ -1321,9 +1324,9 @@ export default function ReportsClient({
                         <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
                             <Activity className="h-4 w-4 text-amber-600" />
                             <h2 className="text-sm font-bold text-slate-800">วันยอดขายผิดปกติ (Anomaly)</h2>
-                            <span className="text-xs text-slate-400">{anomalies.length} วัน</span>
+                            <span className="text-xs text-slate-500">{anomalies.length} วัน</span>
                         </div>
-                        {anomalies.length === 0 ? <p className="text-center text-sm text-slate-400 py-8">ไม่พบวันที่ยอดผิดปกติในช่วงนี้</p> : (
+                        {anomalies.length === 0 ? <p className="text-center text-sm text-slate-500 py-8">ไม่พบวันที่ยอดผิดปกติในช่วงนี้</p> : (
                             <div className="p-4 space-y-2">
                                 {anomalies.map(a => (
                                     <div key={a.date} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${a.type === "high" ? "bg-emerald-50" : "bg-rose-50"}`}>
@@ -1334,7 +1337,7 @@ export default function ReportsClient({
                                 ))}
                             </div>
                         )}
-                        <div className="px-4 pb-3"><p className="text-[11px] text-slate-400">เทียบกับค่าเฉลี่ยวันเดียวกันของสัปดาห์ (z-score &gt; 1.5) — ช่วยจับวันที่ยอดพุ่ง/ตกโดยไม่ต้องไล่ดูเอง</p></div>
+                        <div className="px-4 pb-3"><p className="text-xs text-slate-500">เทียบกับค่าเฉลี่ยวันเดียวกันของสัปดาห์ (z-score &gt; 1.5) — ช่วยจับวันที่ยอดพุ่ง/ตกโดยไม่ต้องไล่ดูเอง</p></div>
                     </div>
 
                     {/* Executive summary */}
@@ -1348,7 +1351,7 @@ export default function ReportsClient({
                             </button>
                             {execMsg && <span className="text-xs text-slate-600">{execMsg}</span>}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-2">ส่งสรุปเข้า LINE ตัวเองแบบ manual (ต้องผูก LINE ที่โปรไฟล์) · เวอร์ชันส่งอัตโนมัติรายสัปดาห์/เดือนต้องตั้ง cron เพิ่ม</p>
+                        <p className="text-xs text-slate-500 mt-2">ส่งสรุปเข้า LINE ตัวเองแบบ manual (ต้องผูก LINE ที่โปรไฟล์) · เวอร์ชันส่งอัตโนมัติรายสัปดาห์/เดือนต้องตั้ง cron เพิ่ม</p>
                     </div>
                 </div>
             )}
@@ -1371,7 +1374,7 @@ export default function ReportsClient({
                         <div className="flex-1 overflow-y-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50/60 sticky top-0">
-                                    <tr className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                    <tr className="text-xs font-bold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-4 py-2">ใบเสร็จ</th>
                                         <th className="text-left px-4 py-2">คนไข้</th>
                                         <th className="text-right px-4 py-2">ค้าง</th>
@@ -1382,22 +1385,22 @@ export default function ReportsClient({
                                     {outstanding.map(o => (
                                         <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50/40">
                                             <td className="px-4 py-2.5">
-                                                <Link href={`/dashboard/finance/${o.id}`} className="font-mono text-[11px] text-cyan-600 hover:underline">
+                                                <Link href={`/dashboard/finance/${o.id}`} className="font-mono text-xs text-cyan-600 hover:underline">
                                                     {o.id}
                                                 </Link>
-                                                <div className="text-[10px] text-slate-400">{formatDateThai(o.invoice_date)}</div>
+                                                <div className="text-xs text-slate-500">{formatDateThai(o.invoice_date)}</div>
                                             </td>
                                             <td className="px-4 py-2.5">
                                                 <div className="font-medium text-slate-700">{o.patient_name}</div>
-                                                <div className="text-[10px] text-slate-400 font-mono">{o.hn}</div>
+                                                <div className="text-xs text-slate-500 font-mono">{o.hn}</div>
                                             </td>
                                             <td className="px-4 py-2.5 text-right">
                                                 <div className="font-bold text-amber-700 tabular-nums">฿{fmt2(o.balance)}</div>
-                                                <div className="text-[10px] text-slate-400">{STATUS_LABEL[o.status] || o.status}</div>
+                                                <div className="text-xs text-slate-500">{STATUS_LABEL[o.status] || o.status}</div>
                                             </td>
                                             <td className="px-2">
                                                 <Link href={`/dashboard/finance/${o.id}`}>
-                                                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                                                    <ChevronRight className="h-4 w-4 text-slate-500" />
                                                 </Link>
                                             </td>
                                         </tr>
@@ -1420,16 +1423,6 @@ function PresetBtn({ onClick, children }: { onClick: () => void; children: React
     );
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-    return (
-        <button
-            onClick={onClick}
-            className={`h-9 px-4 rounded-lg text-sm font-bold transition-all ${active ? "bg-white text-[#2B54F0] shadow-sm" : "text-slate-600 hover:text-slate-800"}`}
-        >
-            {children}
-        </button>
-    );
-}
 
 function pctChange(cur: number, prev: number): number | null {
     if (!prev || prev === 0) return null;
@@ -1437,11 +1430,11 @@ function pctChange(cur: number, prev: number): number | null {
 }
 
 function DeltaBadge({ delta }: { delta: number | null }) {
-    if (delta === null) return <span className="text-[10px] text-slate-400">— เทียบช่วงก่อน</span>;
+    if (delta === null) return <span className="text-xs text-slate-500">— เทียบช่วงก่อน</span>;
     const up = delta >= 0;
     return (
-        <span className={`text-[10px] font-bold inline-flex items-center gap-0.5 ${up ? "text-emerald-600" : "text-rose-500"}`}>
-            {up ? "▲" : "▼"} {Math.abs(delta)}% <span className="text-slate-400 font-normal">เทียบช่วงก่อน</span>
+        <span className={`text-xs font-bold inline-flex items-center gap-0.5 ${up ? "text-emerald-600" : "text-rose-500"}`}>
+            {up ? "▲" : "▼"} {Math.abs(delta)}% <span className="text-slate-500 font-normal">เทียบช่วงก่อน</span>
         </span>
     );
 }
@@ -1471,7 +1464,7 @@ function StatCard({ icon: Icon, label, value, color, sub, delta }: {
                 <div className="text-sm font-medium text-slate-700 mt-0.5">{label}</div>
                 {delta !== undefined
                     ? <div className="mt-0.5"><DeltaBadge delta={delta} /></div>
-                    : sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+                    : sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
             </div>
         </div>
     );
@@ -1496,38 +1489,38 @@ function PeakHeatmap({ peak }: { peak: PeakHours }) {
         <table className="border-separate" style={{ borderSpacing: 3 }}>
             <thead>
                 <tr>
-                    <th className="text-[10px] font-bold text-slate-400 text-right pr-2 sticky left-0 bg-white">วัน \ ชม.</th>
+                    <th className="text-xs font-bold text-slate-500 text-right pr-2 sticky left-0 bg-white">วัน \ ชม.</th>
                     {hours.map(h => (
-                        <th key={h} className="text-[10px] font-bold text-slate-500 w-8 text-center">{String(h).padStart(2, "0")}</th>
+                        <th key={h} className="text-xs font-bold text-slate-500 w-8 text-center">{String(h).padStart(2, "0")}</th>
                     ))}
-                    <th className="text-[10px] font-bold text-slate-400 text-center pl-2">รวม</th>
+                    <th className="text-xs font-bold text-slate-500 text-center pl-2">รวม</th>
                 </tr>
             </thead>
             <tbody>
                 {peak.grid.map((row, day) => (
                     <tr key={day}>
-                        <td className="text-[11px] font-bold text-slate-600 text-right pr-2 sticky left-0 bg-white">{DAYS_TH[day]}</td>
+                        <td className="text-xs font-bold text-slate-600 text-right pr-2 sticky left-0 bg-white">{DAYS_TH[day]}</td>
                         {hours.map(h => {
                             const c = row[h];
                             return (
                                 <td key={h} title={`${DAYS_TH[day]} ${String(h).padStart(2, "0")}:00 · ${c} visit`}
                                     className="w-8 h-8 text-center align-middle rounded"
                                     style={{ background: cellBg(c) }}>
-                                    <span className={`text-[10px] tabular-nums ${c > 0 ? (peak.maxCell > 0 && c / peak.maxCell > 0.55 ? "text-white font-bold" : "text-slate-700") : "text-slate-200"}`}>
+                                    <span className={`text-xs tabular-nums ${c > 0 ? (peak.maxCell > 0 && c / peak.maxCell > 0.55 ? "text-white font-bold" : "text-slate-700") : "text-slate-200"}`}>
                                         {c > 0 ? c : "·"}
                                     </span>
                                 </td>
                             );
                         })}
-                        <td className="text-[11px] font-bold text-slate-500 text-center pl-2 tabular-nums">{peak.byDay[day]}</td>
+                        <td className="text-xs font-bold text-slate-500 text-center pl-2 tabular-nums">{peak.byDay[day]}</td>
                     </tr>
                 ))}
                 <tr>
-                    <td className="text-[10px] font-bold text-slate-400 text-right pr-2 sticky left-0 bg-white">รวม</td>
+                    <td className="text-xs font-bold text-slate-500 text-right pr-2 sticky left-0 bg-white">รวม</td>
                     {hours.map(h => (
-                        <td key={h} className="text-[10px] font-bold text-slate-500 text-center tabular-nums">{peak.byHour[h] || ""}</td>
+                        <td key={h} className="text-xs font-bold text-slate-500 text-center tabular-nums">{peak.byHour[h] || ""}</td>
                     ))}
-                    <td className="text-[11px] font-black text-slate-700 text-center pl-2 tabular-nums">{peak.total}</td>
+                    <td className="text-xs font-black text-slate-700 text-center pl-2 tabular-nums">{peak.total}</td>
                 </tr>
             </tbody>
         </table>
