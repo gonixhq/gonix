@@ -36,6 +36,26 @@ const UNIT_OPTIONS = [
 // prefix รหัสสินค้าตามหมวดหมู่
 const CODE_PREFIX: Record<string, string> = { drug: "DRG", supply: "SUP", aesthetic_supply: "AES", service: "SVC" };
 
+// ชนิดสินค้า (ข้อ 6) — เลือกก่อน แล้วฟอร์มโชว์เฉพาะช่องที่เกี่ยวข้อง
+const ITEM_KINDS = [
+    { k: "drug", label: "ยา", sub: "เม็ด/น้ำ/ครีม — มีฉลากยา", category: "drug", deduction: "unit_piece", segment: "medical" },
+    { k: "aesthetic", label: "เวชภัณฑ์ความงาม", sub: "Botox/Filler/HIFU — เปิดขวดแบ่งใช้", category: "aesthetic_supply", deduction: "injectable_vial", segment: "aesthetic" },
+    { k: "supply", label: "อุปกรณ์/วัสดุ", sub: "นับชิ้น ตัดทีละชิ้นตอนใช้", category: "supply", deduction: "unit_piece", segment: "product" },
+    { k: "consumable", label: "วัสดุสิ้นเปลือง", sub: "สำลี/แอลกอฮอล์ — นับเป็นรอบ", category: "supply", deduction: "consumable_periodic", segment: "product" },
+] as const;
+type ItemKind = typeof ITEM_KINDS[number]["k"];
+const kindOf = (category: string, deduction: string): ItemKind =>
+    deduction === "injectable_vial" ? "aesthetic" : deduction === "consumable_periodic" ? "consumable" : category === "drug" ? "drug" : "supply";
+
+// แบรนด์ยอดนิยมตามประเภทหัตถการ (ข้อ 9) — รวมกับแบรนด์ที่คลินิกเคยใช้
+const BRAND_PRESET: Record<string, string[]> = {
+    botox: ["Allergan (Botox)", "Hugel (Botulax)", "Daewoong (Nabota)", "Medytox (Neuronox)", "Merz (Xeomin)", "Galderma (Dysport)"],
+    filler: ["Allergan (Juvederm)", "Galderma (Restylane)", "Teoxane", "Neuramis", "Elasty", "Exquiller", "Belotero"],
+    skinbooster: ["Galderma (Restylane Skinboosters)", "Allergan (Juvederm Skinvive)", "Rejuran", "Profhilo"],
+    biostimulator: ["Galderma (Sculptra)", "Merz (Radiesse)", "Ellanse"],
+    hifu: ["Ulthera", "Ultraformer", "Doublo"],
+};
+
 // ค่าตั้งต้นตามประเภทหัตถการ (ข้อ 1) — หน่วยตัดสต๊อก / ภาชนะ / ความจุตัวอย่าง / อายุหลังเปิด
 const PRODUCT_PRESET: Record<string, { unit: string; container: string; capPh: string; shelfHours?: number }> = {
     botox: { unit: "unit", container: "ขวด", capPh: "เช่น 100 (Botox 100u) หรือ 50", shelfHours: 24 },
@@ -132,6 +152,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState("");
     const [codePreview, setCodePreview] = useState(item?.item_code || "Auto");
+    const [showAdvanced, setShowAdvanced] = useState(false);   // หมวด/การตัดสต๊อก (ชนิดสินค้าตั้งให้แล้ว)
 
     // --- Section 1: Basic Info ---
     const [itemName, setItemName] = useState(item?.item_name || "");
@@ -152,6 +173,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [productType, setProductType] = useState(item?.product_type || "");   // ประเภทหัตถการ (mig 122)
     const [brandOptions, setBrandOptions] = useState<string[]>([]);
     const [modelOptions, setModelOptions] = useState<string[]>([]);
+    const [brandModels, setBrandModels] = useState<{ brand: string; model: string }[]>([]);
+    const [dupNames, setDupNames] = useState<{ id: string; item_name: string; item_code: string | null; is_active: boolean }[]>([]);
     const [genericName, setGenericName] = useState(item?.generic_name || "");
     const [tradeName, setTradeName] = useState(item?.trade_name || "");
     const [strengthValue, setStrengthValue] = useState(item?.strength || "");
@@ -262,10 +285,27 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
             if (!alive || !data) return;
             setBrandOptions([...new Set(data.map(d => d.brand).filter(Boolean) as string[])].sort());
             setModelOptions([...new Set(data.map(d => d.model_variant).filter(Boolean) as string[])].sort());
+            setBrandModels(data.filter(d => d.brand && d.model_variant).map(d => ({ brand: d.brand as string, model: d.model_variant as string })));
         })();
         return () => { alive = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // ข้อ 7: เตือนชื่อซ้ำ/คล้าย (ก่อนบันทึก)
+    useEffect(() => {
+        const q = itemName.trim();
+        if (q.length < 3 || (isEdit && q === item?.item_name)) { setDupNames([]); return; }
+        const t = setTimeout(async () => {
+            const first = q.split(/\s+/)[0].replace(/[%,()]/g, "");
+            const { data } = await supabase.from("inventory").select("id, item_name, item_code, is_active")
+                .ilike("item_name", `%${first}%`).limit(8);
+            const norm = (x: string) => x.replace(/\s+/g, "").toLowerCase();
+            setDupNames((data || []).filter(d => d.id !== item?.id && (norm(d.item_name as string).includes(norm(q)) || norm(q).includes(norm(d.item_name as string)) || norm(d.item_name as string).startsWith(norm(first))))
+                .slice(0, 5) as typeof dupNames);
+        }, 400);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itemName]);
 
     async function handleSave() {
         // ของฉีด: หน่วยนับ = หน่วยความจุ เสมอ (ช่องหน่วยนับถูกซ่อน) → บังคับให้ตรงตอนบันทึก
@@ -415,12 +455,36 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 </div>
             )}
 
+            {/* ═══════════ ชนิดสินค้า (ข้อ 6) ═══════════ */}
+            {(() => {
+                const cur = kindOf(category, deductionType);
+                return (
+                    <div className="rounded-2xl bg-white/90 border border-slate-200 p-4">
+                        <div className="text-sm font-bold text-slate-700 mb-2">ชนิดสินค้า {isEdit && <span className="text-xs font-normal text-slate-400">(เปลี่ยนได้ แต่ระวังสต๊อก/ล็อตเดิม)</span>}</div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                            {ITEM_KINDS.map(k => (
+                                <button key={k.k} type="button" onClick={() => {
+                                    setCategory(k.category); setDeductionType(k.deduction); setSegment(k.segment);
+                                    if (k.deduction === "injectable_vial" && !unit) setUnit(capacityUnitLabel);
+                                }} className={`text-left rounded-xl border-2 px-3 py-2.5 transition-all ${cur === k.k ? "border-blue-600 bg-blue-50" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
+                                    <div className={`font-bold ${cur === k.k ? "text-blue-800" : "text-slate-700"}`}>{k.label}</div>
+                                    <div className="text-[11px] text-slate-500">{k.sub}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* ═══════════ SECTION 1: ข้อมูลพื้นฐาน ═══════════ */}
             <Section title="ข้อมูลพื้นฐาน" icon={FileText} color="teal">
                     <FieldRow label="รหัส">
-                        <Input value={codePreview} disabled className={`${inputCls} bg-slate-100 text-slate-500 border-dashed font-mono`} />
+                        <div className="flex items-center gap-2">
+                            <Input value={codePreview} disabled className={`${inputCls} bg-slate-100 text-slate-500 border-dashed font-mono`} />
+                            <button type="button" onClick={() => setShowAdvanced(v => !v)} className="shrink-0 text-xs text-blue-700 underline whitespace-nowrap">{showAdvanced ? "ซ่อนตั้งค่าขั้นสูง" : "หมวด/การตัดสต๊อก"}</button>
+                        </div>
                     </FieldRow>
-                    <FieldRow label="หมวดหมู่" hint="ยา = มีฉลาก/วิธีใช้ (DRG) · เวชภัณฑ์ = อุปกรณ์/วัสดุ (SUP) · เวชภัณฑ์ความงาม = Botox/Filler/HIFU ฯลฯ (AES)">
+                    <FieldRow label="หมวดหมู่" hidden={!showAdvanced} hint="ยา = มีฉลาก/วิธีใช้ (DRG) · เวชภัณฑ์ = อุปกรณ์/วัสดุ (SUP) · เวชภัณฑ์ความงาม = Botox/Filler/HIFU ฯลฯ (AES)">
                         <select className={selectCls} value={category} onChange={e => setCategory(e.target.value)}>
                             <option value="drug">ยา (Drug)</option>
                             <option value="supply">เวชภัณฑ์ (Supply)</option>
@@ -440,7 +504,17 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     </FieldRow>
 
                     <FieldRow label="ชื่อแสดง" required colSpan={2}>
-                        <Input value={itemName} onChange={e => setItemName(e.target.value)} placeholder="เช่น Paracetamol 500mg" className={inputCls} />
+                        <Input value={itemName} onChange={e => setItemName(e.target.value)} placeholder={deductionType === "injectable_vial" ? "เช่น Juvederm Volbella 1cc" : deductionType === "consumable_periodic" ? "เช่น สำลีก้อน" : category === "drug" ? "เช่น Paracetamol 500mg" : "เช่น เข็ม 27G"} className={inputCls} />
+                        {dupNames.length > 0 && (
+                            <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                <b>มีสินค้าชื่อคล้ายกันในคลังแล้ว</b> — ตรวจก่อนสร้างซ้ำ:
+                                <ul className="mt-1 space-y-0.5">
+                                    {dupNames.map(d => (
+                                        <li key={d.id}><a href={`/dashboard/inventory/${d.id}`} target="_blank" rel="noopener noreferrer" className="underline font-semibold">{d.item_name}</a> <span className="text-amber-700 font-mono">{d.item_code || ""}</span>{!d.is_active && <span className="text-slate-500"> (ปิดใช้งาน)</span>}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </FieldRow>
 
                     <FieldRow label="ชื่อสามัญ" hidden={!showDrugLabel}>
@@ -459,7 +533,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     </FieldRow>
 
                     {/* ประเภทการตัดสต๊อก (P01) — ตัวสลับหลักว่าของชิ้นนี้ตัดสต๊อกแบบไหน */}
-                    <FieldRow label="ประเภทการตัดสต๊อก" required colSpan={2}>
+                    <FieldRow label="การตัดสต๊อก" required colSpan={2} hidden={!showAdvanced}>
                         <select value={deductionType} onChange={e => {
                             const v = e.target.value;
                             setDeductionType(v);
@@ -485,11 +559,11 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </FieldRow>
                             <FieldRow label="แบรนด์">
                                 <Input list="brand-options" value={brand} onChange={e => setBrand(e.target.value)} placeholder="เช่น Allergan, Galderma" className={inputCls} />
-                                <datalist id="brand-options">{brandOptions.map(b => <option key={b} value={b} />)}</datalist>
+                                <datalist id="brand-options">{[...new Set([...brandOptions, ...(BRAND_PRESET[productType] || [])])].map(b => <option key={b} value={b} />)}</datalist>
                             </FieldRow>
                             <FieldRow label="รุ่น / variant">
                                 <Input list="model-options" value={modelVariant} onChange={e => setModelVariant(e.target.value)} placeholder="เช่น Voluma, Volbella" className={inputCls} />
-                                <datalist id="model-options">{modelOptions.map(m => <option key={m} value={m} />)}</datalist>
+                                <datalist id="model-options">{(brand && brandModels.some(x => x.brand === brand) ? [...new Set(brandModels.filter(x => x.brand === brand).map(x => x.model))] : modelOptions).map(m => <option key={m} value={m} />)}</datalist>
                             </FieldRow>
                             <FieldRow label="หน่วยที่ตัดสต๊อก" required hint="หน่วยที่ใช้ต่อเคส — ฉีดแบ่งจากขวดใช้ unit/cc/shot · ใช้ทีละขวด/หลอดทั้งชิ้นเลือกกลุ่ม &quot;ใช้ทั้งชิ้น&quot; (ความจุ = 1)">
                                 {/* หน่วยจริงที่นับ/ตัด (u/cc/shot) — sync ไป unit ด้วย ผู้ใช้ไม่ต้องกรอกซ้ำ */}
@@ -539,10 +613,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     {/* ── นับชิ้น: หน่วยใหญ่ + อัตราแปลง (ไม่บังคับ) ── */}
                     {deductionType === "unit_piece" && (
                         <>
-                            <FieldRow label="หน่วยใหญ่ (Pack)">
+                            <FieldRow label="หน่วยใหญ่">
                                 <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
                             </FieldRow>
-                            <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
+                            <FieldRow label="อัตราแปลง" hint="1 หน่วยใหญ่ = กี่หน่วยย่อย">
                                 <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
                             </FieldRow>
                         </>
@@ -551,13 +625,13 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     {/* ── สิ้นเปลือง: กลุ่มนับ + อัตราแปลง (นับเป็นรอบ ไม่ตัดต่อเคส) ── */}
                     {deductionType === "consumable_periodic" && (
                         <>
-                            <FieldRow label="หน่วยใหญ่ (Pack)">
+                            <FieldRow label="หน่วยใหญ่">
                                 <Input value={purchaseUnit} onChange={e => setPurchaseUnit(e.target.value)} placeholder="เช่น กล่อง, แพ็ก" className={inputCls} />
                             </FieldRow>
-                            <FieldRow label="อัตราแปลง (1 หน่วยใหญ่ = ? หน่วยย่อย)">
+                            <FieldRow label="อัตราแปลง" hint="1 หน่วยใหญ่ = กี่หน่วยย่อย">
                                 <Input type="number" min={0} value={unitsPerPack} onChange={e => setUnitsPerPack(e.target.value)} placeholder="เช่น 100" className={inputCls} />
                             </FieldRow>
-                            <FieldRow label="กลุ่มนับ (Consumables)" colSpan={2}>
+                            <FieldRow label="กลุ่มนับ" colSpan={2}>
                                 <select value={trackGroup} onChange={e => setTrackGroup(e.target.value)} className={selectCls}>
                                     <option value="">— ไม่ระบุ —</option>
                                     <option value="A">A — นับระดับ Pack (สำลี/แอลกอฮอล์/ถุงมือ)</option>
@@ -696,9 +770,9 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
 
             {/* ═══════════ SECTION 3: ราคา สต๊อก ═══════════ */}
             <Section title="ราคา และสต๊อก" icon={CircleDollarSign} color="emerald">
-                    <SubHeader label="ราคาและสต๊อก" />
+                    <SubHeader label="ราคาและค่าตอบแทน" />
                     {deductionType === "injectable_vial" && Number(unitsPerPack) > 0 && (
-                        <FieldRow label={`ทุนต่อ${purchaseUnit || "ขวด"} (฿)`} hint={`กรอกราคาที่ซื้อจริงต่อ${purchaseUnit || "ขวด"} — ระบบหารเป็นทุนต่อ ${capacityUnitLabel} ให้`} colSpan={2}>
+                        <FieldRow label={`ทุน/${purchaseUnit || "ขวด"}`} hint={`กรอกราคาที่ซื้อจริงต่อ${purchaseUnit || "ขวด"} — ระบบหารเป็นทุนต่อ ${capacityUnitLabel} ให้`} colSpan={2}>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <Input type="number" min={0} value={costPerPack} onChange={e => { setCostPerPack(e.target.value); const v = parseFloat(e.target.value); if (v > 0) setCostPrice(String(Math.round(v / Number(unitsPerPack) * 100) / 100)); }}
                                     placeholder={costPrice ? String(Math.round(Number(costPrice) * Number(unitsPerPack) * 100) / 100) : "เช่น 6000"} className={`${inputCls} tabular-nums max-w-[180px]`} />
@@ -706,10 +780,10 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                             </div>
                         </FieldRow>
                     )}
-                    <FieldRow label={deductionType === "injectable_vial" ? `ราคาขาย ต่อ ${capacityUnitLabel} (฿)` : "ราคาขาย (฿)"} required>
+                    <FieldRow label={deductionType === "injectable_vial" ? `ราคาขาย/${capacityUnitLabel}` : "ราคาขาย"} required>
                         <Input type="number" value={sellPrice} onChange={e => setSellPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums font-bold text-emerald-700`} />
                     </FieldRow>
-                    <FieldRow label={deductionType === "injectable_vial" ? `ต้นทุน ต่อ ${capacityUnitLabel} (฿)` : "ต้นทุน (฿)"} hint={(() => {
+                    <FieldRow label={deductionType === "injectable_vial" ? `ต้นทุน/${capacityUnitLabel}` : "ต้นทุน"} hint={(() => {
                         const sp = Number(sellPrice) || 0, cp = Number(costPrice) || 0;
                         if (!(sp > 0 && cp > 0)) return undefined;
                         const m = Math.round((sp - cp) / sp * 1000) / 10;
@@ -717,6 +791,12 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     })()}>
                         <Input type="number" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
                     </FieldRow>
+                    {segment === "aesthetic" && (
+                        <FieldRow label="คอมแนะนำ" colSpan={2} hint="จ่ายพนักงานที่พาลูกค้ามา (คิดตอนรับเงิน) · นับเข้าคอมทีม % (ผ่าตัดที่อื่น = 40) · ค่ามือหัตถการตั้งที่เมนูบริการ">
+                            <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} teamPct={teamPct} onTeamPct={setTeamPct} />
+                        </FieldRow>
+                    )}
+                    <SubHeader label="สต๊อก" />
                     <FieldRow label="คงเหลือ">
                         {isEdit ? (
                             <div className="flex items-center gap-2">
@@ -745,7 +825,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     <FieldRow label="เลขล็อต (Lot)" hidden={isEdit}>
                         <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="ล็อตของยอดตั้งต้น" className={`${inputCls} font-mono`} />
                     </FieldRow>
-                    <FieldRow label={isEdit ? "วันหมดอายุ (ตัวยา)" : "วันหมดอายุ (ล็อต)"}>
+                    <FieldRow label="วันหมดอายุ">
                         <Input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} className={inputCls} />
                     </FieldRow>
                     <FieldRow label="" colSpan={2} hidden={isEdit}>
@@ -754,12 +834,6 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
 
                     {/* ค่าธรรมเนียม (DF ต่อหน่วย) เอาออกจากหน้าคลัง — คลินิกคิด commission เป็น % ของยอดขาย
                         (state dfDoctor/Nurse/Assistant คงไว้ → payload ส่งค่าเดิม ไม่ลบข้อมูลของเก่า) */}
-                    <FieldRow label="คอมแนะนำ" colSpan={2}>
-                        <div>
-                            <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} teamPct={teamPct} onTeamPct={setTeamPct} />
-                            <p className="text-[11px] text-slate-400 mt-1">เฉพาะสินค้าฝั่งความงาม (เช่น ฟิลเลอร์ ฿/cc, โบท็อกซ์) · ยา/เวชภัณฑ์ไม่มีคอมแนะนำ</p>
-                        </div>
-                    </FieldRow>
 
                     <SubHeader label="ข้อมูลเพิ่มเติม" />
                     <FieldRow label="ที่จัดเก็บ">
