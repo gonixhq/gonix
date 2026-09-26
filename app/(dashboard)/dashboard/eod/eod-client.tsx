@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, Fragment } from "react";
+import { getInvoiceBreakdowns, type InvoiceBreakdown } from "@/lib/actions/eod-breakdown";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,18 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
 
     // ── รายการรับเงินราย transaction (กระทบบัญชี/สลิป) ──
     const [showTxns, setShowTxns] = useState(false);
+    // รายละเอียดบิล: ใครเข้าเคส + DF/ค่ามือ/คอม/ส่วนลด (โหลดตอนเปิดรายการ)
+    const [bd, setBd] = useState<Record<string, InvoiceBreakdown>>({});
+    const [bdLoading, setBdLoading] = useState(false);
+    const [openTxn, setOpenTxn] = useState<string | null>(null);
+    useEffect(() => {
+        if (!showTxns) return;
+        const ids = transactions.filter(t => t.source === "invoice" && t.ref && !bd[t.ref]).map(t => t.ref);
+        if (ids.length === 0) return;
+        setBdLoading(true);
+        getInvoiceBreakdowns(ids).then(x => setBd(prev => ({ ...prev, ...x }))).finally(() => setBdLoading(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showTxns, transactions]);
     const [txnMethod, setTxnMethod] = useState<string>("all");
     const txnMethodKeys = ["cash", "transfer", "qr_promptpay", "credit_card"];
     const txnByMethod = (m: string) => transactions.filter(t => m === "all" ? true : (m === "transfer" ? (t.method === "transfer" || t.method === "qr_promptpay") : t.method === m));
@@ -430,6 +443,27 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                             })}
                         </div>
 
+                        {(() => {
+                            const seen = new Set<string>();
+                            const tot = { df: 0, hand: 0, ref: 0, disc: 0 };
+                            filteredTxns.forEach(t => {
+                                const b = t.source === "invoice" ? bd[t.ref] : null;
+                                if (!b || seen.has(b.invId)) return;
+                                seen.add(b.invId);
+                                tot.df += b.totals.df; tot.hand += b.totals.hand; tot.ref += b.totals.refComm; tot.disc += b.totals.discount;
+                            });
+                            return (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {([["DF แพทย์", tot.df, "text-cyan-700"], ["ค่ามือ", tot.hand, "text-emerald-700"], ["คอมแนะนำ", tot.ref, "text-pink-700"], ["ส่วนลดรวม", tot.disc, "text-rose-600"]] as const).map(([l, v, c]) => (
+                                        <div key={l} className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+                                            <div className="text-[11px] text-slate-500">{l} (บิลในรายการ)</div>
+                                            <div className={cn("text-base font-black tabular-nums", c)}>{bdLoading ? "…" : money(v)}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
                         {filteredTxns.length === 0 ? (
                             <p className="text-sm text-slate-400 text-center py-6">ยังไม่มีรายการรับเงินในช่องทางนี้</p>
                         ) : (
@@ -441,13 +475,19 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                             <th className="px-3 py-2 font-bold">คนไข้</th>
                                             <th className="px-3 py-2 font-bold">ช่องทาง</th>
                                             <th className="px-3 py-2 font-bold">อ้างอิง / สลิป</th>
+                                            <th className="px-3 py-2 font-bold">ผู้เข้าเคส / DF · คอม · ลด</th>
                                             <th className="px-3 py-2 font-bold">ผู้รับเงิน</th>
                                             <th className="px-3 py-2 font-bold text-right">จำนวน</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredTxns.map(t => (
-                                            <tr key={`${t.source}-${t.id}`} className="border-t border-slate-100 hover:bg-slate-50/60">
+                                        {filteredTxns.map(t => {
+                                            const b = t.source === "invoice" ? bd[t.ref] : undefined;
+                                            const key = `${t.source}-${t.id}`;
+                                            const open = openTxn === key;
+                                            return (
+                                            <Fragment key={key}>
+                                            <tr onClick={() => b && setOpenTxn(open ? null : key)} className={cn("border-t border-slate-100 hover:bg-slate-50/60", b && "cursor-pointer", open && "bg-blue-50/40")}>
                                                 <td className="px-3 py-2 tabular-nums text-slate-600 whitespace-nowrap">{fmtTime(t.time)}</td>
                                                 <td className="px-3 py-2 text-slate-800">
                                                     {t.source === "anon"
@@ -472,14 +512,80 @@ export default function EODClient({ summary, history, staffPattern, discounts, t
                                                         </div>
                                                     )}
                                                 </td>
+                                                <td className="px-3 py-2 text-xs">
+                                                    {!b ? <span className="text-slate-300">{t.source === "anon" ? "—" : bdLoading ? "…" : "—"}</span> : (
+                                                        <div className="space-y-0.5">
+                                                            <div className="text-slate-700">
+                                                                {[b.visitDoctor && `แพทย์ ${b.visitDoctor}`, b.visitNurse && `พยาบาล ${b.visitNurse}`, b.visitAssistant && `ผู้ช่วย ${b.visitAssistant}`].filter(Boolean).join(" · ") || <span className="text-slate-400">ไม่ได้ระบุผู้เข้าเคส</span>}
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {b.billType !== "normal" && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">{b.billType === "review" ? "เคสรีวิว" : "แก้ไขฟรี"}</span>}
+                                                                {b.totals.df > 0 && <span className="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700">DF {money(b.totals.df)}</span>}
+                                                                {b.totals.hand > 0 && <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">ค่ามือ {money(b.totals.hand)}</span>}
+                                                                {b.totals.refComm > 0 && <span className="px-1.5 py-0.5 rounded bg-pink-50 text-pink-700">คอมแนะนำ {money(b.totals.refComm)}</span>}
+                                                                {b.totals.discount > 0 && <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600">ลด {money(b.totals.discount)}</span>}
+                                                                <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", open && "rotate-180")} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-2 text-xs text-slate-500">{t.staff || "—"}</td>
                                                 <td className="px-3 py-2 text-right font-bold tabular-nums text-slate-800">{money(t.amount)}</td>
                                             </tr>
-                                        ))}
+                                            {open && b && (
+                                                <tr className="bg-blue-50/30">
+                                                    <td colSpan={7} className="px-3 pb-3 pt-1">
+                                                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                                            <table className="w-full text-xs">
+                                                                <thead className="bg-slate-50 text-slate-500">
+                                                                    <tr>
+                                                                        <th className="text-left px-3 py-1.5">รายการ</th>
+                                                                        <th className="text-right px-2 py-1.5">ราคา</th>
+                                                                        <th className="text-right px-2 py-1.5">ส่วนลด</th>
+                                                                        <th className="text-right px-2 py-1.5">สุทธิ</th>
+                                                                        <th className="text-left px-2 py-1.5">แพทย์ผู้ทำ (DF)</th>
+                                                                        <th className="text-left px-2 py-1.5">ผู้ปฏิบัติ / ผู้ช่วย (ค่ามือ)</th>
+                                                                        <th className="text-right px-3 py-1.5">คอมแนะนำ</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {b.lines.map((l, i) => (
+                                                                        <tr key={i} className="border-t border-slate-100">
+                                                                            <td className="px-3 py-1.5 text-slate-800">{l.name}{l.qty !== 1 && <span className="text-slate-400"> ×{l.qty}</span>}{l.course && <span className="ml-1 text-violet-600">(คอร์ส)</span>}</td>
+                                                                            <td className="px-2 py-1.5 text-right tabular-nums">{money(l.gross)}</td>
+                                                                            <td className="px-2 py-1.5 text-right tabular-nums text-rose-600">{l.discount > 0 ? `−${money(l.discount)}` : "—"}</td>
+                                                                            <td className="px-2 py-1.5 text-right tabular-nums font-semibold">{money(l.net)}</td>
+                                                                            <td className="px-2 py-1.5">{l.doctor ? <>{l.doctor} <span className="text-cyan-700 tabular-nums">{money(l.df)}</span></> : <span className="text-slate-300">—</span>}</td>
+                                                                            <td className="px-2 py-1.5">
+                                                                                {l.handMain || l.handAsst ? (
+                                                                                    <>
+                                                                                        {l.handMain && <div>{l.handMain} <span className="text-emerald-700 tabular-nums">{money(l.handMainFee)}</span></div>}
+                                                                                        {l.handAsst && <div className="text-slate-500">ผู้ช่วย {l.handAsst} <span className="text-emerald-700 tabular-nums">{money(l.handAsstFee)}</span></div>}
+                                                                                    </>
+                                                                                ) : <span className="text-slate-300">—</span>}
+                                                                            </td>
+                                                                            <td className="px-3 py-1.5 text-right tabular-nums text-pink-700">{l.refComm > 0 ? money(l.refComm) : "—"}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                            <div className="px-3 py-2 border-t border-slate-100 text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+                                                                {b.refStaff && <span>ผู้แนะนำ: <b className="text-slate-700">{b.refStaff}</b></span>}
+                                                                {b.campaign && <span>โค้ด/แคมเปญ: <b className="text-slate-700">{b.campaign}</b></span>}
+                                                                <span>ส่วนลดท้ายบิล {money(b.discount)} (เกลี่ยเข้าแต่ละรายการแล้ว)</span>
+                                                                <span className="text-slate-400">DF/คอมคิดจากยอดทั้งบิล — ถ้าจ่ายบางส่วน ระบบคิดตามสัดส่วนที่จ่ายจริง</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </Fragment>
+                                            );
+                                        })}
                                     </tbody>
                                     <tfoot>
                                         <tr className="border-t-2 border-slate-200 bg-slate-50/60">
-                                            <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                            <td colSpan={6} className="px-3 py-2 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">
                                                 รวม{txnMethod === "all" ? "" : ` (${PAYMENT_METHOD_LABEL[txnMethod] || txnMethod})`} {filteredTxns.length} รายการ
                                             </td>
                                             <td className="px-3 py-2 text-right font-black tabular-nums text-emerald-700">{money(filteredTxnTotal)}</td>
