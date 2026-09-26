@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
+import RefCommField, { refCommPayload, teamPctPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ interface PackageItem {
     hand_fee_asst?: number | null;
     ref_comm_mode?: string | null;
     ref_comm_value?: number | null;
+    team_count_pct?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
@@ -380,6 +381,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
         hand_fee_asst: Number(pkg.hand_fee_asst || 0),
         ref_comm_mode: (pkg.ref_comm_mode || "") as string,
         ref_comm_value: pkg.ref_comm_value != null ? String(pkg.ref_comm_value) : "",
+        team_count_pct: pkg.team_count_pct != null ? String(pkg.team_count_pct) : "",
         is_bundle: !!pkg.is_bundle,
         consume_item_id: pkg.consume_item_id || "",
         consume_qty_per_session: pkg.consume_qty_per_session != null ? String(pkg.consume_qty_per_session) : "",
@@ -406,6 +408,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                 hand_fee_main: Number(form.hand_fee_main) || null,
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
                 ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
+                ...teamPctPayload(form.team_count_pct),
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
                 consume_item_id: form.consume_item_id || null,
@@ -542,7 +545,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
 
                     <div className="space-y-1.5">
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">คอมแนะนำ (คอสฝั่งความงาม)</Label>
-                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} />
+                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} teamPct={form.team_count_pct} onTeamPct={v => setForm({ ...form, team_count_pct: v })} />
                     </div>
 
                     <div className="space-y-1.5">

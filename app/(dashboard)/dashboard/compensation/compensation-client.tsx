@@ -218,7 +218,7 @@ export default function CompensationClient({
                     </div>
                     <div>
                         <h1 className="text-lg font-black text-slate-800 tracking-tight leading-tight">ค่าตอบแทนพนักงาน</h1>
-                        <p className="text-xs text-slate-500">{monthLabel(month)} · ค่าจ้าง + DF รวมยอด</p>
+                        <p className="text-xs text-slate-500">{monthLabel(month)} · ค่าจ้าง + DF + คอมทีม รวมยอด · <a href={`/dashboard/finance/team-commission?month=${month}`} className="text-blue-700 underline">คอมทีม</a></p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -336,6 +336,7 @@ export default function CompensationClient({
                                         <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-700">{baht(r.time_pay)}</td>
                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 hidden sm:table-cell">
                                             {baht(r.df)}
+                                            {r.team_comm > 0 && <div className="text-[10px] text-blue-700 font-semibold">+ คอมทีม {baht(r.team_comm)}</div>}
                                             {r.df_pending > 0 && (
                                                 <div className="text-[10px] text-amber-600 font-semibold" title="DF ที่ยังไม่อนุมัติ ยังไม่ถูกนำมาคิด">+{baht(r.df_pending)} รออนุมัติ</div>
                                             )}

@@ -309,6 +309,7 @@ export interface PackageInput {
     hand_fee_asst?: number | null;   // ค่ามือผู้ช่วย ต่อครั้ง (ว่าง = ครึ่งหนึ่งของหลัก)
     ref_comm_mode?: string | null;   // คอมแนะนำ (เฟส 2D) · null = มาตรฐาน
     ref_comm_value?: number | null;
+    team_count_pct?: number | null;   // % นับเข้าคอมทีม (null = 100)
     is_bundle?: boolean;
     component_ids?: string[];   // service_package ids ที่รวมใน bundle
     consume_item_id?: string | null;          // ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot)
@@ -367,6 +368,7 @@ export async function createPackage(input: PackageInput) {
                 hand_fee_asst: input.hand_fee_asst ?? null,
                 ref_comm_mode: input.ref_comm_mode ?? null,
                 ref_comm_value: input.ref_comm_value ?? null,
+                team_count_pct: input.team_count_pct ?? null,
                 is_bundle: input.is_bundle ?? false,
                 consume_item_id: input.consume_item_id || null,
                 consume_qty_per_session: input.consume_qty_per_session ?? null,
@@ -415,6 +417,7 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.hand_fee_main !== undefined) patch.hand_fee_main = input.hand_fee_main;
         if (input.hand_fee_asst !== undefined) patch.hand_fee_asst = input.hand_fee_asst;
         if (input.ref_comm_mode !== undefined) { patch.ref_comm_mode = input.ref_comm_mode; patch.ref_comm_value = input.ref_comm_value ?? null; }
+        if (input.team_count_pct !== undefined) patch.team_count_pct = input.team_count_pct;
         if (input.is_bundle !== undefined) patch.is_bundle = input.is_bundle;
         if (input.consume_item_id !== undefined) patch.consume_item_id = input.consume_item_id || null;
         if (input.consume_qty_per_session !== undefined) patch.consume_qty_per_session = input.consume_qty_per_session ?? null;

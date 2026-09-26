@@ -573,6 +573,9 @@ export default function FinanceClient({
                             <span className="font-bold text-rose-600 tabular-nums">−฿{(cardFeeTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} ›</span>
                         </Link>
                     )}
+                    <Link href={`/dashboard/finance/team-commission?month=${range.to.slice(0, 7)}`} className="mt-2 flex items-center justify-between text-xs text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
+                        <span>คอมทีม (กองกลางความงาม)</span><span>›</span>
+                    </Link>
                 </div>
             </div>
 

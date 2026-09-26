@@ -111,6 +111,13 @@ export default async function PayslipPrintPage({
                                 <td className="py-2 px-2 text-right tabular-nums text-slate-600">เดือน {formatMonth(month)}</td>
                                 <td className="py-2 px-2 text-right font-bold tabular-nums">{baht(staff.df)}</td>
                             </tr>
+                            {staff.team_comm > 0 && (
+                                <tr style={{ borderBottom: "1px dotted #cbd5e1" }}>
+                                    <td className="py-2 px-2">คอมทีม (กองกลางความงาม)</td>
+                                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">เดือน {formatMonth(month)}</td>
+                                    <td className="py-2 px-2 text-right font-bold tabular-nums">{baht(staff.team_comm)}</td>
+                                </tr>
+                            )}
                             {payout && payout.adjustment !== 0 && (
                                 <tr style={{ borderBottom: "1px dotted #cbd5e1" }}>
                                     <td className="py-2 px-2">ปรับยอด (หัก/เพิ่มโดยผู้จ่าย)</td>

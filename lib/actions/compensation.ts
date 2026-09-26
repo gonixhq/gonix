@@ -39,6 +39,7 @@ export interface CompRow {
     time_pay: number;       // ค่าจ้างฐาน: รายชม. = pay_hours × rate ; เงินเดือน = monthly_salary
     df: number;             // ค่า DF/commission เดือนนั้น (เฉพาะที่อนุมัติแล้ว)
     df_pending: number;     // DF ที่ยังไม่อนุมัติ (ไม่นับเข้ายอดจ่าย)
+    team_comm: number;      // คอมทีม (เฉพาะเดือนที่อนุมัติแล้ว — team_comm_shares)
     total: number;          // time_pay + df (ก่อนหัก)
     wht_enabled: boolean;
     sso_enabled: boolean;
@@ -110,6 +111,11 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         else dfPendingMap.set(d.staff_id, (dfPendingMap.get(d.staff_id) || 0) + d.total_amount);
     });
 
+    // คอมทีม (เฟส 2E) — นับเฉพาะเดือนที่อนุมัติแล้ว
+    const { data: teamShares } = await supabase.from("team_comm_shares").select("staff_id, amount").eq("period_month", first);
+    const teamMap = new Map<string, number>();
+    (teamShares || []).forEach((t) => teamMap.set(t.staff_id as string, Number(t.amount || 0)));
+
     // สถานะปิดยอด/จ่ายแล้ว + snapshot รายการหัก
     const { data: payouts } = await supabase
         .from("compensation_payouts")
@@ -143,7 +149,8 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         let absentDays = 0;
         if (pDates) pDates.forEach((d) => { if (!wDates || !wDates.has(d)) absentDays++; });
 
-        const total = round2(timePay + df);
+        const teamComm = round2(teamMap.get(id) || 0);
+        const total = round2(timePay + df + teamComm);
         const whtEnabled = !!(s as { wht_enabled?: boolean }).wht_enabled;
         const ssoEnabled = !!(s as { sso_enabled?: boolean }).sso_enabled;
         const paid = paidMap.get(id);
@@ -169,6 +176,7 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
             time_pay: timePay,
             df,
             df_pending: dfPending,
+            team_comm: teamComm,
             total,
             wht_enabled: whtEnabled,
             sso_enabled: ssoEnabled,
@@ -600,6 +608,7 @@ export async function recordCompensationPayout(staffId: string, month: string, o
         period_month: `${month}-01`,
         time_pay: row.time_pay,
         df_amount: row.df,
+        team_comm_amount: row.team_comm,
         adjustment,
         total_amount: gross,
         wht_amount: wht,
@@ -631,6 +640,7 @@ export async function payAllForMonth(month: string) {
         period_month: `${month}-01`,
         time_pay: r.time_pay,
         df_amount: r.df,
+        team_comm_amount: r.team_comm,
         total_amount: r.total,
         wht_amount: r.wht,
         sso_amount: r.sso,

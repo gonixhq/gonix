@@ -60,6 +60,7 @@ export async function setFinanceRate(input: { key: string; value: number; effect
         if (meta.unit === "flag" && v !== 0 && v !== 1) return { success: false, error: "ค่าต้องเป็นเปิด/ปิด" };
         if (meta.unit === "%" && (v < 0 || v > 100)) return { success: false, error: "เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–100" };
         if (meta.unit === "baht" && (v < 0 || v > 1000000)) return { success: false, error: "จำนวนเงินไม่ถูกต้อง" };
+        if (meta.unit === "weight" && (v < 0 || v > 20)) return { success: false, error: "น้ำหนักต้องอยู่ระหว่าง 0–20" };
         if (meta.unit === "month" && (!Number.isInteger(v) || v < 1 || v > 60)) return { success: false, error: "จำนวนเดือนต้องเป็น 1–60" };
         if (!/^\d{4}-\d{2}-\d{2}$/.test(input.effectiveFrom)) return { success: false, error: "วันที่ไม่ถูกต้อง" };
         const { error } = await supabase.from("finance_rates").upsert({

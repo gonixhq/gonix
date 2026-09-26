@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
-import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
+import RefCommField, { refCommPayload, teamPctPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -389,6 +389,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
         hand_fee_asst: 0,
         ref_comm_mode: "" as string,
         ref_comm_value: "",
+        team_count_pct: "",
         is_bundle: false,
         consume_item_id: "",
         consume_qty_per_session: "",
@@ -416,6 +417,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                 hand_fee_main: Number(form.hand_fee_main) || null,
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
                 ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
+                ...teamPctPayload(form.team_count_pct),
                 is_active: true,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
@@ -581,7 +583,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
 
                     <div className="space-y-1.5">
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">คอมแนะนำ (คอสฝั่งความงาม)</Label>
-                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} />
+                        <RefCommField mode={form.ref_comm_mode as RefCommMode} value={form.ref_comm_value} onChange={(m, v) => setForm({ ...form, ref_comm_mode: m, ref_comm_value: v })} teamPct={form.team_count_pct} onTeamPct={v => setForm({ ...form, team_count_pct: v })} />
                     </div>
 
                     {/* ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot) */}

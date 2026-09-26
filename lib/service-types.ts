@@ -23,6 +23,7 @@ export interface ServiceCatalogItem {
     df_mode?: string | null;            // 'baht' | 'percent'
     ref_comm_mode?: string | null;      // คอมแนะนำ: pct | fixed | per_unit | none · null = มาตรฐาน
     ref_comm_value?: number | null;
+    team_count_pct?: number | null;     // % นับเข้าคอมทีม (null = 100)
 }
 
 export interface InventoryPick {

@@ -29,7 +29,7 @@ const EDITABLE_FIELDS = [
     // ── ค่าตอบแทน (DF) ──
     "df_doctor", "df_nurse", "df_assistant",
     // ── คอมแนะนำ (เฟส 2D) ──
-    "ref_comm_mode", "ref_comm_value",
+    "ref_comm_mode", "ref_comm_value", "team_count_pct",
 ] as const;
 const NUMERIC_FIELDS = new Set(["sell_price", "cost_price", "min_stock", "units_per_pack", "df_doctor", "df_nurse", "df_assistant"]);
 
@@ -46,7 +46,7 @@ export async function updateInventoryItem(input: { id: string } & Record<string,
 
         const { data: cur } = await supabase
             .from("inventory")
-            .select("item_name, generic_name, trade_name, strength, dosage_form, category, segment, unit, sell_price, cost_price, min_stock, location, supplier, note, expiry_date, item_name_th, indication, storage_info, dose_qty, use_type, frequency, sig_text_default, label_type, warning_label, df_doctor, df_nurse, df_assistant, ref_comm_mode, ref_comm_value")
+            .select("item_name, generic_name, trade_name, strength, dosage_form, category, segment, unit, sell_price, cost_price, min_stock, location, supplier, note, expiry_date, item_name_th, indication, storage_info, dose_qty, use_type, frequency, sig_text_default, label_type, warning_label, df_doctor, df_nurse, df_assistant, ref_comm_mode, ref_comm_value, team_count_pct")
             .eq("id", input.id).eq("clinic_id", profile.clinic_id).maybeSingle();
         if (!cur) return { success: false, error: "ไม่พบรายการในคลัง" };
 

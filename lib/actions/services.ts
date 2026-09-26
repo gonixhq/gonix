@@ -17,7 +17,7 @@ export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("item_type")
@@ -42,7 +42,7 @@ export async function listAllServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct")
             .eq("clinic_id", profile.clinic_id)
             .order("is_active", { ascending: false })
             .order("item_type")
@@ -72,6 +72,7 @@ export interface ServiceInput {
     df_mode?: string | null;        // 'baht' | 'percent'
     ref_comm_mode?: string | null;  // คอมแนะนำ (เฟส 2D)
     ref_comm_value?: number | null;
+    team_count_pct?: number | null;
 }
 
 /** รายการในคลังสำหรับเลือกผูกเป็น kit (ตัด stock) */
@@ -158,6 +159,7 @@ export async function createService(input: ServiceInput) {
                 df_mode: input.df_mode || "baht",
                 ref_comm_mode: input.ref_comm_mode ?? null,
                 ref_comm_value: input.ref_comm_value ?? null,
+                team_count_pct: input.team_count_pct ?? null,
             })
             .select("id")
             .single();
@@ -252,6 +254,7 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
         if (input.df_assistant !== undefined) update.df_assistant = input.df_assistant ?? 0;
         if (input.df_mode !== undefined) update.df_mode = input.df_mode || "baht";
         if (input.ref_comm_mode !== undefined) { update.ref_comm_mode = input.ref_comm_mode ?? null; update.ref_comm_value = input.ref_comm_value ?? null; }
+        if (input.team_count_pct !== undefined) update.team_count_pct = input.team_count_pct ?? null;
 
         const { error } = await supabase
             .from("service_catalog")

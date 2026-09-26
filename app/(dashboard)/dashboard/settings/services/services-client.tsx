@@ -17,7 +17,7 @@ import {
 } from "@/lib/actions/services";
 import { Wand2, FileText, Package, HandCoins } from "lucide-react";
 import { HorizontalForm, Section, FieldRow, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
-import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
+import RefCommField, { refCommPayload, teamPctPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 
 export default function ServicesClient({ initialServices, inventory }: { initialServices: ServiceCatalogItem[]; inventory: InventoryPick[] }) {
     const router = useRouter();
@@ -308,6 +308,7 @@ function ServiceFormModal({
     const [dfMode, setDfMode] = useState(initial?.df_mode || "baht");   // 'baht' | 'percent'
     const [refMode, setRefMode] = useState<RefCommMode>((initial?.ref_comm_mode as RefCommMode) || "");
     const [refVal, setRefVal] = useState(initial?.ref_comm_value != null ? String(initial.ref_comm_value) : "");
+    const [teamPct, setTeamPct] = useState(initial?.team_count_pct != null ? String(initial.team_count_pct) : "");
     const [submitting, setSubmitting] = useState(false);
 
     async function handleSave() {
@@ -329,6 +330,7 @@ function ServiceFormModal({
             df_assistant: parseFloat(dfAssistant) || 0,
             df_mode: dfMode,
             ...refCommPayload(refMode, refVal),
+            ...teamPctPayload(teamPct),
         });
         setSubmitting(false);
     }
@@ -445,7 +447,7 @@ function ServiceFormModal({
                                 <Input type="number" min="0" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums max-w-[280px]`} />
                             </FieldRow>
                             <FieldRow label="คอมแนะนำ" colSpan={2} hint="เฉพาะเมนูฝั่งความงาม · จ่ายพนักงานที่พาลูกค้ามา (คิดตอนรับเงิน)">
-                                <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} />
+                                <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} teamPct={teamPct} onTeamPct={setTeamPct} />
                             </FieldRow>
                         </Section>
 

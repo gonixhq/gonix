@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { updateInventoryItem } from "@/lib/actions/inventory";
 import { toast } from "@/lib/toast";
-import RefCommField, { refCommPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
+import RefCommField, { refCommPayload, teamPctPayload, type RefCommMode } from "@/components/finance/ref-comm-field";
 import { Section, FieldRow, SubHeader as SubHeaderBase, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
 import { FileText, Tag, CircleDollarSign, Save, Loader2, CheckCircle, X, Sparkles, Sun, Sunrise, Sunset, Moon } from "lucide-react";
 
@@ -177,6 +177,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [dfAssistant, setDfAssistant] = useState(item?.df_assistant ? String(item.df_assistant) : "");
     const [refMode, setRefMode] = useState<RefCommMode>((item?.ref_comm_mode as RefCommMode) || "");
     const [refVal, setRefVal] = useState(item?.ref_comm_value != null ? String(item.ref_comm_value) : "");
+    const [teamPct, setTeamPct] = useState(item?.team_count_pct != null ? String(item.team_count_pct) : "");
     const [location, setLocation] = useState(item?.location || "");
     const [supplier, setSupplier] = useState(item?.supplier || "");
     const [note, setNote] = useState(item?.note || "");
@@ -258,6 +259,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     min_stock: parseFloat(minStock) || 0, expiry_date: expiryDate || null,
                     df_doctor: parseFloat(dfDoctor) || 0, df_nurse: parseFloat(dfNurse) || 0, df_assistant: parseFloat(dfAssistant) || 0,
                     ...refCommPayload(refMode, refVal),
+                ...teamPctPayload(teamPct),
                     location, supplier, note,
                 });
                 if (!res.success) throw new Error(res.error || "บันทึกไม่สำเร็จ");
@@ -307,6 +309,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 df_nurse: parseFloat(dfNurse) || 0,
                 df_assistant: parseFloat(dfAssistant) || 0,
                 ...refCommPayload(refMode, refVal),
+                ...teamPctPayload(teamPct),
                 location: location || null,
                 supplier: supplier || null,
                 note: note || null,
@@ -659,7 +662,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                         (state dfDoctor/Nurse/Assistant คงไว้ → payload ส่งค่าเดิม ไม่ลบข้อมูลของเก่า) */}
                     <FieldRow label="คอมแนะนำ" colSpan={2}>
                         <div>
-                            <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} />
+                            <RefCommField mode={refMode} value={refVal} onChange={(m, v) => { setRefMode(m); setRefVal(v); }} teamPct={teamPct} onTeamPct={setTeamPct} />
                             <p className="text-[11px] text-slate-400 mt-1">เฉพาะสินค้าฝั่งความงาม (เช่น ฟิลเลอร์ ฿/cc, โบท็อกซ์) · ยา/เวชภัณฑ์ไม่มีคอมแนะนำ</p>
                         </div>
                     </FieldRow>

@@ -11,11 +11,13 @@ const MODES: { v: RefCommMode; label: string; unit?: string }[] = [
     { v: "none", label: "ไม่มีคอมแนะนำ" },
 ];
 
-export default function RefCommField({ mode, value, onChange, className = "" }: {
+export default function RefCommField({ mode, value, onChange, className = "", teamPct, onTeamPct }: {
     mode: RefCommMode;
     value: string;
     onChange: (mode: RefCommMode, value: string) => void;
     className?: string;
+    teamPct?: string;                       // % นับเข้าคอมทีม (ว่าง = 100)
+    onTeamPct?: (v: string) => void;
 }) {
     const m = MODES.find(x => x.v === mode) || MODES[0];
     return (
@@ -31,8 +33,21 @@ export default function RefCommField({ mode, value, onChange, className = "" }: 
                     {m.unit}
                 </label>
             )}
+            {onTeamPct && (
+                <label className="inline-flex items-center gap-1 text-xs text-slate-500" title="ผ่าตัดที่สถานพยาบาลอื่น = 40">
+                    · นับเข้าคอมทีม
+                    <input type="number" min="0" max="100" value={teamPct ?? ""} onChange={e => onTeamPct(e.target.value)}
+                        className="h-9 w-16 rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" placeholder="100" />%
+                </label>
+            )}
         </div>
     );
+}
+
+/** % นับเข้าคอมทีม: ว่าง = null (100%) */
+export function teamPctPayload(v: string | undefined): { team_count_pct: number | null } {
+    if (v == null || v.trim() === "") return { team_count_pct: null };
+    return { team_count_pct: Math.max(0, Math.min(100, Number(v) || 0)) };
 }
 
 /** แปลงค่าจากฟอร์ม → คอลัมน์ DB */

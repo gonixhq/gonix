@@ -43,6 +43,7 @@ export interface ServicePackage {
     hand_fee_asst?: number | null;
     ref_comm_mode?: string | null;
     ref_comm_value?: number | null;
+    team_count_pct?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
