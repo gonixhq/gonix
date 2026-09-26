@@ -363,7 +363,7 @@ export async function completeCheckout(input: CheckoutInput) {
             if (svcIds.length > 0) {
                 const { data: svcs } = await supabase.from("service_catalog")
                     .select("id, inventory_item_id, consume_qty")
-                    .eq("clinic_id", clinicId).in("id", svcIds).not("inventory_item_id", "is", null);
+                    .eq("clinic_id", clinicId).in("id", svcIds).not("inventory_item_id", "is", null);  // kit เดิม (1 รายการ)
                 const svcMap = new Map((svcs || []).map(s => [s.id as string, { inv: s.inventory_item_id as string, qty: Number(s.consume_qty) || 1 }]));
                 const { data: { user } } = await supabase.auth.getUser();
                 const { data: staffRow } = user ? await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle() : { data: null };
@@ -381,7 +381,25 @@ export async function completeCheckout(input: CheckoutInput) {
                         qty_delta: -deduct, balance_after: bal, note: `ใช้กับบริการ (${invId})`, recorded_by: staffRow?.id || null,
                     });
                 }
-                if (svcs && svcs.length > 0) revalidatePath("/dashboard/inventory");
+                // สูตรหัตถการ (เฟส 4A, service_recipes) — ตัดทุกบรรทัดที่ cut_stock
+                const { data: recipes } = await supabase.from("service_recipes")
+                    .select("service_id, inventory_item_id, qty").eq("clinic_id", clinicId).eq("cut_stock", true).in("service_id", svcIds);
+                for (const it of serviceItems) {
+                    for (const r of (recipes || []).filter(x => x.service_id === it.item_ref_id)) {
+                        const invId2 = r.inventory_item_id as string;
+                        const deduct = Number(r.qty) * Math.max(1, Number(it.qty || 1));
+                        const { data: invItem } = await supabase.from("inventory").select("stock_qty").eq("id", invId2).eq("clinic_id", clinicId).maybeSingle();
+                        if (!invItem || deduct <= 0) continue;
+                        const bal = Number(invItem.stock_qty || 0) - deduct;
+                        await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", invId2);
+                        await deductFEFO(supabase, clinicId, invId2, deduct);
+                        await supabase.from("stock_card").insert({
+                            item_id: invId2, clinic_id: clinicId, tx_type: "INTERNAL_USE",
+                            qty_delta: -deduct, balance_after: bal, note: `สูตร: ${it.item_name} (${invId})`, recorded_by: staffRow?.id || null,
+                        });
+                    }
+                }
+                if ((svcs && svcs.length > 0) || (recipes && recipes.length > 0)) revalidatePath("/dashboard/inventory");
             }
         } catch (e) {
             console.warn("[checkout] service kit deduct failed:", e);

@@ -35,6 +35,7 @@ export const RATE_META: RateMeta[] = [
     { key: "doctor_hour_rate", label: "ค่าชั่วโมงแพทย์ (บาท/ชม.)", unit: "baht", group: "comp", hint: "คิดจากเวลาเข้า-ออกงานจริง · แพทย์ที่ตั้งเรทรายคนไว้ในหน้าค่าตอบแทนจะใช้เรทรายคนแทน" },
     { key: "df_doctor_pct", label: "DF แพทย์ (% ของยอดสุทธิ)", unit: "%", group: "comp", hint: "เฉพาะรายการที่แพทย์ทำ (เปิดใช้ในเฟส 2B)" },
     { key: "ref_comm_pct", label: "คอมแนะนำ มาตรฐาน (% ของยอดสุทธิ)", unit: "%", group: "comp", hint: "เฉพาะฝั่งความงาม · เมนูที่ตั้งคอมแนะนำเฉพาะ (เช่น ฟิลเลอร์ ฿/cc) จะใช้อัตราของเมนูแทน" },
+    { key: "margin_threshold_pct", label: "เกณฑ์มาร์จิ้นขั้นต่ำต่อหัตถการ", unit: "%", group: "comp", hint: "หัตถการที่มาร์จิ้นต่ำกว่านี้จะถูกเตือนในรายงานต้นทุนหัตถการ" },
     { key: "team_w_nurse", label: "คอมทีม: น้ำหนัก พยาบาลวิชาชีพ", unit: "weight", group: "comp", hint: "คะแนน = น้ำหนัก × วันมาทำงาน" },
     { key: "team_w_marketing", label: "คอมทีม: น้ำหนัก การตลาด", unit: "weight", group: "comp" },
     { key: "team_w_assistant", label: "คอมทีม: น้ำหนัก ผู้ช่วยพยาบาล", unit: "weight", group: "comp" },

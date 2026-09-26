@@ -576,6 +576,9 @@ export default function FinanceClient({
                     <Link href={`/dashboard/finance/team-commission?month=${range.to.slice(0, 7)}`} className="mt-2 flex items-center justify-between text-xs text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
                         <span>คอมทีม (กองกลางความงาม)</span><span>›</span>
                     </Link>
+                    <Link href={`/dashboard/finance/procedure-costs?month=${range.to.slice(0, 7)}`} className="mt-1 flex items-center justify-between text-xs text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
+                        <span>ต้นทุน & มาร์จิ้นหัตถการ</span><span>›</span>
+                    </Link>
                 </div>
             </div>
 

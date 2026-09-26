@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { ServiceCatalogItem, ServiceItemType, InventoryPick } from "@/lib/service-types";
+import type { ServiceCatalogItem, ServiceItemType, InventoryPick, RecipeLine } from "@/lib/service-types";
 
 /** List active services for current clinic */
 export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
@@ -17,7 +17,7 @@ export async function listActiveServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct, doctor_hours")
             .eq("clinic_id", profile.clinic_id)
             .eq("is_active", true)
             .order("item_type")
@@ -42,7 +42,7 @@ export async function listAllServices(): Promise<ServiceCatalogItem[]> {
 
         const { data } = await supabase
             .from("service_catalog")
-            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct")
+            .select("id, service_code, service_name, item_type, selling_price, duration_min, note, is_active, inventory_item_id, consume_qty, segment, follow_up_days, df_doctor, df_nurse, df_assistant, df_mode, ref_comm_mode, ref_comm_value, team_count_pct, doctor_hours")
             .eq("clinic_id", profile.clinic_id)
             .order("is_active", { ascending: false })
             .order("item_type")
@@ -73,6 +73,8 @@ export interface ServiceInput {
     ref_comm_mode?: string | null;  // คอมแนะนำ (เฟส 2D)
     ref_comm_value?: number | null;
     team_count_pct?: number | null;
+    doctor_hours?: number | null;
+    recipe?: RecipeLine[];          // สูตรหัตถการ (ส่งมา = แทนที่ทั้งชุด)
 }
 
 /** รายการในคลังสำหรับเลือกผูกเป็น kit (ตัด stock) */
@@ -85,12 +87,13 @@ export async function listInventoryForPicker(): Promise<InventoryPick[]> {
         if (!profile?.clinic_id) return [];
         const { data } = await supabase
             .from("inventory")
-            .select("id, item_name, stock_qty, unit")
+            .select("id, item_name, stock_qty, unit, cost_price, units_per_pack, single_use")
             .eq("clinic_id", profile.clinic_id).eq("is_active", true)
             .order("item_name");
         return (data || []).map((i) => ({
             id: i.id as string, item_name: i.item_name as string,
             stock_qty: Number(i.stock_qty || 0), unit: (i.unit as string) || null,
+            cost_price: Number(i.cost_price || 0), units_per_pack: i.units_per_pack != null ? Number(i.units_per_pack) : null, single_use: !!i.single_use,
         }));
     } catch {
         return [];
@@ -160,11 +163,16 @@ export async function createService(input: ServiceInput) {
                 ref_comm_mode: input.ref_comm_mode ?? null,
                 ref_comm_value: input.ref_comm_value ?? null,
                 team_count_pct: input.team_count_pct ?? null,
+                doctor_hours: input.doctor_hours ?? null,
             })
             .select("id")
             .single();
 
         if (error) return { success: false, error: error.message };
+        if (input.recipe) {
+            const rErr = await replaceRecipe(supabase, profile.clinic_id, data.id as string, input.recipe);
+            if (rErr) return { success: false, error: `บันทึกเมนูแล้ว แต่บันทึกสูตรไม่สำเร็จ: ${rErr}` };
+        }
 
         revalidatePath("/dashboard/settings/services");
         return { success: true, id: data.id };
@@ -230,6 +238,31 @@ export async function backfillMissingCodes() {
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function replaceRecipe(supabase: any, clinicId: string, serviceId: string, recipe: RecipeLine[]): Promise<string | null> {
+    const rows = recipe.filter(r => r.inventory_item_id && Number(r.qty) > 0);
+    const seen = new Set<string>();
+    for (const r of rows) { if (seen.has(r.inventory_item_id)) return "มีรายการซ้ำในสูตร"; seen.add(r.inventory_item_id); }
+    const { error: dErr } = await supabase.from("service_recipes").delete().eq("service_id", serviceId);
+    if (dErr) return dErr.message;
+    if (rows.length === 0) return null;
+    const { error } = await supabase.from("service_recipes").insert(rows.map(r => ({
+        clinic_id: clinicId, service_id: serviceId, inventory_item_id: r.inventory_item_id, qty: Number(r.qty),
+    })));
+    return error ? error.message : null;
+}
+
+/** สูตรหัตถการของเมนู (เฟส 4A) */
+export async function getServiceRecipe(serviceId: string): Promise<RecipeLine[]> {
+    try {
+        const supabase = await createClient();
+        const { data } = await supabase.from("service_recipes").select("inventory_item_id, qty").eq("service_id", serviceId).order("created_at");
+        return (data || []).map(r => ({ inventory_item_id: r.inventory_item_id as string, qty: Number(r.qty) }));
+    } catch {
+        return [];
+    }
+}
+
 export async function updateService(id: string, input: Partial<ServiceInput>) {
     try {
         const supabase = await createClient();
@@ -255,6 +288,7 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
         if (input.df_mode !== undefined) update.df_mode = input.df_mode || "baht";
         if (input.ref_comm_mode !== undefined) { update.ref_comm_mode = input.ref_comm_mode ?? null; update.ref_comm_value = input.ref_comm_value ?? null; }
         if (input.team_count_pct !== undefined) update.team_count_pct = input.team_count_pct ?? null;
+        if (input.doctor_hours !== undefined) update.doctor_hours = input.doctor_hours ?? null;
 
         const { error } = await supabase
             .from("service_catalog")
@@ -262,6 +296,11 @@ export async function updateService(id: string, input: Partial<ServiceInput>) {
             .eq("id", id);
 
         if (error) return { success: false, error: error.message };
+        if (input.recipe) {
+            const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
+            const rErr = await replaceRecipe(supabase, profile?.clinic_id as string, id, input.recipe);
+            if (rErr) return { success: false, error: `บันทึกสูตรไม่สำเร็จ: ${rErr}` };
+        }
 
         revalidatePath("/dashboard/settings/services");
         return { success: true };

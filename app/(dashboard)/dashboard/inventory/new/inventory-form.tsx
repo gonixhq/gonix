@@ -178,6 +178,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [refMode, setRefMode] = useState<RefCommMode>((item?.ref_comm_mode as RefCommMode) || "");
     const [refVal, setRefVal] = useState(item?.ref_comm_value != null ? String(item.ref_comm_value) : "");
     const [teamPct, setTeamPct] = useState(item?.team_count_pct != null ? String(item.team_count_pct) : "");
+    const [singleUse, setSingleUse] = useState(!!item?.single_use);
     const [location, setLocation] = useState(item?.location || "");
     const [supplier, setSupplier] = useState(item?.supplier || "");
     const [note, setNote] = useState(item?.note || "");
@@ -260,6 +261,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     df_doctor: parseFloat(dfDoctor) || 0, df_nurse: parseFloat(dfNurse) || 0, df_assistant: parseFloat(dfAssistant) || 0,
                     ...refCommPayload(refMode, refVal),
                 ...teamPctPayload(teamPct),
+                single_use: singleUse,
                     location, supplier, note,
                 });
                 if (!res.success) throw new Error(res.error || "บันทึกไม่สำเร็จ");
@@ -310,6 +312,7 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                 df_assistant: parseFloat(dfAssistant) || 0,
                 ...refCommPayload(refMode, refVal),
                 ...teamPctPayload(teamPct),
+                single_use: singleUse,
                 location: location || null,
                 supplier: supplier || null,
                 note: note || null,
@@ -641,6 +644,12 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                     </FieldRow>
                     <FieldRow label="แจ้งเตือนต่ำสุด">
                         <Input type="number" value={minStock} onChange={e => setMinStock(e.target.value)} placeholder="0" className={`${inputCls} tabular-nums`} />
+                    </FieldRow>
+                    <FieldRow label="ใช้ครั้งเดียวทิ้ง">
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" checked={singleUse} onChange={e => setSingleUse(e.target.checked)} className="h-4 w-4" />
+                            คิดต้นทุนเต็มแพ็ก/หลอด แม้ใช้ไม่หมด
+                        </label>
                     </FieldRow>
                     <FieldRow label="ตัดสต๊อกอัตโนมัติ">
                         <select className={selectCls} value={autoCutStock} onChange={e => setAutoCutStock(e.target.value)}>

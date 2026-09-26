@@ -24,6 +24,13 @@ export interface ServiceCatalogItem {
     ref_comm_mode?: string | null;      // คอมแนะนำ: pct | fixed | per_unit | none · null = มาตรฐาน
     ref_comm_value?: number | null;
     team_count_pct?: number | null;     // % นับเข้าคอมทีม (null = 100)
+    doctor_hours?: number | null;       // ชั่วโมงแพทย์มาตรฐานต่อเคส (ประเมินต้นทุน)
+}
+
+/** สูตรหัตถการ 1 บรรทัด (เฟส 4A) */
+export interface RecipeLine {
+    inventory_item_id: string;
+    qty: number;
 }
 
 export interface InventoryPick {
@@ -31,6 +38,17 @@ export interface InventoryPick {
     item_name: string;
     stock_qty: number;
     unit: string | null;
+    cost_price?: number;          // ราคาทุนต่อหน่วยใช้
+    units_per_pack?: number | null;
+    single_use?: boolean;         // ใช้ครั้งเดียวทิ้ง → คิดเต็มแพ็ก
+}
+
+/** ต้นทุนการใช้ของ (ตรงกับ fn_inv_use_cost ที่ DB) */
+export function invUseCost(p: InventoryPick | undefined, qty: number): number {
+    if (!p) return 0;
+    const upp = Number(p.units_per_pack || 0);
+    const q = p.single_use && upp > 0 ? Math.ceil(qty / upp) * upp : qty;
+    return Math.round((p.cost_price || 0) * q * 100) / 100;
 }
 
 export const SERVICE_ITEM_TYPE_LABEL: Record<ServiceItemType, string> = {

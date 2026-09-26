@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,11 @@ import {
     Plus, Pencil, Trash2, AlertCircle, CheckCircle, X, Eye, EyeOff, Search,
 } from "lucide-react";
 import {
-    type ServiceCatalogItem, type ServiceItemType, type InventoryPick,
+    type ServiceCatalogItem, type ServiceItemType, type InventoryPick, type RecipeLine, invUseCost,
     SERVICE_ITEM_TYPE_LABEL, SERVICE_ITEM_TYPE_COLOR, SERVICE_ITEM_TYPE_OPTIONS,
 } from "@/lib/service-types";
 import {
-    createService, updateService, deleteService, backfillMissingCodes, type ServiceInput,
+    createService, updateService, deleteService, backfillMissingCodes, getServiceRecipe, type ServiceInput,
 } from "@/lib/actions/services";
 import { Wand2, FileText, Package, HandCoins } from "lucide-react";
 import { HorizontalForm, Section, FieldRow, FORM_INPUT_CLS, FORM_SELECT_CLS } from "@/components/ui/horizontal-form";
@@ -309,6 +309,16 @@ function ServiceFormModal({
     const [refMode, setRefMode] = useState<RefCommMode>((initial?.ref_comm_mode as RefCommMode) || "");
     const [refVal, setRefVal] = useState(initial?.ref_comm_value != null ? String(initial.ref_comm_value) : "");
     const [teamPct, setTeamPct] = useState(initial?.team_count_pct != null ? String(initial.team_count_pct) : "");
+    const [doctorHours, setDoctorHours] = useState(initial?.doctor_hours != null ? String(initial.doctor_hours) : "");
+    const [recipe, setRecipe] = useState<RecipeLine[]>([]);
+    const [recipeLoaded, setRecipeLoaded] = useState(!initial?.id);
+    useEffect(() => {
+        if (!initial?.id) return;
+        getServiceRecipe(initial.id).then(r => { setRecipe(r); setRecipeLoaded(true); });
+    }, [initial?.id]);
+    const invMap = useMemo(() => new Map(inventory.map(i => [i.id, i])), [inventory]);
+    const materialCost = (kitId ? invUseCost(invMap.get(kitId), parseFloat(consumeQty) || 1) : 0)
+        + recipe.reduce((s, r) => s + invUseCost(invMap.get(r.inventory_item_id), Number(r.qty) || 0), 0);
     const [submitting, setSubmitting] = useState(false);
 
     async function handleSave() {
@@ -331,6 +341,8 @@ function ServiceFormModal({
             df_mode: dfMode,
             ...refCommPayload(refMode, refVal),
             ...teamPctPayload(teamPct),
+            doctor_hours: doctorHours === "" ? null : Number(doctorHours) || 0,
+            ...(recipeLoaded ? { recipe } : {}),
         });
         setSubmitting(false);
     }
@@ -467,6 +479,30 @@ function ServiceFormModal({
                                         className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
                                 </FieldRow>
                             )}
+                            <FieldRow label="สูตรหัตถการ" colSpan={2} hint="ยา/วัสดุที่ใช้ต่อ 1 ครั้ง (เช่น ดริป = Vit C + Tranexamic + Glutathione + เซ็ตดริป) — ตัดสต๊อก + คิดต้นทุนอัตโนมัติ">
+                                <div className="space-y-1.5 w-full">
+                                    {!recipeLoaded ? <span className="text-xs text-slate-400">กำลังโหลด...</span> : recipe.map((r, i) => {
+                                        const p = invMap.get(r.inventory_item_id);
+                                        return (
+                                            <div key={i} className="flex items-center gap-2">
+                                                <select value={r.inventory_item_id} onChange={e => setRecipe(recipe.map((x, j) => j === i ? { ...x, inventory_item_id: e.target.value } : x))} className={`${FORM_SELECT_CLS} flex-1 min-w-0`}>
+                                                    <option value="">— เลือกยา/วัสดุ —</option>
+                                                    {inventory.map(it => <option key={it.id} value={it.id}>{it.item_name}</option>)}
+                                                </select>
+                                                <Input type="number" min="0" step="0.01" value={r.qty || ""} onChange={e => setRecipe(recipe.map((x, j) => j === i ? { ...x, qty: parseFloat(e.target.value) || 0 } : x))} className={`${FORM_INPUT_CLS} w-24 text-right tabular-nums`} />
+                                                <span className="text-xs text-slate-500 w-10">{p?.unit || ""}</span>
+                                                <span className="text-xs tabular-nums text-slate-600 w-20 text-right">฿{invUseCost(p, r.qty).toLocaleString()}</span>
+                                                <button type="button" onClick={() => setRecipe(recipe.filter((_, j) => j !== i))} className="text-xs text-rose-600">ลบ</button>
+                                            </div>
+                                        );
+                                    })}
+                                    {recipeLoaded && <button type="button" onClick={() => setRecipe([...recipe, { inventory_item_id: "", qty: 1 }])} className="text-xs font-semibold text-blue-700">+ เพิ่มยา/วัสดุ</button>}
+                                    <div className="text-xs text-slate-600 pt-1">ต้นทุนวัสดุต่อครั้ง ≈ <b className="tabular-nums">฿{materialCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b>{Number(sellingPrice) > 0 && ` · ${(materialCost / Number(sellingPrice) * 100).toFixed(0)}% ของราคาขาย`}</div>
+                                </div>
+                            </FieldRow>
+                            <FieldRow label="ชม.แพทย์/เคส" hint="ใช้ประเมินต้นทุนค่าชั่วโมงแพทย์ (เว้นว่าง = ไม่ใช้แพทย์)">
+                                <Input type="number" min="0" step="0.25" value={doctorHours} onChange={e => setDoctorHours(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
+                            </FieldRow>
                         </Section>
                     </HorizontalForm>
                 </div>
