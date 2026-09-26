@@ -390,6 +390,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
         ref_comm_mode: "" as string,
         ref_comm_value: "",
         team_count_pct: "",
+        material_cost_per_session: "",
         is_bundle: false,
         consume_item_id: "",
         consume_qty_per_session: "",
@@ -418,6 +419,7 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
                 ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
                 ...teamPctPayload(form.team_count_pct),
+                material_cost_per_session: form.material_cost_per_session === "" ? null : Number(form.material_cost_per_session) || 0,
                 is_active: true,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
@@ -579,6 +581,13 @@ function CreatePackageModal({ onClose, packages, inventoryItems }: { onClose: ()
                             <Input type="number" min={0} step="10" value={form.hand_fee_asst}
                                 onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ยา/วัสดุสิ้นเปลืองต่อครั้งที่ไม่ได้ตั้งตัดสต๊อกอัตโนมัติ">ต้นทุนวัสดุอื่น ฿/ครั้ง</Label>
+                        <Input type="number" min={0} step="1" value={form.material_cost_per_session}
+                            onChange={e => setForm({ ...form, material_cost_per_session: e.target.value })} className="rounded-xl tabular-nums max-w-[200px]" placeholder="0" />
+                        <p className="text-[11px] text-slate-400">ใช้คิดต้นทุนที่ยังต้องจ่ายของคอสค้างใช้ (รวมกับของที่ตัดสต๊อก + ค่ามือ)</p>
                     </div>
 
                     <div className="space-y-1.5">

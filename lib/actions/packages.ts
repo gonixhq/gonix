@@ -27,8 +27,8 @@ export async function getAllSoldPackages(): Promise<import("@/lib/package-types"
         if (!profile?.clinic_id) return [];
 
         const { data } = await supabase
-            .from("v_patient_packages_active")
-            .select("id, hn, package_name, category, total_sessions, used_sessions, remaining_sessions, paid_amount, purchased_at, expires_at, status, invoice_id, is_expired, days_remaining")
+            .from("v_package_liability")
+            .select("id, hn, package_name, category, total_sessions, used_sessions, remaining_sessions, paid_amount, purchased_at, expires_at, status, invoice_id, is_expired, days_remaining, sale_price, value_per_session, cost_per_session, remaining_value, remaining_cost, liability_state")
             .eq("clinic_id", profile.clinic_id)
             .in("status", ["active", "completed", "expired"])
             .order("expires_at", { ascending: true });
@@ -50,6 +50,9 @@ export async function getAllSoldPackages(): Promise<import("@/lib/package-types"
             remaining_sessions: Number(r.remaining_sessions || 0), paid_amount: Number(r.paid_amount || 0),
             purchased_at: r.purchased_at, expires_at: r.expires_at, status: r.status,
             invoice_id: r.invoice_id ?? null, is_expired: !!r.is_expired, days_remaining: Number(r.days_remaining || 0),
+            sale_price: Number(r.sale_price || 0), value_per_session: Number(r.value_per_session || 0),
+            cost_per_session: Number(r.cost_per_session || 0), remaining_value: Number(r.remaining_value || 0),
+            remaining_cost: Number(r.remaining_cost || 0), liability_state: r.liability_state,
         }));
     } catch {
         return [];
@@ -66,19 +69,17 @@ export async function getDeferredRevenue(): Promise<{ outstanding: number; count
             .from("profiles").select("clinic_id").eq("id", user.id).single();
         if (!profile?.clinic_id) return { outstanding: 0, count: 0 };
 
-        // ใช้ view v_patient_packages_active (มี remaining_sessions + paid_amount ตาม schema 038)
+        // เฟส 3: มูลค่าคงเหลือจากราคาขายจริงหลังส่วนลด (v_package_liability) · เฉพาะที่ยังไม่หมดอายุ
         const { data } = await supabase
-            .from("v_patient_packages_active")
-            .select("paid_amount, total_sessions, remaining_sessions")
+            .from("v_package_liability")
+            .select("remaining_value")
             .eq("clinic_id", profile.clinic_id)
-            .eq("status", "active");
+            .eq("liability_state", "outstanding");
 
         let outstanding = 0, count = 0;
         for (const p of data || []) {
-            const ts = Number(p.total_sessions || 0);
-            const rem = Number(p.remaining_sessions || 0);
-            const paid = Number(p.paid_amount || 0);
-            if (ts > 0 && rem > 0) { outstanding += paid * rem / ts; count++; }
+            const v = Number(p.remaining_value || 0);
+            if (v > 0) { outstanding += v; count++; }
         }
         return { outstanding: Math.round(outstanding * 100) / 100, count };
     } catch {
@@ -152,12 +153,14 @@ export interface DeferredForecast {
     outstanding: number;          // มูลค่า deferred รวม (จ่ายแล้วแต่ยังไม่ได้ให้บริการ)
     count: number;                // จำนวนคอส active ที่ยังใช้ไม่ครบ
     remainingSessions: number;    // ครั้งคงเหลือรวม (workload ที่ต้องรองรับ)
+    remainingCost: number;        // ต้นทุนที่ยังต้องจ่าย (วัสดุ + ค่ามือ) ของครั้งที่เหลือ
+    expiredUnused: { count: number; value: number; sessions: number };  // หมดอายุแต่ยังเหลือครั้ง (รอนโยบาย คืน/ยืด/รับรู้รายได้)
     buckets: { label: string; count: number; value: number }[];  // แยกตามช่วงหมดอายุ
 }
 
 /** คาดการณ์รายได้ deferred + workload แยกตามช่วงหมดอายุ (วางแผนกระแสเงิน/กำลังคน) */
 export async function getDeferredRevenueForecast(): Promise<DeferredForecast> {
-    const empty: DeferredForecast = { outstanding: 0, count: 0, remainingSessions: 0, buckets: [] };
+    const empty: DeferredForecast = { outstanding: 0, count: 0, remainingSessions: 0, remainingCost: 0, expiredUnused: { count: 0, value: 0, sessions: 0 }, buckets: [] };
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -165,9 +168,9 @@ export async function getDeferredRevenueForecast(): Promise<DeferredForecast> {
         const { data: profile } = await supabase.from("profiles").select("clinic_id").eq("id", user.id).single();
         if (!profile?.clinic_id) return empty;
 
-        const { data } = await supabase.from("v_patient_packages_active")
-            .select("paid_amount, total_sessions, remaining_sessions, days_remaining")
-            .eq("clinic_id", profile.clinic_id).eq("status", "active");
+        const { data } = await supabase.from("v_package_liability")
+            .select("remaining_sessions, remaining_value, remaining_cost, days_remaining, liability_state")
+            .eq("clinic_id", profile.clinic_id).in("liability_state", ["outstanding", "expired_unused"]);
 
         const BUCKETS = [
             { label: "ภายใน 30 วัน", max: 30 },
@@ -176,20 +179,25 @@ export async function getDeferredRevenueForecast(): Promise<DeferredForecast> {
             { label: "มากกว่า 90 วัน", max: Infinity },
         ].map(b => ({ ...b, count: 0, value: 0 }));
 
-        let outstanding = 0, count = 0, remainingSessions = 0;
+        let outstanding = 0, count = 0, remainingSessions = 0, remainingCost = 0;
+        const expiredUnused = { count: 0, value: 0, sessions: 0 };
         for (const p of data || []) {
-            const ts = Number(p.total_sessions || 0);
             const rem = Number(p.remaining_sessions || 0);
-            const paid = Number(p.paid_amount || 0);
-            if (ts <= 0 || rem <= 0) continue;
-            const unearned = paid * rem / ts;
-            outstanding += unearned; count++; remainingSessions += rem;
+            const unearned = Number(p.remaining_value || 0);
+            if (rem <= 0) continue;
+            if (p.liability_state === "expired_unused") {
+                expiredUnused.count++; expiredUnused.value += unearned; expiredUnused.sessions += rem;
+                continue;
+            }
+            outstanding += unearned; count++; remainingSessions += rem; remainingCost += Number(p.remaining_cost || 0);
             const d = Number(p.days_remaining ?? 9999);
             const b = BUCKETS.find(x => d <= x.max) || BUCKETS[BUCKETS.length - 1];
             b.count++; b.value += unearned;
         }
         return {
             outstanding: Math.round(outstanding * 100) / 100, count, remainingSessions,
+            remainingCost: Math.round(remainingCost * 100) / 100,
+            expiredUnused: { ...expiredUnused, value: Math.round(expiredUnused.value * 100) / 100 },
             buckets: BUCKETS.map(b => ({ label: b.label, count: b.count, value: Math.round(b.value * 100) / 100 })),
         };
     } catch {
@@ -310,6 +318,7 @@ export interface PackageInput {
     ref_comm_mode?: string | null;   // คอมแนะนำ (เฟส 2D) · null = มาตรฐาน
     ref_comm_value?: number | null;
     team_count_pct?: number | null;   // % นับเข้าคอมทีม (null = 100)
+    material_cost_per_session?: number | null;  // ต้นทุนยา/วัสดุอื่นต่อครั้ง (ไม่ได้ตัดสต๊อก)
     is_bundle?: boolean;
     component_ids?: string[];   // service_package ids ที่รวมใน bundle
     consume_item_id?: string | null;          // ตัดสต๊อกวัสดุต่อครั้ง (เช่น HIFU shot)
@@ -369,6 +378,7 @@ export async function createPackage(input: PackageInput) {
                 ref_comm_mode: input.ref_comm_mode ?? null,
                 ref_comm_value: input.ref_comm_value ?? null,
                 team_count_pct: input.team_count_pct ?? null,
+                material_cost_per_session: input.material_cost_per_session ?? null,
                 is_bundle: input.is_bundle ?? false,
                 consume_item_id: input.consume_item_id || null,
                 consume_qty_per_session: input.consume_qty_per_session ?? null,
@@ -418,6 +428,7 @@ export async function updatePackage(id: string, input: Partial<PackageInput>) {
         if (input.hand_fee_asst !== undefined) patch.hand_fee_asst = input.hand_fee_asst;
         if (input.ref_comm_mode !== undefined) { patch.ref_comm_mode = input.ref_comm_mode; patch.ref_comm_value = input.ref_comm_value ?? null; }
         if (input.team_count_pct !== undefined) patch.team_count_pct = input.team_count_pct;
+        if (input.material_cost_per_session !== undefined) patch.material_cost_per_session = input.material_cost_per_session;
         if (input.is_bundle !== undefined) patch.is_bundle = input.is_bundle;
         if (input.consume_item_id !== undefined) patch.consume_item_id = input.consume_item_id || null;
         if (input.consume_qty_per_session !== undefined) patch.consume_qty_per_session = input.consume_qty_per_session ?? null;

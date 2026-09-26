@@ -38,6 +38,7 @@ interface PackageItem {
     ref_comm_mode?: string | null;
     ref_comm_value?: number | null;
     team_count_pct?: number | null;
+    material_cost_per_session?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;
@@ -382,6 +383,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
         ref_comm_mode: (pkg.ref_comm_mode || "") as string,
         ref_comm_value: pkg.ref_comm_value != null ? String(pkg.ref_comm_value) : "",
         team_count_pct: pkg.team_count_pct != null ? String(pkg.team_count_pct) : "",
+        material_cost_per_session: pkg.material_cost_per_session != null ? String(pkg.material_cost_per_session) : "",
         is_bundle: !!pkg.is_bundle,
         consume_item_id: pkg.consume_item_id || "",
         consume_qty_per_session: pkg.consume_qty_per_session != null ? String(pkg.consume_qty_per_session) : "",
@@ -409,6 +411,7 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                 hand_fee_asst: Number(form.hand_fee_asst) || null,
                 ...refCommPayload(form.ref_comm_mode as RefCommMode, form.ref_comm_value),
                 ...teamPctPayload(form.team_count_pct),
+                material_cost_per_session: form.material_cost_per_session === "" ? null : Number(form.material_cost_per_session) || 0,
                 is_bundle: form.is_bundle,
                 component_ids: form.is_bundle ? componentIds : [],
                 consume_item_id: form.consume_item_id || null,
@@ -541,6 +544,13 @@ function EditPackageModal({ pkg, candidatePackages, initialComponentIds, invento
                             <Input type="number" min={0} step="10" value={form.hand_fee_asst}
                                 onChange={e => setForm({ ...form, hand_fee_asst: parseFloat(e.target.value) || 0 })} className="rounded-xl tabular-nums" placeholder="ครึ่งหนึ่งของหลัก" />
                         </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600" title="ยา/วัสดุสิ้นเปลืองต่อครั้งที่ไม่ได้ตั้งตัดสต๊อกอัตโนมัติ">ต้นทุนวัสดุอื่น ฿/ครั้ง</Label>
+                        <Input type="number" min={0} step="1" value={form.material_cost_per_session}
+                            onChange={e => setForm({ ...form, material_cost_per_session: e.target.value })} className="rounded-xl tabular-nums max-w-[200px]" placeholder="0" />
+                        <p className="text-[11px] text-slate-400">ใช้คิดต้นทุนที่ยังต้องจ่ายของคอสค้างใช้ (รวมกับของที่ตัดสต๊อก + ค่ามือ)</p>
                     </div>
 
                     <div className="space-y-1.5">

@@ -320,6 +320,8 @@ export async function completeCheckout(input: CheckoutInput) {
                 ? await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle()
                 : { data: null };
 
+            // ราคาขายจริงหลังส่วนลด (ส่วนลดรายการ + ส่วนลดท้ายบิลเกลี่ยตามสัดส่วน) → มูลค่าคงเหลือคอส (เฟส 3)
+            const sumAfter = items.reduce((s, i) => s + (Number(i.line_total) || 0) - (Number(i.discount_amount) || 0), 0);
             for (const item of packageItems) {
                 const { data: pkg } = await supabase
                     .from("service_packages")
@@ -333,6 +335,8 @@ export async function completeCheckout(input: CheckoutInput) {
 
                 // qty = จำนวนคอสที่ซื้อ (default 1)
                 const numToCreate = Math.max(1, Math.floor(item.qty));
+                const lineAfter = (Number(item.line_total) || 0) - (Number(item.discount_amount) || 0);
+                const netPrice = sumAfter > 0 ? Math.round(lineAfter * total / sumAfter / numToCreate * 100) / 100 : item.unit_price;
                 for (let i = 0; i < numToCreate; i++) {
                     await supabase.from("patient_packages").insert({
                         clinic_id: clinicId,
@@ -342,6 +346,7 @@ export async function completeCheckout(input: CheckoutInput) {
                         package_name: pkg.name,
                         total_sessions: pkg.total_sessions,
                         paid_amount: item.unit_price,
+                        net_price: netPrice,
                         expires_at: expiresAt.toISOString(),
                         created_by: staffRow?.id || null,
                     });

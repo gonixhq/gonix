@@ -23,6 +23,13 @@ export interface SoldPackageRow {
     invoice_id: string | null;
     is_expired: boolean;
     days_remaining: number;
+    // ── คอร์สค้างใช้ (เฟส 3, v_package_liability) ──
+    sale_price: number;          // ราคาขายจริงหลังส่วนลด
+    value_per_session: number;
+    cost_per_session: number;    // วัสดุ + ของตัดสต๊อก × ทุน + ค่ามือ
+    remaining_value: number;
+    remaining_cost: number;
+    liability_state: "outstanding" | "expired_unused" | "done" | "closed";
 }
 
 export interface ServicePackage {
@@ -44,6 +51,7 @@ export interface ServicePackage {
     ref_comm_mode?: string | null;
     ref_comm_value?: number | null;
     team_count_pct?: number | null;
+    material_cost_per_session?: number | null;
     is_bundle?: boolean;
     consume_item_id?: string | null;
     consume_qty_per_session?: number | null;

@@ -11,8 +11,9 @@ const money = (n: number) => `฿${(n || 0).toLocaleString(undefined, { minimumF
 function dateTh(d: string): string {
     return new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 }
+// เฟส 3: มูลค่าคงเหลือจากราคาขายจริงหลังส่วนลด (v_package_liability)
 function outstanding(r: SoldPackageRow): number {
-    return r.total_sessions > 0 ? r.paid_amount * r.remaining_sessions / r.total_sessions : 0;
+    return r.remaining_value;
 }
 
 export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPackageRow[]; forecast?: DeferredForecast }) {
@@ -34,8 +35,12 @@ export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPacka
     const stats = useMemo(() => {
         const active = rows.filter(r => r.status === "active" && !r.is_expired);
         const totalOutstanding = active.reduce((s, r) => s + outstanding(r), 0);
+        const totalCost = active.reduce((s, r) => s + r.remaining_cost, 0);
         const expiringSoon = active.filter(r => r.days_remaining <= 30).length;
-        return { activeCount: active.length, totalOutstanding, expiringSoon };
+        const expired = rows.filter(r => r.liability_state === "expired_unused");
+        const expiredValue = expired.reduce((s, r) => s + r.remaining_value, 0);
+        const noCost = active.filter(r => r.cost_per_session <= 0).length;
+        return { activeCount: active.length, totalOutstanding, totalCost, expiringSoon, expiredCount: expired.length, expiredValue, noCost };
     }, [rows]);
 
     return (
@@ -47,7 +52,7 @@ export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPacka
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="gonix-card-premium p-4">
                     <div className="h-9 w-9 rounded-xl bg-blue-100 flex items-center justify-center mb-2"><Sparkles className="h-4 w-4 text-blue-600" /></div>
                     <div className="text-2xl font-black text-slate-800 tabular-nums">{stats.activeCount}</div>
@@ -62,6 +67,20 @@ export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPacka
                     <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center mb-2"><Clock className="h-4 w-4 text-amber-600" /></div>
                     <div className="text-2xl font-black text-amber-700 tabular-nums">{stats.expiringSoon}</div>
                     <div className="text-xs text-slate-500 font-semibold">ใกล้หมดอายุ (≤30 วัน)</div>
+                </div>
+                <div className="gonix-card-premium p-4">
+                    <div className="text-2xl font-black text-rose-700 tabular-nums">{money(stats.totalCost)}</div>
+                    <div className="text-xs text-slate-500 font-semibold">ต้นทุนที่ยังต้องจ่าย (วัสดุ + ค่ามือ)</div>
+                    {stats.noCost > 0 && <div className="text-[11px] text-amber-700 mt-0.5">{stats.noCost} คอสยังไม่ได้ตั้งต้นทุน/ค่ามือ</div>}
+                </div>
+                <div className="gonix-card-premium p-4">
+                    <div className="text-2xl font-black text-emerald-700 tabular-nums">{money(stats.totalOutstanding - stats.totalCost)}</div>
+                    <div className="text-xs text-slate-500 font-semibold">กำไรขั้นต้นที่จะรับรู้เมื่อใช้ครบ</div>
+                </div>
+                <div className="gonix-card-premium p-4">
+                    <div className="text-2xl font-black text-slate-700 tabular-nums">{money(stats.expiredValue)}</div>
+                    <div className="text-xs text-slate-500 font-semibold">รายได้จากคอสหมดอายุ ({stats.expiredCount} คอส)</div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">ครั้งที่เหลือเมื่อหมดอายุ ถือเป็นรายได้คลินิก (ไม่มีต้นทุนต้องจ่าย)</div>
                 </div>
             </div>
 
@@ -116,7 +135,8 @@ export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPacka
                                     <th className="text-left px-4 py-2">ผู้ป่วย</th>
                                     <th className="text-left px-4 py-2">คอส</th>
                                     <th className="text-center px-4 py-2">คงเหลือ</th>
-                                    <th className="text-right px-4 py-2 hidden sm:table-cell">มูลค่าค้าง</th>
+                                    <th className="text-right px-4 py-2 hidden sm:table-cell">มูลค่าคงเหลือ</th>
+                                    <th className="text-right px-4 py-2 hidden lg:table-cell">ต้นทุนคงเหลือ</th>
                                     <th className="text-left px-4 py-2 hidden md:table-cell">หมดอายุ</th>
                                     <th className="text-center px-4 py-2">ใบเสร็จ</th>
                                 </tr>
@@ -140,7 +160,16 @@ export default function PackagesSoldClient({ rows, forecast }: { rows: SoldPacka
                                                 <span className={cn("font-black tabular-nums", r.remaining_sessions > 0 ? "text-slate-800" : "text-slate-400")}>{r.remaining_sessions}</span>
                                                 <span className="text-slate-400 text-xs">/{r.total_sessions}</span>
                                             </td>
-                                            <td className="px-4 py-2.5 text-right hidden sm:table-cell font-bold tabular-nums text-violet-700">{money(outstanding(r))}</td>
+                                            <td className="px-4 py-2.5 text-right hidden sm:table-cell tabular-nums">
+                                                <div className="font-bold text-violet-700">{money(outstanding(r))}</div>
+                                                <div className="text-[10px] text-slate-400" title="ราคาขายจริงหลังส่วนลด ÷ จำนวนครั้ง">{money(r.value_per_session)}/ครั้ง{r.sale_price < r.paid_amount ? ` · ขายจริง ${money(r.sale_price)}` : ""}</div>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right hidden lg:table-cell tabular-nums">
+                                                {r.cost_per_session > 0 ? (<>
+                                                    <div className="font-semibold text-rose-700">{money(r.remaining_cost)}</div>
+                                                    <div className="text-[10px] text-slate-400">{money(r.cost_per_session)}/ครั้ง</div>
+                                                </>) : <span className="text-[11px] text-amber-600">ยังไม่ตั้งต้นทุน</span>}
+                                            </td>
                                             <td className="px-4 py-2.5 hidden md:table-cell">
                                                 <span className="inline-flex items-center gap-1.5 text-xs">
                                                     <span className="tabular-nums text-slate-600">{dateTh(r.expires_at)}</span>
