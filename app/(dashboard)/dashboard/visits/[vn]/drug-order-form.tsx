@@ -190,7 +190,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
             .from("inventory")
             .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category, sig_text_default, dose_qty, frequency, use_type")
             .eq("is_active", true)
-            .in("category", ["drug", "supply"])
+            .in("category", ["drug", "supply", "aesthetic_supply"])
             .or(`item_name.ilike.%${q}%,generic_name.ilike.%${q}%`)
             .limit(10);
 
@@ -201,7 +201,7 @@ export default function DrugOrderForm({ vn, hn, defaultIcd10 = "", defaultDiagno
                 .from("inventory")
                 .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category")
                 .eq("is_active", true)
-                .in("category", ["drug", "supply"])
+                .in("category", ["drug", "supply", "aesthetic_supply"])
                 .or(`item_name.ilike.%${q}%,generic_name.ilike.%${q}%`)
                 .limit(10);
             // fallback omits sig columns; keep the same shape (sig fields just absent)

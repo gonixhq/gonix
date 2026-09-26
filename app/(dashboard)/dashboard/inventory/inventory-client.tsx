@@ -59,6 +59,7 @@ function isExpiryAlert(kind: ExpiryKind): boolean {
 const CATEGORY_LABEL: Record<string, string> = {
     drug: "ยา",
     supply: "เวชภัณฑ์",
+    aesthetic_supply: "เวชภัณฑ์ความงาม",
     service: "บริการ",
     equipment: "อุปกรณ์",
     other: "อื่นๆ",
@@ -67,6 +68,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 const CATEGORY_COLOR: Record<string, string> = {
     drug: "bg-amber-100 text-amber-700",
     supply: "bg-indigo-100 text-indigo-700",
+    aesthetic_supply: "bg-pink-100 text-pink-700",
     service: "bg-blue-100 text-blue-700",
     equipment: "bg-purple-100 text-purple-700",
     other: "bg-slate-100 text-slate-700",

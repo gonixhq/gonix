@@ -70,7 +70,7 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     const { data: drugs } = await supabase
         .from("inventory")
         .select("id, item_name, generic_name, strength, dosage_form, unit, sell_price, stock_qty, category, segment, deduction_type")
-        .in("category", ["drug", "supply"])
+        .in("category", ["drug", "supply", "aesthetic_supply"])
         .eq("is_active", true)
         .order("category")
         .order("item_name");
