@@ -442,13 +442,28 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                                 <Input list="model-options" value={modelVariant} onChange={e => setModelVariant(e.target.value)} placeholder="เช่น Voluma, Volbella" className={inputCls} />
                                 <datalist id="model-options">{modelOptions.map(m => <option key={m} value={m} />)}</datalist>
                             </FieldRow>
-                            <FieldRow label="หน่วยที่ตัดสต๊อก" required>
+                            <FieldRow label="หน่วยที่ตัดสต๊อก" required hint="หน่วยที่ใช้ต่อเคส — ฉีดแบ่งจากขวดใช้ unit/cc/shot · ใช้ทีละขวด/หลอดทั้งชิ้นเลือกกลุ่ม &quot;ใช้ทั้งชิ้น&quot; (ความจุ = 1)">
                                 {/* หน่วยจริงที่นับ/ตัด (u/cc/shot) — sync ไป unit ด้วย ผู้ใช้ไม่ต้องกรอกซ้ำ */}
                                 <select value={capacityUnitLabel} onChange={e => { setCapacityUnitLabel(e.target.value); setUnit(e.target.value); }} className={selectCls}>
-                                    <option value="unit">unit</option>
-                                    <option value="shot">shot</option>
-                                    <option value="cc">cc</option>
-                                    {capacityUnitLabel === "ml" && <option value="ml">ml</option>}
+                                    <optgroup label="แบ่งใช้ตามปริมาณ">
+                                        <option value="unit">unit</option>
+                                        <option value="cc">cc</option>
+                                        <option value="shot">shot</option>
+                                        <option value="mg">mg</option>
+                                        {capacityUnitLabel === "ml" && <option value="ml">ml</option>}
+                                    </optgroup>
+                                    <optgroup label="ใช้ทั้งชิ้น">
+                                        <option value="ขวด">ขวด</option>
+                                        <option value="ไวอัล">ไวอัล</option>
+                                        <option value="หลอด">หลอด</option>
+                                        <option value="แอมป์">แอมป์</option>
+                                        <option value="เข็ม">เข็ม</option>
+                                        <option value="ชิ้น">ชิ้น</option>
+                                        <option value="ซอง">ซอง</option>
+                                        <option value="กล่อง">กล่อง</option>
+                                        <option value="ครั้ง">ครั้ง</option>
+                                    </optgroup>
+                                    {capacityUnitLabel && !["unit", "cc", "shot", "mg", "ml", "ขวด", "ไวอัล", "หลอด", "แอมป์", "เข็ม", "ชิ้น", "ซอง", "กล่อง", "ครั้ง"].includes(capacityUnitLabel) && <option value={capacityUnitLabel}>{capacityUnitLabel}</option>}
                                 </select>
                             </FieldRow>
                             <FieldRow label="ชื่อภาชนะ (ขวด/กล่อง/ตลับ)">
