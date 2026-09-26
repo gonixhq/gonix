@@ -540,3 +540,91 @@ export async function getInvoiceAuditLogs(invId: string) {
         return { success: false, error: e instanceof Error ? e.message : "Error", data: [] };
     }
 }
+
+/**
+ * แยก "ส่วนที่ยังไม่ได้ฉีด" ของบิลที่จ่ายแล้วเป็นคอร์สค้างใช้ (กรณีขายไปแล้วแต่ไม่ได้บันทึกเป็นคอร์ส)
+ * เช่น จ่ายราคา Botox 100u ฉีดจริง 50u → คืนสต๊อก 50u เข้าขวด + สร้างคอร์ส 1 ครั้ง ไว้ตัดตอนกลับมา
+ * รายได้รับรู้ไปแล้วในบิลเดิม → คอร์สนี้มูลค่า 0 (ไม่นับรายได้ซ้ำตอนใช้) · ต้นทุนวัสดุของบิลลดตามส่วนที่คืน
+ */
+export async function splitInjectableToCourse(input: {
+    invId: string; itemId: string; unusedQty: number; sessions: number; serviceId: string; restoreStock: boolean; note?: string;
+}) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: prof } = await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).single();
+        if (!prof?.clinic_id || !["owner", "admin"].includes(String(prof.role))) return { success: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        const clinicId = prof.clinic_id as string;
+
+        const { data: inv } = await supabase.from("invoice_headers").select("id, hn, vn, status").eq("id", input.invId).eq("clinic_id", clinicId).maybeSingle();
+        if (!inv) return { success: false, error: "ไม่พบใบเสร็จ" };
+        if (["voided", "refunded"].includes(String(inv.status))) return { success: false, error: "ใบเสร็จถูกยกเลิก/คืนเงินแล้ว" };
+        const { data: line } = await supabase.from("invoice_items").select("id, item_type, item_ref_id, item_name, qty, line_total, discount_amount, cost_material")
+            .eq("id", input.itemId).eq("inv_id", input.invId).maybeSingle();
+        if (!line) return { success: false, error: "ไม่พบรายการ" };
+        const qty = Number(line.qty || 0), unused = Number(input.unusedQty);
+        if (!(unused > 0) || unused >= qty) return { success: false, error: `จำนวนที่ยังไม่ได้ใช้ต้องมากกว่า 0 และน้อยกว่า ${qty}` };
+        const sessions = Math.max(1, Math.floor(Number(input.sessions) || 1));
+        const { data: svc } = await supabase.from("service_catalog").select("id, service_name").eq("id", input.serviceId).eq("clinic_id", clinicId).maybeSingle();
+        if (!svc) return { success: false, error: "เลือกเมนูบริการที่ใช้ตอนกลับมาฉีด" };
+
+        // 1) คืนสต๊อกเข้าขวดที่ใช้ในบิลนี้ (ขวดล่าสุดก่อน)
+        let restored = 0;
+        if (input.restoreStock && line.item_type === "injectable" && inv.vn && line.item_ref_id) {
+            const { data: uses } = await supabase.from("vial_usage").select("id, vial_id, qty")
+                .eq("clinic_id", clinicId).eq("vn", inv.vn).eq("item_id", line.item_ref_id).order("used_at", { ascending: false });
+            let left = unused;
+            for (const u of uses || []) {
+                if (left <= 0 || !u.vial_id) continue;
+                const back = Math.min(left, Number(u.qty || 0));
+                const { data: vial } = await supabase.from("inventory_vials").select("capacity_total, capacity_remaining").eq("id", u.vial_id).maybeSingle();
+                if (!vial) continue;
+                const cap = Number(vial.capacity_total) || 0;
+                const rem = Math.min(cap, Number(vial.capacity_remaining || 0) + back);
+                await supabase.from("inventory_vials").update({ capacity_remaining: rem, status: rem >= cap ? "unopened" : "open" }).eq("id", u.vial_id);
+                const newQty = Number(u.qty) - back;
+                if (newQty > 0) await supabase.from("vial_usage").update({ qty: newQty }).eq("id", u.id);
+                else await supabase.from("vial_usage").delete().eq("id", u.id);
+                left -= back; restored += back;
+            }
+            if (restored > 0) {
+                await supabase.rpc("fn_sync_vial_stock", { p_item: line.item_ref_id });
+                const { data: itm } = await supabase.from("inventory").select("stock_qty").eq("id", line.item_ref_id).maybeSingle();
+                const { data: staff } = await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+                await supabase.from("stock_card").insert({
+                    item_id: line.item_ref_id, clinic_id: clinicId, tx_type: "RETURN_FROM_PATIENT", qty_delta: restored,
+                    balance_after: Number(itm?.stock_qty || 0), note: `คืนส่วนที่ยังไม่ได้ฉีด (แยกเป็นคอร์ส) ${input.invId}`, recorded_by: staff?.id || null,
+                });
+            }
+        }
+
+        // 2) ต้นทุนวัสดุของบิลลดตามส่วนที่คืน
+        if (restored > 0 && line.cost_material != null) {
+            await supabase.from("invoice_items").update({ cost_material: Math.round(Number(line.cost_material) * (qty - restored) / qty * 100) / 100 }).eq("id", line.id);
+        }
+
+        // 3) คอร์สค้างใช้ (มูลค่า 0 — รายได้รับรู้แล้วในบิลเดิม)
+        const valueInfo = Math.round((Number(line.line_total || 0) - Number(line.discount_amount || 0)) * unused / qty * 100) / 100;
+        const expires = new Date(); expires.setDate(expires.getDate() + 365);
+        const { data: staffRow } = await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+        const { error: pErr } = await supabase.from("patient_packages").insert({
+            clinic_id: clinicId, hn: inv.hn, package_id: null, service_id: svc.id, invoice_id: input.invId,
+            package_name: `${svc.service_name} (คงเหลือ ${unused} จาก ${line.item_name})`, total_sessions: sessions,
+            paid_amount: 0, net_price: 0, expires_at: expires.toISOString(), created_by: staffRow?.id || null,
+            note: `แยกจากบิล ${input.invId} · มูลค่า ฿${valueInfo.toLocaleString()} รับรู้รายได้แล้วในบิลเดิม${input.note ? ` · ${input.note}` : ""}`,
+        });
+        if (pErr) return { success: false, error: `สร้างคอร์สไม่สำเร็จ: ${pErr.message}` };
+
+        await supabase.from("audit_logs").insert({
+            clinic_id: clinicId, table_name: "invoice_items", record_id: line.id, action: "split_to_course",
+            old_data: { qty, cost_material: line.cost_material }, new_data: { unused, restored, sessions, service_id: svc.id }, performed_by: user.id,
+        });
+        revalidatePath(`/dashboard/finance/${input.invId}`);
+        revalidatePath(`/dashboard/patients/${inv.hn}`);
+        revalidatePath("/dashboard/inventory");
+        return { success: true, restored };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "ทำรายการไม่สำเร็จ" };
+    }
+}

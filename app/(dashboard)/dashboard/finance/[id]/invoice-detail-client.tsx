@@ -1,5 +1,7 @@
 "use client";
 
+import SplitCourseModal from "./split-course-modal";
+
 import { useState, useTransition } from "react";
 import InvoiceCampaign from "./invoice-campaign";
 import { useRouter } from "next/navigation";
@@ -145,8 +147,10 @@ interface AuditLog {
 interface DiscountLine { id: string; type: string; label: string | null; amount: number }
 
 export default function InvoiceDetailClient({
-    invoice, items, payments, discountLines = [], canManage, auditLogs = [],
+    invoice, items, payments, discountLines = [], canManage, auditLogs = [], services = [], isOwnerAdmin = false,
 }: {
+    services?: { id: string; name: string }[];
+    isOwnerAdmin?: boolean;
     invoice: Invoice;
     items: InvoiceItem[];
     payments: PaymentLog[];
@@ -170,6 +174,7 @@ export default function InvoiceDetailClient({
     const [editPayMethod, setEditPayMethod] = useState<string>("cash");
     const [editDate, setEditDate] = useState(false);
     const [newDate, setNewDate] = useState<string>("");
+    const [splitItem, setSplitItem] = useState<InvoiceItem | null>(null);
 
     function handleChangeDate() {
         if (!newDate) return;
@@ -434,7 +439,12 @@ export default function InvoiceDetailClient({
                                                         {ITEM_TYPE_LABEL[it.item_type] || it.item_type}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-2.5 text-slate-800 font-medium">{it.item_name}</td>
+                                                <td className="px-4 py-2.5 text-slate-800 font-medium">
+                                                    {it.item_name}
+                                                    {isOwnerAdmin && !invoice.status.match(/voided|refunded/) && ["injectable", "service", "procedure"].includes(it.item_type) && Number(it.qty) > 1 && (
+                                                        <button onClick={() => setSplitItem(it)} className="ml-2 text-[11px] font-semibold text-violet-700 hover:underline">ยังใช้ไม่หมด → แยกเป็นคอร์ส</button>
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-2.5 text-right tabular-nums">{Number(it.qty)}</td>
                                                 <td className="px-4 py-2.5 text-right tabular-nums">฿{Number(it.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                 <td className="px-4 py-2.5 text-right font-bold tabular-nums text-slate-800">
@@ -447,6 +457,8 @@ export default function InvoiceDetailClient({
                             </div>
                         )}
                     </div>
+
+                    {splitItem && <SplitCourseModal invId={invoice.id} item={splitItem} services={services} onClose={() => setSplitItem(null)} />}
 
                     {/* Payment history */}
                     <div className="gonix-card-premium overflow-hidden">

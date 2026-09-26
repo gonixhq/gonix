@@ -56,6 +56,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
     // คืนเงิน / ยกเลิก ใบเสร็จ — พนักงานทุกคนทำได้ แต่ต้องใส่เหตุผล + audit log
     const canManage = true;
+    // แยกส่วนที่ยังไม่ได้ใช้เป็นคอร์ส (owner/admin) — ต้องเลือกเมนูบริการที่ใช้ตอนกลับมา
+    const { data: { user: me } } = await supabase.auth.getUser();
+    const { data: meProf } = me ? await supabase.from("profiles").select("role").eq("id", me.id).maybeSingle() : { data: null };
+    const isOwnerAdmin = ["owner", "admin"].includes(String(meProf?.role || ""));
+    const { data: svcRows } = isOwnerAdmin ? await supabase.from("service_catalog").select("id, service_name").eq("is_active", true).order("service_name") : { data: [] };
+    const services = (svcRows || []).map(s => ({ id: s.id as string, name: s.service_name as string }));
 
     // ประวัติการกระทำ (void/refund history)
     const auditRes = await getInvoiceAuditLogs(id);
@@ -68,6 +74,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             payments={payments || []}
             discountLines={discountLines}
             canManage={canManage}
+            services={services}
+            isOwnerAdmin={isOwnerAdmin}
             auditLogs={auditLogs}
         />
     );
