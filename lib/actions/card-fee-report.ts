@@ -5,7 +5,7 @@ import { CARD_TYPE_LABEL } from "@/lib/card-fees";
 
 // รายงานค่าธรรมเนียมบัตรรายเดือน (เดือนปฏิทิน) — กระทบยอดกับ statement ร้านค้า
 export interface CardFeeGroup { key: string; label: string; count: number; amount: number; fee: number; vat: number; total: number; effectivePct: number }
-export interface CardInstallmentRow { paid_at: string; inv_id: string; amount: number; months: number; interestPctMonth: number; customerInterest: number; ref: string | null }
+export interface CardInstallmentRow { paid_at: string; inv_id: string; anonId?: string; amount: number; months: number; interestPctMonth: number; customerInterest: number; ref: string | null }
 export interface CardFeeReport {
     month: string; from: string; to: string;
     groups: CardFeeGroup[];
@@ -14,7 +14,7 @@ export interface CardFeeReport {
     unspecifiedCount: number;
     refunds: { count: number; amount: number };
     installments: CardInstallmentRow[];
-    rows: { paid_at: string; inv_id: string; card: string; amount: number; rate: number | null; fee: number; ref: string | null }[];
+    rows: { paid_at: string; inv_id: string; anonId?: string; card: string; amount: number; rate: number | null; fee: number; ref: string | null }[];
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -49,6 +49,14 @@ export async function getCardFeeReport(month: string): Promise<CardFeeReport | {
             if ((data || []).length < 1000) break;
         }
 
+        // คลินิกนิรนาม (mig 152) — ค่าธรรมเนียม snapshot อยู่ที่ anon_cases
+        const { data: anon } = await supabase.from("anon_cases")
+            .select("id, receipt_no, case_code, total_amount, paid_at, card_type, card_issuer, installment_months, mdr_rate_pct, card_fee, card_fee_vat")
+            .eq("clinic_id", clinicId).eq("paid", true).eq("payment_method", "credit_card")
+            .gte("paid_at", startISO).lt("paid_at", endISO);
+        (anon || []).forEach(a => rowsAll.push({ ...a, amount: a.total_amount, inv_id: (a.receipt_no as string) || `นิรนาม ${a.case_code || ""}`, anonId: a.id, transaction_ref: null }));
+        rowsAll.sort((x, y) => String(x.paid_at).localeCompare(String(y.paid_at)));
+
         const { data: vatRow } = await supabase.rpc("fn_finance_rate", { p_clinic: clinicId, p_key: "vat_enabled", p_date: last });
         const vatEnabled = Number(vatRow || 0) === 1;
 
@@ -68,12 +76,12 @@ export async function getCardFeeReport(month: string): Promise<CardFeeReport | {
             const g = groups.get(key) || { key, label, count: 0, amount: 0, fee: 0, vat: 0, total: 0, effectivePct: 0 };
             g.count++; g.amount = r2(g.amount + amount); g.fee = r2(g.fee + fee); g.vat = r2(g.vat + vat); g.total = r2(g.fee + g.vat);
             groups.set(key, g);
-            rows.push({ paid_at: p.paid_at as string, inv_id: p.inv_id as string, card: label, amount, rate: p.mdr_rate_pct != null ? Number(p.mdr_rate_pct) : null, fee: r2(fee + vat), ref: (p.transaction_ref as string) || null });
+            rows.push({ paid_at: p.paid_at as string, inv_id: p.inv_id as string, anonId: (p.anonId as string) || undefined, card: label, amount, rate: p.mdr_rate_pct != null ? Number(p.mdr_rate_pct) : null, fee: r2(fee + vat), ref: (p.transaction_ref as string) || null });
             if (p.installment_months) {
                 const day = new Date(new Date(p.paid_at as string).getTime() + 7 * 3600e3).toISOString().slice(0, 10);
                 const { data: ir } = await supabase.rpc("fn_finance_rate", { p_clinic: clinicId, p_key: "installment_interest_pct_month", p_date: day });
                 const pct = Number(ir || 0), months = Number(p.installment_months);
-                installments.push({ paid_at: p.paid_at as string, inv_id: p.inv_id as string, amount, months, interestPctMonth: pct, customerInterest: r2(amount * pct / 100 * months), ref: (p.transaction_ref as string) || null });
+                installments.push({ paid_at: p.paid_at as string, inv_id: p.inv_id as string, anonId: (p.anonId as string) || undefined, amount, months, interestPctMonth: pct, customerInterest: r2(amount * pct / 100 * months), ref: (p.transaction_ref as string) || null });
             }
         }
         const list = [...groups.values()].map((g) => ({ ...g, effectivePct: g.amount > 0 ? Math.round(g.total / g.amount * 10000) / 100 : 0 }))

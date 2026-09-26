@@ -102,7 +102,7 @@ export default function CardFeesClient({ report: r }: { report: CardFeeReport })
                         <tbody>{r.installments.map((x, i) => (
                             <tr key={i} className="border-t border-slate-100">
                                 <td className="px-4 py-2 text-slate-600">{dt(x.paid_at)}</td>
-                                <td className="px-3 py-2"><Link href={`/dashboard/finance/${x.inv_id}`} className="font-mono text-xs text-blue-700 hover:underline">{x.inv_id}</Link></td>
+                                <td className="px-3 py-2"><Link href={x.anonId ? `/dashboard/anonymous/${x.anonId}` : `/dashboard/finance/${x.inv_id}`} className="font-mono text-xs text-blue-700 hover:underline">{x.inv_id}</Link></td>
                                 <td className="px-3 py-2 text-right tabular-nums">{money(x.amount)}</td>
                                 <td className="px-3 py-2 text-right">{x.months} เดือน</td>
                                 <td className="px-4 py-2 text-right tabular-nums text-slate-600">{money(x.customerInterest)} <span className="text-[11px] text-slate-400">({x.interestPctMonth}%/ด.)</span></td>
@@ -119,7 +119,7 @@ export default function CardFeesClient({ report: r }: { report: CardFeeReport })
                     <tbody>{r.rows.map((x, i) => (
                         <tr key={i} className="border-t border-slate-100">
                             <td className="px-4 py-1.5 text-slate-600">{dt(x.paid_at)}</td>
-                            <td className="px-3 py-1.5"><Link href={`/dashboard/finance/${x.inv_id}`} className="font-mono text-xs text-blue-700 hover:underline">{x.inv_id}</Link></td>
+                            <td className="px-3 py-1.5"><Link href={x.anonId ? `/dashboard/anonymous/${x.anonId}` : `/dashboard/finance/${x.inv_id}`} className="font-mono text-xs text-blue-700 hover:underline">{x.inv_id}</Link></td>
                             <td className="px-3 py-1.5 text-slate-600">{x.card}</td>
                             <td className="px-3 py-1.5 text-right tabular-nums">{money(x.amount)}</td>
                             <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{x.rate != null ? `${x.rate}%` : "—"}</td>

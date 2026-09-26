@@ -16,6 +16,7 @@ import {
 } from "@/lib/actions/anonymous";
 import { isLabType } from "@/lib/anon-shared";
 import LabImageUploader from "@/components/ui/lab-image-uploader";
+import { CardFields, type CardPatch } from "../../pharmacy/[vn]/payment-editor";
 
 interface Perms { clinical: boolean; result: boolean; manage: boolean; }
 
@@ -36,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
     registered: "ลงทะเบียน", opened: "เปิดเคสแล้ว", collected: "เก็บตัวอย่าง", resulted: "มีผลแล้ว", closed: "ปิดเคส", cancelled: "ยกเลิก",
 };
 const PAYMENT_METHODS: [string, string][] = [
-    ["cash", "เงินสด"], ["transfer", "โอน"], ["qr_promptpay", "QR / พร้อมเพย์"], ["credit_card", "บัตรเครดิต"],
+    ["cash", "เงินสด"], ["transfer", "โอน"], ["qr_promptpay", "QR / พร้อมเพย์"], ["credit_card", "บัตร (เครดิต/เดบิต)"],
 ];
 const SEX_LABEL: Record<string, string> = { male: "ชาย", female: "หญิง", other: "อื่นๆ" };
 const ANON_SAMPLE_TYPES = ["Clotted blood", "Serum", "EDTA blood (CBC)", "Plasma", "Urine", "Swab", "Other"];
@@ -680,6 +681,7 @@ function CounselCheck({ phase, label, done, at, caseId, busy, run }: {
 // ── Payment (พนักงานเคาน์เตอร์) ─────────────────────
 function PaymentCard({ data, services, busy, run }: { data: AnonCaseFull; services: LabService[]; busy: boolean; run: (fn: () => Promise<unknown>) => void }) {
     const [method, setMethod] = useState(data.payment_method || "cash");
+    const [card, setCard] = useState<CardPatch>({ card_issuer: "other" });
     const [addCharge, setAddCharge] = useState("");
     const closed = data.status === "closed";
     const chargeOpts = services.filter((s) => !isLabType(s.item_type)); // เพิ่มได้เฉพาะค่าบริการ ไม่ใช่ Lab
@@ -768,7 +770,8 @@ function PaymentCard({ data, services, busy, run }: { data: AnonCaseFull; servic
                             {PAYMENT_METHODS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                         </select>
                     </div>
-                    <button disabled={busy || data.total_amount <= 0} onClick={() => run(() => recordAnonPayment(data.id, method))}
+                    {method === "credit_card" && <CardFields row={card} onPatch={p => setCard(c => ({ ...c, ...p }))} />}
+                    <button disabled={busy || data.total_amount <= 0 || (method === "credit_card" && !card.card_type)} onClick={() => run(async () => { const r = await recordAnonPayment(data.id, method, method === "credit_card" ? { card_type: card.card_type || undefined, card_issuer: card.card_issuer, installment_months: card.installment_months ?? null } : undefined); if (!r.ok) toast.error((r as { error?: string }).error || "รับชำระไม่สำเร็จ"); })}
                         className="w-full h-10 rounded-xl text-white text-sm font-bold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                         style={{ background: "linear-gradient(90deg,#0EA5A0,#15FF83)" }}>
                         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} รับชำระเงิน

@@ -740,8 +740,15 @@ async function applyKitStock(supabase: SB, clinicId: string, caseId: string, ref
 }
 
 // ── Payment (ใบเสร็จนิรนาม) ─────────────────────────
-export async function recordAnonPayment(id: string, payment_method: string) {
+export async function recordAnonPayment(id: string, payment_method: string, card?: { card_type?: string; card_issuer?: string; installment_months?: number | null }) {
     const { supabase, clinicId } = await getCtx();
+    // บัตร: ต้องเลือกประเภทบัตร → DB trigger (mig 152) คิด MDR/ค่าธรรมเนียม snapshot
+    const CARD_TYPES = ["debit_domestic", "credit_domestic", "credit_domestic_premium", "foreign", "foreign_premium"];
+    if (payment_method === "credit_card" && !CARD_TYPES.includes(card?.card_type || "")) return { ok: false, error: "กรุณาเลือกประเภทบัตร" };
+    const issuer = card?.card_issuer === "kbank" ? "kbank" : "other";
+    const cardCols = payment_method === "credit_card"
+        ? { card_type: card!.card_type, card_issuer: issuer, installment_months: issuer === "kbank" && [3, 6, 10].includes(Number(card?.installment_months)) ? Number(card?.installment_months) : null }
+        : { card_type: null, card_issuer: null, installment_months: null };
     const total = await recomputeTotal(supabase, id);
     const { data: c } = await supabase.from("anon_cases")
         .select("case_code, verify_code, receipt_no, stock_deducted").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
@@ -749,7 +756,7 @@ export async function recordAnonPayment(id: string, payment_method: string) {
     const receipt = c?.receipt_no || `AR-${ref}`;
     await supabase.from("anon_cases").update({
         paid: true, payment_method, paid_at: new Date().toISOString(),
-        receipt_no: receipt, total_amount: total,
+        receipt_no: receipt, total_amount: total, ...cardCols,
     }).eq("id", id).eq("clinic_id", clinicId);
 
     // ตัด stock kit ครั้งเดียว (กันตัดซ้ำด้วย stock_deducted)
@@ -769,7 +776,7 @@ export async function cancelAnonPayment(id: string) {
     if (c?.paid_at && await isDayClosed(supabase, clinicId, bangkokDate(new Date(c.paid_at as string)))) {
         return { ok: false, error: DAY_LOCKED_MSG };
     }
-    await supabase.from("anon_cases").update({ paid: false, paid_at: null, payment_method: null })
+    await supabase.from("anon_cases").update({ paid: false, paid_at: null, payment_method: null, card_type: null, card_issuer: null, installment_months: null })
         .eq("id", id).eq("clinic_id", clinicId);
 
     // คืน stock ถ้าเคยตัดไปแล้ว

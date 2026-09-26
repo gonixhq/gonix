@@ -61,7 +61,7 @@ export default async function FinancePage({
     // ── เคสนิรนามที่จ่ายในช่วง ──
     const anonPaid = await readAll((start, end) => supabase
         .from("anon_cases")
-        .select("id, receipt_no, verify_code, case_code, case_date, total_amount, payment_method, paid_at")
+        .select("id, receipt_no, verify_code, case_code, case_date, total_amount, payment_method, paid_at, card_fee, card_fee_vat")
         .eq("clinic_id", clinicId)
         .eq("paid", true).gte("paid_at", rangeStartISO).lt("paid_at", rangeEndISO)
         .order("paid_at", { ascending: false }).order("id").range(start, end));
@@ -73,7 +73,10 @@ export default async function FinancePage({
         .gte("paid_at", rangeStartISO).lt("paid_at", rangeEndISO).order("id").range(start, end));
     const regularRevenue = sumMoney(payLogs.map(p => p.amount));
     // ค่าธรรมเนียมบัตร (MDR + VAT, snapshot ตอนรับเงิน — mig 140)
-    const cardFeeTotal = sumMoney(payLogs.filter(p => Number(p.amount) > 0).flatMap(p => [p.card_fee || 0, p.card_fee_vat || 0]));
+    const cardFeeTotal = sumMoney([
+        ...payLogs.filter(p => Number(p.amount) > 0).flatMap(p => [p.card_fee || 0, p.card_fee_vat || 0]),
+        ...anonPaid.flatMap(a => [a.card_fee || 0, a.card_fee_vat || 0]),   // คลินิกนิรนาม (mig 152)
+    ]);
     const anonymousRevenue = sumMoney(anonPaid.map(p => p.total_amount));
     const rangeRevenue = sumMoney([regularRevenue, anonymousRevenue]);
     const depositAmount = sumMoney(payLogs.filter(p => Number(p.amount) > 0 &&
