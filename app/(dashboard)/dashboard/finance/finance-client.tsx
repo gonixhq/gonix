@@ -582,6 +582,9 @@ export default function FinanceClient({
                     <Link href={`/dashboard/finance/fixed-costs?month=${range.to.slice(0, 7)}`} className="mt-1 flex items-center justify-between text-xs text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
                         <span>ต้นทุนคงที่</span><span>›</span>
                     </Link>
+                    <Link href="/dashboard/finance/monthly-report" className="mt-1 flex items-center justify-between text-xs font-bold text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
+                        <span>รายงานรายเดือน (กำไรจริง)</span><span>›</span>
+                    </Link>
                 </div>
             </div>
 
