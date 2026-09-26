@@ -35,7 +35,7 @@ export default function AestheticPreview() {
     const [finished, setFinished] = useState(false);
     const shown = (filter === "รายการโปรด" ? favorites : filter === "ใช้ล่าสุด" ? recent : products).filter(p => p.toLowerCase().includes(query.toLowerCase()) && (!["Botox", "Filler"].includes(filter) || p.startsWith(filter)));
     const valid = !!notes.trim() && treatments.every(t => Number(t.qty) > 0 && t.site.trim()) && [...labs, ...drugs, ...courses].every(r => Number(r.qty) > 0) && drugs.every(d => d.note.trim());
-    function selectProduct(product: string) { setTreatments(old => [...old, { id: Date.now(), product, qty: "", unit: product.startsWith("Botox") ? "unit" : "ml", site: "", lot: "" }]); setRecent(old => [product, ...old.filter(p => p !== product)]); }
+    function selectProduct(product: string) { setTreatments(old => [...old, { id: Date.now(), product, qty: "", unit: product.startsWith("Botox") ? "unit" : "cc", site: "", lot: "" }]); setRecent(old => [product, ...old.filter(p => p !== product)]); }
     return <main className="mx-auto max-w-[1600px] -mt-2 md:-mt-3 lg:-mt-4 space-y-3 rounded-2xl bg-gradient-to-br from-slate-100/80 via-blue-50/60 to-white/80 p-2 text-slate-700 sm:p-3">
         <div className="flex flex-wrap items-center justify-between gap-3"><Link className="text-sm" href="/dashboard/doctor-station">← กลับห้องแพทย์</Link><span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-800">ต้นแบบ • ใช้ข้อมูลสมมติ • ไม่เชื่อมเวชระเบียนจริง</span></div>
         <header className="rounded-2xl border border-white bg-white/85 px-4 py-2 shadow-sm backdrop-blur-xl sm:px-5">

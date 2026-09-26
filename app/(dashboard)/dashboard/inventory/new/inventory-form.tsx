@@ -447,7 +447,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
                                 <select value={capacityUnitLabel} onChange={e => { setCapacityUnitLabel(e.target.value); setUnit(e.target.value); }} className={selectCls}>
                                     <option value="unit">unit (ยูนิต — Botox)</option>
                                     <option value="shot">shot (HIFU/RF)</option>
-                                    <option value="ml">ml / cc (Filler)</option>
+                                    <option value="cc">cc (Filler)</option>
+                                    {capacityUnitLabel === "ml" && <option value="ml">ml (เดิม — เปลี่ยนเป็น cc)</option>}
                                 </select>
                             </FieldRow>
                             <FieldRow label="ชื่อภาชนะ (ขวด/กล่อง/ตลับ)">
