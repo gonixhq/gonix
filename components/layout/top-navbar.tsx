@@ -42,7 +42,7 @@ const PAGE_TITLES: TitleEntry[] = [
 
     // Exact paths
     { pattern: "/dashboard/commissions", th: "ค่า DF / คอมมิชชั่น", en: "DF / Commission", sub: { th: "DF แพทย์ · ค่ามือ · คอมแนะนำ", en: "Doctor DF · hand fees · referral" } },
-    { pattern: /^/dashboard/commissions/[^/]+$/, th: "รายละเอียด DF / คอม", en: "Commission Detail" },
+    { pattern: /^\/dashboard\/commissions\/[^/]+$/, th: "รายละเอียด DF / คอม", en: "Commission Detail" },
     { pattern: "/dashboard/affiliates", th: "เซลล์ฟรีแลนซ์", en: "Affiliates" },
     { pattern: "/dashboard/referrals", th: "Referral ลูกค้า", en: "Customer Referrals" },
     { pattern: "/dashboard/finance/team-commission", th: "คอมทีม", en: "Team Commission", sub: { th: "กองกลางความงาม", en: "Aesthetic pool" } },
@@ -50,7 +50,7 @@ const PAGE_TITLES: TitleEntry[] = [
     { pattern: "/dashboard/finance/fixed-costs", th: "ต้นทุนคงที่", en: "Fixed Costs" },
     { pattern: "/dashboard/finance/procedure-costs", th: "ต้นทุน & มาร์จิ้นหัตถการ", en: "Procedure Cost & Margin" },
     { pattern: "/dashboard/finance/card-fees", th: "ค่าธรรมเนียมบัตร", en: "Card Fees" },
-    { pattern: /^/dashboard/finance/[^/]+$/, th: "ใบเสร็จ", en: "Invoice" },
+    { pattern: /^\/dashboard\/finance\/[^/]+$/, th: "ใบเสร็จ", en: "Invoice" },
     { pattern: "/dashboard/packages", th: "คอร์สค้างใช้", en: "Course Liability" },
     { pattern: "/dashboard/inventory/waste", th: "ยาทิ้ง / ขวดเปิดค้าง", en: "Stock Waste" },
     { pattern: "/dashboard/settings/finance-rates", th: "อัตราการเงิน", en: "Finance Rates" },
