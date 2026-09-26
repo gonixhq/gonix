@@ -994,3 +994,69 @@ export async function refundPackage(patientPackageId: string, reason: string) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };
     }
 }
+
+/**
+ * โอนคอร์ส (บางครั้งหรือทั้งหมด) ให้คนไข้อื่น — เช่น ส่งต่อให้เพื่อน / ผัวเมียซื้อ 100u แบ่งกัน
+ * มูลค่าต่อครั้งเท่าเดิม: แยกยอดขายจริง (net_price) ตามสัดส่วนครั้งที่โอน · วันหมดอายุเท่าเดิม · อ้างบิลเดิม
+ * ค่ามือ/ต้นทุนเกิดตอนผู้รับมาใช้ · คอมแนะนำ/DF คิดไปแล้วตอนขาย (ไม่กระทบ)
+ */
+export async function transferPackageSessions(input: { patient_package_id: string; to_hn: string; sessions: number; note?: string }) {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return { success: false, error: "Unauthorized" };
+        const { data: pp } = await supabase.from("patient_packages").select("*").eq("id", input.patient_package_id).maybeSingle();
+        if (!pp) return { success: false, error: "ไม่พบคอส" };
+        if (pp.status !== "active" || new Date(pp.expires_at) < new Date()) return { success: false, error: "คอสนี้ไม่อยู่ในสถานะใช้งานได้" };
+        const remaining = Number(pp.total_sessions) - Number(pp.used_sessions);
+        const n = Math.floor(Number(input.sessions));
+        if (!(n >= 1) || n > remaining) return { success: false, error: `โอนได้ 1–${remaining} ครั้ง` };
+        if (input.to_hn === pp.hn) return { success: false, error: "เลือกผู้รับคนอื่น" };
+        const { data: to } = await supabase.from("patients").select("hn, prefix, first_name, last_name").eq("hn", input.to_hn).eq("clinic_id", pp.clinic_id).maybeSingle();
+        if (!to) return { success: false, error: "ไม่พบผู้รับ" };
+        const { data: from } = await supabase.from("patients").select("prefix, first_name, last_name").eq("hn", pp.hn).maybeSingle();
+        const nm = (p: { prefix?: string | null; first_name?: string | null; last_name?: string | null } | null) => p ? `${p.prefix || ""}${p.first_name || ""} ${p.last_name || ""}`.trim() : "";
+        const stamp = new Date().toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "2-digit" });
+
+        const total = Number(pp.total_sessions);
+        const net = pp.net_price != null ? Number(pp.net_price) : Number(pp.paid_amount || 0);
+        const paid = Number(pp.paid_amount || 0);
+        const movedNet = round2(net / total * n), movedPaid = round2(paid / total * n);
+
+        // ทั้งคอสยังไม่เคยใช้ + โอนหมด → ย้ายเจ้าของทั้งก้อน (ประวัติอยู่ที่เดิม)
+        if (Number(pp.used_sessions) === 0 && n === total) {
+            const { error } = await supabase.from("patient_packages").update({
+                hn: to.hn, note: [pp.note, `รับโอนจาก ${nm(from)} (${pp.hn}) ${stamp}${input.note ? ` · ${input.note}` : ""}`].filter(Boolean).join("\n"),
+            }).eq("id", pp.id);
+            if (error) return { success: false, error: error.message };
+        } else {
+            // แยก: ลดของเดิม + สร้างใหม่ให้ผู้รับ (มูลค่าต่อครั้งเท่าเดิม)
+            const { error: e1 } = await supabase.from("patient_packages").update({
+                total_sessions: total - n,
+                net_price: pp.net_price != null ? round2(net - movedNet) : null,
+                paid_amount: round2(paid - movedPaid),
+                status: Number(pp.used_sessions) >= total - n ? "completed" : "active",
+                note: [pp.note, `โอน ${n} ครั้งให้ ${nm(to)} (${to.hn}) ${stamp}`].filter(Boolean).join("\n"),
+            }).eq("id", pp.id);
+            if (e1) return { success: false, error: e1.message };
+            const { data: staffRow } = await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle();
+            const { error: e2 } = await supabase.from("patient_packages").insert({
+                clinic_id: pp.clinic_id, hn: to.hn, package_id: pp.package_id, service_id: pp.service_id, invoice_id: pp.invoice_id,
+                package_name: pp.package_name, total_sessions: n, used_sessions: 0,
+                paid_amount: movedPaid, net_price: pp.net_price != null ? movedNet : null,
+                expires_at: pp.expires_at, status: "active", created_by: staffRow?.id || null,
+                note: `รับโอนจาก ${nm(from)} (${pp.hn}) ${stamp}${input.note ? ` · ${input.note}` : ""}`,
+            });
+            if (e2) return { success: false, error: e2.message };
+        }
+        await supabase.from("audit_logs").insert({
+            clinic_id: pp.clinic_id, table_name: "patient_packages", record_id: pp.id, action: "transfer",
+            old_data: { hn: pp.hn, total_sessions: total }, new_data: { to_hn: to.hn, sessions: n, note: input.note || null }, performed_by: user.id,
+        });
+        revalidatePath(`/dashboard/patients/${pp.hn}`);
+        revalidatePath(`/dashboard/patients/${to.hn}`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : "โอนไม่สำเร็จ" };
+    }
+}

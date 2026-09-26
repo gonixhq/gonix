@@ -1,5 +1,7 @@
 "use client";
 
+import TransferPackageModal from "./transfer-package-modal";
+
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
     Sparkles, Loader2, X, Calendar, Clock, Check,
     History, AlertTriangle, ChevronDown, ChevronUp,
-    Undo2, FileText, RefreshCw, DollarSign, TrendingDown,
+    Undo2, FileText, RefreshCw, DollarSign, TrendingDown, Send,
 } from "lucide-react";
 import {
     getPatientAllPackages,
@@ -158,6 +160,7 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
     const [showHistory, setShowHistory] = useState(false);
     const [showRefund, setShowRefund] = useState(false);
     const [showUse, setShowUse] = useState(false);
+    const [showTransfer, setShowTransfer] = useState(false);
     const [usages, setUsages] = useState<PackageUsage[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -303,6 +306,11 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
 
             {/* Secondary actions */}
             <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+                {pp.status === "active" && pp.remaining_sessions > 0 && !pp.is_expired && (
+                    <Button onClick={() => setShowTransfer(true)} variant="outline" size="sm" className="rounded-lg h-8 text-xs gap-1 text-violet-700 border-violet-200" title="โอนให้เพื่อน/คู่สมรส">
+                        <Send className="h-3 w-3" /> โอน
+                    </Button>
+                )}
                 <Button
                     onClick={toggleHistory}
                     variant="outline"
@@ -389,6 +397,9 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
             )}
             {showUse && (
                 <UseSessionModal pp={pp} onClose={() => setShowUse(false)} onSuccess={onRefresh} />
+            )}
+            {showTransfer && (
+                <TransferPackageModal pp={pp} onClose={() => setShowTransfer(false)} onSuccess={onRefresh} />
             )}
         </div>
     );
