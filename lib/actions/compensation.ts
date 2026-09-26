@@ -105,7 +105,7 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
     });
 
     // DF/commission เดือนนั้น (reuse commissions) — ดึงเฉพาะ "ที่อนุมัติแล้ว" เข้ายอดจ่าย
-    const dfSummary = await getCommissionsByPeriod(first);
+    const dfSummary = await getCommissionsByPeriod(month);   // view ใช้ period_month = "YYYY-MM" (เดิมส่ง YYYY-MM-01 → DF ไม่เข้าเงินเดือนเลย)
     const dfMap = new Map<string, number>();        // อนุมัติแล้ว
     const dfPendingMap = new Map<string, number>(); // ยังไม่อนุมัติ
     dfSummary.forEach((d) => {

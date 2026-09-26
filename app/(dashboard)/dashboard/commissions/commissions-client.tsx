@@ -163,10 +163,11 @@ export default function CommissionsClient({
                     </div>
                     <h3 className="font-bold text-slate-700">ยังไม่มี Commission ในเดือนนี้</h3>
                     <p className="text-sm text-slate-500 mt-1">
-                        จะแสดงเมื่อ:<br />
-                        1) มี invoice ที่ status = paid<br />
-                        2) Visit มี doctor_id / nurse_id<br />
-                        3) inventory ในใบเสร็จมี df_doctor / df_nurse {">"} 0
+                        จะแสดงเมื่อมีบิลที่รับเงินในเดือนนี้ และ:<br />
+                        • DF แพทย์ — เลือก &quot;แพทย์ผู้ทำ&quot; ตอนคิดเงิน<br />
+                        • ค่ามือ — เลือกผู้ปฏิบัติหลัก/ผู้ช่วย ตอนคิดเงินหรือตอนตัดคอส (เมนูต้องตั้งค่ามือ)<br />
+                        • คอมแนะนำ — ลูกค้ามีพนักงานผู้แนะนำ + เมนูฝั่งความงาม<br />
+                        • คอมเซลล์คอส — ขายคอสที่ตั้ง % คอมเซลล์
                     </p>
                 </div>
             ) : (

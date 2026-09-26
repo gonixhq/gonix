@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HandCoins, UserPlus, Gift } from "lucide-react";
+import { HandCoins, UserPlus, Gift, Layers } from "lucide-react";
 
 const TABS = [
     { href: "/dashboard/commissions", label: "พนักงาน (DF/Comm)", Icon: HandCoins },
     { href: "/dashboard/affiliates", label: "เซลล์ฟรีแลนซ์", Icon: UserPlus },
     { href: "/dashboard/referrals", label: "Referral ลูกค้า", Icon: Gift },
+    { href: "/dashboard/finance/team-commission", label: "คอมทีม", Icon: Layers },
 ];
 
 /** แท็บสลับมุมมองรายได้ Performance — พนักงาน / affiliate / referral */
