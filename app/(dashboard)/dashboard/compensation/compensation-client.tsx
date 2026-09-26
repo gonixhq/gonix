@@ -336,6 +336,8 @@ export default function CompensationClient({
                                         <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-700">{baht(r.time_pay)}</td>
                                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 hidden sm:table-cell">
                                             {baht(r.df)}
+                                            {r.df_carry_in < 0 && <div className="text-[10px] text-rose-600 font-semibold" title="คืนเงินเดือนก่อน — หักจากคอมเดือนนี้">หักยกมา {baht(r.df_carry_in)}</div>}
+                                            {r.df_carry_out < 0 && <div className="text-[10px] text-rose-600 font-semibold" title="คอมไม่พอหัก — ยกไปหักเดือนหน้า">ยกไปเดือนหน้า {baht(r.df_carry_out)}</div>}
                                             {r.team_comm > 0 && <div className="text-[10px] text-blue-700 font-semibold">+ คอมทีม {baht(r.team_comm)}</div>}
                                             {r.df_pending > 0 && (
                                                 <div className="text-[10px] text-amber-600 font-semibold" title="DF ที่ยังไม่อนุมัติ ยังไม่ถูกนำมาคิด">+{baht(r.df_pending)} รออนุมัติ</div>

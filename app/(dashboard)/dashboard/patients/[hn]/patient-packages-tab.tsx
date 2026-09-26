@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
 import HandStaffPicker, { type HandPick } from "@/components/packages/hand-staff-picker";
+import UsageItemsPicker, { type UsageItem } from "@/components/packages/usage-items-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -352,6 +353,9 @@ function PackageCard({ pp, onRefresh }: { pp: PatientPackageActive; onRefresh: (
                                                     </span>
                                                 </div>
                                                 {u.note && <div className="text-slate-500 truncate">{u.note}</div>}
+                                                {u.items && u.items.length > 0 && (
+                                                    <div className="text-slate-500 truncate" title="ยา/วัสดุที่ใช้">ใช้: {u.items.map(x => `${x.inventory?.item_name || "—"} ${x.qty}${x.inventory?.unit ? ` ${x.inventory.unit}` : ""}`).join(", ")}</div>
+                                                )}
                                                 {(u.hand_main || u.hand_asst) && (
                                                     <div className="text-emerald-700 truncate">ผู้ทำ: {[u.hand_main?.profiles?.full_name, u.hand_asst?.profiles?.full_name && `ผู้ช่วย ${u.hand_asst.profiles.full_name}`].filter(Boolean).join(" · ")}</div>
                                                 )}
@@ -403,6 +407,7 @@ function UseSessionModal({
     const [isPending, startTransition] = useTransition();
 
     const [hand, setHand] = useState<HandPick>({ main: "", asst: "" });
+    const [useItems, setUseItems] = useState<UsageItem[]>([]);
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
@@ -410,6 +415,7 @@ function UseSessionModal({
                 patient_package_id: pp.id,
                 hand_main_staff_id: hand.main || null,
                 hand_asst_staff_id: hand.asst || null,
+                items: useItems.filter(i => i.inventory_item_id && i.qty > 0),
                 note: note || undefined,
             });
             if (result.success) {
@@ -443,6 +449,7 @@ function UseSessionModal({
                     </div>
 
                     <div className="mt-3"><HandStaffPicker value={hand} onChange={setHand} /></div>
+                    <div className="mt-3"><UsageItemsPicker value={useItems} onChange={setUseItems} /></div>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>

@@ -631,6 +631,7 @@ export interface UsePackageSessionInput {
     patient_package_id: string;
     hand_main_staff_id?: string | null;   // ผู้ปฏิบัติหลัก → ค่ามือต่อครั้ง (trigger คิด+snapshot)
     hand_asst_staff_id?: string | null;   // ผู้ช่วย
+    items?: { inventory_item_id: string; qty: number }[];  // ยา/วัสดุที่ใช้เพิ่มจากค่าตั้ง (ตัดสต๊อก + ต้นทุนจริง)
     visit_vn?: string;
     note?: string;
 }
@@ -644,7 +645,7 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
         // Fetch sub-package
         const { data: pp } = await supabase
             .from("patient_packages")
-            .select("id, hn, clinic_id, package_id, total_sessions, used_sessions, status, expires_at")
+            .select("id, hn, clinic_id, package_id, service_id, total_sessions, used_sessions, status, expires_at")
             .eq("id", input.patient_package_id)
             .single();
         if (!pp) return { success: false, error: "ไม่พบสิทธิ์คอสนี้" };
@@ -666,30 +667,48 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
         }
 
         const sessionNo = pp.used_sessions + 1;
+        const clinicId = pp.clinic_id as string;
 
-        // กันสต๊อกติดลบ: ถ้าคอสตัดวัสดุต่อครั้ง → เช็คสต๊อกให้พอ "ก่อน" บันทึกครั้ง
-        // (ไม่งั้นตัดก่อนรับของ ยอดติดลบ) · บังคับให้ "รับเข้า" ก่อนใช้คอส
-        const { data: consumeCfg } = await supabase.from("service_packages")
-            .select("consume_item_id, consume_qty_per_session")
-            .eq("id", pp.package_id).maybeSingle();
-        const preConsumeQty = Number(consumeCfg?.consume_qty_per_session || 0);
-        if (consumeCfg?.consume_item_id && preConsumeQty > 0) {
-            const { data: cItem } = await supabase.from("inventory")
-                .select("item_name, stock_qty").eq("id", consumeCfg.consume_item_id).eq("clinic_id", pp.clinic_id).maybeSingle();
-            const have = Number(cItem?.stock_qty || 0);
-            if (have < preConsumeQty) {
-                return { success: false, error: `สต๊อก "${cItem?.item_name || "วัสดุ"}" ไม่พอ — มี ${have.toLocaleString()} ต้องใช้ ${preConsumeQty.toLocaleString()} · กรุณา "รับเข้า" ก่อนใช้คอส` };
-            }
+        // ── ยา/วัสดุที่ใช้ครั้งนี้ ──
+        //   ค่าตั้ง: คอสแพ็กเกจ = ของตัดต่อครั้ง (mig 099) · คอร์สจากเมนูบริการ = kit + สูตรหัตถการ (mig 153)
+        //   + ที่พนักงานเพิ่มเอง (input.items) → ตัดสต๊อก + บันทึก package_usage_items + ต้นทุนจริง
+        const defaults: { inventory_item_id: string; qty: number }[] = [];
+        if (pp.service_id) {
+            const [{ data: svc }, { data: rec }] = await Promise.all([
+                supabase.from("service_catalog").select("inventory_item_id, consume_qty").eq("id", pp.service_id).maybeSingle(),
+                supabase.from("service_recipes").select("inventory_item_id, qty").eq("service_id", pp.service_id).eq("cut_stock", true),
+            ]);
+            if (svc?.inventory_item_id) defaults.push({ inventory_item_id: svc.inventory_item_id as string, qty: Number(svc.consume_qty || 1) });
+            (rec || []).forEach(r => defaults.push({ inventory_item_id: r.inventory_item_id as string, qty: Number(r.qty) }));
+        } else if (pp.package_id) {
+            const { data: cfg } = await supabase.from("service_packages")
+                .select("consume_item_id, consume_qty_per_session").eq("id", pp.package_id).maybeSingle();
+            if (cfg?.consume_item_id && Number(cfg.consume_qty_per_session || 0) > 0)
+                defaults.push({ inventory_item_id: cfg.consume_item_id as string, qty: Number(cfg.consume_qty_per_session) });
+        }
+        const extras = (input.items || []).filter(i => i.inventory_item_id && Number(i.qty) > 0).map(i => ({ inventory_item_id: i.inventory_item_id, qty: Number(i.qty) }));
+        const all = [...defaults.map(d => ({ ...d, is_default: true })), ...extras.map(e => ({ ...e, is_default: false }))];
+
+        // กันสต๊อกติดลบ: เช็คให้พอ "ก่อน" บันทึกครั้ง · บังคับให้ "รับเข้า" ก่อนใช้คอส
+        const need = new Map<string, number>();
+        all.forEach(a => need.set(a.inventory_item_id, (need.get(a.inventory_item_id) || 0) + a.qty));
+        const invRows = need.size ? (await supabase.from("inventory").select("id, item_name, stock_qty, cost_price").eq("clinic_id", clinicId).in("id", [...need.keys()])).data || [] : [];
+        const invMap = new Map(invRows.map(i => [i.id as string, i]));
+        for (const [id, q] of need) {
+            const it = invMap.get(id);
+            const have = Number(it?.stock_qty || 0);
+            if (!it) return { success: false, error: "ไม่พบยา/วัสดุที่เลือกในคลัง" };
+            if (have < q) return { success: false, error: `สต๊อก "${it.item_name}" ไม่พอ — มี ${have.toLocaleString()} ต้องใช้ ${q.toLocaleString()} · กรุณา "รับเข้า" ก่อนใช้คอส` };
         }
 
         const { data: staffRow } = await supabase
             .from("staff").select("id").eq("profile_id", user.id).maybeSingle();
 
         // Insert usage
-        const { error: insErr } = await supabase
+        const { data: usage, error: insErr } = await supabase
             .from("package_usages")
             .insert({
-                clinic_id: pp.clinic_id,
+                clinic_id: clinicId,
                 patient_package_id: pp.id,
                 visit_vn: input.visit_vn || null,
                 session_no: sessionNo,
@@ -697,8 +716,10 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
                 note: input.note?.trim() || null,
                 hand_main_staff_id: input.hand_main_staff_id || null,
                 hand_asst_staff_id: input.hand_asst_staff_id || null,
-            });
-        if (insErr) return { success: false, error: insErr.message };
+            })
+            .select("id, cost_material")
+            .single();
+        if (insErr || !usage) return { success: false, error: insErr?.message || "บันทึกไม่สำเร็จ" };
 
         // Increment used_sessions + auto-complete ถ้าครบ
         const newUsed = pp.used_sessions + 1;
@@ -710,25 +731,32 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
             .eq("id", pp.id);
         if (upErr) return { success: false, error: upErr.message };
 
-        // ตัดสต๊อกวัสดุต่อการใช้ 1 ครั้ง (เช่น HIFU shot) — mig 099 (best-effort, ไม่ block การตัดครั้ง)
-        try {
-            const { data: cfg } = await supabase.from("service_packages")
-                .select("consume_item_id, consume_qty_per_session")
-                .eq("id", pp.package_id).maybeSingle();
-            const consumeQty = Number(cfg?.consume_qty_per_session || 0);
-            if (cfg?.consume_item_id && consumeQty > 0) {
-                const { data: item } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.consume_item_id).eq("clinic_id", pp.clinic_id).maybeSingle();
-                if (item) {
-                    const bal = Math.max(0, Number(item.stock_qty || 0) - consumeQty);   // กันติดลบ (safety net)
-                    await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", cfg.consume_item_id);
-                    await deductFEFO(supabase, pp.clinic_id as string, cfg.consume_item_id as string, consumeQty);
-                    await supabase.from("stock_card").insert({
-                        item_id: cfg.consume_item_id, clinic_id: pp.clinic_id, tx_type: "INTERNAL_USE",
-                        qty_delta: -consumeQty, balance_after: bal, note: `ใช้คอส (ครั้งที่ ${sessionNo})`, recorded_by: staffRow?.id || null,
-                    });
-                }
-            }
-        } catch { /* best-effort — ไม่ให้กระทบการตัดครั้ง */ }
+        // ตัดสต๊อก + บันทึกยาที่ใช้จริง (best-effort ต่อรายการ ไม่ block การตัดครั้ง)
+        let extraCost = 0;
+        for (const a of all) {
+            try {
+                const it = invMap.get(a.inventory_item_id)!;
+                const { data: cur } = await supabase.from("inventory").select("stock_qty").eq("id", a.inventory_item_id).maybeSingle();
+                const bal = Math.max(0, Number(cur?.stock_qty || 0) - a.qty);
+                await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", a.inventory_item_id);
+                await deductFEFO(supabase, clinicId, a.inventory_item_id, a.qty);
+                await supabase.from("stock_card").insert({
+                    item_id: a.inventory_item_id, clinic_id: clinicId, tx_type: "INTERNAL_USE",
+                    qty_delta: -a.qty, balance_after: bal, note: `ใช้คอส (ครั้งที่ ${sessionNo})`, recorded_by: staffRow?.id || null,
+                });
+                const unitCost = Number(it.cost_price || 0);
+                const cost = round2(unitCost * a.qty);
+                await supabase.from("package_usage_items").insert({
+                    clinic_id: clinicId, usage_id: usage.id, inventory_item_id: a.inventory_item_id, qty: a.qty,
+                    unit_cost: unitCost, cost, is_default: a.is_default,
+                });
+                if (!a.is_default) extraCost += cost;
+            } catch { /* best-effort */ }
+        }
+        // ยาที่เพิ่มเอง → บวกเข้าต้นทุนจริงของครั้งนี้ (ค่าตั้งคิดไว้แล้วโดย trigger)
+        if (extraCost > 0) {
+            await supabase.from("package_usages").update({ cost_material: round2(Number(usage.cost_material || 0) + extraCost) }).eq("id", usage.id);
+        }
 
         revalidatePath(`/dashboard/patients/${pp.hn}`);
         if (input.visit_vn) revalidatePath(`/dashboard/visits/${input.visit_vn}`);
@@ -854,6 +882,7 @@ export async function getPackageUsages(patientPackageId: string): Promise<Packag
                 id, patient_package_id, visit_vn, session_no, used_at, used_by, note, hand_fee_main, hand_fee_asst,
                 hand_main:staff!package_usages_hand_main_staff_id_fkey(profiles(full_name)),
                 hand_asst:staff!package_usages_hand_asst_staff_id_fkey(profiles(full_name)),
+                items:package_usage_items(qty, is_default, cost, inventory(item_name, unit)),
                 used_by_staff:staff!package_usages_used_by_fkey(profiles(full_name))
             `)
             .eq("patient_package_id", patientPackageId)

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/toast";
 import HandStaffPicker, { type HandPick } from "@/components/packages/hand-staff-picker";
+import UsageItemsPicker, { type UsageItem } from "@/components/packages/usage-items-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -208,6 +209,7 @@ function ConfirmUseModal({
     const [note, setNote] = useState("");
 
     const [hand, setHand] = useState<HandPick>({ main: "", asst: "" });
+    const [useItems, setUseItems] = useState<UsageItem[]>([]);
     const handleConfirm = () => {
         setError(null);
         startTransition(async () => {
@@ -216,6 +218,7 @@ function ConfirmUseModal({
                 visit_vn: vn,
                 hand_main_staff_id: hand.main || null,
                 hand_asst_staff_id: hand.asst || null,
+                items: useItems.filter(i => i.inventory_item_id && i.qty > 0),
                 note: note || undefined,
             });
             if (result.success) {
@@ -256,6 +259,7 @@ function ConfirmUseModal({
                     <p className="mt-2 text-[11px] text-amber-600">ตัดแล้วย้อนกลับยาก — ตรวจสอบจำนวนครั้งให้ถูกต้อง</p>
 
                     <div className="mt-3"><HandStaffPicker value={hand} onChange={setHand} /></div>
+                    <div className="mt-3"><UsageItemsPicker value={useItems} onChange={setUseItems} /></div>
 
                     <div className="mt-3 space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">หมายเหตุ</Label>

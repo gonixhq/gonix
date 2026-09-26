@@ -6,7 +6,7 @@ import { getPatientStaffReferral, setStaffReferral, cancelStaffReferral, listRef
 import { toast } from "@/lib/toast";
 
 const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
-const END_LABEL: Record<string, string> = { lapsed: "หลุด (ไม่มาเกินกำหนด)", staff_left: "พนักงานลาออก", cancelled: "ยกเลิก" };
+const END_LABEL: Record<string, string> = { lapsed: "หลุด (ไม่มาเกินกำหนด)", staff_left: "พนักงานลาออก", cancelled: "ยกเลิก", not_eligible: "ไม่นับ — ลูกค้ามาจากโฆษณา/ออนไลน์/เซลล์/เพื่อนแนะนำ" };
 
 // คอมแนะนำ (เฟส 2D): พนักงานผู้แนะนำของลูกค้ารายนี้
 export default function StaffReferralCard({ hn }: { hn: string }) {
@@ -57,7 +57,7 @@ export default function StaffReferralCard({ hn }: { hn: string }) {
                             {active.kind === "returning" ? "ตามลูกค้ากลับมา" : "ลูกค้าใหม่"} · ตั้งแต่ {fmt(active.started_on)}
                             {info.lastVisit ? ` · มาล่าสุด ${fmt(info.lastVisit)}` : ""}
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">ไม่มาเกิน {info.lapseMonths} เดือน ผู้แนะนำจะหลุดอัตโนมัติ</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">ไม่มาเกิน {info.lapseMonths} เดือน ผู้แนะนำจะหลุดอัตโนมัติ · ตอนเปิด visit ให้เลือกที่มาของเคส &quot;พนักงานพามา&quot; (ถ้าเลือกโฆษณา/LINE/เซลล์/ลูกค้าแนะนำ จะไม่นับคอม)</div>
                     </div>
                     <button onClick={() => cancel(active.id)} disabled={pending} className="h-8 px-2.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50 inline-flex items-center gap-1" title="เฉพาะเจ้าของ/ผู้จัดการ">
                         <X className="h-3.5 w-3.5" /> ยกเลิก

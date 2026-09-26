@@ -37,6 +37,7 @@ export const RATE_META: RateMeta[] = [
     { key: "ref_comm_pct", label: "คอมแนะนำ มาตรฐาน (% ของยอดสุทธิ)", unit: "%", group: "comp", hint: "เฉพาะฝั่งความงาม · เมนูที่ตั้งคอมแนะนำเฉพาะ (เช่น ฟิลเลอร์ ฿/cc) จะใช้อัตราของเมนูแทน" },
     { key: "cash_reserve", label: "เงินสำรองของคลินิก (บาท)", unit: "baht", group: "kpi", hint: "ยอดเงินสดในบัญชีสำรอง — อัปเดตเมื่อยอดเปลี่ยน · KPI หน้าแรกคำนวณว่าอยู่ได้กี่เดือน (ควร ≥ 3 เดือนของต้นทุนคงที่)" },
     { key: "margin_threshold_pct", label: "เกณฑ์มาร์จิ้นขั้นต่ำต่อหัตถการ", unit: "%", group: "comp", hint: "หัตถการที่มาร์จิ้นต่ำกว่านี้จะถูกเตือนในรายงานต้นทุนหัตถการ" },
+    { key: "team_offsite_pct", label: "คอมทีม: % นับยอดผ่าตัดที่สถานพยาบาลอื่น", unit: "%", group: "comp", hint: "ใช้เมื่อติ๊ก \"ทำที่สถานพยาบาลอื่น\" ตอนคิดเงิน" },
     { key: "team_w_nurse", label: "คอมทีม: น้ำหนัก พยาบาลวิชาชีพ", unit: "weight", group: "comp", hint: "คะแนน = น้ำหนัก × วันมาทำงาน" },
     { key: "team_w_marketing", label: "คอมทีม: น้ำหนัก การตลาด", unit: "weight", group: "comp" },
     { key: "team_w_assistant", label: "คอมทีม: น้ำหนัก ผู้ช่วยพยาบาล", unit: "weight", group: "comp" },

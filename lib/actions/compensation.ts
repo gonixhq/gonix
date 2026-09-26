@@ -40,6 +40,8 @@ export interface CompRow {
     df: number;             // ค่า DF/commission เดือนนั้น (เฉพาะที่อนุมัติแล้ว)
     df_pending: number;     // DF ที่ยังไม่อนุมัติ (ไม่นับเข้ายอดจ่าย)
     team_comm: number;      // คอมทีม (เฉพาะเดือนที่อนุมัติแล้ว — team_comm_shares)
+    df_carry_in: number;    // ยอดติดลบยกมาจากเดือนก่อน (คืนเงิน) ≤ 0
+    df_carry_out: number;   // ยอดติดลบที่ยกไปเดือนหน้า ≤ 0
     total: number;          // time_pay + df (ก่อนหัก)
     wht_enabled: boolean;
     sso_enabled: boolean;
@@ -111,6 +113,11 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         else dfPendingMap.set(d.staff_id, (dfPendingMap.get(d.staff_id) || 0) + d.total_amount);
     });
 
+    // ยกยอดติดลบจากเดือนก่อน (คืนเงินหักเดือนถัดไป ไม่พอยกต่อ — mig 153)
+    const prevFirst = m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, "0")}-01`;
+    const { data: prevPay } = await supabase.from("compensation_payouts").select("staff_id, df_carry").eq("period_month", prevFirst);
+    const carryMap = new Map((prevPay || []).map((p) => [p.staff_id as string, Math.min(0, Number(p.df_carry || 0))]));
+
     // คอมทีม (เฟส 2E) — นับเฉพาะเดือนที่อนุมัติแล้ว
     const { data: teamShares } = await supabase.from("team_comm_shares").select("staff_id, amount").eq("period_month", first);
     const teamMap = new Map<string, number>();
@@ -142,7 +149,11 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
         const hasActual = actualHrs.has(id);
         const payHours = hasActual ? actual : planned;
         const timePay = payType === "monthly" ? round2(salary) : round2(payHours * rate);
-        const df = round2(dfMap.get(id) || 0);
+        // DF/คอมที่อนุมัติ + ยอดติดลบยกมา → ถ้ายังติดลบ ไม่หักเงินเดือน แต่ยกไปเดือนหน้า
+        const carryIn = round2(carryMap.get(id) || 0);
+        const dfNet = round2((dfMap.get(id) || 0) + carryIn);
+        const df = Math.max(0, dfNet);
+        const carryOut = Math.min(0, dfNet);
         const dfPending = round2(dfPendingMap.get(id) || 0);
         const pDates = plannedDates.get(id);
         const wDates = workedDates.get(id);
@@ -177,6 +188,8 @@ export async function getStaffCompensation(month: string): Promise<CompRow[]> {
             df,
             df_pending: dfPending,
             team_comm: teamComm,
+            df_carry_in: carryIn,
+            df_carry_out: carryOut,
             total,
             wht_enabled: whtEnabled,
             sso_enabled: ssoEnabled,
@@ -609,6 +622,7 @@ export async function recordCompensationPayout(staffId: string, month: string, o
         time_pay: row.time_pay,
         df_amount: row.df,
         team_comm_amount: row.team_comm,
+        df_carry: row.df_carry_out,
         adjustment,
         total_amount: gross,
         wht_amount: wht,
@@ -630,7 +644,7 @@ export async function recordCompensationPayout(staffId: string, month: string, o
 export async function payAllForMonth(month: string) {
     const { supabase, userId, clinicId } = await getCtx();
     const comp = await getStaffCompensation(month);
-    const pending = comp.filter((r) => r.total > 0 && !r.is_paid);
+    const pending = comp.filter((r) => (r.total > 0 || r.df_carry_out < 0) && !r.is_paid);   // ติดลบก็ต้องปิดยอด เพื่อยกไปเดือนหน้า
     if (pending.length === 0) return { success: true, count: 0 };
 
     const now = new Date().toISOString();
@@ -641,6 +655,7 @@ export async function payAllForMonth(month: string) {
         time_pay: r.time_pay,
         df_amount: r.df,
         team_comm_amount: r.team_comm,
+        df_carry: r.df_carry_out,
         total_amount: r.total,
         wht_amount: r.wht,
         sso_amount: r.sso,

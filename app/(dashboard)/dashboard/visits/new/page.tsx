@@ -19,7 +19,7 @@ import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
 import styles from "../[vn]/visit-workspace.module.css";
 import { MED_CERT_TYPES } from "@/lib/med-cert-types";
 
-type CaseSource = "walk_in" | "line" | "affiliate" | "referral";
+type CaseSource = "walk_in" | "staff" | "line" | "ads" | "affiliate" | "referral";
 
 interface PatientSearchResult {
     hn: string;
@@ -354,7 +354,7 @@ export default function NewVisitPage() {
                 <div className="pt-3 border-t border-slate-100">
                     <Label className="text-sm font-semibold text-slate-800">ที่มาของเคส <span className="text-rose-500">*</span></Label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-                        {([["walk_in", "Walk-in"], ["line", "จองผ่าน LINE"], ["affiliate", "เซลล์ฟรีแลนซ์"], ["referral", "ลูกค้าแนะนำ"]] as const).map(([k, l]) => (
+                        {([["walk_in", "Walk-in"], ["staff", "พนักงานพามา"], ["line", "จองผ่าน LINE"], ["ads", "โฆษณา/ออนไลน์"], ["affiliate", "เซลล์ฟรีแลนซ์"], ["referral", "ลูกค้าแนะนำ"]] as const).map(([k, l]) => (
                             <button key={k} type="button" aria-pressed={caseSource === k} onClick={() => setCaseSource(k)}
                                 className={`h-10 rounded-xl text-xs font-semibold transition-all ${caseSource === k ? "bg-[#2B54F0] text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                                 {l}

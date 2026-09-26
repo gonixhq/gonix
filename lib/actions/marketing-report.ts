@@ -24,7 +24,7 @@ function catKeep(seg: Seg, cat: string | null | undefined): boolean {
 export interface AcqSource { source: string; label: string; count: number; pct: number; }
 
 const SOURCE_LABEL: Record<string, string> = {
-    walk_in: "Walk-in (เดินเข้ามาเอง)", line: "LINE", affiliate: "เซลล์แนะนำ",
+    walk_in: "Walk-in (เดินเข้ามาเอง)", staff: "พนักงานพามา", line: "LINE", ads: "โฆษณา/ออนไลน์", affiliate: "เซลล์แนะนำ",
     referral: "ลูกค้าแนะนำ", unknown: "ไม่ระบุ",
 };
 

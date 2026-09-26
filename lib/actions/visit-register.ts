@@ -28,7 +28,7 @@ export interface RegisterVisitInput {
     send_to_doctor?: boolean;         // ถ้า true → status='with_doctor'
 
     // Attribution — ที่มาของเคส (บังคับ)
-    case_source?: "walk_in" | "line" | "affiliate" | "referral";
+    case_source?: "walk_in" | "staff" | "line" | "ads" | "affiliate" | "referral";  // staff = พนักงานพามา (นับคอมแนะนำ) · ads = โฆษณา/ออนไลน์
     case_affiliate_id?: string | null;   // เมื่อ case_source = affiliate
     case_referral_code?: string | null;  // เมื่อ case_source = referral
 

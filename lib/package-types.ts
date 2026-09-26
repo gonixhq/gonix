@@ -96,6 +96,7 @@ export interface PackageUsage {
     hand_fee_asst?: number | null;
     hand_main?: { profiles: { full_name: string } | null } | null;
     hand_asst?: { profiles: { full_name: string } | null } | null;
+    items?: { qty: number; is_default: boolean; cost: number; inventory: { item_name: string; unit: string | null } | null }[];
 }
 
 export const PACKAGE_STATUS_LABEL: Record<PackageStatus, string> = {

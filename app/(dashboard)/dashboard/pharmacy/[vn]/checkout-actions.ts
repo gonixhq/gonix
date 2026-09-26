@@ -21,6 +21,8 @@ export interface InvoiceItemInput {
     performer_staff_id?: string | null;  // แพทย์ผู้ทำรายการ → DF แพทย์ % (เฟส 2B, snapshot อัตราที่ DB)
     hand_main_staff_id?: string | null;  // ผู้ปฏิบัติหลัก → ค่ามือเต็ม (เฟส 2C, คำนวณ+snapshot ที่ DB)
     hand_asst_staff_id?: string | null;  // ผู้ช่วย → ค่ามือผู้ช่วย
+    team_offsite?: boolean;              // ผ่าตัดที่สถานพยาบาลอื่น → คอมทีม 40% (mig 153)
+    course_sessions?: number | null;     // >1 = ขายเมนูบริการเป็นคอร์ส N ครั้ง (mig 153)
 }
 
 export interface CheckoutInput {
@@ -312,6 +314,26 @@ export async function completeCheckout(input: CheckoutInput) {
             console.warn("[checkout] injectable vial deduction failed:", e);
         }
 
+        // 7a. คอร์สจากเมนูบริการ (N ครั้ง) → คอร์สค้างใช้ผูก service_id (mig 153)
+        const courseLines = items.filter(i => (i.course_sessions || 0) > 1 && i.item_ref_id);
+        if (courseLines.length > 0) {
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: staffRow } = user ? await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle() : { data: null };
+            const sumAfterC = items.reduce((s, i) => s + (Number(i.line_total) || 0) - (Number(i.discount_amount) || 0), 0);
+            for (const item of courseLines) {
+                const lineAfter = (Number(item.line_total) || 0) - (Number(item.discount_amount) || 0);
+                const netPrice = sumAfterC > 0 ? Math.round(lineAfter * total / sumAfterC * 100) / 100 : Number(item.line_total) || 0;
+                const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 365);
+                const { error: cErr } = await supabase.from("patient_packages").insert({
+                    clinic_id: clinicId, hn, package_id: null, service_id: item.item_ref_id, invoice_id: invId,
+                    package_name: `${item.item_name} (คอร์ส ${item.course_sessions} ครั้ง)`, total_sessions: Math.floor(item.course_sessions!),
+                    paid_amount: Number(item.line_total) || 0, net_price: netPrice, expires_at: expiresAt.toISOString(), created_by: staffRow?.id || null,
+                });
+                if (cErr) console.warn("[checkout] create service course failed:", cErr.message);
+            }
+            revalidatePath(`/dashboard/patients/${hn}`);
+        }
+
         // 7. Create patient_packages for package items
         const packageItems = items.filter(i => i.item_type === "package" && i.item_ref_id);
         if (packageItems.length > 0) {
@@ -358,7 +380,7 @@ export async function completeCheckout(input: CheckoutInput) {
         // 8. ตัด stock kit ของบริการเดี่ยว (service_catalog.inventory_item_id + consume_qty, mig 052)
         //    เช่น HIFU ขายครั้งเดียว → ตัด shot ตามที่ตั้งไว้ (best-effort, ไม่ block การชำระ)
         try {
-            const serviceItems = items.filter(i => i.item_type === "service" && i.item_ref_id);
+            const serviceItems = items.filter(i => i.item_type === "service" && i.item_ref_id && !((i.course_sessions || 0) > 1));  // คอร์ส: ตัดสต๊อกตอนใช้
             const svcIds = [...new Set(serviceItems.map(i => i.item_ref_id!))];
             if (svcIds.length > 0) {
                 const { data: svcs } = await supabase.from("service_catalog")

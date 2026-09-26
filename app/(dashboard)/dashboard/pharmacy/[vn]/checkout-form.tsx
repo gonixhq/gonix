@@ -70,6 +70,8 @@ interface LineItem {
     performer?: string;       // staff.id ของแพทย์ผู้ทำ | NOT_DOCTOR | "" (ยังไม่เลือก)
     hand_main?: string;       // staff.id ผู้ปฏิบัติหลัก (ค่ามือ) | "" = ไม่มี
     hand_asst?: string;       // staff.id ผู้ช่วย (ค่ามือ) | "" = ไม่มี
+    course_sessions?: number; // >1 = ขายเป็นคอร์ส N ครั้ง (สร้างคอร์สค้างใช้ · ค่ามือจ่ายตอนตัดใช้)
+    team_offsite?: boolean;   // ผ่าตัดที่สถานพยาบาลอื่น → นับคอมทีม 40%
     // ── ของฉีด (injectable): ขายเป็น "ก้อน" ไม่ใช่ต่อหน่วย ──
     // qty = จำนวนที่ฉีด (ยูนิต/cc/shot → ตัดสต๊อก vial) · block_price = ราคาขายก้อน (คิดเงิน)
     block_price?: number;     // ราคาก้อน (เฉพาะ injectable) — เป็น source of truth ของยอด ไม่ผูกกับ qty
@@ -81,6 +83,9 @@ const DF_ELIGIBLE = new Set(["doctor_fee", "procedure", "service", "injectable",
 const NOT_DOCTOR = "__none__";
 // ค่ามือ (เฟส 2C): ผู้ปฏิบัติหลัก/ผู้ช่วย รายบรรทัด — อัตราจากเมนูบริการ/คลังยา คิดที่ DB
 const HAND_ELIGIBLE = new Set(["procedure", "service", "injectable", "other"]);
+// ขายเป็นคอร์สได้ (เมนูบริการ/หัตถการ) → สร้างคอร์สค้างใช้ N ครั้ง
+const COURSE_ELIGIBLE = new Set(["procedure", "service"]);
+const isCourse = (it: { item_type: string; course_sessions?: number }) => COURSE_ELIGIBLE.has(it.item_type) && (it.course_sessions || 0) > 1;
 const BILL_TYPES: { v: BillType; label: string; hint?: string }[] = [
     { v: "normal", label: "ปกติ" },
     { v: "review", label: "เคสรีวิว", hint: "ค่ามือเต็ม · นับเป็นต้นทุนการตลาด" },
@@ -437,9 +442,10 @@ export default function CheckoutForm({
                 const gross = lineGross(it);
                 const lineDisc = Math.min(Number(it.line_discount) || 0, gross);
                 return {
-                    item_type: it.item_type,
+                    // ขายเป็นคอร์ส → บันทึกเป็น package (รายได้รับรู้ตอนใช้ · ต้นทุน/ค่ามือเกิดตอนตัดคอร์ส)
+                    item_type: isCourse(it) ? "package" : it.item_type,
                     item_ref_id: it.item_ref_id,
-                    item_name: it.item_name,
+                    item_name: isCourse(it) ? `${it.item_name} (คอร์ส ${it.course_sessions} ครั้ง)` : it.item_name,
                     qty: it.qty,
                     // ของฉีด: unit_price = ราคาก้อน ÷ จำนวน (ให้ qty × unit_price = ยอดก้อน สำหรับบันทึก)
                     unit_price: it.qty > 0 ? gross / it.qty : it.unit_price,
@@ -449,8 +455,11 @@ export default function CheckoutForm({
                     discount_amount: lineDisc,
                     segment: it.segment ?? null,
                     performer_staff_id: it.performer && it.performer !== NOT_DOCTOR ? it.performer : null,
-                    hand_main_staff_id: HAND_ELIGIBLE.has(it.item_type) && it.hand_main ? it.hand_main : null,
-                    hand_asst_staff_id: HAND_ELIGIBLE.has(it.item_type) && it.hand_asst ? it.hand_asst : null,
+                    // คอร์ส: ค่ามือจ่ายตอนตัดใช้แต่ละครั้ง ไม่ใช่ตอนขาย
+                    hand_main_staff_id: HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && it.hand_main ? it.hand_main : null,
+                    hand_asst_staff_id: HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && it.hand_asst ? it.hand_asst : null,
+                    team_offsite: !!it.team_offsite && it.segment === "aesthetic",
+                    course_sessions: isCourse(it) ? Math.floor(it.course_sessions!) : null,
                 };
             });
 
@@ -802,7 +811,26 @@ export default function CheckoutForm({
                                                         <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ (พยาบาล/อื่นๆ)</option>
                                                     </select>
                                                 )}
-                                                {HAND_ELIGIBLE.has(it.item_type) && handStaff.length > 0 && (
+                                                {(COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id || it.segment === "aesthetic") && (
+                                                    <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] font-normal text-slate-600">
+                                                        {COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id && (
+                                                            <label className="inline-flex items-center gap-1" title="ขายเป็นคอร์ส: ราคาในบรรทัด = ราคาทั้งคอร์ส · ระบบสร้างคอร์สค้างใช้ให้ ตัดครั้งเมื่อมาใช้">
+                                                                คอร์ส
+                                                                <input type="number" min="1" step="1" value={it.course_sessions || ""} placeholder="1"
+                                                                    onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, course_sessions: parseInt(e.target.value) || undefined } : x))}
+                                                                    className="h-6 w-12 rounded border border-slate-200 px-1 text-right tabular-nums" /> ครั้ง
+                                                            </label>
+                                                        )}
+                                                        {isCourse(it) && <span className="text-violet-700">→ สร้างคอร์ส {it.course_sessions} ครั้ง (ราคา = ทั้งคอร์ส · ค่ามือจ่ายตอนใช้)</span>}
+                                                        {it.segment === "aesthetic" && (
+                                                            <label className="inline-flex items-center gap-1">
+                                                                <input type="checkbox" checked={!!it.team_offsite} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, team_offsite: e.target.checked } : x))} />
+                                                                ทำที่สถานพยาบาลอื่น (นับคอมทีม 40%)
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0 && (
                                                     <div className="mt-1 flex gap-1 flex-wrap">
                                                         <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
                                                             className={`h-7 max-w-[170px] rounded-md border bg-white px-1.5 text-xs font-normal ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-200 text-slate-400"}`}>
