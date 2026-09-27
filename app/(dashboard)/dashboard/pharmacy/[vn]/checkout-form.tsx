@@ -856,24 +856,50 @@ export default function CheckoutForm({
                                         const fieldsLocked = false;
                                         return (
                                         <tr key={it.id} className="border-t border-slate-100 hover:bg-slate-50/40">
-                                            <td className="px-3 py-2">
+                                            <td className="px-3 py-3 align-top">
                                                 <span className={`text-xs px-2 py-0.5 rounded font-semibold uppercase tracking-wider ${ITEM_TYPE_COLOR[it.item_type] || ITEM_TYPE_COLOR.other}`}>
                                                     {ITEM_TYPE_LABEL[it.item_type] || it.item_type}
                                                 </span>
                                             </td>
-                                            <td className="px-3 py-2 text-slate-800 font-medium">
-                                                {it.item_name}
+                                            <td className="px-3 py-3 text-slate-800 font-medium align-top">
+                                                <div className="text-[15px] font-semibold leading-snug">{it.item_name}</div>
                                                 {fieldsLocked && <span className="ml-1.5 text-xs text-slate-500 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
-                                                {DF_ELIGIBLE.has(it.item_type) && doctors.length > 0 && (
-                                                    <select aria-label="แพทย์ผู้ทำ" value={it.performer || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, performer: e.target.value } : x))}
-                                                        className={`mt-1 block w-full max-w-[220px] h-7 rounded-md border bg-white px-1.5 text-xs font-normal ${it.performer ? "border-slate-200 text-slate-700" : "border-amber-400 text-amber-700"}`}>
-                                                        <option value="">— แพทย์ผู้ทำ? —</option>
-                                                        {doctors.map(d => <option key={d.id} value={d.id}>👨‍⚕️ {d.name}</option>)}
-                                                        <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ (พยาบาล/อื่นๆ)</option>
-                                                    </select>
+                                                {/* ผู้ทำ / ค่ามือ — ป้ายชัด ช่องเท่ากัน (iPad แตะง่าย) */}
+                                                {((DF_ELIGIBLE.has(it.item_type) && doctors.length > 0) || (HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0)) && (
+                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[600px]">
+                                                        {DF_ELIGIBLE.has(it.item_type) && doctors.length > 0 && (
+                                                            <label className="block min-w-0">
+                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">แพทย์ผู้ทำ</span>
+                                                                <select aria-label="แพทย์ผู้ทำ" value={it.performer || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, performer: e.target.value } : x))}
+                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.performer ? "border-slate-300 text-slate-800" : "border-amber-400 bg-amber-50 text-amber-800"}`}>
+                                                                    <option value="">— เลือกแพทย์ —</option>
+                                                                    {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                                                    <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ</option>
+                                                                </select>
+                                                            </label>
+                                                        )}
+                                                        {HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0 && (<>
+                                                            <label className="block min-w-0">
+                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ปฏิบัติหลัก</span>
+                                                                <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
+                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
+                                                                    <option value="">— ไม่มี —</option>
+                                                                    {handStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                </select>
+                                                            </label>
+                                                            <label className="block min-w-0">
+                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ช่วย</span>
+                                                                <select aria-label="ผู้ช่วย" value={it.hand_asst || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_asst: e.target.value } : x))}
+                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_asst ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
+                                                                    <option value="">— ไม่มี —</option>
+                                                                    {handStaff.filter(s => s.id !== it.hand_main).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                </select>
+                                                            </label>
+                                                        </>)}
+                                                    </div>
                                                 )}
                                                 {(COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id || it.segment === "aesthetic") && (
-                                                    <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] font-normal text-slate-600">
+                                                    <div className="mt-2 flex items-center gap-3 flex-wrap text-xs font-normal text-slate-600">
                                                         {COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id && (
                                                             <label className="inline-flex items-center gap-1" title="ขายเป็นคอร์ส: ราคาในบรรทัด = ราคาทั้งคอร์ส · ระบบสร้างคอร์สค้างใช้ให้ ตัดครั้งเมื่อมาใช้">
                                                                 คอร์ส
@@ -889,20 +915,6 @@ export default function CheckoutForm({
                                                                 ทำที่สถานพยาบาลอื่น (นับคอมทีม 40%)
                                                             </label>
                                                         )}
-                                                    </div>
-                                                )}
-                                                {HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0 && (
-                                                    <div className="mt-1 flex gap-1 flex-wrap">
-                                                        <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
-                                                            className={`h-7 max-w-[170px] rounded-md border bg-white px-1.5 text-xs font-normal ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-200 text-slate-400"}`}>
-                                                            <option value="">ผู้ปฏิบัติหลัก —</option>
-                                                            {handStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                        </select>
-                                                        <select aria-label="ผู้ช่วย" value={it.hand_asst || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_asst: e.target.value } : x))}
-                                                            className={`h-7 max-w-[150px] rounded-md border bg-white px-1.5 text-xs font-normal ${it.hand_asst ? "border-emerald-300 text-emerald-800" : "border-slate-200 text-slate-400"}`}>
-                                                            <option value="">ผู้ช่วย —</option>
-                                                            {handStaff.filter(s => s.id !== it.hand_main).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                        </select>
                                                     </div>
                                                 )}
                                             </td>

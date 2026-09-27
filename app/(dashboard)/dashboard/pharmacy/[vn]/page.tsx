@@ -91,7 +91,10 @@ export default async function PharmacyCheckoutPage({ params }: { params: Promise
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const doctors = (docRows || []).map((d: any) => {
         const p = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
-        return { id: d.id as string, name: (p?.full_name as string) || "—" };
+        const full = (p?.full_name as string) || "—";
+        // คำนำหน้าแพทย์ (ถ้าชื่อยังไม่มี) — ทันตแพทย์ = ทพ. · อื่นๆ = นพ.
+        const title = /^(นพ\.|พญ\.|ทพ\.|ทพญ\.|Dr\.?)\s*/i.test(full) ? "" : p?.role === "dentist" ? "ทพ. " : "นพ. ";
+        return { id: d.id as string, name: `${title}${full}` };
     });
 
     // พนักงานที่เลือกเป็น "ผู้ปฏิบัติหลัก/ผู้ช่วย" (ค่ามือรายบรรทัด — เฟส 2C)
