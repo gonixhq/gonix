@@ -384,6 +384,19 @@ export async function completeCheckout(input: CheckoutInput) {
         //    เช่น HIFU ขายครั้งเดียว → ตัด shot ตามที่ตั้งไว้ (best-effort, ไม่ block การชำระ)
         try {
             const serviceItems = items.filter(i => i.item_type === "service" && i.item_ref_id && !((i.course_sessions || 0) > 1));  // คอร์ส: ตัดสต๊อกตอนใช้
+            // Lab ที่หมอสั่ง (item_ref_id = lab_orders.id) → จับคู่เมนูบริการด้วยชื่อ → ตัด kit/สูตรของเมนูนั้น (รวมเทสย่อยในแพ็กเกจตรวจ)
+            const labLines = items.filter(i => i.item_type === "lab" && i.item_ref_id);
+            if (labLines.length > 0) {
+                const { data: los } = await supabase.from("lab_orders").select("id, lab_name, lab_type").eq("clinic_id", clinicId).in("id", labLines.map(i => i.item_ref_id!));
+                const names = [...new Set((los || []).filter(o => o.lab_type !== "package").map(o => o.lab_name as string))];
+                const { data: scs } = names.length ? await supabase.from("service_catalog").select("id, service_name").eq("clinic_id", clinicId).in("service_name", names) : { data: [] };
+                const byName = new Map((scs || []).map(x => [x.service_name as string, x.id as string]));
+                const loName = new Map((los || []).filter(o => o.lab_type !== "package").map(o => [o.id as string, o.lab_name as string]));
+                for (const l of labLines) {
+                    const svcId = byName.get(loName.get(l.item_ref_id!) || "");
+                    if (svcId) serviceItems.push({ ...l, item_ref_id: svcId });
+                }
+            }
             const svcIds = [...new Set(serviceItems.map(i => i.item_ref_id!))];
             if (svcIds.length > 0) {
                 const { data: svcs } = await supabase.from("service_catalog")
