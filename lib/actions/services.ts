@@ -105,6 +105,7 @@ const TYPE_PREFIX: Record<ServiceItemType, string> = {
     procedure: "PROC",
     service: "SVC",
     supply: "SUPP",
+    lab: "LBC",
     lab_external: "LAB",
     other: "OTH",
 };

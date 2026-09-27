@@ -2,7 +2,7 @@
  * Service catalog types — shared between server & client.
  */
 
-export type ServiceItemType = "doctor_fee" | "procedure" | "service" | "supply" | "lab_external" | "other";
+export type ServiceItemType = "doctor_fee" | "procedure" | "service" | "supply" | "lab" | "lab_external" | "other";
 
 export interface ServiceCatalogItem {
     id: string;
@@ -56,6 +56,7 @@ export const SERVICE_ITEM_TYPE_LABEL: Record<ServiceItemType, string> = {
     procedure: "หัตถการ",
     service: "บริการ",
     supply: "วัสดุ",
+    lab: "แล็บในคลินิก",
     lab_external: "แล็บภายนอก",
     other: "อื่นๆ",
 };
@@ -65,6 +66,7 @@ export const SERVICE_ITEM_TYPE_COLOR: Record<ServiceItemType, string> = {
     procedure: "bg-rose-100 text-rose-700",
     service: "bg-teal-100 text-teal-700",
     supply: "bg-indigo-100 text-indigo-700",
+    lab: "bg-fuchsia-100 text-fuchsia-700",
     lab_external: "bg-purple-100 text-purple-700",
     other: "bg-slate-100 text-slate-700",
 };
@@ -74,6 +76,7 @@ export const SERVICE_ITEM_TYPE_OPTIONS: { value: ServiceItemType; label: string 
     { value: "procedure", label: "หัตถการ" },
     { value: "service", label: "บริการ" },
     { value: "supply", label: "วัสดุสิ้นเปลือง" },
+    { value: "lab", label: "แล็บในคลินิก" },
     { value: "lab_external", label: "แล็บภายนอก" },
     { value: "other", label: "อื่นๆ" },
 ];
