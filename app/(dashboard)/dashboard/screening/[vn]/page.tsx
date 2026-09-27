@@ -849,8 +849,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         }`} />
                 </div>
 
-                {/* Service Category + Pain Score in same row */}
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)] gap-4 items-start">
+                {/* ประเภทบริการ + ห้องตรวจ */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">ประเภทบริการ</Label>
                         <ServiceCategoryPicker value={serviceCategory} onChange={setServiceCategory} />
@@ -864,27 +864,41 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </div>
                         )}
                     </div>
-                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && painScore === "" && triageLevel === "normal" ? (
-                        <div className="lg:pt-7">
-                            <button type="button" onClick={() => setShowTriage(true)} className="text-xs text-blue-700 hover:underline">+ Pain score / ความเร่งด่วน (ถ้ามี)</button>
-                        </div>
-                    ) : (
                     <div className="space-y-1.5">
-                        <Label className="text-[15px] font-semibold text-slate-800">Pain Score</Label>
-                        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 max-w-xl">
-                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                                <button key={n} type="button" onClick={() => setPainScore(painScore === n ? "" : n)}
-                                    className={`h-10 rounded-lg text-sm font-semibold transition-all ${
-                                        painScore === n
-                                            ? n >= 7 ? "bg-red-600 text-white" : n >= 4 ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"
-                                            : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                    }`}>
-                                    {n}
-                                </button>
-                            ))}
-                        </div>
+                        <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ (เลือกได้)</Label>
+                        <select
+                            value={selectedRoomId}
+                            onChange={e => {
+                                const rid = e.target.value;
+                                setSelectedRoomId(rid);
+                                // ตั้งแพทย์ตามห้อง: หมอที่อยู่ในห้องตอนนี้ ก่อน แล้วค่อยหมอประจำห้อง
+                                const room = rooms.find(r => r.room_id === rid);
+                                const docId = room?.doctor_staff_id || room?.assigned_doctors?.[0]?.staff_id || "";
+                                if (docId) setDoctorId(docId);
+                            }}
+                            className={`flex h-11 w-full rounded-lg border-2 bg-white px-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
+                                "border-slate-300"
+                            }`}
+                        >
+                            <option value="">— ไม่ระบุห้องตรวจ —</option>
+                            {rooms.map((r) => {
+                                const doctorPart = r.doctor_name
+                                    ? ` · ${r.doctor_name} (อยู่ห้อง)`
+                                    : r.assigned_doctors && r.assigned_doctors.length > 0
+                                        ? ` · ${r.assigned_doctors.map(d => d.name).join(", ")}`
+                                        : " · ยังไม่มีหมอ";
+                                const queuePart = r.waiting_count > 0 ? ` · รอ ${r.waiting_count}` : "";
+                                return (
+                                    <option key={r.room_id} value={r.room_id}>
+                                        {r.room_name}{doctorPart}{queuePart}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                        {rooms.length === 0 && (
+                            <p className="text-xs text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
+                        )}
                     </div>
-                    )}
                 </div>
 
                 <hr className="border-slate-200" />
@@ -975,9 +989,30 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
 
                 <hr className="border-slate-200" />
 
-                {/* Triage + Doctor */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && triageLevel === "normal" && painScore === "" ? <div className="hidden md:block" /> : (
+                {/* Pain score + ความเร่งด่วน (ย่อเก็บสำหรับบริการที่ไม่ค่อยใช้) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && painScore === "" && triageLevel === "normal" ? (
+                        <div>
+                            <button type="button" onClick={() => setShowTriage(true)} className="text-xs text-blue-700 hover:underline">+ Pain score / ความเร่งด่วน (ถ้ามี)</button>
+                        </div>
+                    ) : (
+                    <div className="space-y-1.5">
+                        <Label className="text-[15px] font-semibold text-slate-800">Pain Score</Label>
+                        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 max-w-xl">
+                            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                                <button key={n} type="button" onClick={() => setPainScore(painScore === n ? "" : n)}
+                                    className={`h-10 rounded-lg text-sm font-semibold transition-all ${
+                                        painScore === n
+                                            ? n >= 7 ? "bg-red-600 text-white" : n >= 4 ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"
+                                            : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                    }`}>
+                                    {n}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    )}
+                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && triageLevel === "normal" && painScore === "" ? null : (
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">ความเร่งด่วน</Label>
                         <div className="flex gap-1.5">
@@ -996,41 +1031,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         </div>
                     </div>
                     )}
-                    <div className="space-y-1.5">
-                        <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ (เลือกได้)</Label>
-                        <select
-                            value={selectedRoomId}
-                            onChange={e => {
-                                const rid = e.target.value;
-                                setSelectedRoomId(rid);
-                                // ตั้งแพทย์ตามห้อง: หมอที่อยู่ในห้องตอนนี้ ก่อน แล้วค่อยหมอประจำห้อง
-                                const room = rooms.find(r => r.room_id === rid);
-                                const docId = room?.doctor_staff_id || room?.assigned_doctors?.[0]?.staff_id || "";
-                                if (docId) setDoctorId(docId);
-                            }}
-                            className={`flex h-9 w-full rounded-lg border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 ${
-                                "border-slate-300"
-                            }`}
-                        >
-                            <option value="">— ไม่ระบุห้องตรวจ —</option>
-                            {rooms.map((r) => {
-                                const doctorPart = r.doctor_name
-                                    ? ` · ${r.doctor_name} (อยู่ห้อง)`
-                                    : r.assigned_doctors && r.assigned_doctors.length > 0
-                                        ? ` · ${r.assigned_doctors.map(d => d.name).join(", ")}`
-                                        : " · ยังไม่มีหมอ";
-                                const queuePart = r.waiting_count > 0 ? ` · รอ ${r.waiting_count}` : "";
-                                return (
-                                    <option key={r.room_id} value={r.room_id}>
-                                        {r.room_name}{doctorPart}{queuePart}
-                                    </option>
-                                );
-                            })}
-                        </select>
-                        {rooms.length === 0 && (
-                            <p className="text-xs text-amber-700">ยังไม่มีห้องตรวจ — ติดต่อ Admin สร้างห้องก่อน</p>
-                        )}
-                    </div>
                 </div>
 
                 {/* Nurse Note */}
