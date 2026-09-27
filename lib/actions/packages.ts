@@ -1072,3 +1072,31 @@ export async function transferPackageSessions(input: { patient_package_id: strin
         return { success: false, error: e instanceof Error ? e.message : "โอนไม่สำเร็จ" };
     }
 }
+
+/** คอสที่ยังใช้ได้ของคนไข้ + ของในคลังที่แต่ละคอสครอบคลุม (สูตรเมนู / kit / ของที่ตัดต่อครั้งของแพ็กเกจ)
+ *  ใช้ที่หน้าคิดเงิน: บรรทัดของฉีดที่หมอบันทึก ตรงกับคอสที่ค้าง → เตือน + ใช้คอสแทนการคิดเงิน */
+export async function getCourseCoverage(hn: string): Promise<{ pp_id: string; name: string; remaining: number; items: { item_id: string; qty: number }[] }[]> {
+    try {
+        const supabase = await createClient();
+        const { data: raw } = await supabase.from("patient_packages").select("id, package_name, total_sessions, used_sessions, package_id, service_id, expires_at")
+            .eq("hn", hn).eq("status", "active").gt("expires_at", new Date().toISOString());
+        const pps = (raw || []).map(p => ({ ...p, remaining_sessions: Number(p.total_sessions) - Number(p.used_sessions) })).filter(p => p.remaining_sessions > 0);
+        if (!pps.length) return [];
+        const svcIds = [...new Set(pps.map(p => p.service_id).filter(Boolean))] as string[];
+        const pkgIds = [...new Set(pps.map(p => p.package_id).filter(Boolean))] as string[];
+        const [{ data: rec }, { data: kit }, { data: sp }] = await Promise.all([
+            svcIds.length ? supabase.from("service_recipes").select("service_id, inventory_item_id, qty").in("service_id", svcIds).eq("cut_stock", true) : Promise.resolve({ data: [] }),
+            svcIds.length ? supabase.from("service_catalog").select("id, inventory_item_id, consume_qty").in("id", svcIds).not("inventory_item_id", "is", null) : Promise.resolve({ data: [] }),
+            pkgIds.length ? supabase.from("service_packages").select("id, consume_item_id, consume_qty_per_session").in("id", pkgIds).not("consume_item_id", "is", null) : Promise.resolve({ data: [] }),
+        ]);
+        return pps.map(p => {
+            const items: { item_id: string; qty: number }[] = [];
+            for (const r of (rec || []) as { service_id: string; inventory_item_id: string; qty: number }[]) if (r.service_id === p.service_id) items.push({ item_id: r.inventory_item_id, qty: Number(r.qty) || 1 });
+            for (const k of (kit || []) as { id: string; inventory_item_id: string; consume_qty: number }[]) if (k.id === p.service_id) items.push({ item_id: k.inventory_item_id, qty: Number(k.consume_qty) || 1 });
+            for (const s of (sp || []) as { id: string; consume_item_id: string; consume_qty_per_session: number }[]) if (s.id === p.package_id) items.push({ item_id: s.consume_item_id, qty: Number(s.consume_qty_per_session) || 1 });
+            return { pp_id: p.id as string, name: p.package_name as string, remaining: Number(p.remaining_sessions), items };
+        }).filter(c => c.items.length > 0);
+    } catch {
+        return [];
+    }
+}

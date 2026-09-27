@@ -17,7 +17,7 @@ import { completeCheckout, type InvoiceItemInput } from "./checkout-actions";
 import { validateCampaignCode, type ValidatedCampaign } from "@/lib/actions/campaigns";
 import type { DiscountEntry } from "@/lib/campaign-types";
 import type { ServiceCatalogItem } from "@/lib/service-types";
-import { listActivePackages, getPatientActivePackages, consumePackageSession } from "@/lib/actions/packages";
+import { listActivePackages, getPatientActivePackages, consumePackageSession, getCourseCoverage } from "@/lib/actions/packages";
 import { getUsableCredit } from "@/lib/actions/pre-order";
 import type { ServicePackage, PatientPackageActive } from "@/lib/package-types";
 import PaymentEditor from "./payment-editor";
@@ -209,11 +209,15 @@ export default function CheckoutForm({
     const [creditAvail, setCreditAvail] = useState(0);
     const [creditUse, setCreditUse] = useState("");
     const [usingPackageId, setUsingPackageId] = useState<string | null>(null);
+    // คอสที่ครอบคลุมของในคลัง → จับคู่กับบรรทัดของฉีดที่หมอบันทึก (กันเก็บเงินซ้ำ)
+    const [coverage, setCoverage] = useState<Awaited<ReturnType<typeof getCourseCoverage>>>([]);
+    const [dismissedCover, setDismissedCover] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         listActivePackages().then(setPackages);
         if (visit?.hn) {
             getPatientActivePackages(visit.hn).then(setActivePackages);
+            getCourseCoverage(visit.hn).then(setCoverage).catch(() => setCoverage([]));
             getUsableCredit(visit.hn).then(setCreditAvail).catch(() => setCreditAvail(0));
         }
     }, [visit?.hn]);
@@ -236,6 +240,29 @@ export default function CheckoutForm({
         // Refresh active packages
         const updated = await getPatientActivePackages(visit.hn);
         setActivePackages(updated);
+        getCourseCoverage(visit.hn).then(setCoverage).catch(() => {});
+    }
+
+    /** ใช้คอสแทนการคิดเงินบรรทัดนี้: ตัดคอส 1 ครั้ง (ตัดสต๊อกตามสูตรคอส) → เอาบรรทัดออก/ลดจำนวนส่วนที่คอสครอบคลุม */
+    async function applyCourseToLine(line: LineItem, c: { pp_id: string; name: string; remaining: number }, perQty: number) {
+        if (!confirm(`ใช้คอส "${c.name}" แทนการคิดเงิน "${line.item_name}"?\n\n• ตัดคอส 1 ครั้ง (เหลือ ${c.remaining - 1})\n• ${line.qty <= perQty ? "เอาบรรทัดนี้ออกจากบิล" : `ลดจำนวนในบิลลง ${perQty} (คิดเงินส่วนเกิน ${line.qty - perQty})`}`)) return;
+        setUsingPackageId(c.pp_id);
+        const result = await consumePackageSession({
+            patient_package_id: c.pp_id, visit_vn: visit.vn,
+            hand_main_staff_id: pkgHand.main || null, hand_asst_staff_id: pkgHand.asst || null,
+            note: `ใช้คอสแทนการคิดเงิน: ${line.item_name}`,
+        });
+        setUsingPackageId(null);
+        if (!result.success) { alert(result.error || "ตัดคอสไม่สำเร็จ"); return; }
+        setItems(prev => prev.flatMap(it => {
+            if (it.id !== line.id) return [it];
+            if (it.qty <= perQty) return [];
+            const left = it.qty - perQty;
+            return [{ ...it, qty: left, block_price: it.block_price != null ? Math.round(it.block_price * left / it.qty * 100) / 100 : it.block_price }];
+        }));
+        const updated = await getPatientActivePackages(visit.hn);
+        setActivePackages(updated);
+        getCourseCoverage(visit.hn).then(setCoverage).catch(() => {});
     }
 
     function addPackageItem(pkg: ServicePackage) {
@@ -621,6 +648,31 @@ export default function CheckoutForm({
                             </div>
                         </div>
                     )}
+
+                    {/* คนไข้มีคอสที่ครอบคลุมบรรทัดในบิล → เตือน + ใช้คอสแทน */}
+                    {(() => {
+                        const hits = items.flatMap(it => (it.item_type === "injectable" || it.item_type === "drug") && it.item_ref_id && !dismissedCover.has(it.id)
+                            ? coverage.flatMap(c => c.items.filter(x => x.item_id === it.item_ref_id).map(x => ({ it, c, perQty: x.qty }))).slice(0, 1) : []);
+                        if (!hits.length) return null;
+                        return (
+                            <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-3 space-y-2">
+                                <div className="text-sm font-bold text-amber-900 inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> คนไข้มีคอสค้างที่ใช้แทนรายการในบิลได้ — อย่าเก็บเงินซ้ำ</div>
+                                {hits.map(({ it, c, perQty }) => (
+                                    <div key={it.id + c.pp_id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2 text-sm">
+                                        <div className="flex-1 min-w-[220px]">
+                                            <div><b>{it.item_name}</b> <span className="text-slate-500">({it.qty} {it.unit_label || ""})</span></div>
+                                            <div className="text-xs text-amber-800">ตรงกับคอส <b>{c.name}</b> · เหลือ {c.remaining} ครั้ง · ครั้งละ {perQty}</div>
+                                        </div>
+                                        <button type="button" onClick={() => setDismissedCover(p => new Set(p).add(it.id))} className="h-8 px-3 rounded-lg text-xs text-slate-500 hover:bg-slate-100">คิดเงินตามปกติ</button>
+                                        <button type="button" disabled={usingPackageId === c.pp_id} onClick={() => applyCourseToLine(it, c, perQty)}
+                                            className="h-8 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold disabled:opacity-50">
+                                            {usingPackageId === c.pp_id ? "กำลังตัด…" : "ใช้คอส (ไม่คิดเงินบรรทัดนี้)"}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
 
                     {/* Editable Items List */}
                     <div className="rounded-2xl border border-white/90 bg-white/90 backdrop-blur-xl shadow-sm overflow-hidden">

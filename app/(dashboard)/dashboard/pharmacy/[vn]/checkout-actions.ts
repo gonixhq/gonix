@@ -297,6 +297,12 @@ export async function completeCheckout(input: CheckoutInput) {
                 }
 
                 // reconcile: หมอบันทึก vs บิล → flag ถ้าต่าง (leakage/คิดเงินขาด)
+                // ของที่ตัดผ่านคอสใน visit นี้ = จ่ายแล้วด้วยคอส (ไม่ใช่ขาดเงิน)
+                const { data: uses } = await supabase.from("package_usages").select("id").eq("visit_vn", vn);
+                if (uses?.length) {
+                    const { data: ui } = await supabase.from("package_usage_items").select("inventory_item_id, qty").in("usage_id", uses.map(u => u.id));
+                    for (const x of ui || []) billByItem.set(x.inventory_item_id as string, (billByItem.get(x.inventory_item_id as string) || 0) + Number(x.qty));
+                }
                 const { data: docInj } = await supabase.from("visit_injections").select("item_id, qty").eq("vn", vn);
                 const docByItem = new Map<string, number>();
                 for (const d of docInj || []) docByItem.set(d.item_id as string, (docByItem.get(d.item_id as string) || 0) + Number(d.qty));
