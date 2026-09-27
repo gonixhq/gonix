@@ -20,6 +20,7 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     maximumScale: 5,
+    themeColor: "#0b1f3a",
 };
 
 export const metadata: Metadata = {
@@ -32,6 +33,10 @@ export const metadata: Metadata = {
     robots: {
         index: false,
     },
+    // iPad/iPhone: เพิ่มไปยังหน้าจอโฮม → เปิดเต็มจอเหมือนแอป
+    appleWebApp: { capable: true, title: "Gonix", statusBarStyle: "black" },
+    // ไม่ให้ iOS แปลงตัวเลข (HN / VN / เบอร์) เป็นลิงก์โทรอัตโนมัติ
+    formatDetection: { telephone: false, email: false, address: false },
 };
 
 export default function RootLayout({

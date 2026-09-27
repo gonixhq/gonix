@@ -405,3 +405,9 @@
     font-size: 16px !important;
   }
 }
+
+/* จอสัมผัส: แตะปุ่มตอบสนองทันที (ไม่รอเช็ค double-tap zoom) · ไม่มีเมนูกดค้างบนปุ่ม */
+@media (pointer: coarse) {
+  button, a, [role="button"], summary, label, select { touch-action: manipulation; }
+  button, [role="button"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
