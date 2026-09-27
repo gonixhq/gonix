@@ -11,11 +11,11 @@ import {
     type BillRow, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
 } from "@/lib/actions/payables";
 import BillEditor from "./bill-editor";
-import { createBatch, removeBillFromBatch, approveBatch, payBatch, cancelBatch, type BatchRow, type BatchStatus } from "@/lib/actions/payment-batches";
+import { createBatch, createReimbursement, removeBillFromBatch, approveBatch, payBatch, cancelBatch, type BatchRow, type BatchStatus } from "@/lib/actions/payment-batches";
 import { type BillForm, billToForm, emptyLine, calcBill, shrinkImage, openAttachment } from "./bill-utils";
 import { BILL_TYPE_LABEL, PAY_METHODS, DOC_TYPE_LABEL, expenseCategoryLabel, type BillType } from "@/lib/payables";
 
-export type PayTab = "overview" | "batches" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
+export type PayTab = "overview" | "batches" | "advance" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
 type BatchData = { batches: BatchRow[]; canPrepare: boolean; canApprove: boolean };
 type BatchRef = Map<string, { no: string; status: BatchStatus }>;
 const BATCH_STATUS: Record<BatchStatus, { label: string; cls: string }> = {
@@ -34,7 +34,9 @@ const TYPE_COLOR: Record<BillType, string> = { lab: "bg-violet-100 text-violet-7
 type Data = {
     lab: { sent: LabSentRow[]; summary: LabVendorSummary[] };
     bills: BillRow[]; openBills: BillRow[]; receipts: ReceiptRow[]; vendors: VendorRow[]; canManage: boolean;
+    people: { id: string; name: string; role: string }[]; advances: BillRow[];
 };
+type PayInput = { date: string; method: string; ref?: string; paid_by?: "clinic" | "staff" | "owner"; advanced_by?: string | null; waive?: boolean };
 export default function PayablesClient({ month, today, tab, data, batchData }: { month: string; today: string; tab: PayTab; data: Data; batchData: BatchData }) {
     const router = useRouter();
     const [pending, start] = useTransition();
@@ -90,10 +92,10 @@ export default function PayablesClient({ month, today, tab, data, batchData }: {
                         <p className="text-xs text-slate-500">บันทึกบิล/ใบกำกับภาษี · แล็บภายนอก · บริษัทยา · ค่าใช้จ่ายทั่วไป — ติดตามครบกำหนดจ่าย + ส่งสำนักงานบัญชี</p>
                     </div>
                 </div>
-                {tab !== "overview" && tab !== "vendors" && tab !== "batches" && (
+                {tab !== "overview" && tab !== "vendors" && tab !== "batches" && tab !== "advance" && (
                     <input type="month" value={month} onChange={e => go(tab, e.target.value)} className="h-10 rounded-xl border border-slate-300 px-3 text-sm" />
                 )}
-                {data.canManage && tab !== "vendors" && tab !== "accountant" && tab !== "batches" && (
+                {data.canManage && tab !== "vendors" && tab !== "accountant" && tab !== "batches" && tab !== "advance" && (
                     <button onClick={() => { newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "expense"); setForm(f => f && { ...f, autoScan: true }); }}
                         className="h-10 px-4 rounded-xl border border-violet-300 bg-violet-50 text-violet-700 text-sm font-bold inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> สแกนบิล (AI)</button>
                 )}
@@ -108,7 +110,7 @@ export default function PayablesClient({ month, today, tab, data, batchData }: {
             </div>
 
             <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-                {([["overview", "ภาพรวม"], ["batches", `เตรียมจ่าย${batchData.batches.filter(b => b.status === "prepared").length ? ` (${batchData.batches.filter(b => b.status === "prepared").length})` : ""}`], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่ายทั่วไป"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
+                {([["overview", "ภาพรวม"], ["batches", `เตรียมจ่าย${batchData.batches.filter(b => b.status === "prepared").length ? ` (${batchData.batches.filter(b => b.status === "prepared").length})` : ""}`], ["advance", `สำรองจ่าย${data.advances.filter(b => b.reimburse_status === "pending").length ? ` (${data.advances.filter(b => b.reimburse_status === "pending").length})` : ""}`], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่ายทั่วไป"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
                     <button key={k} onClick={() => go(k)} className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === k ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l}</button>
                 ))}
             </div>
@@ -168,6 +170,13 @@ export default function PayablesClient({ month, today, tab, data, batchData }: {
                 onPay={b => setPayBatchFor(b)}
                 onCancel={b => { if (confirm(`ยกเลิกใบเตรียมจ่าย ${b.batch_no}? (บิลกลับเป็นรอชำระ)`)) act(() => cancelBatch(b.id), "ยกเลิกแล้ว"); }}
                 onRemove={(b, billId) => act(() => removeBillFromBatch(b.id, billId), "เอาบิลออกแล้ว")} />}
+
+            {tab === "advance" && <AdvanceTab data={data} pending={pending} canManage={data.canManage}
+                onReimburse={ids => start(async () => {
+                    const r = await createReimbursement(ids);
+                    if (!r.ok) { toast.error(r.error || "สร้างไม่สำเร็จ"); return; }
+                    toast.success(`สร้างใบคืนเงิน ${r.batch_no} แล้ว`); router.push(`/dashboard/finance/payables?tab=batches&month=${month}`); router.refresh();
+                })} />}
 
             {tab === "accountant" && <AccountantTab month={month} bills={data.bills} canManage={data.canManage} pending={pending} start={start} onEdit={editBill} />}
 
@@ -229,7 +238,7 @@ export default function PayablesClient({ month, today, tab, data, batchData }: {
                 today={today} pending={pending} onClose={() => setPayBatchFor(null)}
                 onSave={(p) => act(() => payBatch(payBatchFor.id, p), `จ่าย ${payBatchFor.batch_no} แล้ว — บิล ${payBatchFor.bills.length} ใบชำระแล้ว`, () => setPayBatchFor(null))} />}
 
-            {payFor && <PayModal bill={payFor} today={today} pending={pending} onClose={() => setPayFor(null)}
+            {payFor && <PayModal allowAdvance people={data.people} bill={payFor} today={today} pending={pending} onClose={() => setPayFor(null)}
                 onSave={(p) => act(() => markBillPaid(payFor.id, p), "บันทึกจ่ายแล้ว", () => setPayFor(null))} />}
 
             {vendorForm && <VendorModal v={vendorForm} setV={setVendorForm} pending={pending}
@@ -471,10 +480,17 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
     );
 }
 
-function PayModal({ bill, today, pending, onClose, onSave }: { bill: Pick<BillRow, "vendor" | "invoice_no" | "amount" | "wht_amount" | "wht_pct" | "net_pay">; today: string; pending: boolean; onClose: () => void; onSave: (p: { date: string; method: string; ref?: string }) => void }) {
+function PayModal({ bill, today, pending, onClose, onSave, allowAdvance, people = [] }: {
+    bill: Pick<BillRow, "vendor" | "invoice_no" | "amount" | "wht_amount" | "wht_pct" | "net_pay">; today: string; pending: boolean; onClose: () => void; onSave: (p: PayInput) => void;
+    allowAdvance?: boolean; people?: { id: string; name: string; role: string }[];
+}) {
     const [date, setDate] = useState(today);
     const [method, setMethod] = useState("transfer");
     const [ref, setRef] = useState("");
+    const [by, setBy] = useState<"clinic" | "staff" | "owner">("clinic");
+    const [who, setWho] = useState("");
+    const [waive, setWaive] = useState(false);
+    const list = people.filter(p => by === "owner" ? ["owner", "admin"].includes(p.role) : true);
     return (
         <Modal title="บันทึกการจ่าย" onClose={onClose}>
             <div className="rounded-xl bg-slate-50 p-3 text-sm"><b>{bill.vendor}</b> {bill.invoice_no && <span className="text-slate-500">#{bill.invoice_no}</span>} · <b className="tabular-nums">{baht(bill.amount)}</b>
@@ -488,8 +504,26 @@ function PayModal({ bill, today, pending, onClose, onSave }: { bill: Pick<BillRo
                     </select>
                 </L>
             </div>
+            {allowAdvance && (
+                <div className="space-y-2">
+                    <div className="text-xs font-semibold text-slate-600">ใครเป็นคนจ่ายเงิน</div>
+                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-0.5">
+                        {([["clinic", "คลินิกจ่าย"], ["staff", "พนักงานสำรองจ่าย"], ["owner", "เจ้าของสำรองจ่าย"]] as const).map(([k, l]) => (
+                            <button key={k} type="button" onClick={() => { setBy(k); setWho(""); }} className={`h-8 rounded-md text-xs font-semibold ${by === k ? "bg-white shadow text-violet-700" : "text-slate-500"}`}>{l}</button>
+                        ))}
+                    </div>
+                    {by !== "clinic" && (<>
+                        <select value={who} onChange={e => setWho(e.target.value)} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
+                            <option value="">— เลือกคนที่ควักเงินจ่าย —</option>
+                            {list.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        {by === "owner" && <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={waive} onChange={e => setWaive(e.target.checked)} className="h-4 w-4" /> ไม่ต้องคืนเงิน (ถือเป็นเงินทุนเจ้าของ)</label>}
+                        <p className="text-[11px] text-slate-500">บิลนี้จะเป็น &quot;ชำระแล้ว&quot; ทันที{by === "owner" && waive ? "" : " และมียอดรอคืนเงินให้คนนี้ที่แท็บ \"สำรองจ่าย\""}</p>
+                    </>)}
+                </div>
+            )}
             <L label="อ้างอิง (เลขที่โอน/เช็ค)"><input value={ref} onChange={e => setRef(e.target.value)} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-            <ModalFooter pending={pending} onCancel={onClose} onSave={() => onSave({ date, method, ref })} label="บันทึกจ่าย" />
+            <ModalFooter pending={pending} disabled={by !== "clinic" && !who} onCancel={onClose} onSave={() => onSave({ date, method, ref, paid_by: by, advanced_by: by === "clinic" ? null : who, waive })} label="บันทึกจ่าย" />
         </Modal>
     );
 }
@@ -533,6 +567,7 @@ function BatchesTab({ bd, pending, onApprove, onPay, onCancel, onRemove }: {
             <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100">
                 <ClipboardList className="h-4 w-4 text-violet-600" />
                 <span className="font-mono font-bold text-slate-800">{b.batch_no}</span>
+                {b.kind === "reimburse" && <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-fuchsia-100 text-fuchsia-800">คืนเงินสำรองจ่าย</span>}
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BATCH_STATUS[b.status].cls}`}>{BATCH_STATUS[b.status].label}</span>
                 <span className="font-semibold text-slate-800">{b.vendor}</span>
                 <span className="flex-1" />
@@ -583,6 +618,75 @@ function BatchesTab({ bd, pending, onApprove, onPay, onCancel, onRemove }: {
     </>);
 }
 
+function AdvanceTab({ data, pending, canManage, onReimburse }: { data: Data; pending: boolean; canManage: boolean; onReimburse: (ids: string[]) => void }) {
+    const [sel, setSel] = useState<Set<string>>(new Set());
+    const [showDone, setShowDone] = useState(false);
+    const name = (id: string | null) => data.people.find(p => p.id === id)?.name || "—";
+    const pendingBills = data.advances.filter(b => b.reimburse_status === "pending");
+    const groups = [...new Set(pendingBills.map(b => b.advanced_by || ""))].map(pid => ({ pid, bills: pendingBills.filter(b => (b.advanced_by || "") === pid) }));
+    const done = data.advances.filter(b => b.reimburse_status === "reimbursed");
+    const selWho = pendingBills.find(b => sel.has(b.id))?.advanced_by;
+    const toggle = (b: BillRow) => {
+        if (selWho && b.advanced_by !== selWho && !sel.has(b.id)) { toast.error("ใบคืนเงินรวมได้เฉพาะบิลของคนเดียวกัน"); return; }
+        setSel(p => { const n = new Set(p); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n; });
+    };
+    return (<>
+        <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/60 px-4 py-3 text-xs text-fuchsia-900">
+            <b>สำรองจ่าย</b> = พนักงาน/เจ้าของควักเงินตัวเองจ่ายค่าใช้จ่ายไปก่อน → ตอนกด &quot;จ่าย&quot; ที่บิล เลือก &quot;พนักงาน/เจ้าของสำรองจ่าย&quot; →
+            ยอดมารอที่นี่ → ติ๊กเลือก → &quot;สร้างใบคืนเงิน&quot; → อนุมัติ → จ่ายคืน (ที่แท็บเตรียมจ่าย)
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <Card label="รอคืนเงินทั้งหมด" value={baht(pendingBills.reduce((s, b) => s + b.net_pay, 0))} tone={pendingBills.length ? "warn" : "ok"} hint={`${pendingBills.length} บิล · ${groups.length} คน`} />
+        </div>
+        {groups.length === 0 ? <Section title="รอคืนเงิน"><Empty text="ไม่มียอดสำรองจ่ายที่รอคืน" /></Section> : groups.map(g => {
+            const inBatch = (b: BillRow) => !!b.batch_id;
+            return (
+                <Section key={g.pid} title={`${name(g.pid)} · รอคืน ${baht(g.bills.reduce((s, b) => s + b.net_pay, 0))}`}>
+                    <table className="w-full text-sm">
+                        <tbody className="divide-y divide-slate-100">
+                            {g.bills.map(b => (
+                                <tr key={b.id} className={sel.has(b.id) ? "bg-fuchsia-50/60" : ""}>
+                                    <td className="pl-4 w-8">{canManage && !inBatch(b) && <input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b)} className="h-4 w-4" />}</td>
+                                    <td className="px-2 py-2 text-xs tabular-nums w-24">{b.paid_at ? thDate(b.paid_at) : "—"}</td>
+                                    <td className="px-2 py-2"><b>{b.vendor}</b>{b.note && <span className="text-xs text-slate-500"> · {b.note}</span>}</td>
+                                    <td className="px-2 py-2 text-xs text-slate-500">{b.invoice_no || ""}</td>
+                                    <td className="px-4 py-2 text-right tabular-nums font-semibold">{baht(b.net_pay)}{inBatch(b) && <div className="text-[10px] font-normal text-sky-700">อยู่ในใบคืนเงินแล้ว</div>}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </Section>
+            );
+        })}
+        {sel.size > 0 && (
+            <div className="sticky bottom-3 flex items-center gap-2 rounded-xl bg-fuchsia-600 text-white px-4 py-3 shadow-lg">
+                <span className="flex-1 text-sm">คืนเงินให้ <b>{name(selWho || null)}</b> · {sel.size} บิล · <b className="tabular-nums">{baht(pendingBills.filter(b => sel.has(b.id)).reduce((s, b) => s + b.net_pay, 0))}</b></span>
+                <button onClick={() => setSel(new Set())} className="h-9 px-3 rounded-lg text-sm text-white/80">ล้าง</button>
+                <button disabled={pending} onClick={() => { onReimburse([...sel]); setSel(new Set()); }} className="h-9 px-4 rounded-lg bg-white text-fuchsia-700 text-sm font-bold">สร้างใบคืนเงิน</button>
+            </div>
+        )}
+        {done.length > 0 && (
+            <div>
+                <button onClick={() => setShowDone(v => !v)} className="text-sm font-semibold text-slate-500 inline-flex items-center gap-1">{showDone ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} คืนเงินแล้ว ({done.length})</button>
+                {showDone && (
+                    <div className="mt-2 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <table className="w-full text-sm"><tbody className="divide-y divide-slate-100">
+                            {done.map(b => (
+                                <tr key={b.id}>
+                                    <td className="px-4 py-2 text-xs tabular-nums w-24">{b.reimbursed_at ? thDate(b.reimbursed_at) : "—"}</td>
+                                    <td className="px-2 py-2">{name(b.advanced_by)}</td>
+                                    <td className="px-2 py-2 text-slate-600">{b.vendor}</td>
+                                    <td className="px-4 py-2 text-right tabular-nums">{baht(b.net_pay)}</td>
+                                </tr>
+                            ))}
+                        </tbody></table>
+                    </div>
+                )}
+            </div>
+        )}
+    </>);
+}
+
 function DocBadges({ b }: { b: BillRow }) {
     return (
         <div className="flex flex-wrap gap-1 mt-0.5 text-[10px] font-normal">
@@ -591,6 +695,9 @@ function DocBadges({ b }: { b: BillRow }) {
                 : <span className="px-1.5 rounded bg-rose-50 text-rose-600">ไม่มีรูป</span>}
             <span className={`px-1.5 rounded ${b.original_filed ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{b.original_filed ? "ต้นฉบับ ✓" : "ต้นฉบับยังไม่เก็บ"}</span>
             {b.sent_to_accountant_at && <span className="px-1.5 rounded bg-violet-50 text-violet-700">ส่งบัญชีแล้ว</span>}
+            {b.reimburse_status === "pending" && <span className="px-1.5 rounded bg-fuchsia-50 text-fuchsia-700">สำรองจ่าย · รอคืน</span>}
+            {b.reimburse_status === "reimbursed" && <span className="px-1.5 rounded bg-emerald-50 text-emerald-700">สำรองจ่าย · คืนแล้ว</span>}
+            {b.reimburse_status === "waived" && <span className="px-1.5 rounded bg-slate-100 text-slate-600">เจ้าของจ่าย (เงินทุน)</span>}
         </div>
     );
 }

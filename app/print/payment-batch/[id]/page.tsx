@@ -21,7 +21,7 @@ async function load(id: string) {
     const { data: b } = await supabase.from("payment_batches").select("*").eq("id", id).eq("clinic_id", me.clinic_id).maybeSingle();
     if (!b) return null;
     const [{ data: bills }, { data: t }, { data: v }, { data: people }] = await Promise.all([
-        supabase.from("vendor_bills").select("invoice_no, doc_type, bill_date, due_date, amount, wht_amount, note, lines").eq("batch_id", id).order("bill_date"),
+        supabase.from("vendor_bills").select("invoice_no, doc_type, bill_date, due_date, amount, wht_amount, note, lines, vendor").eq("batch_id", id).order("bill_date"),
         supabase.from("tenants").select("clinic_name, clinic_name_en, company_name, tax_id, address_detail, phone, license_number").eq("id", me.clinic_id).maybeSingle(),
         supabase.from("vendors").select("tax_id, address, branch").eq("clinic_id", me.clinic_id).eq("name", b.vendor).maybeSingle(),
         supabase.from("profiles").select("id, full_name").eq("clinic_id", me.clinic_id),
@@ -53,8 +53,8 @@ export default async function PaymentBatchPrintPage({ params }: { params: Promis
                 <ClinicMasthead clinic={t} taxId={(t?.tax_id as string) || undefined} />
                 <div className="flex items-end justify-between mt-4">
                     <div>
-                        <div style={{ fontSize: "22px", fontWeight: 800 }}>{b.status === "paid" ? "ใบสำคัญจ่าย" : "ใบเตรียมจ่าย"}</div>
-                        <div style={{ fontSize: "11px", color: "#64748b", letterSpacing: "0.2em" }}>{b.status === "paid" ? "PAYMENT VOUCHER" : "PAYMENT REQUEST"}</div>
+                        <div style={{ fontSize: "22px", fontWeight: 800 }}>{b.kind === "reimburse" ? "ใบคืนเงินสำรองจ่าย" : b.status === "paid" ? "ใบสำคัญจ่าย" : "ใบเตรียมจ่าย"}</div>
+                        <div style={{ fontSize: "11px", color: "#64748b", letterSpacing: "0.2em" }}>{b.kind === "reimburse" ? "EXPENSE REIMBURSEMENT" : b.status === "paid" ? "PAYMENT VOUCHER" : "PAYMENT REQUEST"}</div>
                     </div>
                     <table style={{ fontSize: "12.5px" }}><tbody>
                         <tr><td className="pr-3 text-slate-600">เลขที่</td><td className="font-bold">{b.batch_no}</td></tr>
@@ -65,7 +65,7 @@ export default async function PaymentBatchPrintPage({ params }: { params: Promis
                 </div>
 
                 <div className="mt-3" style={{ border: "1px solid #94a3b8", padding: "8px 10px", lineHeight: 1.7 }}>
-                    <div><span className="text-slate-600">จ่ายให้ </span><b style={{ fontSize: "14px" }}>{b.vendor}</b>{v?.branch ? <span className="text-slate-600"> ({v.branch})</span> : null}</div>
+                    <div><span className="text-slate-600">{b.kind === "reimburse" ? "คืนเงินให้ (ผู้สำรองจ่าย) " : "จ่ายให้ "}</span><b style={{ fontSize: "14px" }}>{b.vendor}</b>{v?.branch ? <span className="text-slate-600"> ({v.branch})</span> : null}</div>
                     <div><span className="text-slate-600">เลขประจำตัวผู้เสียภาษี/บัตรประชาชน </span>{v?.tax_id || "—"}</div>
                     {v?.address && <div><span className="text-slate-600">ที่อยู่ </span>{v.address}</div>}
                 </div>
@@ -82,7 +82,7 @@ export default async function PaymentBatchPrintPage({ params }: { params: Promis
                     <tbody>
                         {bills.map((x, i) => {
                             const lines = Array.isArray(x.lines) ? (x.lines as { description?: string }[]) : [];
-                            const desc = x.note || lines.map(l => l.description).filter(Boolean).slice(0, 2).join(", ") || "—";
+                            const desc = (b.kind === "reimburse" ? `${x.vendor}: ` : "") + (x.note || lines.map(l => l.description).filter(Boolean).slice(0, 2).join(", ") || "—");
                             return (
                                 <tr key={i}>
                                     <td style={{ ...cell, textAlign: "center" }}>{i + 1}</td>
@@ -90,7 +90,7 @@ export default async function PaymentBatchPrintPage({ params }: { params: Promis
                                     <td style={cell}>{x.invoice_no || "—"}</td>
                                     <td style={cell}>{desc}</td>
                                     <td style={{ ...cell, textAlign: "center" }}>{thaiDate(x.due_date)}</td>
-                                    <td style={{ ...cell, textAlign: "right" }}>{money(Number(x.amount))}</td>
+                                    <td style={{ ...cell, textAlign: "right" }}>{money(Number(x.amount) - (b.kind === "reimburse" ? Number(x.wht_amount || 0) : 0))}</td>
                                 </tr>
                             );
                         })}

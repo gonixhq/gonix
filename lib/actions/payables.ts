@@ -18,6 +18,7 @@ export interface BillRow {
     doc_type: string; vat_mode: "none" | "excl" | "incl"; subtotal: number; vat_amount: number; wht_pct: number; wht_amount: number; net_pay: number;
     attachments: BillAttachment[]; original_filed: boolean; original_ref: string | null; sent_to_accountant_at: string | null;
     lines: BillLine[]; discount: number; batch_id: string | null;
+    paid_by: "clinic" | "staff" | "owner"; advanced_by: string | null; reimburse_status: "none" | "pending" | "reimbursed" | "waived"; reimbursed_at: string | null;
 }
 export interface BillAttachment { path: string; name: string; size?: number; type?: string }
 export interface BillLine { description: string; category: string | null; qty: number; unit_price: number; amount?: number }
@@ -55,12 +56,15 @@ function toBill(b: Record<string, unknown>, received = 0): BillRow {
         attachments: Array.isArray(b.attachments) ? (b.attachments as BillAttachment[]) : [], original_filed: !!b.original_filed,
         original_ref: (b.original_ref as string) || null, sent_to_accountant_at: (b.sent_to_accountant_at as string) || null,
         lines: Array.isArray(b.lines) ? (b.lines as BillLine[]) : [], discount: Number(b.discount || 0), batch_id: (b.batch_id as string) || null,
+        paid_by: ((b.paid_by as string) || "clinic") as BillRow["paid_by"], advanced_by: (b.advanced_by as string) || null,
+        reimburse_status: ((b.reimburse_status as string) || "none") as BillRow["reimburse_status"], reimbursed_at: (b.reimbursed_at as string) || null,
     };
 }
 
 export async function getPayables(month: string): Promise<{
     lab: { sent: LabSentRow[]; summary: LabVendorSummary[] };
     bills: BillRow[]; openBills: BillRow[]; receipts: ReceiptRow[]; vendors: VendorRow[]; canManage: boolean;
+    people: { id: string; name: string; role: string }[]; advances: BillRow[];
 } | { error: string }> {
     try {
         if (!/^\d{4}-\d{2}$/.test(month)) return { error: "เดือนไม่ถูกต้อง" };
@@ -80,6 +84,10 @@ export async function getPayables(month: string): Promise<{
             supabase.from("stock_card").select("id, created_at, qty_delta, total_cost, vendor_bill_id, inventory(item_name, unit, supplier)")
                 .eq("clinic_id", clinicId).eq("tx_type", "PO_RECEIVE").gte("created_at", from).lt("created_at", to).order("created_at"),
             supabase.from("vendors").select("*").eq("clinic_id", clinicId).order("vendor_type").order("name"),
+        ]);
+        const [{ data: ppl }, { data: adv }] = await Promise.all([
+            supabase.from("profiles").select("id, full_name, role, is_active").eq("clinic_id", clinicId).order("full_name"),
+            supabase.from("vendor_bills").select("*").eq("clinic_id", clinicId).in("reimburse_status", ["pending", "reimbursed"]).order("paid_at", { ascending: false }).limit(300),
         ]);
 
         // ── แล็บ ──
@@ -125,6 +133,8 @@ export async function getPayables(month: string): Promise<{
             vendors: (vend || []).map(v => ({ id: v.id, name: v.name, vendor_type: v.vendor_type, credit_days: Number(v.credit_days ?? 30), bill_day: v.bill_day ?? null,
                 tax_id: v.tax_id || null, phone: v.phone || null, note: v.note || null, is_active: v.is_active !== false, address: v.address || null, branch: v.branch || null })),
             canManage,
+            people: (ppl || []).filter(p => p.is_active !== false).map(p => ({ id: p.id as string, name: (p.full_name as string) || "-", role: String(p.role) })),
+            advances: (adv || []).map(b => toBill(b)),
         };
     } catch (e) {
         return { error: e instanceof Error ? e.message : "โหลดไม่สำเร็จ" };
@@ -196,20 +206,33 @@ export async function saveBill(input: {
     } catch (e) { return fail(e, "บันทึกไม่สำเร็จ"); }
 }
 
-export async function markBillPaid(id: string, paid: { date: string; method: string; ref?: string } | null) {
+export async function markBillPaid(id: string, paid: {
+    date: string; method: string; ref?: string;
+    paid_by?: "clinic" | "staff" | "owner"; advanced_by?: string | null; waive?: boolean;   // สำรองจ่าย (mig 165)
+} | null) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
         if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
+        const { data: cur } = await supabase.from("vendor_bills").select("batch_id, reimburse_status").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+        if (!paid && cur?.reimburse_status === "reimbursed") return { ok: false, error: "คืนเงินสำรองจ่ายไปแล้ว — ยกเลิกไม่ได้" };
+        if (!paid && cur?.batch_id) {
+            const { data: bt } = await supabase.from("payment_batches").select("batch_no, status, kind").eq("id", cur.batch_id).maybeSingle();
+            if (bt?.kind === "reimburse" && ["prepared", "approved"].includes(String(bt.status))) return { ok: false, error: `บิลนี้อยู่ในใบคืนเงินสำรองจ่าย ${bt.batch_no} — ยกเลิกใบนั้นก่อน` };
+        }
         if (paid) {
-            const { data: cur } = await supabase.from("vendor_bills").select("batch_id").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
             if (cur?.batch_id) {
                 const { data: bt } = await supabase.from("payment_batches").select("batch_no, status").eq("id", cur.batch_id).maybeSingle();
                 if (bt && ["prepared", "approved"].includes(String(bt.status))) return { ok: false, error: `บิลนี้อยู่ในใบเตรียมจ่าย ${bt.batch_no} — จ่ายที่แท็บเตรียมจ่าย` };
             }
         }
+        const by = paid?.paid_by || "clinic";
+        if (paid && by !== "clinic" && !paid.advanced_by) return { ok: false, error: "เลือกคนที่สำรองจ่าย" };
         const { error } = await supabase.from("vendor_bills").update(paid
-            ? { paid_at: paid.date, paid_method: paid.method || "transfer", paid_ref: paid.ref?.trim() || null }
-            : { paid_at: null, paid_method: null, paid_ref: null }).eq("id", id).eq("clinic_id", clinicId);
+            ? { paid_at: paid.date, paid_method: paid.method || "transfer", paid_ref: paid.ref?.trim() || null,
+                paid_by: by, advanced_by: by === "clinic" ? null : paid.advanced_by,
+                reimburse_status: by === "clinic" ? "none" : (by === "owner" && paid.waive ? "waived" : "pending"), reimbursed_at: null }
+            : { paid_at: null, paid_method: null, paid_ref: null, paid_by: "clinic", advanced_by: null, reimburse_status: "none", reimbursed_at: null })
+            .eq("id", id).eq("clinic_id", clinicId);
         if (error) return { ok: false, error: error.message };
         revalidatePath("/dashboard/finance/payables");
         return { ok: true };
