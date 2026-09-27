@@ -840,9 +840,9 @@ export default function CheckoutForm({
                                     <tr className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-3 py-2">ประเภท</th>
                                         <th className="text-left px-3 py-2">รายการ</th>
-                                        <th className="text-right px-3 py-2 w-20">จำนวน</th>
-                                        <th className="text-right px-3 py-2 w-28">ราคา/หน่วย</th>
-                                        <th className="text-right px-3 py-2 w-24">ลดรายการ</th>
+                                        <th className="text-right px-3 py-2 w-32">จำนวน</th>
+                                        <th className="text-right px-3 py-2 w-32">ราคา/หน่วย</th>
+                                        <th className="text-right px-3 py-2 w-28">ลดรายการ</th>
                                         <th className="text-right px-3 py-2 w-28">รวม</th>
                                         <th className="w-10 px-2"></th>
                                     </tr>
@@ -919,7 +919,7 @@ export default function CheckoutForm({
                                                             step="1"
                                                             value={it.qty}
                                                             onChange={e => updateItem(it.id, "qty", e.target.value)}
-                                                            className="h-8 text-right text-sm tabular-nums"
+                                                            className="h-8 min-w-[4.5rem] px-2 text-right text-sm tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                         />
                                                         {it.item_type === "injectable" && it.unit_label && (
                                                             <span className="text-xs text-slate-500 shrink-0">{it.unit_label}</span>
@@ -938,7 +938,7 @@ export default function CheckoutForm({
                                                             value={it.block_price ?? 0}
                                                             onChange={e => updateItem(it.id, "block_price", e.target.value)}
                                                             title="ราคาขายก้อน (รวม) — ไม่ใช่ราคาต่อหน่วย"
-                                                            className="h-8 text-right text-sm tabular-nums font-semibold text-violet-700"
+                                                            className="h-8 min-w-[6rem] px-2 text-right text-sm tabular-nums font-semibold text-violet-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                         />
                                                         <span className="pointer-events-none absolute -bottom-3 right-0 text-xs text-violet-400">ก้อน</span>
                                                     </div>
@@ -953,7 +953,7 @@ export default function CheckoutForm({
                                                         step="0.01"
                                                         value={it.unit_price}
                                                         onChange={e => updateItem(it.id, "unit_price", e.target.value)}
-                                                        className="h-8 text-right text-sm tabular-nums"
+                                                        className="h-8 min-w-[6rem] px-2 text-right text-sm tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                     />
                                                 )}
                                             </td>
@@ -966,7 +966,7 @@ export default function CheckoutForm({
                                                     value={it.line_discount || ""}
                                                     onChange={e => updateItem(it.id, "line_discount", e.target.value)}
                                                     title="ลดเฉพาะรายการนี้ เช่น แถมยาฟรี"
-                                                    className="h-8 text-right text-sm tabular-nums text-red-600"
+                                                    className="h-8 min-w-[5rem] px-2 text-right text-sm tabular-nums text-red-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                 />
                                             </td>
                                             <td className="px-3 py-2 text-right font-semibold text-slate-800 tabular-nums">
