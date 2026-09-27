@@ -907,7 +907,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 <div>
                     <div className="flex items-baseline justify-between mb-2">
                         <Label className="text-[15px] font-semibold text-slate-800 flex items-center gap-1">
-                            <Activity className="h-3 w-3" /> Vital Signs
+                            <Activity className="h-3 w-3" /> Vital Signs{prev && <span title={`ค่าครั้งก่อนจาก visit วันที่ ${prev.date}`} className="ml-1 text-xs font-normal text-slate-400">(เทียบครั้งก่อน {new Date(prev.date).toLocaleDateString("th-TH", { day: "numeric", month: "short" })})</span>}
                         </Label>
                         {bmi && (
                             <span className="text-xs text-slate-600">
@@ -921,8 +921,6 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </span>
                         )}
                     </div>
-                    <p className="mb-3 text-xs text-slate-600">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
-                    {prev && <p className="-mt-2 mb-3 text-xs text-slate-500">ค่าครั้งก่อน ({new Date(prev.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}) แสดงใต้แต่ละช่อง · ส่วนสูงเติมจากครั้งก่อนให้แล้ว</p>}
                     <div ref={vitalsRef} className="grid grid-cols-2 sm:grid-cols-4 gap-3"
                         onKeyDown={e => {
                             // Enter → ช่องถัดไป (กรอกด้วยคีย์บอร์ดล้วน)
