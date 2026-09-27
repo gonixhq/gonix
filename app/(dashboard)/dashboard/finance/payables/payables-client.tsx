@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Camera, Sparkles } from "lucide-react";
+import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Sparkles, Search } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
     saveBill, markBillPaid, deleteBill, linkReceiptToBill, saveVendor, backfillLabCost,
-    uploadBillAttachment, deleteBillAttachment, getBillAttachmentUrl, markBillsSent, exportBillsForAccountant,
-    type BillRow, type BillAttachment, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
+    uploadBillAttachment, deleteBillAttachment, markBillsSent, exportBillsForAccountant,
+    type BillRow, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
 } from "@/lib/actions/payables";
-import { scanBillDocument } from "@/lib/actions/bill-scan";
-import { BILL_TYPE_LABEL, EXPENSE_CATEGORIES, PAY_METHODS, DOC_TYPE_LABEL, WHT_OPTIONS, expenseCategoryLabel, type BillType } from "@/lib/payables";
+import BillEditor from "./bill-editor";
+import { type BillForm, billToForm, emptyLine, calcBill, shrinkImage, openAttachment } from "./bill-utils";
+import { BILL_TYPE_LABEL, PAY_METHODS, DOC_TYPE_LABEL, expenseCategoryLabel, type BillType } from "@/lib/payables";
 
 export type PayTab = "overview" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
 
@@ -25,39 +26,6 @@ type Data = {
     lab: { sent: LabSentRow[]; summary: LabVendorSummary[] };
     bills: BillRow[]; openBills: BillRow[]; receipts: ReceiptRow[]; vendors: VendorRow[]; canManage: boolean;
 };
-type BillForm = {
-    id?: string; bill_type: BillType; vendor: string; invoice_no: string; bill_date: string; due_date: string; amount: string; category: string; in_pl: boolean; note: string;
-    doc_type: string; vat_mode: "none" | "excl" | "incl"; wht_pct: number; original_filed: boolean; original_ref: string; files: File[]; attachments: BillAttachment[];
-    vendor_tax_id?: string | null; vendor_branch?: string | null; vendor_address?: string | null;
-    scan?: { confidence: string; warnings: string[]; items: { description: string; qty: number | null; amount: number | null }[]; checkTotal: number | null } | null;
-    autoScan?: boolean;
-};
-const r2 = (n: number) => Math.round(n * 100) / 100;
-/** amount ที่กรอก: none/incl = ยอดรวม · excl = ยอดก่อน VAT (ตรงกับ server) */
-function calcBill(f: Pick<BillForm, "amount" | "vat_mode" | "wht_pct">) {
-    const base = Number(f.amount) || 0;
-    const subtotal = f.vat_mode === "incl" ? r2(base / 1.07) : base;
-    const vat = f.vat_mode === "excl" ? r2(base * 0.07) : f.vat_mode === "incl" ? r2(base - subtotal) : 0;
-    const total = r2(subtotal + vat), wht = r2(subtotal * (f.wht_pct || 0) / 100);
-    return { subtotal, vat, total, wht, net: r2(total - wht) };
-}
-/** ย่อรูปก่อนอัปโหลด (ด้านยาวสุด 2000px, JPEG 0.82) — PDF/ไฟล์เล็กส่งตามเดิม */
-async function shrinkImage(file: File): Promise<File> {
-    if (!file.type.startsWith("image/") || file.type === "image/heic" || file.size < 900 * 1024) return file;
-    try {
-        const bmp = await createImageBitmap(file);
-        const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
-        const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
-        cv.getContext("2d")!.drawImage(bmp, 0, 0, cv.width, cv.height);
-        const blob = await new Promise<Blob | null>(res => cv.toBlob(res, "image/jpeg", 0.82));
-        return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
-    } catch { return file; }
-}
-async function openAttachment(path: string) {
-    const r = await getBillAttachmentUrl(path);
-    if (r.ok && r.url) window.open(r.url, "_blank"); else toast.error(r.error || "เปิดไฟล์ไม่ได้");
-}
-
 export default function PayablesClient({ month, today, tab, data }: { month: string; today: string; tab: PayTab; data: Data }) {
     const router = useRouter();
     const [pending, start] = useTransition();
@@ -76,12 +44,12 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
         const v = vendorByName.get(vendor);
         let bd = today;
         if (bill_type === "lab") { const [y, m] = month.split("-").map(Number); bd = m === 12 ? `${y + 1}-01-05` : `${y}-${String(m + 1).padStart(2, "0")}-05`; }
-        setForm({ bill_type, vendor, invoice_no: "", bill_date: bd, due_date: addDays(bd, v?.credit_days ?? (bill_type === "expense" ? 7 : 30)), amount: "", category: "other", in_pl: true, note: "",
-            doc_type: bill_type === "expense" ? "receipt" : "invoice", vat_mode: "none", wht_pct: 0, original_filed: false, original_ref: "", files: [], attachments: [] });
+        setForm({ bill_type, vendor, invoice_no: "", bill_date: bd, due_date: addDays(bd, v?.credit_days ?? (bill_type === "expense" ? 7 : 30)), category: "other", in_pl: true, note: "",
+            doc_type: bill_type === "expense" ? "receipt" : "invoice", vat_mode: "none", wht_pct: 0, original_filed: false, original_ref: "", files: [], attachments: [],
+            lines: [{ ...emptyLine(), description: bill_type === "lab" ? `ค่าตรวจแล็บ งานเดือน ${month}` : "" }], discount: "",
+            vendor_tax_id: v?.tax_id ?? null, vendor_branch: v?.branch ?? null, vendor_address: v?.address ?? null });
     };
-    const editBill = (b: BillRow) => setForm({ id: b.id, bill_type: b.bill_type, vendor: b.vendor, invoice_no: b.invoice_no || "", bill_date: b.bill_date, due_date: b.due_date,
-        amount: String(b.vat_mode === "excl" ? b.subtotal : b.amount), category: b.category || "other", in_pl: b.in_pl, note: b.note || "",
-        doc_type: b.doc_type, vat_mode: b.vat_mode, wht_pct: b.wht_pct, original_filed: b.original_filed, original_ref: b.original_ref || "", files: [], attachments: b.attachments });
+    const editBill = (b: BillRow) => { const v = vendorByName.get(b.vendor); setForm({ ...billToForm(b), vendor_tax_id: v?.tax_id ?? null, vendor_branch: v?.branch ?? null, vendor_address: v?.address ?? null }); };
     const act = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string, after?: () => void) => start(async () => {
         const r = await fn();
         if (!r.ok) { toast.error(r.error || "ไม่สำเร็จ"); return; }
@@ -139,7 +107,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                     </div>
                 </div>
                 <Section title="บิลที่ยังไม่จ่าย (เรียงตามวันครบกำหนด)">
-                    {data.openBills.length === 0 ? <Empty text="ไม่มีบิลค้างจ่าย 🎉" /> : <BillTable rows={data.openBills} today={today} canManage={data.canManage} pending={pending} showType {...billActions} />}
+                    {data.openBills.length === 0 ? <Empty text="ไม่มีบิลค้างจ่าย 🎉" /> : <FilteredBills rows={data.openBills} today={today} canManage={data.canManage} pending={pending} showType {...billActions} />}
                 </Section>
             </>)}
 
@@ -170,7 +138,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                             </div>
                         </div>
                         <Section title={`บิลค่าใช้จ่าย · เดือน ${month}`}>
-                            {ex.length === 0 ? <Empty text="ยังไม่มีบิลค่าใช้จ่ายเดือนนี้" /> : <BillTable rows={ex} today={today} canManage={data.canManage} pending={pending} showCategory {...billActions} />}
+                            {ex.length === 0 ? <Empty text="ยังไม่มีบิลค่าใช้จ่ายเดือนนี้" /> : <FilteredBills rows={ex} today={today} canManage={data.canManage} pending={pending} showCategory {...billActions} />}
                         </Section>
                         <p className="text-[11px] text-slate-400">รายการที่ตั้งไว้ใน <Link href="/dashboard/finance/fixed-costs" className="underline">ต้นทุนคงที่</Link> แล้ว (เช่น ค่าเช่า) ให้เอาติ๊ก &quot;นับเข้ากำไร&quot; ออก — ใช้หน้านี้ติดตามการจ่ายอย่างเดียว · ค่าใช้จ่ายเล็กๆ ที่จ่ายเงินสดทันที ใช้ &quot;เงินสดย่อย&quot; ที่หน้าปิดยอดตามเดิม</p>
                     </>);
@@ -208,7 +176,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
 
             <p className="text-[11px] text-slate-400">ต้นทุนแล็บ/ยานับเข้ารายงานกำไรตอนขาย/ใช้ของแล้ว — จ่ายบิลแล็บ/บริษัทยา <b>ไม่ต้อง</b>ลงเงินสดย่อยซ้ำ · บิลค่าใช้จ่ายนับเข้ากำไรตามเดือนของบิล</p>
 
-            {form && <BillModal form={form} setForm={setForm} month={month} vendors={data.vendors} pending={pending}
+            {form && <BillEditor form={form} setForm={setForm} month={month} vendors={data.vendors} pending={pending}
                 expected={form.bill_type === "lab" ? data.lab.summary.find(s => s.vendor === form.vendor)?.expected : undefined}
                 onDeleteAttachment={a => form.id && start(async () => {
                     const r = await deleteBillAttachment(form.id!, a.path);
@@ -217,7 +185,9 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 })}
                 onSave={() => start(async () => {
                     const r = await saveBill({ id: form.id, bill_type: form.bill_type, vendor: form.vendor, period_month: month, invoice_no: form.invoice_no, bill_date: form.bill_date,
-                        due_date: form.due_date, amount: Number(form.amount), category: form.category, in_pl: form.in_pl, note: form.note,
+                        due_date: form.due_date, amount: calcBill(form).after, category: form.category, in_pl: form.in_pl, note: form.note,
+                        lines: form.lines.map(l => ({ description: l.description, category: form.bill_type === "expense" ? l.category : null, qty: Number(l.qty) || 0, unit_price: Number(l.unit_price) || 0 })),
+                        discount: Number(form.discount) || 0,
                         doc_type: form.doc_type, vat_mode: form.vat_mode, wht_pct: form.wht_pct, original_filed: form.original_filed, original_ref: form.original_ref,
                         vendor_tax_id: form.vendor_tax_id, vendor_branch: form.vendor_branch, vendor_address: form.vendor_address });
                     if (!r.ok || !r.id) { toast.error(r.error || "บันทึกไม่สำเร็จ"); return; }
@@ -310,7 +280,7 @@ function LabTab({ month, data, canManage, pending, today, onNew, onBackfill, bil
                 </div>
             )}
         </Section>
-        {labBills.length > 0 && <Section title={`ใบแจ้งหนี้แล็บ · งานเดือน ${month}`}><BillTable rows={labBills} today={today} canManage={canManage} pending={pending} {...billActions} /></Section>}
+        {labBills.length > 0 && <Section title={`ใบแจ้งหนี้แล็บ · งานเดือน ${month}`}><FilteredBills rows={labBills} today={today} canManage={canManage} pending={pending} {...billActions} /></Section>}
     </>);
 }
 
@@ -324,7 +294,7 @@ function SupplierTab({ data, today, pending, canManage, billActions, onLink }: {
     const unlinked = data.receipts.filter(r => !r.vendor_bill_id);
     return (<>
         <Section title="ใบแจ้งหนี้บริษัทยา · เดือนนี้">
-            {sup.length === 0 ? <Empty text="ยังไม่มีบิลบริษัทยาเดือนนี้" /> : <BillTable rows={sup} today={today} canManage={canManage} pending={pending} showReceived {...billActions} />}
+            {sup.length === 0 ? <Empty text="ยังไม่มีบิลบริษัทยาเดือนนี้" /> : <FilteredBills rows={sup} today={today} canManage={canManage} pending={pending} showReceived {...billActions} />}
         </Section>
         <Section title={`รับของเข้าสต๊อกเดือนนี้ (${data.receipts.length} ครั้ง · ยังไม่ผูกบิล ${unlinked.length})`}>
             {data.receipts.length === 0 ? <Empty text="ไม่มีการรับของเข้าเดือนนี้" /> : (
@@ -363,6 +333,33 @@ function SupplierTab({ data, today, pending, canManage, billActions, onLink }: {
 
 // ── ส่วนประกอบ ──
 type BillActs = { onPay: (b: BillRow) => void; onUnpay: (b: BillRow) => void; onEdit: (b: BillRow) => void; onDelete: (b: BillRow) => void };
+
+/** รายการบิลแบบ FlowAccount: กรองสถานะ + ค้นหา */
+function FilteredBills(props: Parameters<typeof BillTable>[0]) {
+    const [st, setSt] = useState<"all" | "unpaid" | "overdue" | "paid">("all");
+    const [q, setQ] = useState("");
+    const { rows, today } = props;
+    const cnt = { all: rows.length, unpaid: rows.filter(b => !b.paid_at).length, overdue: rows.filter(b => !b.paid_at && b.due_date < today).length, paid: rows.filter(b => b.paid_at).length };
+    const k = q.trim().toLowerCase();
+    const shown = rows.filter(b => (st === "all" || (st === "paid" ? !!b.paid_at : st === "overdue" ? !b.paid_at && b.due_date < today : !b.paid_at))
+        && (!k || [b.vendor, b.invoice_no, b.note, ...b.lines.map(l => l.description)].some(x => (x || "").toLowerCase().includes(k))));
+    return (<>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+            {([["all", "แสดงทั้งหมด"], ["unpaid", "รอชำระ"], ["overdue", "เกินกำหนด"], ["paid", "ชำระแล้ว"]] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setSt(key)}
+                    className={`h-8 px-3 rounded-full text-xs font-semibold border ${st === key ? "bg-violet-600 border-violet-600 text-white" : key === "overdue" && cnt.overdue ? "border-rose-200 text-rose-600 bg-rose-50" : "border-slate-200 text-slate-600 bg-white"}`}>
+                    {label} ({cnt[key]})
+                </button>
+            ))}
+            <div className="flex-1" />
+            <div className="relative">
+                <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหา ผู้ขาย / เลขที่ / รายการ" className="h-8 w-56 rounded-full border border-slate-200 pl-8 pr-3 text-xs" />
+            </div>
+        </div>
+        {shown.length === 0 ? <Empty text="ไม่พบรายการ" /> : <BillTable {...props} rows={shown} />}
+    </>);
+}
 
 function BillTable({ rows, today, canManage, pending, showType, showCategory, showReceived, onPay, onUnpay, onEdit, onDelete }: {
     rows: BillRow[]; today: string; canManage: boolean; pending: boolean; showType?: boolean; showCategory?: boolean; showReceived?: boolean;
@@ -420,164 +417,6 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
                 </tbody>
             </table>
         </div>
-    );
-}
-
-function BillModal({ form, setForm, month, vendors, expected, pending, onSave, onDeleteAttachment }: {
-    form: BillForm; setForm: (f: BillForm | null) => void; month: string; vendors: VendorRow[]; expected?: number; pending: boolean; onSave: () => void;
-    onDeleteAttachment: (a: BillAttachment) => void;
-}) {
-    const c = calcBill(form);
-    const [scanning, setScanning] = useState(false);
-    const scanRef = useRef<HTMLInputElement>(null);
-    useEffect(() => { if (form.autoScan) { setForm({ ...form, autoScan: false }); scanRef.current?.click(); } }, [form, setForm]);
-    const runScan = async (raw: File) => {
-        setScanning(true);
-        try {
-            const file = await shrinkImage(raw);
-            const fd = new FormData(); fd.append("file", file);
-            const res = await scanBillDocument(fd);
-            if (!res.ok || !res.data) { toast.error(res.error || "สแกนไม่สำเร็จ"); return; }
-            const d = res.data;
-            // จับคู่ผู้ขายเดิมด้วยเลขผู้เสียภาษี → ใช้ชื่อในทะเบียน
-            const known = (d.vendor_tax_id && vendors.find(v => v.tax_id === d.vendor_tax_id)) || (d.vendor_name && vendors.find(v => v.name === d.vendor_name)) || null;
-            const billType = form.id ? form.bill_type : (known?.vendor_type || d.bill_type);
-            const billDate = d.bill_date || form.bill_date;
-            const credit = known?.credit_days ?? (billType === "expense" ? 7 : 30);
-            const wht = WHT_OPTIONS.some(o => o.value === d.wht_pct) ? Number(d.wht_pct) : 0;
-            const amount = d.vat_mode === "excl" ? (d.subtotal ?? (d.total != null ? Math.round(d.total / 1.07 * 100) / 100 : null)) : (d.total ?? d.subtotal);
-            const itemsNote = d.items.slice(0, 3).map(i => i.description).join(", ") + (d.items.length > 3 ? " +" + (d.items.length - 3) : "");
-            setForm({
-                ...form, bill_type: billType, vendor: known?.name || d.vendor_name || form.vendor,
-                invoice_no: d.invoice_no || form.invoice_no, doc_type: d.doc_type || form.doc_type,
-                bill_date: billDate, due_date: d.due_date || addDays(billDate, credit),
-                vat_mode: d.vat_mode, amount: amount != null ? String(amount) : form.amount, wht_pct: wht,
-                category: d.expense_category || form.category, note: form.note || itemsNote,
-                vendor_tax_id: d.vendor_tax_id, vendor_branch: d.vendor_branch, vendor_address: d.vendor_address,
-                files: [...form.files, file],
-                scan: { confidence: d.confidence, warnings: d.warnings, items: d.items, checkTotal: d.total },
-            });
-            toast.success(d.confidence === "high" ? "อ่านบิลแล้ว — ตรวจความถูกต้องก่อนบันทึก" : "อ่านบิลแล้ว (ไม่มั่นใจบางช่อง) — ตรวจก่อนบันทึก");
-        } finally { setScanning(false); }
-    };
-    const list = vendors.filter(v => v.is_active && v.vendor_type === form.bill_type);
-    const pickVendor = (name: string) => {
-        const v = vendors.find(x => x.name === name);
-        setForm({ ...form, vendor: name, due_date: v ? addDays(form.bill_date, v.credit_days) : form.due_date });
-    };
-    return (
-        <Modal title={`${form.id ? "แก้ไข" : "บันทึก"}บิล · เดือน ${month}`} onClose={() => setForm(null)}>
-            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-violet-600 shrink-0" />
-                <span className="text-xs text-violet-900 flex-1">ถ่ายรูป/อัปโหลดบิล ให้ AI อ่านแล้วกรอกให้ (แนบรูปให้อัตโนมัติ)</span>
-                <button type="button" disabled={scanning} onClick={() => scanRef.current?.click()}
-                    className="h-8 px-3 rounded-lg bg-violet-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60">
-                    {scanning ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังอ่าน…</> : <><Camera className="h-3.5 w-3.5" /> สแกนบิล</>}
-                </button>
-                <input ref={scanRef} type="file" accept="image/*,application/pdf" className="hidden"
-                    onChange={e => { const fl = e.target.files?.[0]; e.target.value = ""; if (fl) runScan(fl); }} />
-            </div>
-            {form.scan && (
-                <div className={`rounded-xl border p-2.5 text-xs space-y-1 ${form.scan.confidence === "high" && !form.scan.warnings.length ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-                    <div className="font-semibold">AI อ่านได้ (ความมั่นใจ: {form.scan.confidence === "high" ? "สูง" : form.scan.confidence === "medium" ? "กลาง" : "ต่ำ"}) — ตรวจทุกช่องก่อนบันทึก</div>
-                    {form.scan.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-                    {form.scan.checkTotal != null && Math.abs(form.scan.checkTotal - c.total) > 1 && <div>⚠ ยอดรวมในเอกสาร {baht(form.scan.checkTotal)} ไม่ตรงกับที่คำนวณ {baht(c.total)}</div>}
-                    {form.scan.items.length > 0 && (
-                        <details><summary className="cursor-pointer">รายการในบิล ({form.scan.items.length})</summary>
-                            <ul className="mt-1 space-y-0.5">{form.scan.items.map((it, i) => <li key={i} className="flex justify-between gap-2"><span className="truncate">{it.description}{it.qty ? ` × ${it.qty}` : ""}</span>{it.amount != null && <span className="tabular-nums">{baht(it.amount)}</span>}</li>)}</ul>
-                        </details>
-                    )}
-                    {form.vendor_tax_id && !vendors.some(v => v.tax_id === form.vendor_tax_id) && <div className="text-slate-600">ผู้ขายใหม่ · เลขผู้เสียภาษี {form.vendor_tax_id} — จะบันทึกลงทะเบียนผู้ขายให้</div>}
-                </div>
-            )}
-            {!form.id && (
-                <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
-                    {(["supplier", "expense", "lab"] as BillType[]).map(t => (
-                        <button key={t} type="button" onClick={() => setForm({ ...form, bill_type: t, vendor: "" })}
-                            className={`h-8 rounded-lg text-xs font-semibold ${form.bill_type === t ? "bg-white shadow text-violet-700" : "text-slate-500"}`}>{BILL_TYPE_LABEL[t]}</button>
-                    ))}
-                </div>
-            )}
-            <L label={form.bill_type === "expense" ? "จ่ายให้ใคร (เช่น การไฟฟ้า, เจ้าของตึก)" : form.bill_type === "lab" ? "แล็บ" : "บริษัท"}>
-                <input list="pay-vendors" value={form.vendor} onChange={e => pickVendor(e.target.value)} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" />
-                <datalist id="pay-vendors">{list.map(v => <option key={v.id} value={v.name} />)}</datalist>
-            </L>
-            {form.bill_type === "expense" && (
-                <div className="grid grid-cols-2 gap-3 items-end">
-                    <L label="หมวด">
-                        <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
-                            {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                        </select>
-                    </L>
-                    <label className="flex items-center gap-2 text-xs text-slate-600 h-9">
-                        <input type="checkbox" checked={form.in_pl} onChange={e => setForm({ ...form, in_pl: e.target.checked })} className="h-4 w-4" />
-                        นับเข้ารายงานกำไร <span className="text-slate-400">(เอาออกถ้ามีในต้นทุนคงที่แล้ว)</span>
-                    </label>
-                </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-                <L label="ประเภทเอกสาร">
-                    <select value={form.doc_type} onChange={e => setForm({ ...form, doc_type: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
-                        {Object.entries(DOC_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                </L>
-                <L label="เลขที่เอกสาร"><input value={form.invoice_no} onChange={e => setForm({ ...form, invoice_no: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-                <L label="ภาษีมูลค่าเพิ่ม">
-                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-0.5">
-                        {([["none", "ไม่มี VAT"], ["excl", "แยก VAT"], ["incl", "รวม VAT"]] as const).map(([k, l]) => (
-                            <button key={k} type="button" onClick={() => setForm({ ...form, vat_mode: k })} className={`h-8 rounded-md text-xs font-semibold ${form.vat_mode === k ? "bg-white shadow text-violet-700" : "text-slate-500"}`}>{l}</button>
-                        ))}
-                    </div>
-                </L>
-                <L label={form.vat_mode === "excl" ? "ยอดก่อน VAT (฿)" : "ยอดรวม (฿)"}><input type="number" min={0} step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></L>
-                <L label="หัก ณ ที่จ่าย">
-                    <select value={form.wht_pct} onChange={e => setForm({ ...form, wht_pct: Number(e.target.value) })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
-                        {WHT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                </L>
-                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-[11px] text-slate-600 tabular-nums space-y-0.5">
-                    {form.vat_mode !== "none" && <div className="flex justify-between"><span>ก่อน VAT / VAT 7%</span><span>{baht(c.subtotal)} / {baht(c.vat)}</span></div>}
-                    <div className="flex justify-between font-semibold text-slate-800"><span>รวม</span><span>{baht(c.total)}</span></div>
-                    {c.wht > 0 && <div className="flex justify-between text-violet-700"><span>หัก {form.wht_pct}% → โอนจริง</span><span>{baht(c.net)}</span></div>}
-                </div>
-                <L label="วันที่บิล"><input type="date" value={form.bill_date} onChange={e => {
-                    const v = vendors.find(x => x.name === form.vendor);
-                    setForm({ ...form, bill_date: e.target.value, due_date: addDays(e.target.value, v?.credit_days ?? daysBetween(form.bill_date, form.due_date)) });
-                }} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-                <L label={`ครบกำหนดจ่าย (เครดิต ${daysBetween(form.bill_date, form.due_date)} วัน)`}><input type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-            </div>
-            {expected != null && form.amount !== "" && (
-                <p className={`text-xs ${Math.abs(c.total - expected) <= 1 ? "text-emerald-600" : "text-amber-600"}`}>ระบบคาด {baht(expected)} · ต่าง {baht(c.total - expected)}</p>
-            )}
-            <div className="rounded-xl border border-slate-200 p-3 space-y-2">
-                <div className="text-xs font-semibold text-slate-600 flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" /> รูป/PDF เอกสาร (ส่งสำนักงานบัญชี)</div>
-                {form.attachments.map(a => (
-                    <div key={a.path} className="flex items-center gap-2 text-xs">
-                        <button type="button" onClick={() => openAttachment(a.path)} className="flex-1 text-left truncate text-blue-700 underline">{a.name}</button>
-                        <button type="button" onClick={() => { if (confirm(`ลบไฟล์ ${a.name}?`)) onDeleteAttachment(a); }} className="text-rose-500" aria-label="ลบไฟล์"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                ))}
-                {form.files.map((file, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
-                        <span className="flex-1 truncate">{file.name} <span className="text-slate-400">(รออัปโหลด)</span></span>
-                        <button type="button" onClick={() => setForm({ ...form, files: form.files.filter((_, j) => j !== i) })} className="text-slate-400" aria-label="เอาออก"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-                ))}
-                <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-dashed border-slate-300 text-xs text-slate-600 cursor-pointer hover:bg-slate-50">
-                    <Camera className="h-3.5 w-3.5" /> ถ่ายรูป / เลือกไฟล์
-                    <input type="file" accept="image/*,application/pdf" multiple className="hidden"
-                        onChange={e => { const fl = Array.from(e.target.files || []); e.target.value = ""; setForm({ ...form, files: [...form.files, ...fl] }); }} />
-                </label>
-            </div>
-            <div className="grid grid-cols-2 gap-3 items-end">
-                <label className="flex items-center gap-2 text-sm text-slate-700 h-9">
-                    <input type="checkbox" checked={form.original_filed} onChange={e => setForm({ ...form, original_filed: e.target.checked })} className="h-4 w-4" /> เก็บต้นฉบับเข้าแฟ้มแล้ว
-                </label>
-                <L label="แฟ้ม/ที่เก็บ"><input value={form.original_ref} onChange={e => setForm({ ...form, original_ref: e.target.value })} placeholder="เช่น แฟ้มค่าใช้จ่าย 2026/09" className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-            </div>
-            <L label="หมายเหตุ"><input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-            <ModalFooter pending={pending} disabled={!form.vendor.trim() || form.amount === ""} onCancel={() => setForm(null)} onSave={onSave} />
-        </Modal>
     );
 }
 

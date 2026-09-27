@@ -17,8 +17,10 @@ export interface BillRow {
     received: number;   // supplier: ยอดรับของที่ผูก
     doc_type: string; vat_mode: "none" | "excl" | "incl"; subtotal: number; vat_amount: number; wht_pct: number; wht_amount: number; net_pay: number;
     attachments: BillAttachment[]; original_filed: boolean; original_ref: string | null; sent_to_accountant_at: string | null;
+    lines: BillLine[]; discount: number;
 }
 export interface BillAttachment { path: string; name: string; size?: number; type?: string }
+export interface BillLine { description: string; category: string | null; qty: number; unit_price: number; amount?: number }
 export interface ReceiptRow { id: string; date: string; item_name: string; qty: number; unit: string | null; total_cost: number; vendor_bill_id: string | null; supplier: string | null }
 export interface VendorRow { id: string; name: string; vendor_type: BillType; credit_days: number; bill_day: number | null; tax_id: string | null; phone: string | null; note: string | null; is_active: boolean; address: string | null; branch: string | null }
 
@@ -52,6 +54,7 @@ function toBill(b: Record<string, unknown>, received = 0): BillRow {
         net_pay: r2(Number(b.amount || 0) - Number(b.wht_amount || 0)),
         attachments: Array.isArray(b.attachments) ? (b.attachments as BillAttachment[]) : [], original_filed: !!b.original_filed,
         original_ref: (b.original_ref as string) || null, sent_to_accountant_at: (b.sent_to_accountant_at as string) || null,
+        lines: Array.isArray(b.lines) ? (b.lines as BillLine[]) : [], discount: Number(b.discount || 0),
     };
 }
 
@@ -133,6 +136,7 @@ export async function saveBill(input: {
     amount: number; category?: string | null; in_pl?: boolean; note?: string;
     doc_type?: string; vat_mode?: "none" | "excl" | "incl"; wht_pct?: number; original_filed?: boolean; original_ref?: string;
     vendor_tax_id?: string | null; vendor_branch?: string | null; vendor_address?: string | null;   // จากสแกน AI
+    lines?: BillLine[]; discount?: number;   // mig 163 — มีรายการ = amount คำนวณจากรายการ − ส่วนลด
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
     try {
         const { supabase, clinicId, userId, canManage } = await ctx();
@@ -140,7 +144,14 @@ export async function saveBill(input: {
         const vendor = input.vendor.trim();
         if (!vendor) return { ok: false, error: "ระบุชื่อผู้ขาย/เจ้าหนี้" };
         if (!/^\d{4}-\d{2}$/.test(input.period_month)) return { ok: false, error: "เดือนไม่ถูกต้อง" };
-        if (!(Number(input.amount) >= 0)) return { ok: false, error: "ยอดไม่ถูกต้อง" };
+        const lines = (input.lines || [])
+            .map(l => ({ description: String(l.description || "").trim(), category: l.category || null, qty: Number(l.qty) || 0, unit_price: Number(l.unit_price) || 0 }))
+            .filter(l => l.description || l.unit_price)
+            .map(l => ({ ...l, amount: r2(l.qty * l.unit_price) }));
+        const discount = Math.max(0, r2(Number(input.discount) || 0));
+        if (lines.length) input = { ...input, amount: r2(lines.reduce((t, l) => t + l.amount, 0) - discount) };
+        if (!(Number(input.amount) >= 0)) return { ok: false, error: "ยอดไม่ถูกต้อง (ส่วนลดมากกว่ายอดรวม?)" };
+        const topCat = lines.length ? [...lines].sort((a, b) => b.amount - a.amount)[0].category : null;
         if (!input.bill_date || !input.due_date) return { ok: false, error: "ระบุวันที่" };
         // amount ที่กรอก: none/incl = ยอดรวม · excl = ยอดก่อน VAT
         const vm = input.vat_mode || "none", base = r2(Number(input.amount));
@@ -153,7 +164,8 @@ export async function saveBill(input: {
             original_filed: !!input.original_filed, original_ref: input.original_ref?.trim() || null,
             bill_type: input.bill_type, vendor, period_month: input.period_month, invoice_no: input.invoice_no?.trim() || null,
             bill_date: input.bill_date, due_date: input.due_date, amount: total,
-            category: input.bill_type === "expense" ? (input.category || "other") : null,
+            category: input.bill_type === "expense" ? (topCat || input.category || "other") : null,
+            lines, discount: lines.length ? discount : 0,
             in_pl: input.bill_type === "expense" ? input.in_pl !== false : true, note: input.note?.trim() || null,
         };
         let id = input.id;
