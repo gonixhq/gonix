@@ -6,7 +6,7 @@ import type { PointerEvent } from "react";
 
 import type { ChartStroke as Stroke, ChartPin as Pin, ChartSheet as Sheet } from "@/lib/visit-workspace-types";
 type Drawing = { strokes: Stroke[]; pins: Pin[] };
-const button = "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 disabled:opacity-40";
+const button = "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 disabled:opacity-40 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11";
 import { BODY_CHART_BACKGROUND as body } from "@/lib/visit-workspace-types";
 
 export default function ChartPad({ onCount, initial, onChange, onUpload }: {
@@ -26,6 +26,9 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
     const [draftPin, setDraftPin] = useState<Pin | null>(null);
     const [message, setMessage] = useState("");
     const drawing = useRef(false);
+    // iPad: เคยใช้ Apple Pencil แล้ว → ไม่รับการแตะด้วยนิ้ว/ฝ่ามือบนแผ่นวาด (palm rejection) · วาดทีละ pointer
+    const penSeen = useRef(false);
+    const activePointer = useRef<number | null>(null);
     const container = useRef<HTMLDivElement>(null);
     const addMenu = useRef<HTMLDetailsElement>(null);
     const uploadInput = useRef<HTMLInputElement>(null);
@@ -71,7 +74,7 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
     }
     function add(name: string, background: string, storagePath?: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, ...(storagePath ? { storagePath } : {}), strokes: [], pins: [] }]); setActive(id); setRedo([]); setUndo([]); setDraftPin(null); onCount(sheets.length + 1); setMessage(""); }
     function point(e: PointerEvent<SVGSVGElement>) { const r = e.currentTarget.getBoundingClientRect(); return `${Math.max(0, Math.min(600, (e.clientX - r.left) * 600 / r.width)).toFixed(1)},${Math.max(0, Math.min(800, (e.clientY - r.top) * 800 / r.height)).toFixed(1)}`; }
-    function finish() { drawing.current = false; }
+    function finish() { drawing.current = false; activePointer.current = null; }
     async function photo(file?: File) {
         if (!file) return;
         if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) { setMessage("เลือกรูปภาพไม่เกิน 10 MB"); return; }
@@ -123,7 +126,7 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
 
         {renaming && <label className="block text-xs text-slate-500">ชื่อแผ่น<input autoFocus className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} /></label>}
         <div className="flex flex-wrap items-center gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} title="กดแผ่นที่เลือกเพื่อเปลี่ยนชื่อ" onClick={() => { setRenaming(active === s.id ? !renaming : false); if (active !== s.id) { setRedo([]); setUndo([]); setDraftPin(null); } setActive(s.id); }}>{s.name}</button>)}<label className="text-xs">สี <input aria-label="สีปากกา" type="color" value={color} onChange={e => { setColor(e.target.value); setErase(false); }} /></label><button className={button} title="ปากกา" aria-label="ปากกา" aria-pressed={!erase && !pinMode} onClick={() => { setErase(false); setPinMode(false); }}><Pencil size={18} /></button><button className={`${button} ${erase ? "!bg-blue-100" : ""}`} title="ลบเส้น" aria-label="ลบเส้น" aria-pressed={erase} onClick={() => { setErase(true); setPinMode(false); }}><Eraser size={18} /></button><button className={`${button} inline-flex items-center gap-1 ${pinMode ? "!bg-blue-100" : ""}`} aria-pressed={pinMode} onClick={() => { setPinMode(true); setErase(false); }}><MapPin size={16} /> จุด / cc</button><button className={button} title="ย้อนกลับ" aria-label="ย้อนกลับ" disabled={!undo.length} onClick={undoDrawing}><Undo2 size={18} /></button><button className={button} title="ทำซ้ำ" aria-label="ทำซ้ำ" disabled={!redo.length} onClick={redoDrawing}><Redo2 size={18} /></button></div>
-        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc(68dvh * 0.75))" : "min(100%, 300px, calc(48dvh * 0.75))", aspectRatio: "3 / 4" }} onPointerDown={e => { if (erase) return; if (pinMode) { const [x, y] = point(e).split(",").map(Number); setDraftPin({ id: Date.now(), x, y, amount: "", color }); return; } checkpoint(); e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
+        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc(68dvh * 0.75))" : "min(100%, 380px, calc(52dvh * 0.75))", aspectRatio: "3 / 4" }} onPointerDown={e => { if (e.pointerType === "pen") penSeen.current = true; if (e.pointerType === "touch" && penSeen.current) return; if (drawing.current) return; if (erase) return; if (pinMode) { const [x, y] = point(e).split(",").map(Number); setDraftPin({ id: Date.now(), x, y, amount: "", color }); return; } checkpoint(); e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; activePointer.current = e.pointerId; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current || e.pointerId !== activePointer.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
             {sheet.background && <image href={sheet.background} width="600" height="800" preserveAspectRatio="xMidYMid meet" />}
             {sheet.strokes.map((s, i) => <polyline key={i} points={s.points} stroke={s.color} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents={erase ? "stroke" : "none"} onPointerDown={e => { if (erase) { e.stopPropagation(); checkpoint(); edit({ strokes: sheet.strokes.filter((_, n) => n !== i) }); setRedo([]); } }} />)}
             {sheet.pins.map(p => <g key={p.id} role="button" tabIndex={0} aria-label={`แก้ไขจุด ${p.amount} cc`} className="cursor-pointer outline-none focus:opacity-60" onPointerDown={e => { e.stopPropagation(); setDraftPin({ ...p }); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDraftPin({ ...p }); } }}>

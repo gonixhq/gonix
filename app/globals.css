@@ -397,3 +397,11 @@
     @apply flex h-10 w-full rounded-xl border border-border/60 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary;
   }
 }
+/* iOS zoom-on-focus: Safari บน iPad/iPhone ซูมเข้าเมื่อแตะช่องกรอกที่ตัวอักษร < 16px → ใช้ 16px บนจอสัมผัส */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
