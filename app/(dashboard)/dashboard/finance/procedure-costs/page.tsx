@@ -6,7 +6,7 @@ import ProcedureCostsClient from "./procedure-costs-client";
 export const dynamic = "force-dynamic";
 
 export default async function ProcedureCostsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-    await gatePermission("finance.view");
+    await gatePermission("finance.reports");
     const sp = await searchParams;
     const month = /^\d{4}-\d{2}$/.test(sp.month || "") ? sp.month! : bangkokDate().slice(0, 7);
     const report = await getProcedureCosts(month);

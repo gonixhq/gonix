@@ -86,8 +86,8 @@ const NAV_ITEMS: NavGroup[] = [
         items: [
             { href: "/dashboard/finance", tKey: "finance", icon: BadgeDollarSign, permKey: "finance.view" },
             { href: "/dashboard/eod", tKey: "eod", icon: DoorClosed, permKey: "finance.eod" },
-            { href: "/dashboard/finance/payables", tKey: "payables", icon: Receipt, adminOnly: true, permKey: "finance.view" },
-            { href: "/dashboard/finance/monthly-report", tKey: "monthlyReport", icon: FileBarChart, adminOnly: true, permKey: "finance.view" },
+            { href: "/dashboard/finance/payables", tKey: "payables", icon: Receipt, permKey: "finance.reports" },
+            { href: "/dashboard/finance/monthly-report", tKey: "monthlyReport", icon: FileBarChart, permKey: "finance.reports" },
             { href: "/dashboard/commissions", tKey: "commissions", icon: HandCoins, permKey: "finance.view" },
             { href: "/dashboard/reports", tKey: "reports", icon: BarChart3, permKey: "reports.view" },
         ],

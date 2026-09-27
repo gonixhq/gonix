@@ -6,7 +6,7 @@ import MonthlyReportClient from "./monthly-report-client";
 export const dynamic = "force-dynamic";
 
 export default async function MonthlyReportPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-    await gatePermission("finance.view");
+    await gatePermission("finance.reports");
     const sp = await searchParams;
     const cur = Number(bangkokDate().slice(0, 4));
     const year = /^\d{4}$/.test(sp.year || "") ? Number(sp.year) : cur;

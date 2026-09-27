@@ -5,20 +5,21 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 // แถบเมนูย่อยการเงิน — โชว์บนหน้าการเงินหลัก + หน้าย่อย (มีปุ่มกลับ) · ไม่โชว์บนหน้ารายละเอียดใบเสร็จ
-const LINKS: { href: string; label: string }[] = [
-    { href: "/dashboard/finance/monthly-report", label: "รายงานกำไรรายเดือน" },
-    { href: "/dashboard/finance/payables", label: "บิลค้างจ่าย" },
-    { href: "/dashboard/finance/fixed-costs", label: "ต้นทุนคงที่" },
-    { href: "/dashboard/finance/procedure-costs", label: "ต้นทุน & มาร์จิ้นหัตถการ" },
-    { href: "/dashboard/finance/team-commission", label: "คอมทีม" },
-    { href: "/dashboard/finance/card-fees", label: "ค่าธรรมเนียมบัตร" },
+const LINKS: { href: string; label: string; perm: "reports" | "commission" }[] = [
+    { href: "/dashboard/finance/monthly-report", label: "รายงานกำไรรายเดือน", perm: "reports" },
+    { href: "/dashboard/finance/payables", label: "บิลค้างจ่าย", perm: "reports" },
+    { href: "/dashboard/finance/fixed-costs", label: "ต้นทุนคงที่", perm: "reports" },
+    { href: "/dashboard/finance/procedure-costs", label: "ต้นทุน & มาร์จิ้นหัตถการ", perm: "reports" },
+    { href: "/dashboard/finance/team-commission", label: "คอมทีม", perm: "commission" },
+    { href: "/dashboard/finance/card-fees", label: "ค่าธรรมเนียมบัตร", perm: "reports" },
 ];
 
-export default function FinanceSubnav() {
+export default function FinanceSubnav({ canReports, canCommission }: { canReports: boolean; canCommission: boolean }) {
     const pathname = usePathname() || "";
+    const links = LINKS.filter(l => (l.perm === "reports" ? canReports : canCommission));
     const isRoot = pathname === "/dashboard/finance";
-    const inSub = LINKS.some(l => pathname === l.href || pathname.startsWith(l.href + "/"));
-    if (!isRoot && !inSub) return null;
+    const inSub = links.some(l => pathname === l.href || pathname.startsWith(l.href + "/"));
+    if ((!isRoot && !inSub) || links.length === 0) return null;
     return (
         <div className="max-w-7xl mx-auto px-4 md:px-6 pt-4 print:hidden">
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -27,7 +28,7 @@ export default function FinanceSubnav() {
                         <ArrowLeft className="h-4 w-4" /> การเงิน
                     </Link>
                 )}
-                {LINKS.map(l => {
+                {links.map(l => {
                     const active = pathname === l.href || pathname.startsWith(l.href + "/");
                     return (
                         <Link key={l.href} href={l.href}

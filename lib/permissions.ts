@@ -83,6 +83,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
             { key: "finance.refund", label: "คืนเงิน" },
             { key: "finance.eod", label: "ปิดยอดประจำวัน" },
             { key: "finance.commission", label: "จัดการค่าคอม/จ่ายเซลล์ (ปิดยอด/จ่าย/โอนสิทธิ์)" },
+            { key: "finance.reports", label: "ดูรายงานกำไร/ต้นทุน/บิลค้างจ่าย (ข้อมูลผู้บริหาร)" },
         ],
     },
     {
@@ -197,7 +198,7 @@ export const DEFAULT_PERMISSIONS: Record<StaffRole, string[]> = {
     accountant: [
         "patients.view",
         "visits.view",
-        "finance.view", "finance.collect", "finance.refund", "finance.eod", "finance.commission",
+        "finance.view", "finance.collect", "finance.refund", "finance.eod", "finance.commission", "finance.reports",
         "pre_order.view",
         "campaign.view",
         "reports.view", "reports.export",

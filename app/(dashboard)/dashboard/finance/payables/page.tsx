@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const TABS: PayTab[] = ["overview", "lab", "supplier", "expense", "accountant", "vendors"];
 
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<{ month?: string; tab?: string }> }) {
-    await gatePermission("finance.view");
+    await gatePermission("finance.reports");
     const sp = await searchParams;
     const today = bangkokDate();
     const tab = (TABS.includes(sp.tab as PayTab) ? sp.tab : "overview") as PayTab;

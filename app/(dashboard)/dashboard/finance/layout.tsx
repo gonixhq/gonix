@@ -1,9 +1,11 @@
 import FinanceSubnav from "@/components/finance/finance-subnav";
+import { getEffectivePermissionsForUser } from "@/lib/auth/permissions";
 
-export default function FinanceLayout({ children }: { children: React.ReactNode }) {
+export default async function FinanceLayout({ children }: { children: React.ReactNode }) {
+    const { permissions } = await getEffectivePermissionsForUser();
     return (
         <>
-            <FinanceSubnav />
+            <FinanceSubnav canReports={permissions["finance.reports"] === true} canCommission={permissions["finance.commission"] === true} />
             {children}
         </>
     );
