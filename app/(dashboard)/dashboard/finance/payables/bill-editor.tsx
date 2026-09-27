@@ -198,7 +198,7 @@ export default function BillEditor({ form, setForm, month, vendors, expected, pe
                                 <datalist id="bill-vendors">{vendorList.map(v => <option key={v.id} value={v.name} />)}</datalist>
                                 <textarea value={form.vendor_address || ""} onChange={e => set({ vendor_address: e.target.value })} placeholder="ที่อยู่" rows={2} className="w-full px-3 py-2 text-sm resize-none focus:outline-none" />
                                 <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                    <input value={form.vendor_tax_id || ""} onChange={e => set({ vendor_tax_id: e.target.value.replace(/\D/g, "").slice(0, 13) })} placeholder="เลขประจำตัวผู้เสียภาษี" className="h-9 px-3 text-sm tabular-nums focus:outline-none" />
+                                    <input value={form.vendor_tax_id || ""} onChange={e => set({ vendor_tax_id: e.target.value.replace(/\D/g, "").slice(0, 13) })} placeholder="เลขผู้เสียภาษี / เลขบัตรประชาชน (บุคคล)" className="h-9 px-3 text-sm tabular-nums focus:outline-none" />
                                     <input value={form.vendor_branch || ""} onChange={e => set({ vendor_branch: e.target.value })} placeholder="สำนักงานใหญ่ / สาขา" className="h-9 px-3 text-sm focus:outline-none" />
                                 </div>
                             </div>

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Sparkles, Search } from "lucide-react";
+import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Sparkles, Search, Printer } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
     saveBill, markBillPaid, deleteBill, linkReceiptToBill, saveVendor, backfillLabCost,
@@ -401,6 +401,10 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
                                 <td className="px-4 py-2 text-right whitespace-nowrap">
                                     {canManage && (
                                         <div className="inline-flex items-center gap-1">
+                                            <a href={`/print/payment-voucher/${b.id}`} target="_blank" rel="noreferrer" title="พิมพ์ใบสำคัญจ่าย (จ่ายบุคคลธรรมดา/ไม่มีใบเสร็จ)"
+                                                className="h-8 px-2 rounded-lg border border-slate-200 text-slate-600 inline-flex items-center gap-1 text-[11px]"><Printer className="h-3.5 w-3.5" /> ใบสำคัญจ่าย</a>
+                                            {b.wht_amount > 0 && <a href={`/print/vendor-wht/${b.id}`} target="_blank" rel="noreferrer" title="พิมพ์หนังสือรับรองหัก ณ ที่จ่าย"
+                                                className="h-8 px-2 rounded-lg border border-violet-200 text-violet-700 inline-flex items-center text-[11px] font-semibold">50 ทวิ</a>}
                                             {b.paid_at ? (
                                                 <button disabled={pending} onClick={() => onUnpay(b)} className="h-8 px-3 rounded-lg text-xs border border-slate-200 text-slate-500">ยกเลิกจ่าย</button>
                                             ) : (<>
@@ -457,7 +461,7 @@ function VendorModal({ v, setV, pending, onSave }: { v: Partial<VendorRow>; setV
                 <L label="บิลมาทุกวันที่"><input type="number" min={1} max={31} value={v.bill_day ?? ""} onChange={e => setV({ ...v, bill_day: e.target.value ? Number(e.target.value) : null })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-right" /></L>
             </div>
             <div className="grid grid-cols-2 gap-3">
-                <L label="เลขผู้เสียภาษี"><input value={v.tax_id || ""} onChange={e => setV({ ...v, tax_id: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
+                <L label="เลขผู้เสียภาษี / บัตรประชาชน"><input value={v.tax_id || ""} onChange={e => setV({ ...v, tax_id: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
                 <L label="โทร"><input value={v.phone || ""} onChange={e => setV({ ...v, phone: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
             </div>
             <div className="grid grid-cols-3 gap-3">
