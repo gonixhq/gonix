@@ -22,6 +22,10 @@ const statusLabels: Record<string, string> = { waiting: "รอรับบร�
 function LabResults({ labs }: { labs: any[] }) {
     return labs.length ? <div className="overflow-x-auto rounded-xl border border-slate-200"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">รายการตรวจ</th><th className="p-3">ผล / หน่วย</th><th className="p-3">ค่าอ้างอิง</th><th className="p-3">สถานะ</th></tr></thead><tbody>{labs.map((lab, i) => <tr key={lab.id || i} className="border-t border-slate-100"><td className="p-3">{lab.lab_name}</td><td className="p-3">{lab.result_value === null || lab.result_value === undefined || lab.result_value === "" ? "ยังไม่มีผล" : <>{lab.result_value} {lab.result_unit} {lab.result_flag && <span className="ml-1 font-medium">({lab.result_flag})</span>}</>}</td><td className="p-3">{lab.normal_range || "—"}</td><td className="p-3">{statusLabels[lab.status] || lab.status}</td></tr>)}</tbody></table></div> : <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">ยังไม่มีรายการ Lab ใน visit นี้</p>;
 }
+const PRE_LABEL: Record<string, string> = {
+    pregnant: "ตั้งครรภ์/อาจตั้งครรภ์", breastfeeding: "ให้นมบุตร", anticoagulant: "ทานยาละลายลิ่มเลือด/แอสไพริน/น้ำมันปลา",
+    anesthetic_allergy: "แพ้ยาชา/ไข่-โปรตีน", local_infection: "มีแผล/ติดเชื้อบริเวณที่ทำ", keloid: "คีลอยด์ง่าย", autoimmune: "โรคภูมิคุ้มกัน/MG",
+};
 const emptySheet: ChartSheet = { id: 1, name: "Face 1", background: "/face-chart.png", strokes: [], pins: [] };
 export default function Workspace({ visit, patient, vitals, drugs, history, catalog, orders, panels, initialSheets, clinicId, statusLogs = [] }: any) {
     const router = useRouter();
@@ -73,15 +77,24 @@ export default function Workspace({ visit, patient, vitals, drugs, history, cata
     const age = patient.dob ? (() => { const birth = new Date(patient.dob); const today = new Date(); let years = today.getFullYear() - birth.getFullYear(); if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) years--; return `${years} ปี`; })() : "ไม่ระบุอายุ";
     const allergies = (patient.patient_allergies || []).filter((a: any) => a.is_active).map((a: any) => a.allergen_name);
     const historyText = (value: unknown) => { const text = String(value ?? "").trim(); return /^[-–—\s]*$/.test(text) ? "ยังไม่ระบุ" : text; };
-    const allergy = historyText(allergies.join(", ") || patient.allergy_summary);
-    const diseases = historyText((patient.patient_chronic_diseases || []).map((d: any) => d.disease_name).join(", ") || patient.disease_summary);
+    const allergy = (() => { const t = historyText(allergies.join(", ") || patient.allergy_summary); return t === "ยังไม่ระบุ" && patient.nkda ? "ไม่มีประวัติแพ้ (ถามแล้ว)" : t; })();
+    const diseases = (() => { const t = historyText((patient.patient_chronic_diseases || []).map((d: any) => d.disease_name).join(", ") || patient.disease_summary); return t === "ยังไม่ระบุ" && patient.no_chronic ? "ไม่มี (ถามแล้ว)" : t; })();
     const vital = (key: string) => vitals?.[key] ?? visit[key] ?? "—";
     const drugSummary = drugs.map((d: any) => ({ ...d, item_name: (Array.isArray(d.inventory) ? d.inventory[0] : d.inventory)?.item_name || "ยา", total_cost: Number(d.total_cost || 0) }));
     return <main className={`${styles.workspace} mx-auto max-w-[1600px] space-y-3 p-3`}>
         <div className="flex flex-wrap justify-between gap-2 text-xs"><Link href="/dashboard/doctor-station" onClick={e => { if (dirty && !window.confirm("มีบันทึกที่ยังไม่ได้บันทึก ต้องการออกหรือไม่?")) e.preventDefault(); }}>← ห้องแพทย์</Link><Link href={`/dashboard/patients/${patient.hn}`} target="_blank" className="text-blue-700">ประวัติคนไข้ ↗</Link></div>
         <header className="rounded-2xl border border-white bg-white/85 p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-xl font-semibold text-slate-900">{name}</h1><p className="mt-1 text-xs text-slate-500">HN {patient.hn} · {patient.gender === "F" ? "หญิง" : patient.gender === "M" ? "ชาย" : "ไม่ระบุเพศ"} · {age} · VN {vn} · {statusLabels[visit.status] || visit.status}</p></div><div className="flex shrink-0 flex-wrap items-center gap-2 [&>button]:!w-auto [&>button]:px-3 [&>button]:whitespace-nowrap"><button className={`${button} !bg-blue-700 !text-white`} disabled={!editable || busy || !dirty} onClick={() => void save()}>{busy ? "กำลังบันทึก…" : "บันทึกการตรวจ"}</button>{!dirty && editable && <VisitStatusActions vn={vn} currentStatus={visit.status} hasDrugs={drugs.length > 0} serviceCategory="aesthetic" summary={{ patientName: name, drugs: drugSummary, totalDrugCost: drugSummary.reduce((sum: number, d: any) => sum + d.total_cost, 0), labOrders: orders, aesthetic: { treatmentNotes: notes, strokesCount: sheets.reduce((n, s) => n + s.strokes.length, 0), pinsCount: sheets.reduce((n, s) => n + s.pins.length, 0), pins: sheets.flatMap(s => s.pins.map(p => ({ label: `${p.amount} cc`, color: "blue" }))), beforePhotosCount: sheets.filter(s => s.storagePath).length, afterPhotosCount: 0 } }} />}</div></div>
-            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-sm"><span>แพ้ยา: <strong className={`font-medium ${allergy === "ยังไม่ระบุ" ? "text-slate-600" : "text-red-700"}`}>{allergy}</strong></span><span>โรคประจำตัว: {diseases}</span><span>ยาที่ใช้ประจำ: ยังไม่มีข้อมูลในส่วนนี้</span></div>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-100 pt-2 text-sm"><span>แพ้ยา: <strong className={`font-medium ${allergy === "ยังไม่ระบุ" ? "text-amber-700" : allergy.startsWith("ไม่มี") ? "text-emerald-700" : "text-red-700"}`}>{allergy}</strong></span><span>โรคประจำตัว: {diseases}</span><span>ยาที่ใช้ประจำ: ยังไม่มีข้อมูลในส่วนนี้</span></div>
+            {visit.pre_screening && (() => {
+                const pre = visit.pre_screening as Record<string, unknown>;
+                const hits = Object.keys(PRE_LABEL).filter(k => pre[k]);
+                return <div className={`mt-2 flex flex-wrap items-center gap-1.5 rounded-xl border px-3 py-2 text-sm ${hits.length ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                    <strong>คัดกรองก่อนหัตถการ:</strong>
+                    {hits.length ? hits.map(k => <span key={k} className="rounded-md bg-amber-200/70 px-2 py-0.5 text-xs font-semibold">⚠ {PRE_LABEL[k]}</span>) : <span>ไม่มีข้อห้าม/ข้อควรระวัง</span>}
+                    {pre.last_treatment ? <span className="text-xs text-slate-600">· ครั้งล่าสุด: {String(pre.last_treatment)}</span> : null}
+                </div>;
+            })()}
             <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
                 <h2 className="text-sm font-medium text-blue-800">อาการสำคัญ (CC)</h2>
                 <p className="mt-1 whitespace-pre-wrap break-words text-lg font-semibold leading-relaxed text-slate-900">{visit.chief_complaint?.trim() || "ยังไม่ระบุอาการสำคัญ"}</p>

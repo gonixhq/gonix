@@ -85,6 +85,45 @@ const MARITAL_LABEL: Record<string, string> = {
     โสด: "โสด", สมรส: "สมรส", หย่า: "หย่า", หม้าย: "หม้าย",
 };
 
+/** ตัวอย่างอาการสำคัญตามประเภทบริการ */
+const CC_PLACEHOLDER: Record<string, string> = {
+    general_med: "ปวดหัว มีไข้ 2 วัน, ไอ เจ็บคอ...",
+    aesthetic: "ปรึกษาริ้วรอยหน้าผาก, ฉีด Botox ซ้ำ, ทำ HIFU ยกกระชับ...",
+    wound_care: "ทำแผลที่ขา, ล้างแผลหลังผ่าตัด...",
+    med_cert: "ขอใบรับรองแพทย์สมัครงาน / ใบขับขี่...",
+    checkup: "ตรวจสุขภาพประจำปี...",
+    std_test: "ตรวจเลือดคัดกรอง HIV / ซิฟิลิส...",
+};
+/** บริการที่ไม่ค่อยใช้ Pain score / ความเร่งด่วน → ย่อเก็บ */
+const LIGHT_TRIAGE = new Set(["aesthetic", "med_cert", "checkup", "std_test"]);
+
+/** คำถามคัดกรองก่อนหัตถการความงาม */
+const PRE_ITEMS: { key: string; label: string; femaleOnly?: boolean }[] = [
+    { key: "pregnant", label: "ตั้งครรภ์ / อาจตั้งครรภ์", femaleOnly: true },
+    { key: "breastfeeding", label: "ให้นมบุตร", femaleOnly: true },
+    { key: "anticoagulant", label: "ทานยาละลายลิ่มเลือด / แอสไพริน / วิตามิน E / น้ำมันปลา (7 วัน)" },
+    { key: "anesthetic_allergy", label: "แพ้ยาชา (Lidocaine) / แพ้ไข่-โปรตีน" },
+    { key: "local_infection", label: "มีแผล / การติดเชื้อ / สิวอักเสบ บริเวณที่จะทำ" },
+    { key: "keloid", label: "เป็นแผลเป็นนูน (คีลอยด์) ง่าย" },
+    { key: "autoimmune", label: "โรคภูมิคุ้มกัน / กล้ามเนื้ออ่อนแรง (MG)" },
+];
+type PreScreen = Record<string, boolean | string | undefined> & { last_treatment?: string; none_confirmed?: boolean };
+
+/** เกณฑ์ค่าผิดปกติ (ผู้ใหญ่) → เตือนสีส้ม/แดง */
+function vitalFlag(key: string, raw: string): { level: "warn" | "danger"; text: string } | null {
+    const v = Number(raw);
+    if (raw === "" || !Number.isFinite(v)) return null;
+    switch (key) {
+        case "bp_systolic": return v >= 180 ? { level: "danger", text: "สูงมาก" } : v >= 140 ? { level: "warn", text: "สูง" } : v < 90 ? { level: "warn", text: "ต่ำ" } : null;
+        case "bp_diastolic": return v >= 110 ? { level: "danger", text: "สูงมาก" } : v >= 90 ? { level: "warn", text: "สูง" } : v < 60 ? { level: "warn", text: "ต่ำ" } : null;
+        case "pulse_rate": return v >= 130 || v < 40 ? { level: "danger", text: v < 40 ? "ช้ามาก" : "เร็วมาก" } : v > 100 ? { level: "warn", text: "เร็ว" } : v < 50 ? { level: "warn", text: "ช้า" } : null;
+        case "temperature": return v >= 39 ? { level: "danger", text: "ไข้สูง" } : v >= 37.5 ? { level: "warn", text: "มีไข้" } : v < 35.5 ? { level: "warn", text: "ต่ำ" } : null;
+        case "o2_saturation": return v < 90 ? { level: "danger", text: "ต่ำมาก" } : v < 95 ? { level: "warn", text: "ต่ำ" } : null;
+        case "dtx": return v < 70 ? { level: "danger", text: "น้ำตาลต่ำ" } : v > 250 ? { level: "danger", text: "สูงมาก" } : v > 180 ? { level: "warn", text: "สูง" } : null;
+        default: return null;
+    }
+}
+
 function calcAgeFull(dob: string | null): { y: number; m: number; d: number; display: string } {
     if (!dob) return { y: 0, m: 0, d: 0, display: "—" };
     const birth = new Date(dob + "T00:00:00");
@@ -140,6 +179,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     const [doctors, setDoctors] = useState<any[]>([]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
+    // ค่าครั้งก่อน (visit ล่าสุดที่มี vital) + ยืนยันประวัติ + คัดกรองก่อนหัตถการ
+    const [prev, setPrev] = useState<{ date: string; bp_systolic: number | null; bp_diastolic: number | null; pulse_rate: number | null; weight_kg: number | null; height_cm: number | null; temperature: number | null } | null>(null);
+    const [nkda, setNkda] = useState(false);
+    const [noChronic, setNoChronic] = useState(false);
+    const [preScreen, setPreScreen] = useState<PreScreen>({});
+    const [showTriage, setShowTriage] = useState(false);
+    const vitalsRef = useRef<HTMLDivElement>(null);
+
     const [vitals, setVitals] = useState({
         bp_systolic: "", bp_diastolic: "",
         pulse_rate: "", temperature: "",
@@ -180,9 +227,9 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             supabase.from("visits").select(`
                 vn, hn, visit_date, visit_time, status, service_category,
                 chief_complaint, pain_score, triage_level, nurse_note,
-                bp_systolic, bp_diastolic, pulse_rate, temperature, weight_kg, height_cm,
+                bp_systolic, bp_diastolic, pulse_rate, temperature, weight_kg, height_cm, o2_saturation, dtx, lmp_date, pre_screening,
                 doctor_id, room_id,
-                patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, past_history, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status)
+                patients!inner(hn, prefix, first_name, last_name, gender, dob, blood_group, allergy_summary, disease_summary, past_history, phone, thai_id_card, nhso_rights, occupation, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, marital_status, nkda, no_chronic)
             `).eq("vn", vn).maybeSingle(),
             supabase.from("staff").select("id, profile_id, profiles(full_name, role)")
                 .in("role", ["doctor", "owner"]).eq("is_active", true),
@@ -212,16 +259,23 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setTriageLevel(v.triage_level || "normal");
         setNurseNote(v.nurse_note || "");
         setDoctorId(v.doctor_id || "");
+        // ค่าครั้งก่อน → โชว์ใต้ช่อง + เติมส่วนสูงให้ (ผู้ใหญ่ส่วนสูงไม่ค่อยเปลี่ยน)
+        const { data: pv } = await supabase.from("visits").select("visit_date, bp_systolic, bp_diastolic, pulse_rate, weight_kg, height_cm, temperature")
+            .eq("hn", v.hn).neq("vn", vn).not("bp_systolic", "is", null).order("visit_date", { ascending: false }).limit(1).maybeSingle();
+        setPrev(pv ? { date: pv.visit_date as string, bp_systolic: pv.bp_systolic, bp_diastolic: pv.bp_diastolic, pulse_rate: pv.pulse_rate, weight_kg: pv.weight_kg, height_cm: pv.height_cm, temperature: pv.temperature } : null);
+        setNkda(!!pt?.nkda);
+        setNoChronic(!!pt?.no_chronic);
+        setPreScreen((v.pre_screening as PreScreen) || {});
         setVitals({
             bp_systolic: v.bp_systolic?.toString() || "",
             bp_diastolic: v.bp_diastolic?.toString() || "",
             pulse_rate: v.pulse_rate?.toString() || "",
             temperature: v.temperature?.toString() || "",
-            o2_saturation: "",
+            o2_saturation: v.o2_saturation?.toString() || "",
             weight_kg: v.weight_kg?.toString() || "",
-            height_cm: v.height_cm?.toString() || "",
-            dtx: "",
-            lmp_date: "",
+            height_cm: v.height_cm?.toString() || (pv?.height_cm ? String(pv.height_cm) : ""),
+            dtx: v.dtx?.toString() || "",
+            lmp_date: v.lmp_date || "",
         });
         setDoctors(doctorsRes.data || []);
         setRooms((roomsRes.data || []) as RoomStatus[]);
@@ -255,6 +309,14 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         setChronic((chronicRes.data || []) as Chronic[]);
     }
 
+    /** ยืนยัน "ถามแล้ว ไม่มี" (แพ้ / โรคประจำตัว) — บันทึกลงประวัติผู้ป่วยทันที */
+    async function confirmNone(kind: "nkda" | "no_chronic", value: boolean) {
+        if (!patient?.hn) return;
+        const { error } = await supabase.from("patients").update({ [kind]: value, history_reviewed_at: new Date().toISOString() }).eq("hn", patient.hn);
+        if (error) { toast.error(error.message); return; }
+        if (kind === "nkda") setNkda(value); else setNoChronic(value);
+    }
+
     /* Allergy + Chronic handlers */
     async function handleAddAllergy() {
         if (!allergyForm.allergen_name.trim()) return;
@@ -269,6 +331,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         if (res.success) {
             setAllergyForm({ allergen_name: "", allergen_type: "drug", severity: "moderate", reaction: "" });
             setShowAddAllergy(false);
+            if (nkda) confirmNone("nkda", false);
             reloadHistoryOnly();
         }
     }
@@ -288,6 +351,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         if (res.success) {
             setChronicForm({ disease_name: "", is_controlled: "" });
             setShowAddChronic(false);
+            if (noChronic) confirmNone("no_chronic", false);
             reloadHistoryOnly();
         }
     }
@@ -316,6 +380,11 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 window.scrollTo({ top: 0, behavior: "smooth" });
                 return false;
             }
+            // ประวัติแพ้ยังไม่ได้ถาม → ยืนยันก่อน (ไม่บล็อก)
+            if (allergies.length === 0 && !allergySummary && !nkda
+                && !confirm("ยังไม่ได้ยืนยันประวัติแพ้ยา/แพ้สาร\n\nถามคนไข้แล้วหรือยัง? (กด ยกเลิก เพื่อกลับไปบันทึก — หรือ ตกลง เพื่อส่งตรวจต่อ)")) return false;
+            if (serviceCategory === "aesthetic" && !preScreen.none_confirmed && !PRE_ITEMS.some(i => preScreen[i.key])
+                && !confirm("ยังไม่ได้ทำคำถามคัดกรองก่อนหัตถการ\n\nส่งตรวจต่อเลยไหม?")) return false;
         }
 
         setSaving(true);
@@ -344,6 +413,9 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             o2_saturation: toNum(vitals.o2_saturation),
             weight_kg: toNum(vitals.weight_kg),
             height_cm: toNum(vitals.height_cm),
+            dtx: toNum(vitals.dtx),
+            lmp_date: vitals.lmp_date || null,
+            pre_screening: serviceCategory === "aesthetic" ? preScreen : null,
             doctor_id: doctorId || null,
             room_id: effectiveRoomId || null,
             nurse_id: nurseStaff?.id || null,
@@ -367,7 +439,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 o2_saturation: toNum(vitals.o2_saturation),
                 weight_kg: toNum(vitals.weight_kg),
                 height_cm: toNum(vitals.height_cm),
-                recorded_by: user?.id,
+                dtx: toNum(vitals.dtx),
+                recorded_by: nurseStaff?.id || null,   // FK → staff (เดิมใส่ profile id → insert ไม่ผ่าน)
             });
         }
 
@@ -596,8 +669,9 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             <div className="xl:order-2 space-y-4">
 
             <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4"><div>
+                    <h3 className="text-sm font-semibold text-slate-700">ประวัติแพ้ & โรคประจำตัว</h3>
                     {/* Allergies + Chronic Diseases */}
-                    <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
+                    <div className="mt-2 space-y-3">
 
                         {/* Allergies */}
                         <div className="flex items-start gap-2 flex-wrap pt-1">
@@ -620,9 +694,17 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                     <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {allergies.length === 0 && !allergySummary && (
-                                <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
-                            )}
+                            {allergies.length === 0 && !allergySummary && (nkda ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-[13px] font-semibold">
+                                    <Check className="h-3.5 w-3.5" /> ไม่มีประวัติแพ้ (ถามแล้ว)
+                                    <button onClick={() => confirmNone("nkda", false)} className="ml-0.5 hover:bg-black/10 rounded-full p-0.5" aria-label="ยกเลิก"><X className="h-3 w-3" /></button>
+                                </span>
+                            ) : (<>
+                                <span className="text-sm text-amber-700 mt-1 font-semibold">ยังไม่ได้ถาม</span>
+                                <button onClick={() => confirmNone("nkda", true)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-emerald-300 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50">
+                                    <Check className="h-3 w-3" /> ไม่มีประวัติแพ้
+                                </button>
+                            </>))}
                             <button onClick={() => setShowAddAllergy(!showAddAllergy)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-red-300 text-[13px] font-semibold text-red-600 hover:bg-red-50">
                                 <Plus className="h-3 w-3" /> เพิ่ม
@@ -688,9 +770,17 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                                     <span className="text-xs not-italic">(จากข้อมูลผู้ป่วย)</span>
                                 </span>
                             )}
-                            {chronic.length === 0 && !diseaseSummary && (
-                                <span className="text-sm text-slate-500 mt-1">ยังไม่ระบุ</span>
-                            )}
+                            {chronic.length === 0 && !diseaseSummary && (noChronic ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 text-[13px] font-semibold">
+                                    <Check className="h-3.5 w-3.5" /> ไม่มีโรคประจำตัว (ถามแล้ว)
+                                    <button onClick={() => confirmNone("no_chronic", false)} className="ml-0.5 hover:bg-black/10 rounded-full p-0.5" aria-label="ยกเลิก"><X className="h-3 w-3" /></button>
+                                </span>
+                            ) : (<>
+                                <span className="text-sm text-amber-700 mt-1 font-semibold">ยังไม่ได้ถาม</span>
+                                <button onClick={() => confirmNone("no_chronic", true)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-emerald-300 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50">
+                                    <Check className="h-3 w-3" /> ไม่มีโรคประจำตัว
+                                </button>
+                            </>))}
                             <button onClick={() => setShowAddChronic(!showAddChronic)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-dashed border-amber-300 text-[13px] font-semibold text-amber-700 hover:bg-amber-50">
                                 <Plus className="h-3 w-3" /> เพิ่ม
@@ -752,7 +842,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 <div className="space-y-1.5">
                     <Label className="text-[15px] font-semibold text-slate-800">อาการสำคัญ (CC)</Label>
                     <textarea value={chiefComplaint} onChange={e => setChiefComplaint(e.target.value)}
-                        placeholder="ปวดหัว มีไข้ 2 วัน, ทำแผลที่ขา..."
+                        placeholder={CC_PLACEHOLDER[serviceCategory] || CC_PLACEHOLDER.general_med}
                         rows={2}
                         className={`w-full rounded-lg border px-3 py-2 text-base focus:outline-none focus:ring-2 focus:border-blue-500 resize-none ${
                             "border-slate-300 focus:ring-blue-500/30"
@@ -774,12 +864,17 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             </div>
                         )}
                     </div>
+                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && painScore === "" && triageLevel === "normal" ? (
+                        <div className="lg:pt-7">
+                            <button type="button" onClick={() => setShowTriage(true)} className="text-xs text-blue-700 hover:underline">+ Pain score / ความเร่งด่วน (ถ้ามี)</button>
+                        </div>
+                    ) : (
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">Pain Score</Label>
-                        <div className="flex flex-wrap items-center gap-1">
+                        <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 max-w-xl">
                             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                                 <button key={n} type="button" onClick={() => setPainScore(painScore === n ? "" : n)}
-                                    className={`h-10 w-10 rounded-lg text-sm font-semibold transition-all ${
+                                    className={`h-10 rounded-lg text-sm font-semibold transition-all ${
                                         painScore === n
                                             ? n >= 7 ? "bg-red-600 text-white" : n >= 4 ? "bg-amber-500 text-white" : "bg-emerald-500 text-white"
                                             : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -789,6 +884,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             ))}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 <hr className="border-slate-200" />
@@ -812,15 +908,24 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         )}
                     </div>
                     <p className="mb-3 text-xs text-slate-600">จำเป็น: ความดันบน/ล่าง ชีพจร น้ำหนัก และส่วนสูง · ค่าอื่นกรอกเพิ่มเติมได้</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <VitalInput required showError={submitAttempted} label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} />
-                        <VitalInput required showError={submitAttempted} label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} />
-                        <VitalInput required showError={submitAttempted} label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} />
-                        <VitalInput label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" />
-                        <VitalInput label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} />
-                        <VitalInput label="DTX" thaiLabel="น้ำตาลในเลือด" unit="mg/dL" value={vitals.dtx} onChange={v => setVital("dtx", v)} />
-                        <VitalInput required showError={submitAttempted} label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" />
-                        <VitalInput required showError={submitAttempted} label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} />
+                    {prev && <p className="-mt-2 mb-3 text-xs text-slate-500">ค่าครั้งก่อน ({new Date(prev.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}) แสดงใต้แต่ละช่อง · ส่วนสูงเติมจากครั้งก่อนให้แล้ว</p>}
+                    <div ref={vitalsRef} className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                        onKeyDown={e => {
+                            // Enter → ช่องถัดไป (กรอกด้วยคีย์บอร์ดล้วน)
+                            if (e.key !== "Enter" || !(e.target instanceof HTMLInputElement)) return;
+                            e.preventDefault();
+                            const all = Array.from(vitalsRef.current?.querySelectorAll("input") || []);
+                            const i = all.indexOf(e.target);
+                            if (i >= 0 && all[i + 1]) all[i + 1].focus(); else (e.target as HTMLInputElement).blur();
+                        }}>
+                        <VitalInput required showError={submitAttempted} label="BP Sys" thaiLabel="ความดันบน" unit="mmHg" value={vitals.bp_systolic} onChange={v => setVital("bp_systolic", v)} prev={prev?.bp_systolic} flag={vitalFlag("bp_systolic", vitals.bp_systolic)} />
+                        <VitalInput required showError={submitAttempted} label="BP Dia" thaiLabel="ความดันล่าง" unit="mmHg" value={vitals.bp_diastolic} onChange={v => setVital("bp_diastolic", v)} prev={prev?.bp_diastolic} flag={vitalFlag("bp_diastolic", vitals.bp_diastolic)} />
+                        <VitalInput required showError={submitAttempted} label="Pulse" thaiLabel="ชีพจร" unit="/min" value={vitals.pulse_rate} onChange={v => setVital("pulse_rate", v)} prev={prev?.pulse_rate} flag={vitalFlag("pulse_rate", vitals.pulse_rate)} />
+                        <VitalInput label="Temp" thaiLabel="อุณหภูมิ" unit="°C" value={vitals.temperature} onChange={v => setVital("temperature", v)} step="0.1" prev={prev?.temperature} flag={vitalFlag("temperature", vitals.temperature)} />
+                        <VitalInput label="O₂Sat" thaiLabel="ออกซิเจน" unit="%" value={vitals.o2_saturation} onChange={v => setVital("o2_saturation", v)} flag={vitalFlag("o2_saturation", vitals.o2_saturation)} />
+                        <VitalInput label="DTX" thaiLabel="น้ำตาลในเลือด" unit="mg/dL" value={vitals.dtx} onChange={v => setVital("dtx", v)} flag={vitalFlag("dtx", vitals.dtx)} />
+                        <VitalInput required showError={submitAttempted} label="Weight" thaiLabel="น้ำหนัก" unit="kg" value={vitals.weight_kg} onChange={v => setVital("weight_kg", v)} step="0.1" prev={prev?.weight_kg} />
+                        <VitalInput required showError={submitAttempted} label="Height" thaiLabel="ส่วนสูง" unit="cm" value={vitals.height_cm} onChange={v => setVital("height_cm", v)} prev={prev?.height_cm} />
                     </div>
                 </div>
 
@@ -839,10 +944,40 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                     </div>
                 )}
 
+                {serviceCategory === "aesthetic" && (() => {
+                    const items = PRE_ITEMS.filter(i => !i.femaleOnly || isWomanOfChildbearingAge);
+                    const hits = items.filter(i => preScreen[i.key]);
+                    return (
+                        <div className={`rounded-xl border p-3 space-y-2 ${hits.length ? "border-amber-300 bg-amber-50/60" : "border-pink-200 bg-pink-50/40"}`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Label className="text-[15px] font-semibold text-pink-800 flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> คัดกรองก่อนหัตถการ</Label>
+                                {hits.length > 0 && <span className="text-xs font-semibold text-amber-800">⚠ ข้อควรระวัง {hits.length} ข้อ — แจ้งแพทย์</span>}
+                                <span className="flex-1" />
+                                {!hits.length && (
+                                    <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                                        <input type="checkbox" checked={!!preScreen.none_confirmed} onChange={e => setPreScreen(p => ({ ...p, none_confirmed: e.target.checked }))} className="h-4 w-4" /> ถามครบแล้ว ไม่มีข้อใด
+                                    </label>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                                {items.map(i => (
+                                    <label key={i.key} className={`flex items-start gap-2 text-sm ${preScreen[i.key] ? "text-amber-900 font-semibold" : "text-slate-700"}`}>
+                                        <input type="checkbox" checked={!!preScreen[i.key]} onChange={e => setPreScreen(p => ({ ...p, [i.key]: e.target.checked, none_confirmed: false }))} className="h-4 w-4 mt-0.5" />
+                                        {i.label}
+                                    </label>
+                                ))}
+                            </div>
+                            <Input value={String(preScreen.last_treatment || "")} onChange={e => setPreScreen(p => ({ ...p, last_treatment: e.target.value }))}
+                                placeholder="ทำหัตถการครั้งล่าสุด (ที่นี่/ที่อื่น) เช่น Botox หน้าผาก 4 เดือนก่อน" className="h-9 rounded-lg text-sm bg-white" />
+                        </div>
+                    );
+                })()}
+
                 <hr className="border-slate-200" />
 
                 {/* Triage + Doctor */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {LIGHT_TRIAGE.has(serviceCategory) && !showTriage && triageLevel === "normal" && painScore === "" ? <div className="hidden md:block" /> : (
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">ความเร่งด่วน</Label>
                         <div className="flex gap-1.5">
@@ -860,6 +995,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                             ))}
                         </div>
                     </div>
+                    )}
                     <div className="space-y-1.5">
                         <Label className="text-[15px] font-semibold text-slate-800">ห้องตรวจ (เลือกได้)</Label>
                         <select
@@ -913,7 +1049,29 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             </div>
             {/* ╚════════ END 2-Column Layout ════════╝ */}
             {/* ════ Action button — ส่งตรวจ ════ */}
-            <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-xl shadow-sm p-4 space-y-3">
+            <div className="sticky bottom-3 z-30 rounded-2xl border border-white/90 bg-white/95 backdrop-blur-xl shadow-lg p-4 space-y-3">
+                {(() => {
+                    const flags = (["bp_systolic", "bp_diastolic", "pulse_rate", "temperature", "o2_saturation", "dtx"] as const).map(k => vitalFlag(k, vitals[k])).filter(Boolean) as { level: string; text: string }[];
+                    const danger = flags.some(f => f.level === "danger");
+                    const preHits = serviceCategory === "aesthetic" ? PRE_ITEMS.filter(i => preScreen[i.key]).length : 0;
+                    const allergyOk = allergies.length > 0 || !!allergySummary || nkda;
+                    const room = rooms.find(r => r.room_id === selectedRoomId);
+                    const chip = "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold";
+                    return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`${chip} ${danger ? "bg-red-100 text-red-800" : flags.length ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                                BP {vitals.bp_systolic || "—"}/{vitals.bp_diastolic || "—"} · P {vitals.pulse_rate || "—"}{flags.length ? ` · ⚠ ${flags.map(f => f.text).join(", ")}` : ""}
+                            </span>
+                            {bmi && <span className={`${chip} bg-slate-100 text-slate-700`}>BMI {bmi}</span>}
+                            <span className={`${chip} ${allergies.length || allergySummary ? "bg-red-100 text-red-800" : nkda ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                {allergies.length || allergySummary ? `แพ้: ${[...allergies.map(a => a.allergen_name), allergySummary].filter(Boolean).join(", ")}` : nkda ? "ไม่มีประวัติแพ้" : "ยังไม่ได้ถามประวัติแพ้"}
+                            </span>
+                            {serviceCategory === "aesthetic" && <span className={`${chip} ${preHits ? "bg-amber-100 text-amber-800" : preScreen.none_confirmed ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{preHits ? `คัดกรอง: ระวัง ${preHits} ข้อ` : preScreen.none_confirmed ? "คัดกรองผ่าน" : "ยังไม่คัดกรอง"}</span>}
+                            {room && <span className={`${chip} bg-blue-50 text-blue-800`}>{room.room_name}</span>}
+                            {!allergyOk && <span className="text-[11px] text-amber-700">← กดยืนยันที่กล่องประวัติแพ้</span>}
+                        </div>
+                    );
+                })()}
                 {triageLevel !== "normal" && (
                     <div className={`text-center px-3 py-1.5 rounded-lg text-sm font-semibold ${
                         triageLevel === "emergency" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
@@ -1020,7 +1178,7 @@ function ServiceCategoryPicker({
 }
 
 function VitalInput({
-    label, thaiLabel, unit, value, onChange, step, required, showError = false,
+    label, thaiLabel, unit, value, onChange, step, required, showError = false, prev, flag,
 }: {
     label: string;
     thaiLabel?: string;
@@ -1030,6 +1188,8 @@ function VitalInput({
     step?: string;
     required?: boolean;
     showError?: boolean;
+    prev?: number | null;
+    flag?: { level: "warn" | "danger"; text: string } | null;
 }) {
     const isEmpty = !!(showError && required && !value);
     return (
@@ -1051,14 +1211,22 @@ function VitalInput({
                     step={step || "1"}
                     value={value}
                     onChange={e => onChange(e.target.value)}
-                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-14 text-base font-semibold text-slate-800 tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
+                    className={`h-11 w-full rounded-lg border bg-white pl-3 pr-14 text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:border-blue-500 ${
                         isEmpty
-                            ? "border-red-300 focus:ring-red-500/30 bg-red-50/30"
-                            : "border-slate-300 focus:ring-blue-500/30"
+                            ? "border-red-300 focus:ring-red-500/30 bg-red-50/30 text-slate-800"
+                            : flag?.level === "danger" ? "border-red-500 bg-red-50 text-red-700 focus:ring-red-500/30"
+                            : flag?.level === "warn" ? "border-amber-400 bg-amber-50 text-amber-800 focus:ring-amber-500/30"
+                            : "border-slate-300 focus:ring-blue-500/30 text-slate-800"
                     }`}
                 />
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">{unit}</span>
             </div>
+            {(flag || prev != null) && (
+                <div className="px-1 flex items-center justify-between gap-1 text-[11px] leading-tight">
+                    {flag ? <span className={flag.level === "danger" ? "font-bold text-red-600" : "font-semibold text-amber-700"}>⚠ {flag.text}</span> : <span />}
+                    {prev != null && <span className="text-slate-400">ครั้งก่อน {prev}</span>}
+                </div>
+            )}
         </div>
     );
 }
