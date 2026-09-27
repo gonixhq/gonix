@@ -806,8 +806,6 @@ export default function CheckoutForm({
                         })()}
 
                         {items.some(it => HAND_ELIGIBLE.has(it.item_type)) && handStaff.length > 0 && (() => {
-                            const vNurse = handStaff.find(s => s.id === visit.nurse_id);
-                            const vAsst = handStaff.find(s => s.id === visit.assistant_id);
                             const hint = BILL_TYPES.find(b => b.v === billType)?.hint;
                             return (
                                 <div className="mx-3 mb-2 flex items-center gap-2 flex-wrap rounded-lg bg-emerald-50/60 border border-emerald-100 px-3 py-2 text-xs">
@@ -819,16 +817,6 @@ export default function CheckoutForm({
                                         ))}
                                     </div>
                                     {hint && <span className="text-amber-700">{hint}</span>}
-                                    {(vNurse || vAsst) && (
-                                        <button type="button" onClick={() => setItems(prev => prev.map(x => {
-                                            if (!HAND_ELIGIBLE.has(x.item_type)) return x;
-                                            const main = x.hand_main || vNurse?.id || "";
-                                            return { ...x, hand_main: main, hand_asst: x.hand_asst || (vAsst && vAsst.id !== main ? vAsst.id : "") };
-                                        }))}
-                                            title="เติมผู้ปฏิบัติหลัก/ผู้ช่วย ให้ทุกรายการที่ยังไม่ได้เลือก (ใช้คนที่ซักประวัติ visit นี้)" className="ml-auto h-7 px-2.5 rounded-md border border-emerald-300 bg-white text-emerald-800 font-semibold hover:bg-emerald-50">
-                                            ใส่ผู้ปฏิบัติจากตอนซักประวัติ: {[vNurse?.name, vAsst && `ผู้ช่วย ${vAsst.name}`].filter(Boolean).join(" · ")}
-                                        </button>
-                                    )}
                                 </div>
                             );
                         })()}
