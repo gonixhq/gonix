@@ -825,8 +825,8 @@ export default function CheckoutForm({
                                             const main = x.hand_main || vNurse?.id || "";
                                             return { ...x, hand_main: main, hand_asst: x.hand_asst || (vAsst && vAsst.id !== main ? vAsst.id : "") };
                                         }))}
-                                            className="ml-auto h-7 px-2.5 rounded-md bg-emerald-700 text-white font-semibold">
-                                            ที่ยังว่าง = {[vNurse?.name, vAsst && `ผู้ช่วย ${vAsst.name}`].filter(Boolean).join(" · ")}
+                                            title="เติมผู้ปฏิบัติหลัก/ผู้ช่วย ให้ทุกรายการที่ยังไม่ได้เลือก (ใช้คนที่ซักประวัติ visit นี้)" className="ml-auto h-7 px-2.5 rounded-md border border-emerald-300 bg-white text-emerald-800 font-semibold hover:bg-emerald-50">
+                                            ใส่ผู้ปฏิบัติจากตอนซักประวัติ: {[vNurse?.name, vAsst && `ผู้ช่วย ${vAsst.name}`].filter(Boolean).join(" · ")}
                                         </button>
                                     )}
                                 </div>
