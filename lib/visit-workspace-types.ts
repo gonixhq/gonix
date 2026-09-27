@@ -1,4 +1,4 @@
-export type ChartStroke = { color: string; points: string };
+export type ChartStroke = { color: string; points: string; width?: number };   // width ไม่ระบุ = 4 (ค่าเดิม)
 export type ChartPin = { id: number; x: number; y: number; amount: string; color: string };
 export type ChartSheet = { id: number; name: string; background: string; storagePath?: string; strokes: ChartStroke[]; pins: ChartPin[] };
 

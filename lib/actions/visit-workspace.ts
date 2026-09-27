@@ -16,7 +16,7 @@ export async function saveVisitWorkspace(vn: string, input: { notes: string; she
             if (sheet.storagePath) {
                 if (!sheet.storagePath.startsWith(prefix) || !/^[a-zA-Z0-9/_.-]+$/.test(sheet.storagePath) || sheet.storagePath.includes("..")) throw Error("ภาพไม่อยู่ใน visit นี้");
             } else if (!["", "/face-chart.png", BODY_CHART_BACKGROUND].includes(sheet.background)) throw Error("กรุณาอัปโหลดภาพผ่านหน้าตรวจ");
-            if (!sheet.strokes.every(s => /^#[0-9a-f]{6}$/i.test(s.color) && typeof s.points === "string" && s.points.length < 200000 && /^[0-9., ]+$/.test(s.points))) throw Error("เส้นวาดไม่ถูกต้อง");
+            if (!sheet.strokes.every(s => /^#[0-9a-f]{6}$/i.test(s.color) && typeof s.points === "string" && s.points.length < 200000 && /^[0-9., ]+$/.test(s.points) && (s.width == null || (Number.isFinite(s.width) && s.width >= 1 && s.width <= 30)))) throw Error("เส้นวาดไม่ถูกต้อง");
             if (!sheet.pins.every(p => Number.isFinite(p.id) && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 600 && p.y >= 0 && p.y <= 800 && Number.isFinite(Number(p.amount)) && Number(p.amount) > 0 && /^#[0-9a-f]{6}$/i.test(p.color))) throw Error("จุดบนภาพไม่ถูกต้อง");
             return { id: sheet.id, name: sheet.name, background: sheet.storagePath ? "" : sheet.background, ...(sheet.storagePath ? { storagePath: sheet.storagePath } : {}), strokes: sheet.strokes, pins: sheet.pins };
         });
