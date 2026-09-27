@@ -8,7 +8,7 @@ import type { ChartSheet } from "@/lib/visit-workspace-types";
 import Workspace from "./workspace-client";
 
 export default async function WorkspacePage({ params }: { params: Promise<{ vn: string }> }) {
-    await gatePermission("visits.edit");
+    await gatePermission("visits.view");
     const { clinicId } = await getEffectivePermissionsForUser();
     const { vn } = await params;
     const db = await createClient();
@@ -16,11 +16,12 @@ export default async function WorkspacePage({ params }: { params: Promise<{ vn: 
     if (error || !visit || visit.service_category !== "aesthetic") notFound();
     const { data: patient } = await db.from("patients").select("*,patient_allergies(allergen_name,is_active),patient_chronic_diseases(disease_name)").eq("clinic_id", clinicId!).eq("hn", visit.hn).single();
     if (!patient) notFound();
-    const [vitals, drugs, past, catalog, orders, panels] = await Promise.all([
+    const [vitals, drugs, past, catalog, orders, panels, logs] = await Promise.all([
         db.from("vital_signs").select("*").eq("vn", vn).order("recorded_at", { ascending: false }).limit(1),
         db.from("drug_orders").select("*,inventory(item_name)").eq("clinic_id", clinicId!).eq("vn", vn),
         db.from("visits").select("vn,visit_date,service_category,chief_complaint,aesthetic_records,soap_o,soap_p,diagnosis_text,lab_orders(lab_name,status,result_value,result_unit,normal_range,result_flag)").eq("clinic_id", clinicId!).eq("hn", visit.hn).neq("vn", vn).order("visit_date", { ascending: false }).limit(20),
         getLabCatalog(), getVisitLabOrders(vn), listAnonPanels(),
+        db.from("visit_status_logs").select("id, new_status, changed_at").eq("vn", vn).order("changed_at", { ascending: true }),
     ]);
     if (vitals.error || drugs.error || past.error) throw Error("โหลดข้อมูลการตรวจไม่สำเร็จ กรุณาลองใหม่");
     const savedSheets: ChartSheet[] = visit.aesthetic_records?.workspace_sheets || [];
@@ -31,5 +32,5 @@ export default async function WorkspacePage({ params }: { params: Promise<{ vn: 
         if (error || !data) throw Error("เปิดภาพแผ่นวาดไม่สำเร็จ กรุณาลองใหม่");
         return { ...sheet, background: data.signedUrl };
     }));
-    return <Workspace key={vn} visit={visit} patient={patient} vitals={vitals.data?.[0]} drugs={drugs.data || []} history={past.data || []} catalog={catalog} orders={orders} panels={panels} initialSheets={sheets} clinicId={clinicId!} />;
+    return <Workspace key={vn} visit={visit} patient={patient} vitals={vitals.data?.[0]} drugs={drugs.data || []} history={past.data || []} catalog={catalog} orders={orders} panels={panels} initialSheets={sheets} clinicId={clinicId!} statusLogs={logs.data || []} />;
 }

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import VisitDetailClient from "./visit-detail-client";
 import { getLabCatalog, getVisitLabOrders } from "@/lib/actions/lab-orders";
 import { listAnonPanels } from "@/lib/actions/anonymous";
@@ -23,6 +23,8 @@ export default async function VisitDetailPage({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const visit = visitRes.data as any;
     if (!visit) notFound();
+    // ความงาม: ใช้หน้าตรวจเดียว (workspace) — หน้าเดิมเลิกใช้
+    if (visit.service_category === "aesthetic") redirect(`/dashboard/visits/${vn}/workspace`);
     const patient = Array.isArray(visit.patients) ? visit.patients[0] : visit.patients;
 
     const [drugOrdersRes, vitalSignsRes, statusLogsRes, medCertRes, appointmentRes, referralRes, historyRes, patientPackagesRes] = await Promise.all([
