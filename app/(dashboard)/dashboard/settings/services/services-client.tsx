@@ -441,7 +441,13 @@ function ServiceFormModal({
                         </Section>
 
                         <Section title="ค่ามือ (DF) ต่อเคส" icon={HandCoins} color="emerald">
-                            <FieldRow label="วิธีคิด DF" colSpan={2} hint={dfMode === "percent" ? "% ของราคาเต็ม (ก่อนส่วนลด) ต่อรายการ" : "บาทต่อเคส × จำนวน"}>
+                            <FieldRow label="DF หมอ" colSpan={2}>
+                                <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">
+                                    คิดเป็น <b>% ของยอดสุทธิ</b> อัตโนมัติทุกเมนู (เฉพาะรายการที่หมอเป็นผู้ทำ) · แก้ % ได้ที่{" "}
+                                    <a href="/dashboard/settings/finance-rates" className="font-semibold underline">ตั้งค่าอัตราการเงิน → DF แพทย์</a>
+                                </div>
+                            </FieldRow>
+                            <FieldRow label="ค่ามือพยาบาล/ผู้ช่วย คิดเป็น" colSpan={2} hint={dfMode === "percent" ? "% ของยอดรายการ" : "บาทต่อเคส × จำนวน"}>
                                 <div className="flex rounded-lg border border-slate-200 overflow-hidden w-fit text-sm">
                                     <button type="button" onClick={() => setDfMode("baht")}
                                         className={`px-4 py-1.5 font-semibold transition-colors ${dfMode === "baht" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>บาท (฿)</button>
@@ -449,13 +455,10 @@ function ServiceFormModal({
                                         className={`px-4 py-1.5 font-semibold transition-colors ${dfMode === "percent" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}>เปอร์เซ็นต์ (%)</button>
                                 </div>
                             </FieldRow>
-                            <FieldRow label={`DF หมอ (${dfMode === "percent" ? "%" : "฿"})`} hint="คิดให้หมอที่เข้าเคส (เว้นว่าง=ไม่มี)">
-                                <Input type="number" min="0" value={dfDoctor} onChange={e => setDfDoctor(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
-                            </FieldRow>
                             <FieldRow label={`DF พยาบาล (${dfMode === "percent" ? "%" : "฿"})`}>
                                 <Input type="number" min="0" value={dfNurse} onChange={e => setDfNurse(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
                             </FieldRow>
-                            <FieldRow label={`DF ผู้ช่วย (${dfMode === "percent" ? "%" : "฿"})`} colSpan={2}>
+                            <FieldRow label={`DF ผู้ช่วย (${dfMode === "percent" ? "%" : "฿"})`} hint="เว้นว่าง = ครึ่งหนึ่งของพยาบาล">
                                 <Input type="number" min="0" value={dfAssistant} onChange={e => setDfAssistant(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums max-w-[280px]`} />
                             </FieldRow>
                             <FieldRow label="คอมแนะนำ" colSpan={2} hint="เฉพาะเมนูฝั่งความงาม · จ่ายพนักงานที่พาลูกค้ามา (คิดตอนรับเงิน)">
