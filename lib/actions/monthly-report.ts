@@ -25,6 +25,7 @@ export interface MonthRow {
     waste: number;
     marketing: number;         // แอด + ต้นทุนคงที่หมวดการตลาด + ค่ามือเคสรีวิว
     pettyCash: number;
+    billExpense: number;       // ค่าใช้จ่ายตามบิลค้างจ่าย (expense, ไม่รวมการตลาด)
     costTotal: number;
     profit: number;
     cumulative: number;
@@ -159,10 +160,10 @@ export async function getMonthlyReport(year: number): Promise<{ year: number; ro
                 material: g("material"), doctorComp: p.doctor + c.doctor,
                 handComm: Math.max(0, c.other - reviewHand) + (teamMap.get(mo) || 0), teamApproved: teamMap.has(mo),
                 cardFee: g("card_fee"), staffPay: p.staff, fixed: fixedActual, fixedPlanned,
-                waste: g("waste"), marketing: g("ad_spend") + fixedMkt + reviewHand, pettyCash: g("petty_cash"),
+                waste: g("waste"), marketing: g("ad_spend") + fixedMkt + reviewHand + g("bill_marketing"), pettyCash: g("petty_cash"), billExpense: g("bill_expense"),
                 costTotal: 0, profit: 0, cumulative: 0,
             };
-            row.costTotal = row.material + row.doctorComp + row.handComm + row.cardFee + row.staffPay + row.fixed + row.waste + row.marketing + row.pettyCash;
+            row.costTotal = row.material + row.doctorComp + row.handComm + row.cardFee + row.staffPay + row.fixed + row.waste + row.marketing + row.pettyCash + row.billExpense;
             row.profit = row.revenue - row.costTotal;
             cum += row.profit;
             row.cumulative = cum;
@@ -184,7 +185,7 @@ export async function getMonthlyReport(year: number): Promise<{ year: number; ro
 
 function emptyRow(month: string): MonthRow {
     return { month, revMedical: 0, revAesthetic: 0, revenue: 0, courseCash: 0, breakage: 0, material: 0, doctorComp: 0, handComm: 0, teamApproved: true,
-        cardFee: 0, staffPay: 0, fixed: 0, fixedPlanned: 0, waste: 0, marketing: 0, pettyCash: 0, costTotal: 0, profit: 0, cumulative: 0 };
+        cardFee: 0, staffPay: 0, fixed: 0, fixedPlanned: 0, waste: 0, marketing: 0, pettyCash: 0, billExpense: 0, costTotal: 0, profit: 0, cumulative: 0 };
 }
 function round(r: MonthRow): MonthRow {
     const o = { ...r };

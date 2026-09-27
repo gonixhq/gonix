@@ -48,7 +48,7 @@ const PAGE_TITLES: TitleEntry[] = [
     { pattern: "/dashboard/finance/team-commission", th: "คอมทีม", en: "Team Commission", sub: { th: "กองกลางความงาม", en: "Aesthetic pool" } },
     { pattern: "/dashboard/finance/monthly-report", th: "รายงานรายเดือน", en: "Monthly P&L", sub: { th: "กำไรจริง", en: "Actual profit" } },
     { pattern: "/dashboard/finance/fixed-costs", th: "ต้นทุนคงที่", en: "Fixed Costs" },
-    { pattern: "/dashboard/finance/lab-bills", th: "บิลแล็บภายนอก", en: "Lab Bills", sub: { th: "เทียบใบแจ้งหนี้ · ค้างจ่าย", en: "Payables" } },
+    { pattern: "/dashboard/finance/payables", th: "บิลค้างจ่าย", en: "Payables", sub: { th: "เจ้าหนี้ · ครบกำหนดจ่าย", en: "Accounts payable" } },
     { pattern: "/dashboard/finance/procedure-costs", th: "ต้นทุน & มาร์จิ้นหัตถการ", en: "Procedure Cost & Margin" },
     { pattern: "/dashboard/finance/card-fees", th: "ค่าธรรมเนียมบัตร", en: "Card Fees" },
     { pattern: /^\/dashboard\/finance\/[^/]+$/, th: "ใบเสร็จ", en: "Invoice" },

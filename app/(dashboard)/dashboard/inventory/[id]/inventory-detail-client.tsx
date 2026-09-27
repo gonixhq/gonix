@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { getOpenSupplierBills } from "@/lib/actions/payables";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -691,6 +692,9 @@ function ReceiveModal({
     const [lot, setLot] = useState("");
     const [expiry, setExpiry] = useState("");
     const [note, setNote] = useState("");
+    const [billId, setBillId] = useState("");
+    const [bills, setBills] = useState<{ id: string; label: string }[]>([]);
+    useEffect(() => { getOpenSupplierBills().then(setBills).catch(() => {}); }, []);
     const [pending, startTransition] = useTransition();
 
     const perPackN = parseFloat(perPack) || 0;
@@ -717,6 +721,7 @@ function ReceiveModal({
                     expiry_date: expiry,
                     cost_per_vial: costN,
                     note: note || undefined,
+                    vendor_bill_id: billId || null,
                 });
                 if (!res.success) { onError(res.error || "Error"); return; }
                 onSuccess(res.totalUnits || totalUnits);
@@ -730,6 +735,7 @@ function ReceiveModal({
                 lot_no: lot || undefined,
                 expiry_date: expiry || undefined,
                 units_per_pack: packMode ? perPackN : null,
+                vendor_bill_id: billId || null,
             });
             if (!res.success) {
                 onError(res.error || "Error");
@@ -831,6 +837,17 @@ function ReceiveModal({
                     <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">หมายเหตุ</Label>
                     <Input value={note} onChange={e => setNote(e.target.value)} placeholder="เช่น Supplier, PO#..." className="mt-1" />
                 </div>
+
+                {bills.length > 0 && (
+                    <div>
+                        <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">ผูกกับใบแจ้งหนี้ (ไม่บังคับ)</Label>
+                        <select value={billId} onChange={e => setBillId(e.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-2 text-sm">
+                            <option value="">— ไม่ผูก —</option>
+                            {bills.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                        </select>
+                        <p className="text-[11px] text-slate-400 mt-1">ใส่ราคาทุนด้วย เพื่อให้ระบบเทียบยอดรับของกับยอดบิลที่หน้า &quot;บิลค้างจ่าย&quot;</p>
+                    </div>
+                )}
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                     <Button variant="outline" onClick={onClose} disabled={pending} className="rounded-xl">ยกเลิก</Button>

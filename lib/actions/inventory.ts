@@ -12,6 +12,7 @@ export interface ReceiveStockInput {
     lot_no?: string;
     expiry_date?: string;   // วันหมดอายุของล็อตนี้
     units_per_pack?: number | null;   // ยูนิตต่อขวด/แพ็คของล็อตนี้ (เช่น 100/200)
+    vendor_bill_id?: string | null;   // ผูกกับใบแจ้งหนี้บริษัทยา (mig 161)
 }
 
 // ฟิลด์ที่แก้ไขได้ผ่านฟอร์ม "แก้ไขรายละเอียด" (ไม่รวม stock_qty — ใช้ปรับสต๊อกแทน)
@@ -410,6 +411,7 @@ export async function receiveStock(input: ReceiveStockInput) {
             balance_after: newStock,
             cost_per_unit: input.cost_per_unit || null,
             total_cost: input.cost_per_unit ? input.cost_per_unit * input.qty : null,
+            vendor_bill_id: input.vendor_bill_id || null,
             note: [input.lot_no && `Lot: ${input.lot_no}`, input.note].filter(Boolean).join(" · ") || null,
             recorded_by: staffRow?.id || null,
         });
@@ -433,6 +435,7 @@ export interface ReceiveVialsInput {
     expiry_date: string;          // บังคับ (injectable)
     cost_per_vial?: number;       // ราคาทุนต่อขวด
     note?: string;
+    vendor_bill_id?: string | null;
 }
 
 /** รับเข้าเวชภัณฑ์ฉีดแบบ vial model B — สร้าง 1 แถวต่อ 1 ขวด (P04) */
@@ -471,6 +474,7 @@ export async function receiveVials(input: ReceiveVialsInput) {
             qty_delta: totalUnits, balance_after: Number(itemBefore?.stock_qty || 0) + totalUnits,
             cost_per_unit: costPerUnit, total_cost: input.cost_per_vial ? input.cost_per_vial * n : null,
             note: `รับเข้า ${n} ขวด × ${cap} · Lot: ${input.lot_no.trim()}`, recorded_by: staffRow?.id || null,
+            vendor_bill_id: input.vendor_bill_id || null,
         });
         if (input.cost_per_vial != null) {
             await supabase.from("inventory").update({ cost_price: costPerUnit, updated_at: new Date().toISOString() }).eq("id", input.item_id);

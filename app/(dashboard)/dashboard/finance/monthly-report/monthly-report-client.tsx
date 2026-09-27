@@ -20,7 +20,8 @@ const COLS: Col[] = [
     { key: "staffPay", label: "เงินเดือนพนักงาน", cost: true, link: "/dashboard/compensation" },
     { key: "fixed", label: "ต้นทุนคงที่", cost: true, link: "/dashboard/finance/fixed-costs" },
     { key: "waste", label: "ยาทิ้ง", cost: true, link: "/dashboard/inventory/waste" },
-    { key: "marketing", label: "การตลาด", cost: true, hint: "ค่าแอด + ต้นทุนคงที่หมวดการตลาด + ค่ามือเคสรีวิว" },
+    { key: "marketing", label: "การตลาด", cost: true, hint: "ค่าแอด + ต้นทุนคงที่หมวดการตลาด + ค่ามือเคสรีวิว + บิลหมวดการตลาด" },
+    { key: "billExpense", label: "ค่าใช้จ่ายตามบิล", cost: true, link: "/dashboard/finance/payables?tab=expense" },
     { key: "pettyCash", label: "รายจ่ายย่อย", cost: true },
 ];
 
