@@ -16,6 +16,8 @@ import {
 import { registerVisitWithScreening } from "@/lib/actions/visit-register";
 import { listAffiliates, type Affiliate } from "@/lib/actions/affiliates";
 import { listReferralStaff, getPatientStaffReferral } from "@/lib/actions/staff-referrals";
+import { ensureReferralCode } from "@/lib/actions/patient-referrals";
+import { getPatients } from "@/lib/actions/patients";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
 import styles from "../[vn]/visit-workspace.module.css";
 import { MED_CERT_TYPES } from "@/lib/med-cert-types";
@@ -87,6 +89,27 @@ export default function NewVisitPage() {
     const [caseSource, setCaseSource] = useState<CaseSource | "">("");
     const [caseAffiliateId, setCaseAffiliateId] = useState("");
     const [caseReferralCode, setCaseReferralCode] = useState("");
+    // ลูกค้าแนะนำ: ค้นหาชื่อ/ชื่อเล่น/เบอร์/HN → ระบบใช้รหัสแนะนำของคนนั้นให้ (สร้างให้ถ้ายังไม่มี)
+    const [refQ, setRefQ] = useState("");
+    const [refResults, setRefResults] = useState<{ hn: string; first_name: string; last_name: string; phone: string | null }[]>([]);
+    const [referrer, setReferrer] = useState<{ hn: string; name: string } | null>(null);
+    useEffect(() => {
+        const q = refQ.trim();
+        if (q.length < 2 || referrer) { setRefResults([]); return; }
+        const t = setTimeout(() => {
+            getPatients(q).then(r => setRefResults((r as { hn: string; first_name: string; last_name: string; phone: string | null }[])
+                .filter(p => p.hn !== selectedPatient?.hn).slice(0, 8))).catch(() => setRefResults([]));
+        }, 300);
+        return () => clearTimeout(t);
+    }, [refQ, referrer, selectedPatient?.hn]);
+    async function pickReferrer(p: { hn: string; first_name: string; last_name: string }) {
+        try {
+            const code = await ensureReferralCode(p.hn);
+            setCaseReferralCode(code);
+            setReferrer({ hn: p.hn, name: `${p.first_name} ${p.last_name}` });
+            setRefQ(""); setRefResults([]);
+        } catch { toast.error("ดึงรหัสแนะนำไม่สำเร็จ"); }
+    }
     const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
     const [refStaff, setRefStaff] = useState<{ id: string; name: string }[]>([]);
     const [caseStaffId, setCaseStaffId] = useState("");
@@ -151,7 +174,7 @@ export default function NewVisitPage() {
         if (!caseSource) { toast.error("กรุณาเลือก “ที่มาของเคส” ก่อนบันทึก"); return; }
         if (caseSource === "affiliate" && !caseAffiliateId) { toast.error("เลือกเซลล์ฟรีแลนซ์ก่อน"); return; }
         if (caseSource === "staff" && !caseStaffId) { toast.error("เลือกพนักงานที่แนะนำก่อน"); return; }
-        if (caseSource === "referral" && !caseReferralCode.trim()) { toast.error("กรอกรหัสลูกค้าแนะนำก่อน"); return; }
+        if (caseSource === "referral" && !caseReferralCode.trim()) { toast.error("เลือกลูกค้าที่แนะนำก่อน"); return; }
         setSubmitting(true);
         setError("");
 
@@ -401,8 +424,29 @@ export default function NewVisitPage() {
                         </select>
                     )}
                     {caseSource === "referral" && (
-                        <input aria-label="รหัสลูกค้าแนะนำ" value={caseReferralCode} onChange={e => setCaseReferralCode(e.target.value.toUpperCase())}
-                            placeholder="รหัสลูกค้าแนะนำ (RFxxxxx)" className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm mt-2 font-mono focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
+                        referrer ? (
+                            <div className="mt-2 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                                <span className="flex-1">แนะนำโดย <b>{referrer.name}</b> <span className="font-mono text-xs text-slate-500">({referrer.hn} · {caseReferralCode})</span></span>
+                                <button type="button" onClick={() => { setReferrer(null); setCaseReferralCode(""); }} className="text-xs text-slate-500 hover:text-rose-600">เปลี่ยน</button>
+                            </div>
+                        ) : (
+                            <div className="mt-2 relative">
+                                <input aria-label="ค้นหาลูกค้าที่แนะนำ" value={refQ}
+                                    onChange={e => { const v = e.target.value; setRefQ(v); setCaseReferralCode(/^RF[A-Z0-9]+$/i.test(v.trim()) ? v.trim().toUpperCase() : ""); }}
+                                    placeholder="ค้นหาลูกค้าที่แนะนำ — ชื่อ / ชื่อเล่น / เบอร์ / HN (หรือพิมพ์รหัส RF…)"
+                                    className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
+                                {refResults.length > 0 && (
+                                    <div className="absolute z-30 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg divide-y divide-slate-100">
+                                        {refResults.map(p => (
+                                            <button key={p.hn} type="button" onClick={() => pickReferrer(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50">
+                                                <b>{p.first_name} {p.last_name}</b> <span className="font-mono text-xs text-blue-700">{p.hn}</span>{p.phone ? <span className="text-xs text-slate-500"> · {p.phone}</span> : null}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {refQ.trim().length >= 2 && refResults.length === 0 && !caseReferralCode && <p className="mt-1 text-xs text-slate-500">ไม่พบลูกค้า — ลองชื่อเล่นหรือเบอร์โทร</p>}
+                            </div>
+                        )
                     )}
                     {!caseSource && <p className="text-xs text-slate-600 mt-1.5">ต้องเลือกที่มาของเคสก่อนเปิด visit</p>}
                 </div>
