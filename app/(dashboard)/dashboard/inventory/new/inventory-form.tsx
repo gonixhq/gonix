@@ -164,7 +164,8 @@ export default function InventoryForm({ item }: { item?: any } = {}) {
     const [unitsPerPack, setUnitsPerPack] = useState(item?.units_per_pack != null ? String(item.units_per_pack) : "");
     // ประเภทการตัดสต๊อก (P01) — เดาค่าเริ่มต้นจากข้อมูลเดิมถ้ายังไม่เคยตั้ง
     const [deductionType, setDeductionType] = useState<string>(
-        item?.deduction_type || (item?.track_group ? "consumable_periodic" : item?.units_per_pack != null ? "injectable_vial" : "unit_piece")
+        // ข้อมูลเก่าไม่มี deduction_type: เดาจากหมวด (เดิมเดาจาก units_per_pack → ยาเม็ดกลายเป็นของฉีด)
+        item?.deduction_type || (item?.track_group ? "consumable_periodic" : item?.category === "aesthetic_supply" ? "injectable_vial" : "unit_piece")
     );
     // field เฉพาะเวชภัณฑ์ฉีด (P02)
     const [brand, setBrand] = useState(item?.brand || "");

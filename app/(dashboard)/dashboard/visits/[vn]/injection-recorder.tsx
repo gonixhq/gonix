@@ -68,6 +68,7 @@ export default function InjectionRecorder({ vn, onAdded, searchable = false }: {
     const [pending, start] = useTransition();
     const [loading, setLoading] = useState(true);
     const qtyRef = useRef<HTMLInputElement>(null);
+    const [typeFilter, setTypeFilter] = useState<string>("all");
 
     async function reload() {
         const [p, r] = await Promise.all([getInjectableProducts(), getVisitInjections(vn)]);
@@ -145,8 +146,23 @@ export default function InjectionRecorder({ vn, onAdded, searchable = false }: {
             {/* STEP 1: เลือกสินค้า (chip คลิกเดียว) */}
             <div className="space-y-1.5">
                 <p className="text-sm font-semibold text-blue-900/70">1. เลือกสินค้าที่ฉีด</p>
-                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2">
-                    {products.filter(p => !searchable || `${p.item_name} ${p.brand || ""}`.toLowerCase().includes(productSearch.toLowerCase())).map(p => {
+                {(() => {
+                    // แยกตามประเภท (Botox / Filler / …) ให้หาเร็ว — แสดงเฉพาะประเภทที่มีสินค้า
+                    const TYPE_LABEL: Record<string, string> = { botox: "Botox", filler: "Filler", skinbooster: "Skin booster", biostimulator: "Biostimulator", hifu: "HIFU", thread: "ร้อยไหม", other: "อื่นๆ" };
+                    const types = [...new Set(products.map(p => p.product_type || "other"))];
+                    return types.length > 1 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                            {["all", ...types].map(t => (
+                                <button key={t} type="button" onClick={() => setTypeFilter(t)}
+                                    className={`h-8 px-3 rounded-full text-xs font-semibold border ${typeFilter === t ? "bg-blue-700 text-white border-blue-700" : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"}`}>
+                                    {t === "all" ? "ทั้งหมด" : TYPE_LABEL[t] || t} <span className="opacity-70">({t === "all" ? products.length : products.filter(p => (p.product_type || "other") === t).length})</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : null;
+                })()}
+                <div className="grid grid-cols-1 2xl:grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-1">
+                    {products.filter(p => (typeFilter === "all" || (p.product_type || "other") === typeFilter) && (!searchable || `${p.item_name} ${p.brand || ""}`.toLowerCase().includes(productSearch.toLowerCase()))).map(p => {
                         const active = p.id === itemId;
                         return (
                             <button key={p.id} type="button" aria-pressed={active} onClick={() => pickProduct(p.id)}
