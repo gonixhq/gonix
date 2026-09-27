@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { bangkokDate } from "@/lib/utils/date";
 import { deductFEFO } from "@/lib/inventory-fefo";
+import { deductVials } from "@/lib/inventory-vials";
 import type {
     ServicePackage,
     PatientPackage,
@@ -692,7 +693,7 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
         // กันสต๊อกติดลบ: เช็คให้พอ "ก่อน" บันทึกครั้ง · บังคับให้ "รับเข้า" ก่อนใช้คอส
         const need = new Map<string, number>();
         all.forEach(a => need.set(a.inventory_item_id, (need.get(a.inventory_item_id) || 0) + a.qty));
-        const invRows = need.size ? (await supabase.from("inventory").select("id, item_name, stock_qty, cost_price").eq("clinic_id", clinicId).in("id", [...need.keys()])).data || [] : [];
+        const invRows = need.size ? (await supabase.from("inventory").select("id, item_name, stock_qty, cost_price, deduction_type").eq("clinic_id", clinicId).in("id", [...need.keys()])).data || [] : [];
         const invMap = new Map(invRows.map(i => [i.id as string, i]));
         for (const [id, q] of need) {
             const it = invMap.get(id);
@@ -736,10 +737,21 @@ export async function consumePackageSession(input: UsePackageSessionInput) {
         for (const a of all) {
             try {
                 const it = invMap.get(a.inventory_item_id)!;
-                const { data: cur } = await supabase.from("inventory").select("stock_qty").eq("id", a.inventory_item_id).maybeSingle();
-                const bal = Math.max(0, Number(cur?.stock_qty || 0) - a.qty);
-                await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", a.inventory_item_id);
-                await deductFEFO(supabase, clinicId, a.inventory_item_id, a.qty);
+                let bal: number;
+                if (it.deduction_type === "injectable_vial") {
+                    // ของฉีด (Botox ฯลฯ) → ตัดจากขวดที่เปิด (FEFO) + บันทึก vial_usage ไว้ trace/recall
+                    const res = await deductVials(supabase, clinicId, a.inventory_item_id, a.qty);
+                    if (!res.ok) throw new Error(res.error);
+                    const rows = (res.used || []).map(u => ({ clinic_id: clinicId, vn: input.visit_vn || null, hn: pp.hn, item_id: a.inventory_item_id, vial_id: u.vial_id, lot_number: u.lot, qty: u.qty }));
+                    if (rows.length) await supabase.from("vial_usage").insert(rows);
+                    const { data: cur } = await supabase.from("inventory").select("stock_qty").eq("id", a.inventory_item_id).maybeSingle();
+                    bal = Number(cur?.stock_qty || 0);
+                } else {
+                    const { data: cur } = await supabase.from("inventory").select("stock_qty").eq("id", a.inventory_item_id).maybeSingle();
+                    bal = Math.max(0, Number(cur?.stock_qty || 0) - a.qty);
+                    await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", a.inventory_item_id);
+                    await deductFEFO(supabase, clinicId, a.inventory_item_id, a.qty);
+                }
                 await supabase.from("stock_card").insert({
                     item_id: a.inventory_item_id, clinic_id: clinicId, tx_type: "INTERNAL_USE",
                     qty_delta: -a.qty, balance_after: bal, note: `ใช้คอส (ครั้งที่ ${sessionNo})`, recorded_by: staffRow?.id || null,
