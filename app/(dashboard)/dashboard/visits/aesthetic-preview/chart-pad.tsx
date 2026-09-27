@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Undo2, Redo2, MapPin, Pencil, Eraser, Plus } from "lucide-react";
 import type { PointerEvent } from "react";
 
@@ -29,6 +30,10 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
     // iPad: เคยใช้ Apple Pencil แล้ว → ไม่รับการแตะด้วยนิ้ว/ฝ่ามือบนแผ่นวาด (palm rejection) · วาดทีละ pointer
     const penSeen = useRef(false);
     const activePointer = useRef<number | null>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+    const liveRef = useRef<Stroke | null>(null);
+    const rafRef = useRef<number | null>(null);
+    const [live, setLive] = useState<Stroke | null>(null);
     const container = useRef<HTMLDivElement>(null);
     const addMenu = useRef<HTMLDetailsElement>(null);
     const uploadInput = useRef<HTMLInputElement>(null);
@@ -43,17 +48,16 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
     }, []);
     const [expanded, setExpanded] = useState(false);
     const [renaming, setRenaming] = useState(false);
+    // ขยาย = เต็มหน้าจอในแอป · ล็อกการเลื่อนหน้าหลัง · Esc เพื่อย่อ
     useEffect(() => {
-        const sync = () => setExpanded(document.fullscreenElement === container.current);
-        document.addEventListener("fullscreenchange", sync);
-        return () => document.removeEventListener("fullscreenchange", sync);
-    }, []);
-    async function toggleFullscreen() {
-        try {
-            if (document.fullscreenElement === container.current) await document.exitFullscreen();
-            else await container.current?.requestFullscreen();
-        } catch { setMessage("อุปกรณ์นี้ไม่รองรับการขยายเต็มจอ"); }
-    }
+        if (!expanded) return;
+        const prevOverflow = document.body.style.overflow, prevOverscroll = document.documentElement.style.overscrollBehavior;
+        document.body.style.overflow = "hidden"; document.documentElement.style.overscrollBehavior = "none";
+        const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setExpanded(false); };
+        document.addEventListener("keydown", esc);
+        return () => { document.body.style.overflow = prevOverflow; document.documentElement.style.overscrollBehavior = prevOverscroll; document.removeEventListener("keydown", esc); };
+    }, [expanded]);
+    async function toggleFullscreen() { setExpanded(v => !v); }
     const sheet = sheets.find(s => s.id === active)!;
     function edit(patch: Partial<Sheet>) { setSheets(old => old.map(s => s.id === active ? { ...s, ...patch } : s)); setMessage(""); }
     function checkpoint() { setUndo(old => [...old, { strokes: sheet.strokes, pins: sheet.pins }]); setRedo([]); }
@@ -74,7 +78,24 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
     }
     function add(name: string, background: string, storagePath?: string) { const id = Date.now(); setSheets(old => [...old, { id, name, background, ...(storagePath ? { storagePath } : {}), strokes: [], pins: [] }]); setActive(id); setRedo([]); setUndo([]); setDraftPin(null); onCount(sheets.length + 1); setMessage(""); }
     function point(e: PointerEvent<SVGSVGElement>) { const r = e.currentTarget.getBoundingClientRect(); return `${Math.max(0, Math.min(600, (e.clientX - r.left) * 600 / r.width)).toFixed(1)},${Math.max(0, Math.min(800, (e.clientY - r.top) * 800 / r.height)).toFixed(1)}`; }
-    function finish() { drawing.current = false; activePointer.current = null; }
+    function xy(clientX: number, clientY: number, rect: DOMRect) {
+        return `${Math.max(0, Math.min(600, (clientX - rect.left) * 600 / rect.width)).toFixed(1)},${Math.max(0, Math.min(800, (clientY - rect.top) * 800 / rect.height)).toFixed(1)}`;
+    }
+    function finish() {
+        drawing.current = false; activePointer.current = null;
+        if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        const done = liveRef.current; liveRef.current = null; setLive(null);
+        if (done) setSheets(old => old.map(s => s.id === active ? { ...s, strokes: [...s.strokes, done] } : s));
+    }
+    function moveLive(e: PointerEvent<SVGSVGElement>) {
+        if (!drawing.current || e.pointerId !== activePointer.current || !liveRef.current) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        // Apple Pencil ส่งจุดถี่กว่า frame → ใช้ coalesced events ให้เส้นเนียน
+        const evs = (e.nativeEvent as globalThis.PointerEvent).getCoalescedEvents?.() || [];
+        const pts = (evs.length ? evs : [e.nativeEvent]).map(ev => xy(ev.clientX, ev.clientY, rect)).join(" ");
+        liveRef.current = { ...liveRef.current, points: `${liveRef.current.points} ${pts}` };
+        if (rafRef.current == null) rafRef.current = requestAnimationFrame(() => { rafRef.current = null; setLive(liveRef.current); });
+    }
     async function photo(file?: File) {
         if (!file) return;
         if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) { setMessage("เลือกรูปภาพไม่เกิน 10 MB"); return; }
@@ -104,7 +125,7 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
             setSheets(restored); setActive(restored[0].id); onCount(restored.length); setRedo([]); setUndo([]); setDraftPin(null); setMessage("เปิดแผ่นวาดแล้ว สามารถวาดต่อได้");
         } catch { setMessage("เปิดไฟล์ไม่ได้ กรุณาเลือกไฟล์แผ่นวาดจากต้นแบบนี้"); }
     }
-    return <div ref={container} className={`space-y-2 rounded-2xl border border-slate-200 p-3 ${expanded ? "overflow-y-auto bg-white" : "bg-slate-50/60"}`}>
+    const pad = <div ref={container} className={`space-y-2 border border-slate-200 p-3 ${expanded ? "fixed inset-0 z-[80] overflow-y-auto overscroll-contain bg-white sm:p-5" : "rounded-2xl bg-slate-50/60"}`}>
         <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">แผ่นวาดและภาพประกอบ</h3>
             <div className="flex shrink-0 items-center gap-2">
@@ -118,7 +139,7 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
                         <button className={`${button} text-left`} onClick={() => { cameraInput.current?.click(); closeAddMenu(); }}>ถ่ายภาพ</button>
                     </div>
                 </details>
-                <button className={button} onClick={() => void toggleFullscreen()}>{expanded ? "ย่อกลับ" : "ขยายเต็มจอ"}</button>
+                <button className={`${button} ${expanded ? "!bg-blue-700 !text-white font-semibold" : ""}`} onClick={() => void toggleFullscreen()}>{expanded ? "✕ ย่อกลับ" : "ขยายเต็มจอ"}</button>
             </div>
             <input ref={uploadInput} hidden type="file" accept="image/*" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
             <input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={e => { void photo(e.target.files?.[0]); e.target.value = ""; }} />
@@ -126,9 +147,10 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
 
         {renaming && <label className="block text-xs text-slate-500">ชื่อแผ่น<input autoFocus className="mt-1 w-full rounded-lg border p-2 text-sm text-slate-800" value={sheet.name} onChange={e => edit({ name: e.target.value })} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setRenaming(false); }} /></label>}
         <div className="flex flex-wrap items-center gap-2">{sheets.map(s => <button key={s.id} aria-pressed={active === s.id} className={`${button} max-w-full break-words ${active === s.id ? "!bg-blue-700 !text-white" : ""}`} title="กดแผ่นที่เลือกเพื่อเปลี่ยนชื่อ" onClick={() => { setRenaming(active === s.id ? !renaming : false); if (active !== s.id) { setRedo([]); setUndo([]); setDraftPin(null); } setActive(s.id); }}>{s.name}</button>)}<label className="text-xs">สี <input aria-label="สีปากกา" type="color" value={color} onChange={e => { setColor(e.target.value); setErase(false); }} /></label><button className={button} title="ปากกา" aria-label="ปากกา" aria-pressed={!erase && !pinMode} onClick={() => { setErase(false); setPinMode(false); }}><Pencil size={18} /></button><button className={`${button} ${erase ? "!bg-blue-100" : ""}`} title="ลบเส้น" aria-label="ลบเส้น" aria-pressed={erase} onClick={() => { setErase(true); setPinMode(false); }}><Eraser size={18} /></button><button className={`${button} inline-flex items-center gap-1 ${pinMode ? "!bg-blue-100" : ""}`} aria-pressed={pinMode} onClick={() => { setPinMode(true); setErase(false); }}><MapPin size={16} /> จุด / cc</button><button className={button} title="ย้อนกลับ" aria-label="ย้อนกลับ" disabled={!undo.length} onClick={undoDrawing}><Undo2 size={18} /></button><button className={button} title="ทำซ้ำ" aria-label="ทำซ้ำ" disabled={!redo.length} onClick={redoDrawing}><Redo2 size={18} /></button></div>
-        <svg viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc(68dvh * 0.75))" : "min(100%, 380px, calc(52dvh * 0.75))", aspectRatio: "3 / 4" }} onPointerDown={e => { if (e.pointerType === "pen") penSeen.current = true; if (e.pointerType === "touch" && penSeen.current) return; if (drawing.current) return; if (erase) return; if (pinMode) { const [x, y] = point(e).split(",").map(Number); setDraftPin({ id: Date.now(), x, y, amount: "", color }); return; } checkpoint(); e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; activePointer.current = e.pointerId; const p = point(e); edit({ strokes: [...sheet.strokes, { color, points: `${p} ${p}` }] }); setRedo([]); }} onPointerMove={e => { if (!drawing.current || e.pointerId !== activePointer.current) return; const p = point(e); setSheets(old => old.map(s => s.id === active ? { ...s, strokes: s.strokes.map((t, i) => i === s.strokes.length - 1 ? { ...t, points: `${t.points} ${p}` } : t) } : s)); }} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
+        <svg ref={svgRef} viewBox="0 0 600 800" aria-label="พื้นที่วาด ใช้เมาส์ นิ้ว หรือปากกา" className="mx-auto block touch-none rounded-xl border border-slate-200 bg-white" style={{ width: expanded ? "min(100%, calc((100dvh - 150px) * 0.75))" : "min(100%, 380px, calc(52dvh * 0.75))", aspectRatio: "3 / 4", WebkitUserSelect: "none", userSelect: "none" }} onPointerDown={e => { if (e.pointerType === "pen") penSeen.current = true; if (e.pointerType === "touch" && penSeen.current) return; if (drawing.current) return; if (erase) return; if (pinMode) { const [x, y] = point(e).split(",").map(Number); setDraftPin({ id: Date.now(), x, y, amount: "", color }); return; } e.preventDefault(); checkpoint(); e.currentTarget.setPointerCapture(e.pointerId); drawing.current = true; activePointer.current = e.pointerId; const p = point(e); liveRef.current = { color, points: `${p} ${p}` }; setLive(liveRef.current); setRedo([]); setMessage(""); }} onPointerMove={moveLive} onPointerUp={finish} onPointerCancel={finish} onLostPointerCapture={finish}>
             {sheet.background && <image href={sheet.background} width="600" height="800" preserveAspectRatio="xMidYMid meet" />}
             {sheet.strokes.map((s, i) => <polyline key={i} points={s.points} stroke={s.color} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents={erase ? "stroke" : "none"} onPointerDown={e => { if (erase) { e.stopPropagation(); checkpoint(); edit({ strokes: sheet.strokes.filter((_, n) => n !== i) }); setRedo([]); } }} />)}
+            {live && <polyline points={live.points} stroke={live.color} strokeWidth={4} fill="none" strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />}
             {sheet.pins.map(p => <g key={p.id} role="button" tabIndex={0} aria-label={`แก้ไขจุด ${p.amount} cc`} className="cursor-pointer outline-none focus:opacity-60" onPointerDown={e => { e.stopPropagation(); setDraftPin({ ...p }); }} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDraftPin({ ...p }); } }}>
                 <circle cx={p.x} cy={p.y} r={15} fill={p.color} stroke="white" strokeWidth={3} />
                 <text x={Math.max(70, Math.min(530, p.x))} y={p.y > 755 ? p.y - 24 : p.y + 34} textAnchor="middle" fontSize={24} fontWeight={600} fill={p.color} stroke="white" strokeWidth={5} paintOrder="stroke">{p.amount} cc</text>
@@ -142,7 +164,9 @@ export default function ChartPad({ onCount, initial, onChange, onUpload }: {
         </form>}
         {pinMode && !draftPin && <p className="text-xs text-blue-700">แตะบนภาพเพื่อปักจุด กดจุดเดิมเพื่อแก้ไขจำนวนหรือลบ</p>}
         {sheet.pins.length > 0 && <p className="text-sm text-slate-600">{sheet.pins.length} จุด · รวมบนแผ่นนี้ {Number(sheet.pins.reduce((sum, p) => sum + Number(p.amount), 0).toFixed(3))} cc <span className="text-xs">(ยังไม่เชื่อมปริมาณสินค้า)</span></p>}
-        <div className="flex flex-wrap gap-2"><button className={button} onClick={save}>ดาวน์โหลดแผ่นวาด</button>{!onUpload && <label className={`${button} cursor-pointer`}>เปิดไฟล์แผ่นวาด<input type="file" accept=".json" className="sr-only" onChange={e => { void restore(e.target.files?.[0]); e.target.value = ""; }} /></label>}</div>
-        <p className="text-xs leading-relaxed text-slate-500">{onUpload ? "กดบันทึกการตรวจเพื่อเก็บแผ่นวาดและจุดใน visit • Body เป็นภาพร่างด้านหน้า" : "ต้นแบบเก็บภาพกับรอยวาดแยกกันในไฟล์ เปิดกลับมาแก้ได้ • Body เป็นภาพร่างด้านหน้า • การเปิดกล้องขึ้นอยู่กับอุปกรณ์"}</p><p role="status" className="text-sm text-blue-700">{message}</p>
+        {!expanded && <><div className="flex flex-wrap gap-2"><button className={button} onClick={save}>ดาวน์โหลดแผ่นวาด</button>{!onUpload && <label className={`${button} cursor-pointer`}>เปิดไฟล์แผ่นวาด<input type="file" accept=".json" className="sr-only" onChange={e => { void restore(e.target.files?.[0]); e.target.value = ""; }} /></label>}</div>
+        <p className="text-xs leading-relaxed text-slate-500">{onUpload ? "กดบันทึกการตรวจเพื่อเก็บแผ่นวาดและจุดใน visit • Body เป็นภาพร่างด้านหน้า" : "ต้นแบบเก็บภาพกับรอยวาดแยกกันในไฟล์ เปิดกลับมาแก้ได้ • Body เป็นภาพร่างด้านหน้า • การเปิดกล้องขึ้นอยู่กับอุปกรณ์"}</p></>}<p role="status" className="text-sm text-blue-700">{message}</p>
     </div>;
+    // เต็มจอ: portal ไป body — ไม่ติด containing block ของ parent (backdrop-blur/transform)
+    return expanded && typeof document !== "undefined" ? createPortal(pad, document.body) : pad;
 }
