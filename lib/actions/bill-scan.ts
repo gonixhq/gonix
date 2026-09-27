@@ -60,7 +60,7 @@ export async function scanBillDocument(formData: FormData): Promise<{ ok: boolea
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return { ok: false, error: "Unauthorized" };
         const { data: profile } = await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).single();
-        if (!profile?.clinic_id || !["owner", "admin"].includes(String(profile.role))) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!profile?.clinic_id || !["owner", "admin", "accountant"].includes(String(profile.role))) return { ok: false, error: "ไม่มีสิทธิ์" };
         const key = process.env.ANTHROPIC_API_KEY;
         if (!key) return { ok: false, error: "ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ที่ Vercel" };
 

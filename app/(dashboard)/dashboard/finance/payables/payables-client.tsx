@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Sparkles, Search, Printer } from "lucide-react";
+import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Sparkles, Search, Printer, ClipboardList, ShieldCheck } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
     saveBill, markBillPaid, deleteBill, linkReceiptToBill, saveVendor, backfillLabCost,
@@ -11,10 +11,19 @@ import {
     type BillRow, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
 } from "@/lib/actions/payables";
 import BillEditor from "./bill-editor";
+import { createBatch, removeBillFromBatch, approveBatch, payBatch, cancelBatch, type BatchRow, type BatchStatus } from "@/lib/actions/payment-batches";
 import { type BillForm, billToForm, emptyLine, calcBill, shrinkImage, openAttachment } from "./bill-utils";
 import { BILL_TYPE_LABEL, PAY_METHODS, DOC_TYPE_LABEL, expenseCategoryLabel, type BillType } from "@/lib/payables";
 
-export type PayTab = "overview" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
+export type PayTab = "overview" | "batches" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
+type BatchData = { batches: BatchRow[]; canPrepare: boolean; canApprove: boolean };
+type BatchRef = Map<string, { no: string; status: BatchStatus }>;
+const BATCH_STATUS: Record<BatchStatus, { label: string; cls: string }> = {
+    prepared: { label: "รออนุมัติ", cls: "bg-amber-100 text-amber-800" },
+    approved: { label: "อนุมัติแล้ว · รอจ่าย", cls: "bg-sky-100 text-sky-800" },
+    paid: { label: "ชำระแล้ว", cls: "bg-emerald-100 text-emerald-800" },
+    cancelled: { label: "ยกเลิก", cls: "bg-slate-100 text-slate-500" },
+};
 
 const baht = (n: number) => `฿${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const thDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
@@ -26,7 +35,7 @@ type Data = {
     lab: { sent: LabSentRow[]; summary: LabVendorSummary[] };
     bills: BillRow[]; openBills: BillRow[]; receipts: ReceiptRow[]; vendors: VendorRow[]; canManage: boolean;
 };
-export default function PayablesClient({ month, today, tab, data }: { month: string; today: string; tab: PayTab; data: Data }) {
+export default function PayablesClient({ month, today, tab, data, batchData }: { month: string; today: string; tab: PayTab; data: Data; batchData: BatchData }) {
     const router = useRouter();
     const [pending, start] = useTransition();
     const [form, setForm] = useState<BillForm | null>(null);
@@ -55,7 +64,16 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
         if (!r.ok) { toast.error(r.error || "ไม่สำเร็จ"); return; }
         toast.success(msg); after?.(); router.refresh();
     });
+    const [payBatchFor, setPayBatchFor] = useState<BatchRow | null>(null);
+    const batchRef: BatchRef = useMemo(() => new Map(batchData.batches.filter(b => b.status === "prepared" || b.status === "approved")
+        .flatMap(b => b.bills.map(x => [x.id, { no: b.batch_no, status: b.status }] as const))), [batchData]);
+    const onCreateBatch = (ids: string[]) => start(async () => {
+        const r = await createBatch(ids);
+        if (!r.ok) { toast.error(r.error || "สร้างไม่สำเร็จ"); return; }
+        toast.success(`สร้างใบเตรียมจ่าย ${r.batch_no} แล้ว`); router.push(`/dashboard/finance/payables?tab=batches&month=${month}`); router.refresh();
+    });
     const billActions = {
+        batchRef, onCreateBatch: data.canManage ? onCreateBatch : undefined,
         onPay: (b: BillRow) => setPayFor(b),
         onUnpay: (b: BillRow) => act(() => markBillPaid(b.id, null), "ยกเลิกสถานะจ่ายแล้ว"),
         onEdit: editBill,
@@ -72,14 +90,14 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                         <p className="text-xs text-slate-500">บันทึกบิล/ใบกำกับภาษี · แล็บภายนอก · บริษัทยา · ค่าใช้จ่ายทั่วไป — ติดตามครบกำหนดจ่าย + ส่งสำนักงานบัญชี</p>
                     </div>
                 </div>
-                {tab !== "overview" && tab !== "vendors" && (
+                {tab !== "overview" && tab !== "vendors" && tab !== "batches" && (
                     <input type="month" value={month} onChange={e => go(tab, e.target.value)} className="h-10 rounded-xl border border-slate-300 px-3 text-sm" />
                 )}
-                {data.canManage && tab !== "vendors" && tab !== "accountant" && (
+                {data.canManage && tab !== "vendors" && tab !== "accountant" && tab !== "batches" && (
                     <button onClick={() => { newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "expense"); setForm(f => f && { ...f, autoScan: true }); }}
                         className="h-10 px-4 rounded-xl border border-violet-300 bg-violet-50 text-violet-700 text-sm font-bold inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> สแกนบิล (AI)</button>
                 )}
-                {data.canManage && tab !== "vendors" && tab !== "accountant" && (
+                {data.canManage && tab !== "vendors" && tab !== "accountant" && tab !== "batches" && (
                     <button onClick={() => newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "supplier")}
                         className="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-bold inline-flex items-center gap-1.5"><Plus className="h-4 w-4" /> บันทึกบิล</button>
                 )}
@@ -90,7 +108,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
             </div>
 
             <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-                {([["overview", "ภาพรวม"], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่ายทั่วไป"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
+                {([["overview", "ภาพรวม"], ["batches", `เตรียมจ่าย${batchData.batches.filter(b => b.status === "prepared").length ? ` (${batchData.batches.filter(b => b.status === "prepared").length})` : ""}`], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่ายทั่วไป"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
                     <button key={k} onClick={() => go(k)} className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === k ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l}</button>
                 ))}
             </div>
@@ -144,6 +162,12 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                     </>);
                 })()}
             </>)}
+
+            {tab === "batches" && <BatchesTab bd={batchData} pending={pending}
+                onApprove={b => act(() => approveBatch(b.id), `อนุมัติ ${b.batch_no} แล้ว`)}
+                onPay={b => setPayBatchFor(b)}
+                onCancel={b => { if (confirm(`ยกเลิกใบเตรียมจ่าย ${b.batch_no}? (บิลกลับเป็นรอชำระ)`)) act(() => cancelBatch(b.id), "ยกเลิกแล้ว"); }}
+                onRemove={(b, billId) => act(() => removeBillFromBatch(b.id, billId), "เอาบิลออกแล้ว")} />}
 
             {tab === "accountant" && <AccountantTab month={month} bills={data.bills} canManage={data.canManage} pending={pending} start={start} onEdit={editBill} />}
 
@@ -200,6 +224,10 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                     toast.success(failed ? `บันทึกแล้ว (แนบไฟล์ไม่สำเร็จ ${failed})` : "บันทึกแล้ว");
                     setForm(null); router.refresh();
                 })} />}
+
+            {payBatchFor && <PayModal bill={{ vendor: payBatchFor.vendor, invoice_no: payBatchFor.batch_no, amount: payBatchFor.total, wht_amount: payBatchFor.wht_total, wht_pct: 0, net_pay: payBatchFor.net_total }}
+                today={today} pending={pending} onClose={() => setPayBatchFor(null)}
+                onSave={(p) => act(() => payBatch(payBatchFor.id, p), `จ่าย ${payBatchFor.batch_no} แล้ว — บิล ${payBatchFor.bills.length} ใบชำระแล้ว`, () => setPayBatchFor(null))} />}
 
             {payFor && <PayModal bill={payFor} today={today} pending={pending} onClose={() => setPayFor(null)}
                 onSave={(p) => act(() => markBillPaid(payFor.id, p), "บันทึกจ่ายแล้ว", () => setPayFor(null))} />}
@@ -332,13 +360,21 @@ function SupplierTab({ data, today, pending, canManage, billActions, onLink }: {
 }
 
 // ── ส่วนประกอบ ──
-type BillActs = { onPay: (b: BillRow) => void; onUnpay: (b: BillRow) => void; onEdit: (b: BillRow) => void; onDelete: (b: BillRow) => void };
+type BillActs = { onPay: (b: BillRow) => void; onUnpay: (b: BillRow) => void; onEdit: (b: BillRow) => void; onDelete: (b: BillRow) => void;
+    batchRef?: BatchRef; onCreateBatch?: (ids: string[]) => void; selected?: Set<string>; onToggle?: (b: BillRow) => void };
 
 /** รายการบิลแบบ FlowAccount: กรองสถานะ + ค้นหา */
 function FilteredBills(props: Parameters<typeof BillTable>[0]) {
     const [st, setSt] = useState<"all" | "unpaid" | "overdue" | "paid">("all");
     const [q, setQ] = useState("");
-    const { rows, today } = props;
+    const [sel, setSel] = useState<Set<string>>(new Set());
+    const { rows, today, onCreateBatch, canManage } = props;
+    const selRows = rows.filter(b => sel.has(b.id));
+    const selVendor = selRows[0]?.vendor;
+    const toggle = (b: BillRow) => {
+        if (selVendor && b.vendor !== selVendor && !sel.has(b.id)) { toast.error("ใบเตรียมจ่ายรวมได้เฉพาะบิลของผู้ขายเดียวกัน"); return; }
+        setSel(p => { const n = new Set(p); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n; });
+    };
     const cnt = { all: rows.length, unpaid: rows.filter(b => !b.paid_at).length, overdue: rows.filter(b => !b.paid_at && b.due_date < today).length, paid: rows.filter(b => b.paid_at).length };
     const k = q.trim().toLowerCase();
     const shown = rows.filter(b => (st === "all" || (st === "paid" ? !!b.paid_at : st === "overdue" ? !b.paid_at && b.due_date < today : !b.paid_at))
@@ -357,17 +393,26 @@ function FilteredBills(props: Parameters<typeof BillTable>[0]) {
                 <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นหา ผู้ขาย / เลขที่ / รายการ" className="h-8 w-56 rounded-full border border-slate-200 pl-8 pr-3 text-xs" />
             </div>
         </div>
-        {shown.length === 0 ? <Empty text="ไม่พบรายการ" /> : <BillTable {...props} rows={shown} />}
+        {sel.size > 0 && onCreateBatch && (
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-violet-50 border-b border-violet-100 text-sm">
+                <ClipboardList className="h-4 w-4 text-violet-600" />
+                <span className="flex-1">เลือก {sel.size} บิล · <b>{selVendor}</b> · ยอดโอน <b className="tabular-nums">{baht(selRows.reduce((s, b) => s + b.net_pay, 0))}</b></span>
+                <button onClick={() => setSel(new Set())} className="h-8 px-3 rounded-lg text-xs text-slate-500">ล้าง</button>
+                <button disabled={props.pending} onClick={() => { onCreateBatch([...sel]); setSel(new Set()); }} className="h-8 px-3 rounded-lg bg-violet-600 text-white text-xs font-bold">สร้างใบเตรียมจ่าย</button>
+            </div>
+        )}
+        {shown.length === 0 ? <Empty text="ไม่พบรายการ" /> : <BillTable {...props} rows={shown} selected={sel} onToggle={onCreateBatch && canManage ? toggle : undefined} />}
     </>);
 }
 
-function BillTable({ rows, today, canManage, pending, showType, showCategory, showReceived, onPay, onUnpay, onEdit, onDelete }: {
+function BillTable({ rows, today, canManage, pending, showType, showCategory, showReceived, onPay, onUnpay, onEdit, onDelete, batchRef, selected, onToggle }: {
     rows: BillRow[]; today: string; canManage: boolean; pending: boolean; showType?: boolean; showCategory?: boolean; showReceived?: boolean;
 } & BillActs) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-sm">
                 <thead className="text-xs text-slate-400 bg-slate-50"><tr>
+                    {onToggle && <th className="w-8 pl-3" />}
                     <th className="text-left px-4 py-2">เจ้าหนี้</th>
                     {showType && <th className="text-left px-2">ประเภท</th>}
                     {showCategory && <th className="text-left px-2">หมวด</th>}
@@ -382,10 +427,12 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
                         const days = daysBetween(today, b.due_date);
                         const recvDiff = b.received - b.amount;
                         return (
-                            <tr key={b.id}>
+                            <tr key={b.id} className={selected?.has(b.id) ? "bg-violet-50/60" : ""}>
+                                {onToggle && <td className="pl-3">{!b.paid_at && !batchRef?.has(b.id) && <input type="checkbox" checked={!!selected?.has(b.id)} onChange={() => onToggle(b)} className="h-4 w-4" />}</td>}
                                 <td className="px-4 py-2 font-semibold text-slate-800">
                                     {b.vendor}{b.note && <div className="text-[11px] font-normal text-slate-400">{b.note}</div>}
                                     <DocBadges b={b} />
+                                    {batchRef?.get(b.id) && <span className="inline-flex items-center gap-0.5 mt-0.5 text-[10px] font-semibold px-1.5 rounded bg-sky-50 text-sky-700"><ClipboardList className="h-2.5 w-2.5" /> {batchRef.get(b.id)!.no} · {BATCH_STATUS[batchRef.get(b.id)!.status].label}</span>}
                                 </td>
                                 {showType && <td className="px-2"><span className={`text-[11px] px-2 py-0.5 rounded font-bold whitespace-nowrap ${TYPE_COLOR[b.bill_type]}`}>{BILL_TYPE_LABEL[b.bill_type]}</span></td>}
                                 {showCategory && <td className="px-2 text-xs">{expenseCategoryLabel(b.category)}{!b.in_pl && <span className="text-slate-400"> · ไม่นับกำไร</span>}</td>}
@@ -407,7 +454,7 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
                                                 className="h-8 px-2 rounded-lg border border-violet-200 text-violet-700 inline-flex items-center text-[11px] font-semibold">50 ทวิ</a>}
                                             {b.paid_at ? (
                                                 <button disabled={pending} onClick={() => onUnpay(b)} className="h-8 px-3 rounded-lg text-xs border border-slate-200 text-slate-500">ยกเลิกจ่าย</button>
-                                            ) : (<>
+                                            ) : batchRef?.has(b.id) ? null : (<>
                                                 <button disabled={pending} onClick={() => onPay(b)} className="h-8 px-3 rounded-lg text-xs font-semibold bg-emerald-600 text-white inline-flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> จ่าย</button>
                                                 <button onClick={() => onEdit(b)} className="h-8 px-2 rounded-lg border border-slate-200 text-slate-600" aria-label="แก้"><Pencil className="h-3.5 w-3.5" /></button>
                                                 <button onClick={() => onDelete(b)} className="h-8 px-2 rounded-lg text-rose-500" aria-label="ลบ"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -424,14 +471,14 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
     );
 }
 
-function PayModal({ bill, today, pending, onClose, onSave }: { bill: BillRow; today: string; pending: boolean; onClose: () => void; onSave: (p: { date: string; method: string; ref?: string }) => void }) {
+function PayModal({ bill, today, pending, onClose, onSave }: { bill: Pick<BillRow, "vendor" | "invoice_no" | "amount" | "wht_amount" | "wht_pct" | "net_pay">; today: string; pending: boolean; onClose: () => void; onSave: (p: { date: string; method: string; ref?: string }) => void }) {
     const [date, setDate] = useState(today);
     const [method, setMethod] = useState("transfer");
     const [ref, setRef] = useState("");
     return (
         <Modal title="บันทึกการจ่าย" onClose={onClose}>
             <div className="rounded-xl bg-slate-50 p-3 text-sm"><b>{bill.vendor}</b> {bill.invoice_no && <span className="text-slate-500">#{bill.invoice_no}</span>} · <b className="tabular-nums">{baht(bill.amount)}</b>
-                {bill.wht_amount > 0 && <div className="text-xs text-slate-600 mt-1">หัก ณ ที่จ่าย {bill.wht_pct}% = {baht(bill.wht_amount)} → <b>โอนจริง {baht(bill.net_pay)}</b> · อย่าลืมออกหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</div>}
+                {bill.wht_amount > 0 && <div className="text-xs text-slate-600 mt-1">หัก ณ ที่จ่าย{bill.wht_pct ? ` ${bill.wht_pct}%` : ""} = {baht(bill.wht_amount)} → <b>โอนจริง {baht(bill.net_pay)}</b> · อย่าลืมออกหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</div>}
             </div>
             <div className="grid grid-cols-2 gap-3">
                 <L label="วันที่จ่าย"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
@@ -473,6 +520,67 @@ function VendorModal({ v, setV, pending, onSave }: { v: Partial<VendorRow>; setV
             <ModalFooter pending={pending} disabled={!v.name?.trim()} onCancel={() => setV(null)} onSave={onSave} />
         </Modal>
     );
+}
+
+function BatchesTab({ bd, pending, onApprove, onPay, onCancel, onRemove }: {
+    bd: BatchData; pending: boolean; onApprove: (b: BatchRow) => void; onPay: (b: BatchRow) => void; onCancel: (b: BatchRow) => void; onRemove: (b: BatchRow, billId: string) => void;
+}) {
+    const [showDone, setShowDone] = useState(false);
+    const active = bd.batches.filter(b => b.status === "prepared" || b.status === "approved");
+    const done = bd.batches.filter(b => b.status === "paid" || b.status === "cancelled");
+    const card = (b: BatchRow) => (
+        <div key={b.id} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-slate-100">
+                <ClipboardList className="h-4 w-4 text-violet-600" />
+                <span className="font-mono font-bold text-slate-800">{b.batch_no}</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${BATCH_STATUS[b.status].cls}`}>{BATCH_STATUS[b.status].label}</span>
+                <span className="font-semibold text-slate-800">{b.vendor}</span>
+                <span className="flex-1" />
+                <span className="text-sm tabular-nums">ยอดโอน <b className="text-lg">{baht(b.net_total)}</b></span>
+            </div>
+            <div className="px-4 py-2 text-xs text-slate-500 flex flex-wrap gap-x-4">
+                <span>เตรียมโดย {b.prepared_by || "—"} · {thDate(b.prepared_at)}</span>
+                {b.approved_at && <span className="inline-flex items-center gap-1 text-sky-700"><ShieldCheck className="h-3.5 w-3.5" /> อนุมัติโดย {b.approved_by || "—"} · {thDate(b.approved_at)}</span>}
+                {b.paid_at && <span className="text-emerald-700">จ่ายแล้ว {thDate(b.paid_at)}{b.paid_ref ? ` · ${b.paid_ref}` : ""}</span>}
+                {b.wht_total > 0 && <span>รวม {baht(b.total)} · หัก ณ ที่จ่าย {baht(b.wht_total)}</span>}
+            </div>
+            <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-50">
+                    {b.bills.map(x => (
+                        <tr key={x.id}>
+                            <td className="px-4 py-1.5 text-xs tabular-nums w-24">{thDate(x.bill_date)}</td>
+                            <td className="px-2 py-1.5 font-mono text-xs text-slate-500">{x.invoice_no || "—"}</td>
+                            <td className="px-2 py-1.5 text-xs text-slate-600 truncate">{x.note || ""}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{baht(x.amount)}</td>
+                            <td className="px-4 py-1.5 w-8">{b.status === "prepared" && bd.canPrepare && <button onClick={() => onRemove(b, x.id)} className="text-slate-400 hover:text-rose-500" aria-label="เอาออก"><X className="h-3.5 w-3.5" /></button>}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            <div className="px-4 py-2.5 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60">
+                <a href={`/print/payment-batch/${b.id}`} target="_blank" rel="noreferrer" className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs text-slate-600 inline-flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ใบเตรียมจ่าย</a>
+                {(b.status === "prepared" || b.status === "approved") && bd.canPrepare && <button disabled={pending} onClick={() => onCancel(b)} className="h-8 px-3 rounded-lg text-xs text-slate-500">ยกเลิก</button>}
+                {b.status === "prepared" && bd.canApprove && <button disabled={pending} onClick={() => onApprove(b)} className="h-8 px-3 rounded-lg bg-sky-600 text-white text-xs font-bold inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5" /> อนุมัติ</button>}
+                {b.status === "prepared" && !bd.canApprove && <span className="text-xs text-amber-700">รอเจ้าของ/ผู้จัดการอนุมัติ (แจ้ง LINE แล้ว)</span>}
+                {(b.status === "approved" || (b.status === "prepared" && bd.canApprove)) && bd.canPrepare && (
+                    <button disabled={pending} onClick={() => onPay(b)} className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-bold inline-flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> {b.status === "prepared" ? "อนุมัติ + จ่าย" : "บันทึกจ่าย"}</button>
+                )}
+            </div>
+        </div>
+    );
+    return (<>
+        <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-xs text-violet-900">
+            <b>ใบเตรียมจ่าย</b> = รวมหลายบิลของผู้ขายเดียวกันเป็นยอดเดียว → เจ้าของอนุมัติ → จ่ายครั้งเดียว (บิลทุกใบเปลี่ยนเป็นชำระแล้ว) ·
+            สร้างได้จากแท็บ ภาพรวม/บริษัทยา/แล็บ/ค่าใช้จ่ายทั่วไป: ติ๊กเลือกบิล → &quot;สร้างใบเตรียมจ่าย&quot;
+        </div>
+        {active.length === 0 ? <Section title="รอดำเนินการ"><Empty text="ไม่มีใบเตรียมจ่ายที่รอดำเนินการ" /></Section> : <div className="space-y-3">{active.map(card)}</div>}
+        {done.length > 0 && (
+            <div>
+                <button onClick={() => setShowDone(v => !v)} className="text-sm font-semibold text-slate-500 inline-flex items-center gap-1">{showDone ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />} จ่ายแล้ว / ยกเลิก ({done.length})</button>
+                {showDone && <div className="space-y-3 mt-2">{done.map(card)}</div>}
+            </div>
+        )}
+    </>);
 }
 
 function DocBadges({ b }: { b: BillRow }) {

@@ -17,7 +17,7 @@ export interface BillRow {
     received: number;   // supplier: ยอดรับของที่ผูก
     doc_type: string; vat_mode: "none" | "excl" | "incl"; subtotal: number; vat_amount: number; wht_pct: number; wht_amount: number; net_pay: number;
     attachments: BillAttachment[]; original_filed: boolean; original_ref: string | null; sent_to_accountant_at: string | null;
-    lines: BillLine[]; discount: number;
+    lines: BillLine[]; discount: number; batch_id: string | null;
 }
 export interface BillAttachment { path: string; name: string; size?: number; type?: string }
 export interface BillLine { description: string; category: string | null; qty: number; unit_price: number; amount?: number }
@@ -33,7 +33,7 @@ async function ctx() {
     if (!user) throw new Error("Unauthorized");
     const { data: profile } = await supabase.from("profiles").select("clinic_id, role").eq("id", user.id).single();
     if (!profile?.clinic_id) throw new Error("ไม่พบคลินิก");
-    return { supabase, userId: user.id, clinicId: profile.clinic_id as string, canManage: ["owner", "admin"].includes(String(profile.role)) };
+    return { supabase, userId: user.id, clinicId: profile.clinic_id as string, canManage: ["owner", "admin", "accountant"].includes(String(profile.role)) };
 }
 const fail = (e: unknown, msg = "ไม่สำเร็จ") => ({ ok: false as const, error: e instanceof Error ? e.message : msg });
 
@@ -54,7 +54,7 @@ function toBill(b: Record<string, unknown>, received = 0): BillRow {
         net_pay: r2(Number(b.amount || 0) - Number(b.wht_amount || 0)),
         attachments: Array.isArray(b.attachments) ? (b.attachments as BillAttachment[]) : [], original_filed: !!b.original_filed,
         original_ref: (b.original_ref as string) || null, sent_to_accountant_at: (b.sent_to_accountant_at as string) || null,
-        lines: Array.isArray(b.lines) ? (b.lines as BillLine[]) : [], discount: Number(b.discount || 0),
+        lines: Array.isArray(b.lines) ? (b.lines as BillLine[]) : [], discount: Number(b.discount || 0), batch_id: (b.batch_id as string) || null,
     };
 }
 
@@ -140,7 +140,7 @@ export async function saveBill(input: {
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
     try {
         const { supabase, clinicId, userId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         const vendor = input.vendor.trim();
         if (!vendor) return { ok: false, error: "ระบุชื่อผู้ขาย/เจ้าหนี้" };
         if (!/^\d{4}-\d{2}$/.test(input.period_month)) return { ok: false, error: "เดือนไม่ถูกต้อง" };
@@ -199,7 +199,14 @@ export async function saveBill(input: {
 export async function markBillPaid(id: string, paid: { date: string; method: string; ref?: string } | null) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
+        if (paid) {
+            const { data: cur } = await supabase.from("vendor_bills").select("batch_id").eq("id", id).eq("clinic_id", clinicId).maybeSingle();
+            if (cur?.batch_id) {
+                const { data: bt } = await supabase.from("payment_batches").select("batch_no, status").eq("id", cur.batch_id).maybeSingle();
+                if (bt && ["prepared", "approved"].includes(String(bt.status))) return { ok: false, error: `บิลนี้อยู่ในใบเตรียมจ่าย ${bt.batch_no} — จ่ายที่แท็บเตรียมจ่าย` };
+            }
+        }
         const { error } = await supabase.from("vendor_bills").update(paid
             ? { paid_at: paid.date, paid_method: paid.method || "transfer", paid_ref: paid.ref?.trim() || null }
             : { paid_at: null, paid_method: null, paid_ref: null }).eq("id", id).eq("clinic_id", clinicId);
@@ -212,7 +219,7 @@ export async function markBillPaid(id: string, paid: { date: string; method: str
 export async function deleteBill(id: string) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         const { error } = await supabase.from("vendor_bills").delete().eq("id", id).eq("clinic_id", clinicId);
         if (error) return { ok: false, error: error.message };
         revalidatePath("/dashboard/finance/payables");
@@ -224,7 +231,7 @@ export async function deleteBill(id: string) {
 export async function linkReceiptToBill(stockCardId: string, billId: string | null) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         const { error } = await supabase.from("stock_card").update({ vendor_bill_id: billId }).eq("id", stockCardId).eq("clinic_id", clinicId).eq("tx_type", "PO_RECEIVE");
         if (error) return { ok: false, error: error.message };
         revalidatePath("/dashboard/finance/payables");
@@ -245,7 +252,7 @@ export async function getOpenSupplierBills(): Promise<{ id: string; label: strin
 export async function saveVendor(input: { id?: string; name: string; vendor_type: BillType; credit_days: number; bill_day?: number | null; tax_id?: string; phone?: string; note?: string; is_active?: boolean; address?: string; branch?: string }) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         if (!input.name.trim()) return { ok: false, error: "ระบุชื่อ" };
         const row = {
             name: input.name.trim(), vendor_type: input.vendor_type, credit_days: Math.max(0, Math.floor(Number(input.credit_days) || 0)),
@@ -266,7 +273,7 @@ export async function saveVendor(input: { id?: string; name: string; vendor_type
 export async function backfillLabCost(month: string) {
     try {
         const { supabase, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         const { data, error } = await supabase.rpc("fn_backfill_lab_cost", { p_month: month });
         if (error) return { ok: false, error: error.message };
         revalidatePath("/dashboard/finance/payables");
@@ -281,7 +288,7 @@ const ATT_MAX = 10 * 1024 * 1024;
 export async function uploadBillAttachment(formData: FormData) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         const billId = String(formData.get("bill_id") || "");
         const file = formData.get("file") as File | null;
         if (!billId || !file || file.size === 0) return { ok: false, error: "ไม่พบไฟล์" };
@@ -304,7 +311,7 @@ export async function uploadBillAttachment(formData: FormData) {
 export async function deleteBillAttachment(billId: string, path: string) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         if (!path.startsWith(`${clinicId}/vendor-bills/${billId}/`)) return { ok: false, error: "ไฟล์ไม่ถูกต้อง" };
         const { data: bill } = await supabase.from("vendor_bills").select("attachments").eq("id", billId).eq("clinic_id", clinicId).maybeSingle();
         if (!bill) return { ok: false, error: "ไม่พบบิล" };
@@ -331,7 +338,7 @@ export async function getBillAttachmentUrl(path: string): Promise<{ ok: boolean;
 export async function markBillsSent(ids: string[], sent = true) {
     try {
         const { supabase, clinicId, canManage } = await ctx();
-        if (!canManage) return { ok: false, error: "เฉพาะเจ้าของ/ผู้จัดการ" };
+        if (!canManage) return { ok: false, error: "ไม่มีสิทธิ์ (เจ้าของ/ผู้จัดการ/บัญชี)" };
         if (!ids.length) return { ok: false, error: "ไม่ได้เลือกบิล" };
         const { error } = await supabase.from("vendor_bills").update({ sent_to_accountant_at: sent ? new Date().toISOString() : null }).in("id", ids).eq("clinic_id", clinicId);
         if (error) return { ok: false, error: error.message };

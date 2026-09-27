@@ -1,11 +1,12 @@
 import { gatePermission } from "@/lib/auth/guard";
 import { getPayables } from "@/lib/actions/payables";
+import { listBatches } from "@/lib/actions/payment-batches";
 import { bangkokDate } from "@/lib/utils/date";
 import PayablesClient, { type PayTab } from "./payables-client";
 
 export const dynamic = "force-dynamic";
 
-const TABS: PayTab[] = ["overview", "lab", "supplier", "expense", "accountant", "vendors"];
+const TABS: PayTab[] = ["overview", "batches", "lab", "supplier", "expense", "accountant", "vendors"];
 
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<{ month?: string; tab?: string }> }) {
     await gatePermission("finance.reports");
@@ -16,7 +17,8 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
     const [y, m] = today.split("-").map(Number);
     const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
     const month = /^\d{4}-\d{2}$/.test(sp.month || "") ? sp.month! : tab === "lab" ? prev : today.slice(0, 7);
-    const data = await getPayables(month);
+    const [data, bt] = await Promise.all([getPayables(month), listBatches()]);
     if ("error" in data) return <div className="p-10 text-center text-slate-500">โหลดไม่สำเร็จ: {data.error}</div>;
-    return <PayablesClient month={month} today={today} tab={tab} data={data} />;
+    const batches = "error" in bt ? { batches: [], canPrepare: false, canApprove: false } : bt;
+    return <PayablesClient month={month} today={today} tab={tab} data={data} batchData={batches} />;
 }
