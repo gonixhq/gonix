@@ -54,9 +54,17 @@ export default function SplitCourseModal({ invId, item, services, onClose }: {
 
                 <label className="block text-xs text-slate-600 space-y-1"><span className="font-semibold">เมนูบริการที่ใช้ตอนกลับมาฉีด *</span>
                     <input value={q} onChange={e => setQ(e.target.value)} placeholder="ค้นเมนู เช่น Botox 50u" className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" />
-                    <select value={serviceId} onChange={e => setServiceId(e.target.value)} size={Math.min(6, Math.max(3, list.length))} className="w-full rounded-lg border border-slate-300 px-2 text-sm">
-                        {list.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-300 divide-y divide-slate-100">
+                        {list.length === 0 && <div className="px-3 py-2 text-xs text-slate-400">ไม่พบเมนู — สร้างที่ รายการบริการ &amp; ราคา</div>}
+                        {list.map(s => (
+                            <button key={s.id} type="button" onClick={() => setServiceId(s.id)}
+                                className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${serviceId === s.id ? "bg-violet-600 text-white font-semibold" : "hover:bg-violet-50 text-slate-700"}`}>
+                                <span className={`h-4 w-4 rounded-full border-2 shrink-0 ${serviceId === s.id ? "border-white bg-white/30" : "border-slate-300"}`} />
+                                {s.name}
+                            </button>
+                        ))}
+                    </div>
+                    {serviceId && <span className="text-[11px] text-violet-700 font-semibold">เลือก: {services.find(s => s.id === serviceId)?.name}</span>}
                     <span className="text-[11px] text-slate-400">ตอนตัดคอส ระบบตัดสต๊อกตามสูตรของเมนูนี้ + คิดค่ามือตามเมนู</span>
                 </label>
 
