@@ -17,6 +17,11 @@ import RoomCheckinBar from "./room-checkin-bar";
 import RoomCheckinEmpty from "./room-checkin-empty";
 import CancelVisitButton from "./cancel-visit-button";
 
+const PRE_LABEL: Record<string, string> = {
+    pregnant: "ตั้งครรภ์/อาจตั้งครรภ์", breastfeeding: "ให้นมบุตร", anticoagulant: "ยาละลายลิ่มเลือด/แอสไพริน",
+    anesthetic_allergy: "แพ้ยาชา", local_infection: "แผล/ติดเชื้อบริเวณที่ทำ", keloid: "คีลอยด์", autoimmune: "ภูมิคุ้มกัน/MG",
+};
+
 const SPECIALTY_EXTRA: Record<string, string> = {
     pediatrics: "กุมารเวช",
     dentistry: "ทันตกรรม",
@@ -90,13 +95,13 @@ export default async function DoctorStationPage() {
         .from("visits")
         .select(`
             vn, visit_date, visit_time, status, chief_complaint, present_illness, pain_score,
-            triage_level, nurse_note, visit_type, room_id,
+            triage_level, nurse_note, visit_type, service_category, pre_screening, room_id,
             weight_kg, height_cm, temperature, bp_systolic, bp_diastolic, pulse_rate, o2_saturation,
             assigned_doctor_id,
             created_at,
             patients!inner(
                 hn, prefix, first_name, last_name, gender, dob, blood_group, nhso_rights,
-                allergy_summary, disease_summary,
+                allergy_summary, disease_summary, nkda, no_chronic,
                 patient_allergies(id, allergen_name, severity, is_active),
                 patient_chronic_diseases(id, disease_name)
             ),
@@ -265,8 +270,13 @@ export default async function DoctorStationPage() {
                         const p = Array.isArray(v.patients) ? v.patients[0] : v.patients;
                         const allergies = (p?.patient_allergies || []).filter((a: { is_active: boolean }) => a.is_active);
                         const chronics = p?.patient_chronic_diseases || [];
-                        const allergySummary = p?.allergy_summary?.trim() || null;
-                        const diseaseSummary = p?.disease_summary?.trim() || null;
+                        const clean = (x: string | null | undefined) => { const t = (x || "").trim(); return /^[-–—\s]*$/.test(t) ? null : t; };
+                        const allergySummary = clean(p?.allergy_summary);
+                        const diseaseSummary = clean(p?.disease_summary);
+                        const hasAllergy = allergies.length > 0 || !!allergySummary;
+                        const hasChronic = chronics.length > 0 || !!diseaseSummary;
+                        const pre = (v.pre_screening || null) as Record<string, unknown> | null;
+                        const preHits = pre ? Object.keys(PRE_LABEL).filter(k => pre[k]) : [];
                         const triage = (v.triage_level || "normal") as "normal" | "urgent" | "emergency";
                         const wait = waitLabel(v.created_at);
 
@@ -329,8 +339,18 @@ export default async function DoctorStationPage() {
                                     </div>
                                 </div>
 
-                                {(allergies.length > 0 || chronics.length > 0 || allergySummary || diseaseSummary) && (
+                                {(
                                     <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80">
+                                        {!hasAllergy && (
+                                            <span className={`text-[13px] px-2.5 py-1 rounded-md font-semibold inline-flex items-center gap-1.5 ${p?.nkda ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                                <AlertTriangle className="h-3.5 w-3.5" /> {p?.nkda ? "ไม่มีประวัติแพ้" : "ยังไม่ได้ถามประวัติแพ้"}
+                                            </span>
+                                        )}
+                                        {!hasChronic && (
+                                            <span className={`text-[13px] px-2.5 py-1 rounded-md font-semibold inline-flex items-center gap-1.5 ${p?.no_chronic ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                                <Heart className="h-3.5 w-3.5" /> {p?.no_chronic ? "ไม่มีโรคประจำตัว" : "โรคประจำตัว: ยังไม่ได้ถาม"}
+                                            </span>
+                                        )}
                                         {(allergies.length > 0 || allergySummary) && (
                                             <>
                                                 <span className="text-[14px] font-semibold text-red-700 self-center inline-flex items-center gap-1.5">
@@ -379,6 +399,13 @@ export default async function DoctorStationPage() {
                                     </div>
                                 </div>
 
+                                {preHits.length > 0 && (
+                                    <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                        <strong>คัดกรองก่อนหัตถการ:</strong>
+                                        {preHits.map(k => <span key={k} className="rounded-md bg-amber-200/70 px-2 py-0.5 text-xs font-semibold">⚠ {PRE_LABEL[k]}</span>)}
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                                     <VitalChip value={v.temperature} unit="°C" label="TEMP" abnormal={v.temperature && (v.temperature > 37.5 || v.temperature < 36)} />
                                     <VitalChip value={v.bp_systolic && v.bp_diastolic ? `${v.bp_systolic}/${v.bp_diastolic}` : null} label="BP" abnormal={(v.bp_systolic && (v.bp_systolic > 140 || v.bp_systolic < 90)) || (v.bp_diastolic && (v.bp_diastolic > 90 || v.bp_diastolic < 60))} />
@@ -418,7 +445,7 @@ export default async function DoctorStationPage() {
                                     <div className="flex items-center gap-x-2 gap-y-1.5 text-sm text-slate-600 font-normal flex-wrap">
                                         <span className="font-mono text-sm font-medium text-slate-700">{v.vn}</span>
                                         <span className="text-slate-300">·</span>
-                                        <span className="font-medium">{visitTypeLabel[v.visit_type] || v.visit_type}</span>
+                                        <span className="font-medium">{(v.service_category && SERVICE_LABEL[v.service_category as ServiceCategory]) || visitTypeLabel[v.visit_type] || v.visit_type}</span>
                                         <span className="text-slate-300">·</span>
                                         <span className="tabular-nums">{v.visit_time?.slice(0, 5) || "—"} น.</span>
                                         {v.visit_date && v.visit_date !== today && (
