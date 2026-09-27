@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Camera } from "lucide-react";
+import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Camera, Sparkles } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
     saveBill, markBillPaid, deleteBill, linkReceiptToBill, saveVendor, backfillLabCost,
     uploadBillAttachment, deleteBillAttachment, getBillAttachmentUrl, markBillsSent, exportBillsForAccountant,
     type BillRow, type BillAttachment, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
 } from "@/lib/actions/payables";
+import { scanBillDocument } from "@/lib/actions/bill-scan";
 import { BILL_TYPE_LABEL, EXPENSE_CATEGORIES, PAY_METHODS, DOC_TYPE_LABEL, WHT_OPTIONS, expenseCategoryLabel, type BillType } from "@/lib/payables";
 
 export type PayTab = "overview" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
@@ -27,6 +28,9 @@ type Data = {
 type BillForm = {
     id?: string; bill_type: BillType; vendor: string; invoice_no: string; bill_date: string; due_date: string; amount: string; category: string; in_pl: boolean; note: string;
     doc_type: string; vat_mode: "none" | "excl" | "incl"; wht_pct: number; original_filed: boolean; original_ref: string; files: File[]; attachments: BillAttachment[];
+    vendor_tax_id?: string | null; vendor_branch?: string | null; vendor_address?: string | null;
+    scan?: { confidence: string; warnings: string[]; items: { description: string; qty: number | null; amount: number | null }[]; checkTotal: number | null } | null;
+    autoScan?: boolean;
 };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 /** amount ที่กรอก: none/incl = ยอดรวม · excl = ยอดก่อน VAT (ตรงกับ server) */
@@ -102,6 +106,10 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 </div>
                 {tab !== "overview" && tab !== "vendors" && (
                     <input type="month" value={month} onChange={e => go(tab, e.target.value)} className="h-10 rounded-xl border border-slate-300 px-3 text-sm" />
+                )}
+                {data.canManage && tab !== "vendors" && tab !== "accountant" && (
+                    <button onClick={() => { newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "expense"); setForm(f => f && { ...f, autoScan: true }); }}
+                        className="h-10 px-4 rounded-xl border border-violet-300 bg-violet-50 text-violet-700 text-sm font-bold inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> สแกนบิล (AI)</button>
                 )}
                 {data.canManage && tab !== "vendors" && tab !== "accountant" && (
                     <button onClick={() => newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "supplier")}
@@ -210,7 +218,8 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 onSave={() => start(async () => {
                     const r = await saveBill({ id: form.id, bill_type: form.bill_type, vendor: form.vendor, period_month: month, invoice_no: form.invoice_no, bill_date: form.bill_date,
                         due_date: form.due_date, amount: Number(form.amount), category: form.category, in_pl: form.in_pl, note: form.note,
-                        doc_type: form.doc_type, vat_mode: form.vat_mode, wht_pct: form.wht_pct, original_filed: form.original_filed, original_ref: form.original_ref });
+                        doc_type: form.doc_type, vat_mode: form.vat_mode, wht_pct: form.wht_pct, original_filed: form.original_filed, original_ref: form.original_ref,
+                        vendor_tax_id: form.vendor_tax_id, vendor_branch: form.vendor_branch, vendor_address: form.vendor_address });
                     if (!r.ok || !r.id) { toast.error(r.error || "บันทึกไม่สำเร็จ"); return; }
                     let failed = 0;
                     for (const file of form.files) {
@@ -419,6 +428,38 @@ function BillModal({ form, setForm, month, vendors, expected, pending, onSave, o
     onDeleteAttachment: (a: BillAttachment) => void;
 }) {
     const c = calcBill(form);
+    const [scanning, setScanning] = useState(false);
+    const scanRef = useRef<HTMLInputElement>(null);
+    useEffect(() => { if (form.autoScan) { setForm({ ...form, autoScan: false }); scanRef.current?.click(); } }, [form, setForm]);
+    const runScan = async (raw: File) => {
+        setScanning(true);
+        try {
+            const file = await shrinkImage(raw);
+            const fd = new FormData(); fd.append("file", file);
+            const res = await scanBillDocument(fd);
+            if (!res.ok || !res.data) { toast.error(res.error || "สแกนไม่สำเร็จ"); return; }
+            const d = res.data;
+            // จับคู่ผู้ขายเดิมด้วยเลขผู้เสียภาษี → ใช้ชื่อในทะเบียน
+            const known = (d.vendor_tax_id && vendors.find(v => v.tax_id === d.vendor_tax_id)) || (d.vendor_name && vendors.find(v => v.name === d.vendor_name)) || null;
+            const billType = form.id ? form.bill_type : (known?.vendor_type || d.bill_type);
+            const billDate = d.bill_date || form.bill_date;
+            const credit = known?.credit_days ?? (billType === "expense" ? 7 : 30);
+            const wht = WHT_OPTIONS.some(o => o.value === d.wht_pct) ? Number(d.wht_pct) : 0;
+            const amount = d.vat_mode === "excl" ? (d.subtotal ?? (d.total != null ? Math.round(d.total / 1.07 * 100) / 100 : null)) : (d.total ?? d.subtotal);
+            const itemsNote = d.items.slice(0, 3).map(i => i.description).join(", ") + (d.items.length > 3 ? " +" + (d.items.length - 3) : "");
+            setForm({
+                ...form, bill_type: billType, vendor: known?.name || d.vendor_name || form.vendor,
+                invoice_no: d.invoice_no || form.invoice_no, doc_type: d.doc_type || form.doc_type,
+                bill_date: billDate, due_date: d.due_date || addDays(billDate, credit),
+                vat_mode: d.vat_mode, amount: amount != null ? String(amount) : form.amount, wht_pct: wht,
+                category: d.expense_category || form.category, note: form.note || itemsNote,
+                vendor_tax_id: d.vendor_tax_id, vendor_branch: d.vendor_branch, vendor_address: d.vendor_address,
+                files: [...form.files, file],
+                scan: { confidence: d.confidence, warnings: d.warnings, items: d.items, checkTotal: d.total },
+            });
+            toast.success(d.confidence === "high" ? "อ่านบิลแล้ว — ตรวจความถูกต้องก่อนบันทึก" : "อ่านบิลแล้ว (ไม่มั่นใจบางช่อง) — ตรวจก่อนบันทึก");
+        } finally { setScanning(false); }
+    };
     const list = vendors.filter(v => v.is_active && v.vendor_type === form.bill_type);
     const pickVendor = (name: string) => {
         const v = vendors.find(x => x.name === name);
@@ -426,6 +467,29 @@ function BillModal({ form, setForm, month, vendors, expected, pending, onSave, o
     };
     return (
         <Modal title={`${form.id ? "แก้ไข" : "บันทึก"}บิล · เดือน ${month}`} onClose={() => setForm(null)}>
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-2.5 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-600 shrink-0" />
+                <span className="text-xs text-violet-900 flex-1">ถ่ายรูป/อัปโหลดบิล ให้ AI อ่านแล้วกรอกให้ (แนบรูปให้อัตโนมัติ)</span>
+                <button type="button" disabled={scanning} onClick={() => scanRef.current?.click()}
+                    className="h-8 px-3 rounded-lg bg-violet-600 text-white text-xs font-bold inline-flex items-center gap-1 disabled:opacity-60">
+                    {scanning ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังอ่าน…</> : <><Camera className="h-3.5 w-3.5" /> สแกนบิล</>}
+                </button>
+                <input ref={scanRef} type="file" accept="image/*,application/pdf" className="hidden"
+                    onChange={e => { const fl = e.target.files?.[0]; e.target.value = ""; if (fl) runScan(fl); }} />
+            </div>
+            {form.scan && (
+                <div className={`rounded-xl border p-2.5 text-xs space-y-1 ${form.scan.confidence === "high" && !form.scan.warnings.length ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                    <div className="font-semibold">AI อ่านได้ (ความมั่นใจ: {form.scan.confidence === "high" ? "สูง" : form.scan.confidence === "medium" ? "กลาง" : "ต่ำ"}) — ตรวจทุกช่องก่อนบันทึก</div>
+                    {form.scan.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                    {form.scan.checkTotal != null && Math.abs(form.scan.checkTotal - c.total) > 1 && <div>⚠ ยอดรวมในเอกสาร {baht(form.scan.checkTotal)} ไม่ตรงกับที่คำนวณ {baht(c.total)}</div>}
+                    {form.scan.items.length > 0 && (
+                        <details><summary className="cursor-pointer">รายการในบิล ({form.scan.items.length})</summary>
+                            <ul className="mt-1 space-y-0.5">{form.scan.items.map((it, i) => <li key={i} className="flex justify-between gap-2"><span className="truncate">{it.description}{it.qty ? ` × ${it.qty}` : ""}</span>{it.amount != null && <span className="tabular-nums">{baht(it.amount)}</span>}</li>)}</ul>
+                        </details>
+                    )}
+                    {form.vendor_tax_id && !vendors.some(v => v.tax_id === form.vendor_tax_id) && <div className="text-slate-600">ผู้ขายใหม่ · เลขผู้เสียภาษี {form.vendor_tax_id} — จะบันทึกลงทะเบียนผู้ขายให้</div>}
+                </div>
+            )}
             {!form.id && (
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
                     {(["supplier", "expense", "lab"] as BillType[]).map(t => (

@@ -132,6 +132,7 @@ export async function saveBill(input: {
     id?: string; bill_type: BillType; vendor: string; period_month: string; invoice_no?: string; bill_date: string; due_date: string;
     amount: number; category?: string | null; in_pl?: boolean; note?: string;
     doc_type?: string; vat_mode?: "none" | "excl" | "incl"; wht_pct?: number; original_filed?: boolean; original_ref?: string;
+    vendor_tax_id?: string | null; vendor_branch?: string | null; vendor_address?: string | null;   // จากสแกน AI
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
     try {
         const { supabase, clinicId, userId, canManage } = await ctx();
@@ -166,8 +167,18 @@ export async function saveBill(input: {
         }
         // ผู้ขายใหม่ → เพิ่มในทะเบียน (เครดิต = วันครบกำหนด − วันที่บิล)
         const days = Math.max(0, Math.round((new Date(input.due_date).getTime() - new Date(input.bill_date).getTime()) / 86400000));
-        await supabase.from("vendors").upsert({ clinic_id: clinicId, name: vendor, vendor_type: input.bill_type, credit_days: days },
+        await supabase.from("vendors").upsert({ clinic_id: clinicId, name: vendor, vendor_type: input.bill_type, credit_days: days,
+            tax_id: input.vendor_tax_id || null, branch: input.vendor_branch || null, address: input.vendor_address || null },
             { onConflict: "clinic_id,name", ignoreDuplicates: true });
+        // ผู้ขายเดิมที่ยังไม่มีเลขผู้เสียภาษี/ที่อยู่ → เติมจากเอกสาร
+        if (input.vendor_tax_id || input.vendor_address || input.vendor_branch) {
+            const { data: v } = await supabase.from("vendors").select("id, tax_id, address, branch").eq("clinic_id", clinicId).eq("name", vendor).maybeSingle();
+            const patch: Record<string, string> = {};
+            if (v && !v.tax_id && input.vendor_tax_id) patch.tax_id = input.vendor_tax_id;
+            if (v && !v.address && input.vendor_address) patch.address = input.vendor_address;
+            if (v && !v.branch && input.vendor_branch) patch.branch = input.vendor_branch;
+            if (v && Object.keys(patch).length) await supabase.from("vendors").update(patch).eq("id", v.id);
+        }
         revalidatePath("/dashboard/finance/payables");
         return { ok: true, id };
     } catch (e) { return fail(e, "บันทึกไม่สำเร็จ"); }
