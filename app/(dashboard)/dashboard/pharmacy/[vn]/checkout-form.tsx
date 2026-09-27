@@ -819,7 +819,6 @@ export default function CheckoutForm({
                                         ))}
                                     </div>
                                     {hint && <span className="text-amber-700">{hint}</span>}
-                                    <span className="text-slate-500 ml-2">ค่ามือ: เลือกผู้ปฏิบัติหลัก/ผู้ช่วย ใต้แต่ละรายการ</span>
                                     {(vNurse || vAsst) && (
                                         <button type="button" onClick={() => setItems(prev => prev.map(x => {
                                             if (!HAND_ELIGIBLE.has(x.item_type)) return x;
