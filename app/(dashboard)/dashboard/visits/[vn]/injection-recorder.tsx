@@ -184,7 +184,7 @@ export default function InjectionRecorder({ vn, onAdded, searchable = false }: {
                             <span className="text-xs text-slate-500 w-14 shrink-0">3. ราคาขาย</span>
                             <span className="text-xs text-slate-500">฿</span>
                             <input type="number" min={0} value={price} onChange={e => setPrice(e.target.value)} onKeyDown={onKey}
-                                placeholder="ก้อน (เว้นว่างได้)" className="flex-1 min-w-0 h-11 rounded-xl border border-slate-200 px-2 text-sm text-right tabular-nums" />
+                                placeholder={Number(sel.sell_price) > 0 && Number(qty) > 0 ? `ตามคลัง ฿${Math.round(Number(sel.sell_price) * Number(qty)).toLocaleString()} (แก้ได้ตามโปร)` : "ก้อน (เว้นว่างได้)"} className="flex-1 min-w-0 h-11 rounded-xl border border-slate-200 px-2 text-sm text-right tabular-nums" />
                         </div>
                         <div className="flex items-center gap-1.5">
                             <span className="text-xs text-slate-500 shrink-0 whitespace-nowrap">{siteLabel(prodType, capLabel)}</span>
