@@ -25,6 +25,7 @@ export interface PendingProfile {
     id: string;
     full_name: string;
     phone: string | null;
+    email: string | null;
     requested_role: string | null;
     created_at: string;
 }
@@ -33,6 +34,7 @@ export interface StaffProfile {
     id: string;
     full_name: string;
     phone: string | null;
+    email: string | null;
     role: string;
     approval_status: "pending" | "approved" | "rejected";
     is_active: boolean;
@@ -188,7 +190,7 @@ export default function StaffClient({
                                         <tr>
                                             <th className="px-5 py-3.5 text-left font-semibold text-slate-600">พนักงาน</th>
                                             <th className="px-5 py-3.5 text-left font-semibold text-slate-600">Role</th>
-                                            <th className="px-5 py-3.5 text-left font-semibold text-slate-600">เบอร์โทร</th>
+                                            <th className="px-5 py-3.5 text-left font-semibold text-slate-600">อีเมล / เบอร์โทร</th>
                                             <th className="px-5 py-3.5 text-center font-semibold text-slate-600">สถานะ</th>
                                             <th className="px-5 py-3.5 text-right font-semibold text-slate-600">จัดการ</th>
                                         </tr>
@@ -327,6 +329,12 @@ function PendingCard({
                     <span className="text-xs text-slate-500">ตำแหน่งที่ขอ:</span>
                     <span className="font-semibold text-slate-700">{requestedLabel}</span>
                 </div>
+                {profile.email && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                        <span className="h-3.5 w-3.5 shrink-0 text-center text-[11px] leading-none text-slate-400">@</span>
+                        <span className="text-xs break-all">{profile.email}</span>
+                    </div>
+                )}
                 {profile.phone && (
                     <div className="flex items-center gap-2 text-slate-600">
                         <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -400,7 +408,8 @@ function StaffRow({
                 </Badge>
             </td>
             <td className="px-5 py-3.5 text-slate-600 text-xs">
-                {staff.phone || <span className="text-slate-300">—</span>}
+                {staff.email ? <a href={`mailto:${staff.email}`} className="block font-medium text-slate-700 hover:text-blue-700 break-all">{staff.email}</a> : <span className="block text-slate-300">— ไม่มีอีเมล —</span>}
+                <span className="block mt-0.5 text-slate-500">{staff.phone || "—"}</span>
             </td>
             <td className="px-5 py-3.5 text-center">
                 {staff.is_active ? (

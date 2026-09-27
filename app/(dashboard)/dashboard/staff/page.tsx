@@ -39,6 +39,10 @@ export default async function StaffPage() {
         .neq("approval_status", "pending")
         .order("created_at", { ascending: true });
 
+    // อีเมล (อยู่ใน auth.users) — RPC เฉพาะ owner/admin (mig 169)
+    const { data: emailRows } = await supabase.rpc("fn_clinic_member_emails");
+    const emailOf = new Map(((emailRows || []) as { id: string; email: string }[]).map(r => [r.id, r.email]));
+
     // Role permission overrides
     const { data: overrides } = await supabase
         .from("role_permissions")
@@ -49,6 +53,7 @@ export default async function StaffPage() {
         id: p.id,
         full_name: p.full_name,
         phone: p.phone,
+        email: emailOf.get(p.id) ?? null,
         requested_role: p.requested_role,
         created_at: p.created_at,
     }));
@@ -57,6 +62,7 @@ export default async function StaffPage() {
         id: p.id,
         full_name: p.full_name,
         phone: p.phone,
+        email: emailOf.get(p.id) ?? null,
         role: p.role,
         approval_status: p.approval_status,
         is_active: p.is_active,
