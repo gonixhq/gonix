@@ -46,7 +46,7 @@ async function shrinkImage(file: File): Promise<File> {
         const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
         cv.getContext("2d")!.drawImage(bmp, 0, 0, cv.width, cv.height);
         const blob = await new Promise<Blob | null>(res => cv.toBlob(res, "image/jpeg", 0.82));
-        return blob && blob.size < file.size ? new File([blob], file.name.replace(/.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+        return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
     } catch { return file; }
 }
 async function openAttachment(path: string) {
