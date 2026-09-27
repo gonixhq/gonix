@@ -426,14 +426,14 @@ export default function NewVisitPage() {
                     {caseSource === "referral" && (
                         referrer ? (
                             <div className="mt-2 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-                                <span className="flex-1">แนะนำโดย <b>{referrer.name}</b> <span className="font-mono text-xs text-slate-500">({referrer.hn} · {caseReferralCode})</span></span>
+                                <span className="flex-1">แนะนำโดย <b>{referrer.name}</b> <span className="font-mono text-xs text-slate-500">({referrer.hn})</span></span>
                                 <button type="button" onClick={() => { setReferrer(null); setCaseReferralCode(""); }} className="text-xs text-slate-500 hover:text-rose-600">เปลี่ยน</button>
                             </div>
                         ) : (
                             <div className="mt-2 relative">
                                 <input aria-label="ค้นหาลูกค้าที่แนะนำ" value={refQ}
                                     onChange={e => { const v = e.target.value; setRefQ(v); setCaseReferralCode(/^RF[A-Z0-9]+$/i.test(v.trim()) ? v.trim().toUpperCase() : ""); }}
-                                    placeholder="ค้นหาลูกค้าที่แนะนำ — ชื่อ / ชื่อเล่น / เบอร์ / HN (หรือพิมพ์รหัส RF…)"
+                                    placeholder="ค้นหาลูกค้าที่แนะนำ — ชื่อ / ชื่อเล่น / เบอร์ / HN"
                                     className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30" />
                                 {refResults.length > 0 && (
                                     <div className="absolute z-30 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg divide-y divide-slate-100">
