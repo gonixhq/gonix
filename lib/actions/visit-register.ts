@@ -28,7 +28,8 @@ export interface RegisterVisitInput {
     send_to_doctor?: boolean;         // ถ้า true → status='with_doctor'
 
     // Attribution — ที่มาของเคส (บังคับ)
-    case_source?: "walk_in" | "staff" | "line" | "ads" | "affiliate" | "referral";  // staff = พนักงานพามา (นับคอมแนะนำ) · ads = โฆษณา/ออนไลน์
+    case_source?: "walk_in" | "staff" | "line" | "ads" | "affiliate" | "referral";  // staff = พนักงานแนะนำ · ads = โฆษณา/ออนไลน์
+    case_staff_id?: string | null;       // เมื่อ case_source = staff (mig 166)
     case_affiliate_id?: string | null;   // เมื่อ case_source = affiliate
     case_referral_code?: string | null;  // เมื่อ case_source = referral
 
@@ -67,7 +68,13 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
         if (!caseSource) return { success: false, error: "กรุณาเลือก “ที่มาของเคส”" };
         let caseAffiliateId: string | null = null;
         let caseReferralCode: string | null = null;
-        if (caseSource === "affiliate") {
+        let caseStaffId: string | null = null;
+        if (caseSource === "staff") {
+            if (!input.case_staff_id) return { success: false, error: "เลือกพนักงานที่แนะนำก่อนบันทึก" };
+            const { data: st } = await supabase.from("staff").select("id").eq("id", input.case_staff_id).eq("clinic_id", profile.clinic_id).eq("is_active", true).maybeSingle();
+            if (!st) return { success: false, error: "ไม่พบพนักงานที่เลือก" };
+            caseStaffId = st.id as string;
+        } else if (caseSource === "affiliate") {
             if (!input.case_affiliate_id) return { success: false, error: "เลือกเซลล์ฟรีแลนซ์ก่อนบันทึก" };
             const { data: aff } = await supabase.from("affiliates")
                 .select("id").eq("id", input.case_affiliate_id).eq("clinic_id", profile.clinic_id).eq("is_active", true).maybeSingle();
@@ -121,6 +128,7 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
             nurse_id,
             case_source: caseSource,
             case_affiliate_id: caseAffiliateId,
+            case_staff_id: caseStaffId,
             case_referral_code: caseReferralCode,
         });
         if (visitErr) return { success: false, error: `Visit insert: ${visitErr.message}` };
@@ -194,7 +202,13 @@ export async function registerVisitWithScreening(input: RegisterVisitInput) {
 
         revalidatePath("/dashboard/visits");
         revalidatePath("/dashboard/doctor-station");
-        return { success: true, vn: vn as string };
+        // พนักงานแนะนำ → ผูกผู้แนะนำ (นับคอมแนะนำ) ถ้าเข้าเงื่อนไข: ลูกค้าใหม่วันนี้ / หายไปเกินรอบ · ไม่เข้าเงื่อนไข = บันทึกที่มาอย่างเดียว
+        let refNote: string | null = null;
+        if (caseStaffId) {
+            const { error: rErr } = await supabase.rpc("fn_set_staff_referral", { p_hn: input.hn, p_staff_id: caseStaffId, p_note: `จากการเปิด visit ${vn}` });
+            refNote = rErr ? `บันทึกที่มาแล้ว · ไม่นับคอมแนะนำ (${rErr.message})` : "บันทึกเป็นผู้แนะนำแล้ว (นับคอมแนะนำ)";
+        }
+        return { success: true, vn: vn as string, refNote };
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : "Error" };
     }

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { registerVisitWithScreening } from "@/lib/actions/visit-register";
 import { listAffiliates, type Affiliate } from "@/lib/actions/affiliates";
+import { listReferralStaff, getPatientStaffReferral } from "@/lib/actions/staff-referrals";
 import { SERVICE_LABEL, type ServiceCategory } from "@/lib/visit-service-types";
 import styles from "../[vn]/visit-workspace.module.css";
 import { MED_CERT_TYPES } from "@/lib/med-cert-types";
@@ -87,6 +88,9 @@ export default function NewVisitPage() {
     const [caseAffiliateId, setCaseAffiliateId] = useState("");
     const [caseReferralCode, setCaseReferralCode] = useState("");
     const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
+    const [refStaff, setRefStaff] = useState<{ id: string; name: string }[]>([]);
+    const [caseStaffId, setCaseStaffId] = useState("");
+    const [refInfo, setRefInfo] = useState<Awaited<ReturnType<typeof getPatientStaffReferral>>>(null);
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
@@ -128,15 +132,25 @@ export default function NewVisitPage() {
     }
 
     useEffect(() => {
+        if (caseSource === "staff" && refStaff.length === 0) listReferralStaff().then(setRefStaff).catch(() => {});
         if (caseSource === "affiliate" && affiliates.length === 0) {
             listAffiliates().then(a => setAffiliates(a.filter(x => x.is_active)));
         }
     }, [caseSource, affiliates.length]);
+    // ผู้แนะนำเดิมของลูกค้า → เลือกให้อัตโนมัติ + บอกว่าจะนับคอมไหม
+    useEffect(() => {
+        if (caseSource !== "staff" || !selectedPatient) { setRefInfo(null); return; }
+        getPatientStaffReferral(selectedPatient.hn).then(r => {
+            setRefInfo(r);
+            if (r?.active && !r.lapsedAt) setCaseStaffId(prev => prev || r.active!.staff_id);
+        }).catch(() => setRefInfo(null));
+    }, [caseSource, selectedPatient]);
 
     async function handleSubmit() {
         if (!selectedPatient) { toast.error("กรุณาเลือกผู้ป่วยก่อน"); return; }
         if (!caseSource) { toast.error("กรุณาเลือก “ที่มาของเคส” ก่อนบันทึก"); return; }
         if (caseSource === "affiliate" && !caseAffiliateId) { toast.error("เลือกเซลล์ฟรีแลนซ์ก่อน"); return; }
+        if (caseSource === "staff" && !caseStaffId) { toast.error("เลือกพนักงานที่แนะนำก่อน"); return; }
         if (caseSource === "referral" && !caseReferralCode.trim()) { toast.error("กรอกรหัสลูกค้าแนะนำก่อน"); return; }
         setSubmitting(true);
         setError("");
@@ -151,6 +165,7 @@ export default function NewVisitPage() {
                 send_to_doctor: false,  // ส่งเข้าคิวซักประวัติ (status = triaged)
                 case_source: caseSource,
                 case_affiliate_id: caseSource === "affiliate" ? caseAffiliateId : null,
+                case_staff_id: caseSource === "staff" ? caseStaffId : null,
                 case_referral_code: caseSource === "referral" ? caseReferralCode : null,
             });
 
@@ -162,6 +177,7 @@ export default function NewVisitPage() {
             }
 
             toast.success(`สร้าง Visit สำเร็จ! VN: ${res.vn} — ส่งเข้าคิวซักประวัติแล้ว`);
+            if ("refNote" in res && res.refNote && caseSource === "staff") toast.success(res.refNote);
             setTimeout(() => router.push("/dashboard/screening"), 1200);
         } catch (e) {
             console.error("[visits/new] submit exception:", e);
@@ -354,13 +370,29 @@ export default function NewVisitPage() {
                 <div className="pt-3 border-t border-slate-100">
                     <Label className="text-sm font-semibold text-slate-800">ที่มาของเคส <span className="text-rose-500">*</span></Label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-                        {([["walk_in", "Walk-in"], ["staff", "พนักงานพามา"], ["line", "จองผ่าน LINE"], ["ads", "โฆษณา/ออนไลน์"], ["affiliate", "เซลล์ฟรีแลนซ์"], ["referral", "ลูกค้าแนะนำ"]] as const).map(([k, l]) => (
+                        {([["walk_in", "Walk-in"], ["staff", "พนักงานแนะนำ"], ["line", "จองผ่าน LINE"], ["ads", "โฆษณา/ออนไลน์"], ["affiliate", "เซลล์ฟรีแลนซ์"], ["referral", "ลูกค้าแนะนำ"]] as const).map(([k, l]) => (
                             <button key={k} type="button" aria-pressed={caseSource === k} onClick={() => setCaseSource(k)}
                                 className={`h-10 rounded-xl text-xs font-semibold transition-all ${caseSource === k ? "bg-[#2B54F0] text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                                 {l}
                             </button>
                         ))}
                     </div>
+                    {caseSource === "staff" && (
+                        <div className="mt-2 space-y-1.5">
+                            <select aria-label="พนักงานที่แนะนำ" value={caseStaffId} onChange={e => setCaseStaffId(e.target.value)}
+                                className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30">
+                                <option value="">— เลือกพนักงานที่แนะนำ —</option>
+                                {refStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            {refInfo?.active && !refInfo.lapsedAt ? (
+                                <p className="text-xs text-amber-700">ลูกค้ารายนี้มีผู้แนะนำอยู่แล้ว: <b>{refInfo.active.staff_name}</b> — คอมแนะนำยังเป็นของคนเดิม (บันทึกที่มาของ visit นี้ได้)</p>
+                            ) : refInfo?.canRegister ? (
+                                <p className="text-xs text-emerald-700">จะบันทึกเป็น &quot;ผู้แนะนำ&quot; ของลูกค้ารายนี้ด้วย → นับคอมแนะนำ{refInfo.canRegister === "returning" ? " (ลูกค้าหายไปเกินรอบ แล้วตามกลับมา)" : " (ลูกค้าใหม่)"}</p>
+                            ) : selectedPatient ? (
+                                <p className="text-xs text-slate-500">ลูกค้าเคยมาแล้ว — บันทึกเป็นที่มาของ visit นี้ (ไม่นับคอมแนะนำ)</p>
+                            ) : null}
+                        </div>
+                    )}
                     {caseSource === "affiliate" && (
                         <select aria-label="เซลล์ฟรีแลนซ์" value={caseAffiliateId} onChange={e => setCaseAffiliateId(e.target.value)}
                             className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-[#2B54F0]/30">
