@@ -1049,41 +1049,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
             </div>
             {/* ╚════════ END 2-Column Layout ════════╝ */}
             {/* ════ Action button — ส่งตรวจ ════ */}
-            <div className="sticky bottom-3 z-30 rounded-2xl border border-white/90 bg-white/95 backdrop-blur-xl shadow-lg p-4 space-y-3">
-                {(() => {
-                    const flags = (["bp_systolic", "bp_diastolic", "pulse_rate", "temperature", "o2_saturation", "dtx"] as const).map(k => vitalFlag(k, vitals[k])).filter(Boolean) as { level: string; text: string }[];
-                    const danger = flags.some(f => f.level === "danger");
-                    const preHits = serviceCategory === "aesthetic" ? PRE_ITEMS.filter(i => preScreen[i.key]).length : 0;
-                    const allergyOk = allergies.length > 0 || !!allergySummary || nkda;
-                    const room = rooms.find(r => r.room_id === selectedRoomId);
-                    const chip = "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold";
-                    return (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={`${chip} ${danger ? "bg-red-100 text-red-800" : flags.length ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
-                                BP {vitals.bp_systolic || "—"}/{vitals.bp_diastolic || "—"} · P {vitals.pulse_rate || "—"}{flags.length ? ` · ⚠ ${flags.map(f => f.text).join(", ")}` : ""}
-                            </span>
-                            {bmi && <span className={`${chip} bg-slate-100 text-slate-700`}>BMI {bmi}</span>}
-                            <span className={`${chip} ${allergies.length || allergySummary ? "bg-red-100 text-red-800" : nkda ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                {allergies.length || allergySummary ? `แพ้: ${[...allergies.map(a => a.allergen_name), allergySummary].filter(Boolean).join(", ")}` : nkda ? "ไม่มีประวัติแพ้" : "ยังไม่ได้ถามประวัติแพ้"}
-                            </span>
-                            {serviceCategory === "aesthetic" && <span className={`${chip} ${preHits ? "bg-amber-100 text-amber-800" : preScreen.none_confirmed ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{preHits ? `คัดกรอง: ระวัง ${preHits} ข้อ` : preScreen.none_confirmed ? "คัดกรองผ่าน" : "ยังไม่คัดกรอง"}</span>}
-                            {room && <span className={`${chip} bg-blue-50 text-blue-800`}>{room.room_name}</span>}
-                            {!allergyOk && <span className="text-[11px] text-amber-700">← กดยืนยันที่กล่องประวัติแพ้</span>}
-                        </div>
-                    );
-                })()}
-                {triageLevel !== "normal" && (
-                    <div className={`text-center px-3 py-1.5 rounded-lg text-sm font-semibold ${
-                        triageLevel === "emergency" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                        {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
-                    </div>
-                )}
-                <div className="text-xs text-slate-600 text-right">
-                    <Stethoscope className="h-3.5 w-3.5 inline mr-1 text-slate-500" />
-                    ส่งให้ {SERVICE_LABEL[serviceCategory]}
-                </div>
-
+            {serviceCategory === "med_cert" && (
+                <div className="rounded-2xl border border-white/90 bg-white/80 shadow-sm p-3">
                 {serviceCategory === "med_cert" && (
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-2.5 space-y-1.5">
                         <div className="text-xs font-semibold text-emerald-800 flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> พิมพ์ฟอร์มใบรับรอง (ให้หมอกรอก/เซ็นมือ)</div>
@@ -1094,11 +1061,41 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                         <p className="text-xs text-slate-600">บันทึก Vital ก่อน → ข้อมูล น้ำหนัก/ส่วนสูง/ความดัน/ชีพจร จะขึ้นในฟอร์ม</p>
                     </div>
                 )}
-
-                <Button disabled={saving} onClick={() => void handleSave(true)}
-                    className="ml-auto flex w-auto min-w-40 rounded-xl px-6 gap-2 h-11 bg-blue-700 hover:bg-blue-800 shadow-md text-base font-semibold">
-                    {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                    ส่งตรวจ <ChevronRight className="h-4 w-4" />
+                </div>
+            )}
+            {/* แถบส่งตรวจ — แถวเดียว ค้างด้านล่าง */}
+            <div className="sticky bottom-3 z-30 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-xl shadow-lg px-3 py-2.5 flex flex-wrap items-center gap-2">
+            {(() => {
+                const flags = (["bp_systolic", "bp_diastolic", "pulse_rate", "temperature", "o2_saturation", "dtx"] as const).map(k => vitalFlag(k, vitals[k])).filter(Boolean) as { level: string; text: string }[];
+                const danger = flags.some(f => f.level === "danger");
+                const preHits = serviceCategory === "aesthetic" ? PRE_ITEMS.filter(i => preScreen[i.key]).length : 0;
+                const allergyOk = allergies.length > 0 || !!allergySummary || nkda;
+                const room = rooms.find(r => r.room_id === selectedRoomId);
+                const chip = "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold";
+                return (
+                    <div className="flex flex-1 min-w-0 flex-wrap items-center gap-1.5">
+                        <span className={`${chip} ${danger ? "bg-red-100 text-red-800" : flags.length ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"}`}>
+                            BP {vitals.bp_systolic || "—"}/{vitals.bp_diastolic || "—"} · P {vitals.pulse_rate || "—"}{flags.length ? ` · ⚠ ${flags.map(f => f.text).join(", ")}` : ""}
+                        </span>
+                        {bmi && <span className={`${chip} bg-slate-100 text-slate-700`}>BMI {bmi}</span>}
+                        <span className={`${chip} ${allergies.length || allergySummary ? "bg-red-100 text-red-800" : nkda ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                            {allergies.length || allergySummary ? `แพ้: ${[...allergies.map(a => a.allergen_name), allergySummary].filter(Boolean).join(", ")}` : nkda ? "ไม่มีประวัติแพ้" : "ยังไม่ได้ถามประวัติแพ้"}
+                        </span>
+                        {serviceCategory === "aesthetic" && <span className={`${chip} ${preHits ? "bg-amber-100 text-amber-800" : preScreen.none_confirmed ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{preHits ? `คัดกรอง: ระวัง ${preHits} ข้อ` : preScreen.none_confirmed ? "คัดกรองผ่าน" : "ยังไม่คัดกรอง"}</span>}
+                        {room && <span className={`${chip} bg-blue-50 text-blue-800`}>{room.room_name}</span>}
+                        {!allergyOk && <span className="text-[11px] text-amber-700">← กดยืนยันที่กล่องประวัติแพ้</span>}
+                    </div>
+                );
+            })()}
+                {triageLevel !== "normal" && (
+                    <span className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-bold ${triageLevel === "emergency" ? "bg-red-600 text-white" : "bg-amber-500 text-white"}`}>
+                        {triageLevel === "emergency" ? "ฉุกเฉิน" : "เร่งด่วน"}
+                    </span>
+                )}
+                <Button disabled={saving} onClick={() => void handleSave(true)} title={`ส่งให้ ${SERVICE_LABEL[serviceCategory]}`}
+                    className="shrink-0 ml-auto rounded-xl px-5 gap-2 h-10 bg-blue-700 hover:bg-blue-800 shadow-md text-sm font-semibold">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    ส่งตรวจ <span className="hidden sm:inline font-normal opacity-80">· {SERVICE_LABEL[serviceCategory]}</span> <ChevronRight className="h-4 w-4" />
                 </Button>
             </div>
 
