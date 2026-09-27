@@ -392,36 +392,41 @@ export async function completeCheckout(input: CheckoutInput) {
                 const svcMap = new Map((svcs || []).map(s => [s.id as string, { inv: s.inventory_item_id as string, qty: Number(s.consume_qty) || 1 }]));
                 const { data: { user } } = await supabase.auth.getUser();
                 const { data: staffRow } = user ? await supabase.from("staff").select("id").eq("profile_id", user.id).maybeSingle() : { data: null };
+                // ตัดสต๊อก 1 รายการ: ของฉีด (vial) → ตัดจากขวด + vial_usage · อื่นๆ → stock_qty + FEFO lot
+                const cutStock = async (itemId: string, deduct: number, note: string) => {
+                    const { data: invItem } = await supabase.from("inventory").select("stock_qty, deduction_type").eq("id", itemId).eq("clinic_id", clinicId).maybeSingle();
+                    if (!invItem || !(deduct > 0)) return;
+                    // ของฉีดที่หมอบันทึก/อยู่ในบิลเป็นบรรทัด injectable แล้ว → ตัดไปแล้วที่ 5c ไม่ตัดซ้ำ
+                    if (invItem.deduction_type === "injectable_vial" && items.some(i => i.item_type === "injectable" && i.item_ref_id === itemId)) return;
+                    let bal: number;
+                    if (invItem.deduction_type === "injectable_vial") {
+                        const res = await deductVials(supabase, clinicId, itemId, deduct);
+                        if (!res.ok) { console.warn("[checkout] recipe deductVials:", res.error); return; }
+                        const rows = (res.used || []).map(u => ({ clinic_id: clinicId, vn, hn, item_id: itemId, vial_id: u.vial_id, lot_number: u.lot, qty: u.qty }));
+                        if (rows.length) await supabase.from("vial_usage").insert(rows);
+                        const { data: cur } = await supabase.from("inventory").select("stock_qty").eq("id", itemId).maybeSingle();
+                        bal = Number(cur?.stock_qty || 0);
+                    } else {
+                        bal = Number(invItem.stock_qty || 0) - deduct;
+                        await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", itemId);
+                        await deductFEFO(supabase, clinicId, itemId, deduct);
+                    }
+                    await supabase.from("stock_card").insert({
+                        item_id: itemId, clinic_id: clinicId, tx_type: "INTERNAL_USE",
+                        qty_delta: -deduct, balance_after: bal, note, recorded_by: staffRow?.id || null,
+                    });
+                };
                 for (const it of serviceItems) {
                     const cfg = svcMap.get(it.item_ref_id!);
                     if (!cfg) continue;
-                    const deduct = cfg.qty * Math.max(1, Number(it.qty || 1));
-                    const { data: invItem } = await supabase.from("inventory").select("stock_qty").eq("id", cfg.inv).eq("clinic_id", clinicId).maybeSingle();
-                    if (!invItem) continue;
-                    const bal = Number(invItem.stock_qty || 0) - deduct;
-                    await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", cfg.inv);
-                    await deductFEFO(supabase, clinicId, cfg.inv, deduct);
-                    await supabase.from("stock_card").insert({
-                        item_id: cfg.inv, clinic_id: clinicId, tx_type: "INTERNAL_USE",
-                        qty_delta: -deduct, balance_after: bal, note: `ใช้กับบริการ (${invId})`, recorded_by: staffRow?.id || null,
-                    });
+                    await cutStock(cfg.inv, cfg.qty * Math.max(1, Number(it.qty || 1)), `ใช้กับบริการ (${invId})`);
                 }
                 // สูตรหัตถการ (เฟส 4A, service_recipes) — ตัดทุกบรรทัดที่ cut_stock
                 const { data: recipes } = await supabase.from("service_recipes")
                     .select("service_id, inventory_item_id, qty").eq("clinic_id", clinicId).eq("cut_stock", true).in("service_id", svcIds);
                 for (const it of serviceItems) {
                     for (const r of (recipes || []).filter(x => x.service_id === it.item_ref_id)) {
-                        const invId2 = r.inventory_item_id as string;
-                        const deduct = Number(r.qty) * Math.max(1, Number(it.qty || 1));
-                        const { data: invItem } = await supabase.from("inventory").select("stock_qty").eq("id", invId2).eq("clinic_id", clinicId).maybeSingle();
-                        if (!invItem || deduct <= 0) continue;
-                        const bal = Number(invItem.stock_qty || 0) - deduct;
-                        await supabase.from("inventory").update({ stock_qty: bal, updated_at: new Date().toISOString() }).eq("id", invId2);
-                        await deductFEFO(supabase, clinicId, invId2, deduct);
-                        await supabase.from("stock_card").insert({
-                            item_id: invId2, clinic_id: clinicId, tx_type: "INTERNAL_USE",
-                            qty_delta: -deduct, balance_after: bal, note: `สูตร: ${it.item_name} (${invId})`, recorded_by: staffRow?.id || null,
-                        });
+                        await cutStock(r.inventory_item_id as string, Number(r.qty) * Math.max(1, Number(it.qty || 1)), `สูตร: ${it.item_name} (${invId})`);
                     }
                 }
                 if ((svcs && svcs.length > 0) || (recipes && recipes.length > 0)) revalidatePath("/dashboard/inventory");
