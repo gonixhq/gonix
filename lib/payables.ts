@@ -27,3 +27,19 @@ export const PAY_METHODS: { value: string; label: string }[] = [
     { value: "cheque", label: "เช็ค" },
     { value: "card", label: "บัตรเครดิตบริษัท" },
 ];
+
+export const DOC_TYPE_LABEL: Record<string, string> = {
+    tax_invoice: "ใบกำกับภาษี",
+    receipt: "ใบเสร็จรับเงิน",
+    invoice: "ใบแจ้งหนี้/ใบวางบิล",
+    cash_bill: "บิลเงินสด",
+    other: "อื่นๆ",
+};
+
+export const WHT_OPTIONS: { value: number; label: string }[] = [
+    { value: 0, label: "ไม่หัก" },
+    { value: 1, label: "1% ค่าขนส่ง" },
+    { value: 2, label: "2% ค่าโฆษณา" },
+    { value: 3, label: "3% ค่าบริการ/จ้างทำของ" },
+    { value: 5, label: "5% ค่าเช่า" },
+];

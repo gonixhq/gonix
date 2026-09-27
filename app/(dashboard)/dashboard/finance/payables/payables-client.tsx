@@ -3,15 +3,16 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2 } from "lucide-react";
+import { Receipt, Plus, X, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronUp, Pencil, Link2, Paperclip, FileCheck2, Send, Download, Camera } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
     saveBill, markBillPaid, deleteBill, linkReceiptToBill, saveVendor, backfillLabCost,
-    type BillRow, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
+    uploadBillAttachment, deleteBillAttachment, getBillAttachmentUrl, markBillsSent, exportBillsForAccountant,
+    type BillRow, type BillAttachment, type LabSentRow, type LabVendorSummary, type ReceiptRow, type VendorRow,
 } from "@/lib/actions/payables";
-import { BILL_TYPE_LABEL, EXPENSE_CATEGORIES, PAY_METHODS, expenseCategoryLabel, type BillType } from "@/lib/payables";
+import { BILL_TYPE_LABEL, EXPENSE_CATEGORIES, PAY_METHODS, DOC_TYPE_LABEL, WHT_OPTIONS, expenseCategoryLabel, type BillType } from "@/lib/payables";
 
-export type PayTab = "overview" | "lab" | "supplier" | "expense" | "vendors";
+export type PayTab = "overview" | "lab" | "supplier" | "expense" | "accountant" | "vendors";
 
 const baht = (n: number) => `฿${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const thDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
@@ -23,7 +24,35 @@ type Data = {
     lab: { sent: LabSentRow[]; summary: LabVendorSummary[] };
     bills: BillRow[]; openBills: BillRow[]; receipts: ReceiptRow[]; vendors: VendorRow[]; canManage: boolean;
 };
-type BillForm = { id?: string; bill_type: BillType; vendor: string; invoice_no: string; bill_date: string; due_date: string; amount: string; category: string; in_pl: boolean; note: string };
+type BillForm = {
+    id?: string; bill_type: BillType; vendor: string; invoice_no: string; bill_date: string; due_date: string; amount: string; category: string; in_pl: boolean; note: string;
+    doc_type: string; vat_mode: "none" | "excl" | "incl"; wht_pct: number; original_filed: boolean; original_ref: string; files: File[]; attachments: BillAttachment[];
+};
+const r2 = (n: number) => Math.round(n * 100) / 100;
+/** amount ที่กรอก: none/incl = ยอดรวม · excl = ยอดก่อน VAT (ตรงกับ server) */
+function calcBill(f: Pick<BillForm, "amount" | "vat_mode" | "wht_pct">) {
+    const base = Number(f.amount) || 0;
+    const subtotal = f.vat_mode === "incl" ? r2(base / 1.07) : base;
+    const vat = f.vat_mode === "excl" ? r2(base * 0.07) : f.vat_mode === "incl" ? r2(base - subtotal) : 0;
+    const total = r2(subtotal + vat), wht = r2(subtotal * (f.wht_pct || 0) / 100);
+    return { subtotal, vat, total, wht, net: r2(total - wht) };
+}
+/** ย่อรูปก่อนอัปโหลด (ด้านยาวสุด 2000px, JPEG 0.82) — PDF/ไฟล์เล็กส่งตามเดิม */
+async function shrinkImage(file: File): Promise<File> {
+    if (!file.type.startsWith("image/") || file.type === "image/heic" || file.size < 900 * 1024) return file;
+    try {
+        const bmp = await createImageBitmap(file);
+        const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+        const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+        cv.getContext("2d")!.drawImage(bmp, 0, 0, cv.width, cv.height);
+        const blob = await new Promise<Blob | null>(res => cv.toBlob(res, "image/jpeg", 0.82));
+        return blob && blob.size < file.size ? new File([blob], file.name.replace(/.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }) : file;
+    } catch { return file; }
+}
+async function openAttachment(path: string) {
+    const r = await getBillAttachmentUrl(path);
+    if (r.ok && r.url) window.open(r.url, "_blank"); else toast.error(r.error || "เปิดไฟล์ไม่ได้");
+}
 
 export default function PayablesClient({ month, today, tab, data }: { month: string; today: string; tab: PayTab; data: Data }) {
     const router = useRouter();
@@ -43,10 +72,12 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
         const v = vendorByName.get(vendor);
         let bd = today;
         if (bill_type === "lab") { const [y, m] = month.split("-").map(Number); bd = m === 12 ? `${y + 1}-01-05` : `${y}-${String(m + 1).padStart(2, "0")}-05`; }
-        setForm({ bill_type, vendor, invoice_no: "", bill_date: bd, due_date: addDays(bd, v?.credit_days ?? (bill_type === "expense" ? 7 : 30)), amount: "", category: "other", in_pl: true, note: "" });
+        setForm({ bill_type, vendor, invoice_no: "", bill_date: bd, due_date: addDays(bd, v?.credit_days ?? (bill_type === "expense" ? 7 : 30)), amount: "", category: "other", in_pl: true, note: "",
+            doc_type: bill_type === "expense" ? "receipt" : "invoice", vat_mode: "none", wht_pct: 0, original_filed: false, original_ref: "", files: [], attachments: [] });
     };
     const editBill = (b: BillRow) => setForm({ id: b.id, bill_type: b.bill_type, vendor: b.vendor, invoice_no: b.invoice_no || "", bill_date: b.bill_date, due_date: b.due_date,
-        amount: String(b.amount), category: b.category || "other", in_pl: b.in_pl, note: b.note || "" });
+        amount: String(b.vat_mode === "excl" ? b.subtotal : b.amount), category: b.category || "other", in_pl: b.in_pl, note: b.note || "",
+        doc_type: b.doc_type, vat_mode: b.vat_mode, wht_pct: b.wht_pct, original_filed: b.original_filed, original_ref: b.original_ref || "", files: [], attachments: b.attachments });
     const act = (fn: () => Promise<{ ok: boolean; error?: string }>, msg: string, after?: () => void) => start(async () => {
         const r = await fn();
         if (!r.ok) { toast.error(r.error || "ไม่สำเร็จ"); return; }
@@ -72,7 +103,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 {tab !== "overview" && tab !== "vendors" && (
                     <input type="month" value={month} onChange={e => go(tab, e.target.value)} className="h-10 rounded-xl border border-slate-300 px-3 text-sm" />
                 )}
-                {data.canManage && tab !== "vendors" && (
+                {data.canManage && tab !== "vendors" && tab !== "accountant" && (
                     <button onClick={() => newBill(tab === "lab" || tab === "supplier" || tab === "expense" ? tab : "supplier")}
                         className="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-bold inline-flex items-center gap-1.5"><Plus className="h-4 w-4" /> บันทึกบิล</button>
                 )}
@@ -83,7 +114,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
             </div>
 
             <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-                {([["overview", "ภาพรวม"], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่าย"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
+                {([["overview", "ภาพรวม"], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่าย"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
                     <button key={k} onClick={() => go(k)} className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === k ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l}</button>
                 ))}
             </div>
@@ -138,6 +169,8 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 })()}
             </>)}
 
+            {tab === "accountant" && <AccountantTab month={month} bills={data.bills} canManage={data.canManage} pending={pending} start={start} onEdit={editBill} />}
+
             {tab === "vendors" && (
                 <Section title="ทะเบียนผู้ขาย / เจ้าหนี้">
                     {data.vendors.length === 0 ? <Empty text="ยังไม่มีผู้ขาย" /> : (
@@ -169,15 +202,32 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
 
             {form && <BillModal form={form} setForm={setForm} month={month} vendors={data.vendors} pending={pending}
                 expected={form.bill_type === "lab" ? data.lab.summary.find(s => s.vendor === form.vendor)?.expected : undefined}
-                onSave={() => act(() => saveBill({ id: form.id, bill_type: form.bill_type, vendor: form.vendor, period_month: month, invoice_no: form.invoice_no, bill_date: form.bill_date,
-                    due_date: form.due_date, amount: Number(form.amount), category: form.category, in_pl: form.in_pl, note: form.note }), "บันทึกแล้ว", () => setForm(null))} />}
+                onDeleteAttachment={a => form.id && start(async () => {
+                    const r = await deleteBillAttachment(form.id!, a.path);
+                    if (!r.ok) { toast.error(r.error || "ลบไม่สำเร็จ"); return; }
+                    setForm({ ...form, attachments: form.attachments.filter(x => x.path !== a.path) }); router.refresh();
+                })}
+                onSave={() => start(async () => {
+                    const r = await saveBill({ id: form.id, bill_type: form.bill_type, vendor: form.vendor, period_month: month, invoice_no: form.invoice_no, bill_date: form.bill_date,
+                        due_date: form.due_date, amount: Number(form.amount), category: form.category, in_pl: form.in_pl, note: form.note,
+                        doc_type: form.doc_type, vat_mode: form.vat_mode, wht_pct: form.wht_pct, original_filed: form.original_filed, original_ref: form.original_ref });
+                    if (!r.ok || !r.id) { toast.error(r.error || "บันทึกไม่สำเร็จ"); return; }
+                    let failed = 0;
+                    for (const file of form.files) {
+                        const fd = new FormData(); fd.append("bill_id", r.id); fd.append("file", await shrinkImage(file));
+                        const u = await uploadBillAttachment(fd);
+                        if (!u.ok) { failed++; toast.error(`${file.name}: ${u.error}`); }
+                    }
+                    toast.success(failed ? `บันทึกแล้ว (แนบไฟล์ไม่สำเร็จ ${failed})` : "บันทึกแล้ว");
+                    setForm(null); router.refresh();
+                })} />}
 
             {payFor && <PayModal bill={payFor} today={today} pending={pending} onClose={() => setPayFor(null)}
                 onSave={(p) => act(() => markBillPaid(payFor.id, p), "บันทึกจ่ายแล้ว", () => setPayFor(null))} />}
 
             {vendorForm && <VendorModal v={vendorForm} setV={setVendorForm} pending={pending}
                 onSave={() => act(() => saveVendor({ id: vendorForm.id, name: vendorForm.name || "", vendor_type: vendorForm.vendor_type || "supplier", credit_days: Number(vendorForm.credit_days ?? 30),
-                    bill_day: vendorForm.bill_day ?? null, tax_id: vendorForm.tax_id || "", phone: vendorForm.phone || "", note: vendorForm.note || "", is_active: vendorForm.is_active !== false }), "บันทึกแล้ว", () => setVendorForm(null))} />}
+                    bill_day: vendorForm.bill_day ?? null, tax_id: vendorForm.tax_id || "", phone: vendorForm.phone || "", note: vendorForm.note || "", is_active: vendorForm.is_active !== false, address: vendorForm.address || "", branch: vendorForm.branch || "" }), "บันทึกแล้ว", () => setVendorForm(null))} />}
         </div>
     );
 }
@@ -327,12 +377,15 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
                         const recvDiff = b.received - b.amount;
                         return (
                             <tr key={b.id}>
-                                <td className="px-4 py-2 font-semibold text-slate-800">{b.vendor}{b.note && <div className="text-[11px] font-normal text-slate-400">{b.note}</div>}</td>
+                                <td className="px-4 py-2 font-semibold text-slate-800">
+                                    {b.vendor}{b.note && <div className="text-[11px] font-normal text-slate-400">{b.note}</div>}
+                                    <DocBadges b={b} />
+                                </td>
                                 {showType && <td className="px-2"><span className={`text-[11px] px-2 py-0.5 rounded font-bold whitespace-nowrap ${TYPE_COLOR[b.bill_type]}`}>{BILL_TYPE_LABEL[b.bill_type]}</span></td>}
                                 {showCategory && <td className="px-2 text-xs">{expenseCategoryLabel(b.category)}{!b.in_pl && <span className="text-slate-400"> · ไม่นับกำไร</span>}</td>}
                                 <td className="px-2 tabular-nums text-xs">{b.period_month}</td>
                                 <td className="px-2 font-mono text-xs text-slate-500">{b.invoice_no || "—"}</td>
-                                <td className="px-2 text-right tabular-nums font-semibold">{baht(b.amount)}</td>
+                                <td className="px-2 text-right tabular-nums font-semibold">{baht(b.amount)}{b.wht_amount > 0 && <div className="text-[10px] font-normal text-slate-400">โอนจริง {baht(b.net_pay)}</div>}</td>
                                 {showReceived && <td className={`px-2 text-right tabular-nums text-xs ${!b.received ? "text-slate-400" : Math.abs(recvDiff) <= 1 ? "text-emerald-600" : "text-amber-600"}`}>
                                     {!b.received ? "ยังไม่ผูก" : Math.abs(recvDiff) <= 1 ? `${baht(b.received)} ✓` : `${baht(b.received)} (ต่าง ${baht(recvDiff)})`}
                                 </td>}
@@ -361,9 +414,11 @@ function BillTable({ rows, today, canManage, pending, showType, showCategory, sh
     );
 }
 
-function BillModal({ form, setForm, month, vendors, expected, pending, onSave }: {
+function BillModal({ form, setForm, month, vendors, expected, pending, onSave, onDeleteAttachment }: {
     form: BillForm; setForm: (f: BillForm | null) => void; month: string; vendors: VendorRow[]; expected?: number; pending: boolean; onSave: () => void;
+    onDeleteAttachment: (a: BillAttachment) => void;
 }) {
+    const c = calcBill(form);
     const list = vendors.filter(v => v.is_active && v.vendor_type === form.bill_type);
     const pickVendor = (name: string) => {
         const v = vendors.find(x => x.name === name);
@@ -397,8 +452,30 @@ function BillModal({ form, setForm, month, vendors, expected, pending, onSave }:
                 </div>
             )}
             <div className="grid grid-cols-2 gap-3">
-                <L label="เลขที่ใบแจ้งหนี้/ใบกำกับ"><input value={form.invoice_no} onChange={e => setForm({ ...form, invoice_no: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
-                <L label="ยอด (฿)"><input type="number" min={0} step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></L>
+                <L label="ประเภทเอกสาร">
+                    <select value={form.doc_type} onChange={e => setForm({ ...form, doc_type: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
+                        {Object.entries(DOC_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                </L>
+                <L label="เลขที่เอกสาร"><input value={form.invoice_no} onChange={e => setForm({ ...form, invoice_no: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
+                <L label="ภาษีมูลค่าเพิ่ม">
+                    <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-0.5">
+                        {([["none", "ไม่มี VAT"], ["excl", "แยก VAT"], ["incl", "รวม VAT"]] as const).map(([k, l]) => (
+                            <button key={k} type="button" onClick={() => setForm({ ...form, vat_mode: k })} className={`h-8 rounded-md text-xs font-semibold ${form.vat_mode === k ? "bg-white shadow text-violet-700" : "text-slate-500"}`}>{l}</button>
+                        ))}
+                    </div>
+                </L>
+                <L label={form.vat_mode === "excl" ? "ยอดก่อน VAT (฿)" : "ยอดรวม (฿)"}><input type="number" min={0} step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm text-right tabular-nums" /></L>
+                <L label="หัก ณ ที่จ่าย">
+                    <select value={form.wht_pct} onChange={e => setForm({ ...form, wht_pct: Number(e.target.value) })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm">
+                        {WHT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                </L>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5 text-[11px] text-slate-600 tabular-nums space-y-0.5">
+                    {form.vat_mode !== "none" && <div className="flex justify-between"><span>ก่อน VAT / VAT 7%</span><span>{baht(c.subtotal)} / {baht(c.vat)}</span></div>}
+                    <div className="flex justify-between font-semibold text-slate-800"><span>รวม</span><span>{baht(c.total)}</span></div>
+                    {c.wht > 0 && <div className="flex justify-between text-violet-700"><span>หัก {form.wht_pct}% → โอนจริง</span><span>{baht(c.net)}</span></div>}
+                </div>
                 <L label="วันที่บิล"><input type="date" value={form.bill_date} onChange={e => {
                     const v = vendors.find(x => x.name === form.vendor);
                     setForm({ ...form, bill_date: e.target.value, due_date: addDays(e.target.value, v?.credit_days ?? daysBetween(form.bill_date, form.due_date)) });
@@ -406,8 +483,34 @@ function BillModal({ form, setForm, month, vendors, expected, pending, onSave }:
                 <L label={`ครบกำหนดจ่าย (เครดิต ${daysBetween(form.bill_date, form.due_date)} วัน)`}><input type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
             </div>
             {expected != null && form.amount !== "" && (
-                <p className={`text-xs ${Math.abs(Number(form.amount) - expected) <= 1 ? "text-emerald-600" : "text-amber-600"}`}>ระบบคาด {baht(expected)} · ต่าง {baht(Number(form.amount) - expected)}</p>
+                <p className={`text-xs ${Math.abs(c.total - expected) <= 1 ? "text-emerald-600" : "text-amber-600"}`}>ระบบคาด {baht(expected)} · ต่าง {baht(c.total - expected)}</p>
             )}
+            <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <div className="text-xs font-semibold text-slate-600 flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" /> รูป/PDF เอกสาร (ส่งสำนักงานบัญชี)</div>
+                {form.attachments.map(a => (
+                    <div key={a.path} className="flex items-center gap-2 text-xs">
+                        <button type="button" onClick={() => openAttachment(a.path)} className="flex-1 text-left truncate text-blue-700 underline">{a.name}</button>
+                        <button type="button" onClick={() => { if (confirm(`ลบไฟล์ ${a.name}?`)) onDeleteAttachment(a); }} className="text-rose-500" aria-label="ลบไฟล์"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                ))}
+                {form.files.map((file, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                        <span className="flex-1 truncate">{file.name} <span className="text-slate-400">(รออัปโหลด)</span></span>
+                        <button type="button" onClick={() => setForm({ ...form, files: form.files.filter((_, j) => j !== i) })} className="text-slate-400" aria-label="เอาออก"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                ))}
+                <label className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-dashed border-slate-300 text-xs text-slate-600 cursor-pointer hover:bg-slate-50">
+                    <Camera className="h-3.5 w-3.5" /> ถ่ายรูป / เลือกไฟล์
+                    <input type="file" accept="image/*,application/pdf" multiple className="hidden"
+                        onChange={e => { const fl = Array.from(e.target.files || []); e.target.value = ""; setForm({ ...form, files: [...form.files, ...fl] }); }} />
+                </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3 items-end">
+                <label className="flex items-center gap-2 text-sm text-slate-700 h-9">
+                    <input type="checkbox" checked={form.original_filed} onChange={e => setForm({ ...form, original_filed: e.target.checked })} className="h-4 w-4" /> เก็บต้นฉบับเข้าแฟ้มแล้ว
+                </label>
+                <L label="แฟ้ม/ที่เก็บ"><input value={form.original_ref} onChange={e => setForm({ ...form, original_ref: e.target.value })} placeholder="เช่น แฟ้มค่าใช้จ่าย 2026/09" className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
+            </div>
             <L label="หมายเหตุ"><input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
             <ModalFooter pending={pending} disabled={!form.vendor.trim() || form.amount === ""} onCancel={() => setForm(null)} onSave={onSave} />
         </Modal>
@@ -420,7 +523,9 @@ function PayModal({ bill, today, pending, onClose, onSave }: { bill: BillRow; to
     const [ref, setRef] = useState("");
     return (
         <Modal title="บันทึกการจ่าย" onClose={onClose}>
-            <div className="rounded-xl bg-slate-50 p-3 text-sm"><b>{bill.vendor}</b> {bill.invoice_no && <span className="text-slate-500">#{bill.invoice_no}</span>} · <b className="tabular-nums">{baht(bill.amount)}</b></div>
+            <div className="rounded-xl bg-slate-50 p-3 text-sm"><b>{bill.vendor}</b> {bill.invoice_no && <span className="text-slate-500">#{bill.invoice_no}</span>} · <b className="tabular-nums">{baht(bill.amount)}</b>
+                {bill.wht_amount > 0 && <div className="text-xs text-slate-600 mt-1">หัก ณ ที่จ่าย {bill.wht_pct}% = {baht(bill.wht_amount)} → <b>โอนจริง {baht(bill.net_pay)}</b> · อย่าลืมออกหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)</div>}
+            </div>
             <div className="grid grid-cols-2 gap-3">
                 <L label="วันที่จ่าย"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
                 <L label="วิธีจ่าย">
@@ -452,11 +557,103 @@ function VendorModal({ v, setV, pending, onSave }: { v: Partial<VendorRow>; setV
                 <L label="เลขผู้เสียภาษี"><input value={v.tax_id || ""} onChange={e => setV({ ...v, tax_id: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
                 <L label="โทร"><input value={v.phone || ""} onChange={e => setV({ ...v, phone: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
             </div>
+            <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2"><L label="ที่อยู่ (ตามใบกำกับภาษี)"><input value={v.address || ""} onChange={e => setV({ ...v, address: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L></div>
+                <L label="สาขา"><input value={v.branch || ""} onChange={e => setV({ ...v, branch: e.target.value })} placeholder="สำนักงานใหญ่" className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
+            </div>
             <L label="หมายเหตุ (เลขบัญชีโอน ฯลฯ)"><input value={v.note || ""} onChange={e => setV({ ...v, note: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm" /></L>
             {v.id && <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={v.is_active !== false} onChange={e => setV({ ...v, is_active: e.target.checked })} className="h-4 w-4" /> ใช้งานอยู่</label>}
             <ModalFooter pending={pending} disabled={!v.name?.trim()} onCancel={() => setV(null)} onSave={onSave} />
         </Modal>
     );
+}
+
+function DocBadges({ b }: { b: BillRow }) {
+    return (
+        <div className="flex flex-wrap gap-1 mt-0.5 text-[10px] font-normal">
+            {b.attachments.length > 0
+                ? <button type="button" onClick={() => openAttachment(b.attachments[0].path)} className="inline-flex items-center gap-0.5 px-1.5 rounded bg-blue-50 text-blue-700"><Paperclip className="h-2.5 w-2.5" />{b.attachments.length}</button>
+                : <span className="px-1.5 rounded bg-rose-50 text-rose-600">ไม่มีรูป</span>}
+            <span className={`px-1.5 rounded ${b.original_filed ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{b.original_filed ? "ต้นฉบับ ✓" : "ต้นฉบับยังไม่เก็บ"}</span>
+            {b.sent_to_accountant_at && <span className="px-1.5 rounded bg-violet-50 text-violet-700">ส่งบัญชีแล้ว</span>}
+        </div>
+    );
+}
+
+function AccountantTab({ month, bills, canManage, pending, start, onEdit }: {
+    month: string; bills: BillRow[]; canManage: boolean; pending: boolean; start: (fn: () => Promise<void>) => void; onEdit: (b: BillRow) => void;
+}) {
+    const router = useRouter();
+    const [sel, setSel] = useState<Set<string>>(() => new Set(bills.filter(b => !b.sent_to_accountant_at).map(b => b.id)));
+    const noPhoto = bills.filter(b => b.attachments.length === 0);
+    const noOriginal = bills.filter(b => !b.original_filed);
+    const toggle = (id: string) => setSel(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    const download = () => start(async () => {
+        const r = await exportBillsForAccountant(month);
+        if (!r.ok || r.csv == null) { toast.error(r.error || "ส่งออกไม่สำเร็จ"); return; }
+        const url = URL.createObjectURL(new Blob([r.csv], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a"); a.href = url; a.download = `ค่าใช้จ่าย-${month}.csv`; a.click(); URL.revokeObjectURL(url);
+        toast.success(`ส่งออก ${r.count} บิล (ลิงก์รูปใช้ได้ 7 วัน)`);
+    });
+    const mark = (sent: boolean) => start(async () => {
+        const r = await markBillsSent([...sel], sent);
+        if (!r.ok) { toast.error(r.error || "ไม่สำเร็จ"); return; }
+        toast.success(sent ? `ทำเครื่องหมายส่งแล้ว ${sel.size} บิล` : "ยกเลิกแล้ว"); router.refresh();
+    });
+    return (<>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card label={`บิลเดือน ${month}`} value={String(bills.length)} hint={baht(bills.reduce((s, b) => s + b.amount, 0))} />
+            <Card label="ส่งบัญชีแล้ว" value={String(bills.filter(b => b.sent_to_accountant_at).length)} tone="ok" />
+            <Card label="ยังไม่มีรูปเอกสาร" value={String(noPhoto.length)} tone={noPhoto.length ? "bad" : "ok"} />
+            <Card label="ต้นฉบับยังไม่เข้าแฟ้ม" value={String(noOriginal.length)} tone={noOriginal.length ? "warn" : "ok"} />
+        </div>
+        <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-violet-900 space-y-1">
+            <div className="font-semibold">ขั้นตอนส่งสำนักงานบัญชีทุกสิ้นเดือน</div>
+            <ol className="list-decimal pl-5 text-xs space-y-0.5 text-violet-800">
+                <li>ทุกบิลต้องมีรูป/PDF แนบ (ถ่ายรูปจากมือถือได้) และติ๊ก &quot;เก็บต้นฉบับเข้าแฟ้มแล้ว&quot;</li>
+                <li>กด &quot;ดาวน์โหลด Excel&quot; → ส่งไฟล์ให้สำนักงานบัญชี (ในไฟล์มีลิงก์เปิดรูปแต่ละบิล ใช้ได้ 7 วัน)</li>
+                <li>กด &quot;ทำเครื่องหมายส่งแล้ว&quot; — เดือนหน้าจะเห็นว่าบิลไหนส่งไปแล้ว/ยัง</li>
+            </ol>
+        </div>
+        <Section title={`บิลทั้งหมด · เดือน ${month}`}>
+            {bills.length === 0 ? <Empty text="ยังไม่มีบิลเดือนนี้" /> : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="text-xs text-slate-400 bg-slate-50"><tr>
+                            <th className="px-3 py-2 w-8"><input type="checkbox" checked={sel.size === bills.length} onChange={e => setSel(e.target.checked ? new Set(bills.map(b => b.id)) : new Set())} /></th>
+                            <th className="text-left px-2">วันที่</th><th className="text-left px-2">เอกสาร</th><th className="text-left px-2">ผู้ขาย</th>
+                            <th className="text-right px-2">VAT</th><th className="text-right px-2">รวม</th><th className="text-left px-2">สถานะเอกสาร</th><th className="px-3" />
+                        </tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {bills.map(b => (
+                                <tr key={b.id} className={sel.has(b.id) ? "bg-violet-50/40" : ""}>
+                                    <td className="px-3 py-2"><input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} /></td>
+                                    <td className="px-2 text-xs tabular-nums">{thDate(b.bill_date)}</td>
+                                    <td className="px-2 text-xs">{DOC_TYPE_LABEL[b.doc_type] || b.doc_type}<div className="font-mono text-slate-400">{b.invoice_no || "—"}</div></td>
+                                    <td className="px-2 font-semibold text-slate-800">{b.vendor}<div className="text-[11px] font-normal text-slate-400">{BILL_TYPE_LABEL[b.bill_type]}</div></td>
+                                    <td className="px-2 text-right tabular-nums text-xs">{b.vat_amount ? baht(b.vat_amount) : "—"}</td>
+                                    <td className="px-2 text-right tabular-nums font-semibold">{baht(b.amount)}</td>
+                                    <td className="px-2"><DocBadges b={b} /></td>
+                                    <td className="px-3 text-right">{canManage && <button onClick={() => onEdit(b)} className="h-8 px-2 rounded-lg border border-slate-200 text-xs text-slate-600 inline-flex items-center gap-1"><Paperclip className="h-3.5 w-3.5" /> แนบ/แก้</button>}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </Section>
+        <div className="flex flex-wrap gap-2 justify-end">
+            <button disabled={pending || !bills.length} onClick={download} className="h-10 px-4 rounded-xl border border-slate-300 text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50">
+                <Download className="h-4 w-4" /> ดาวน์โหลด Excel
+            </button>
+            {canManage && <>
+                <button disabled={pending || !sel.size} onClick={() => mark(false)} className="h-10 px-4 rounded-xl text-sm text-slate-500 disabled:opacity-50">ยกเลิกสถานะส่ง</button>
+                <button disabled={pending || !sel.size} onClick={() => mark(true)} className="h-10 px-4 rounded-xl bg-violet-600 text-white text-sm font-bold inline-flex items-center gap-1.5 disabled:opacity-50">
+                    {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} ทำเครื่องหมายส่งแล้ว ({sel.size})
+                </button>
+            </>}
+        </div>
+    </>);
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {

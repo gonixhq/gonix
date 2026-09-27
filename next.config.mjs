@@ -38,6 +38,10 @@ const nextConfig = {
       },
     ],
   },
+  // server action รับไฟล์แนบ (รูปบิล/PDF/เอกสาร visit) — ค่าเริ่มต้น 1MB ไม่พอรูปจากมือถือ
+  experimental: {
+    serverActions: { bodySizeLimit: '12mb' },
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },

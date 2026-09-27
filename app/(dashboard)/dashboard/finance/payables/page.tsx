@@ -5,7 +5,7 @@ import PayablesClient, { type PayTab } from "./payables-client";
 
 export const dynamic = "force-dynamic";
 
-const TABS: PayTab[] = ["overview", "lab", "supplier", "expense", "vendors"];
+const TABS: PayTab[] = ["overview", "lab", "supplier", "expense", "accountant", "vendors"];
 
 export default async function PayablesPage({ searchParams }: { searchParams: Promise<{ month?: string; tab?: string }> }) {
     await gatePermission("finance.view");
