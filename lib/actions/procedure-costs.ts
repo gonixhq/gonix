@@ -92,9 +92,9 @@ export async function getProcedureCosts(month: string): Promise<ProcedureCostRep
             const isPct = s.df_mode === "percent";
             const main = isPct ? price * Number(s.df_nurse || 0) / 100 : Number(s.df_nurse || 0);
             const asst = isPct ? price * Number(s.df_assistant || 0) / 100 : Number(s.df_assistant || 0);
-            const hours = Number(s.doctor_hours || 0);
-            const doctorTime = hours * doctorRate;
-            const df = hours > 0 ? price * dfPct / 100 : 0;
+            // ค่าเวลาแพทย์ = คิดจากตารางงานจริง (payroll/รายงานรายเดือน) ไม่ประเมินต่อเคส · DF% คิดกับหัตถการ/ค่าแพทย์
+            const doctorTime = 0; void doctorRate;
+            const df = ["procedure", "doctor_fee"].includes(String(s.item_type)) ? price * dfPct / 100 : 0;
             const cost = material + main + asst + doctorTime + df;
             const missing: string[] = [];
             if (!s.inventory_item_id && rec.length === 0) missing.push("สูตร");

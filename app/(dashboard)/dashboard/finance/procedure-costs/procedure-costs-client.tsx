@@ -48,7 +48,7 @@ export default function ProcedureCostsClient({ report: r }: { report: ProcedureC
                                     <th className="text-right px-3 py-2">ราคา</th>
                                     <th className="text-right px-3 py-2">ยา/วัสดุ</th>
                                     <th className="text-right px-3 py-2">ค่ามือ</th>
-                                    <th className="text-right px-3 py-2 hidden md:table-cell">ชม.แพทย์</th>
+                                    
                                     <th className="text-right px-3 py-2 hidden md:table-cell">DF</th>
                                     <th className="text-right px-3 py-2">ต้นทุนรวม</th>
                                     <th className="text-right px-3 py-2">มาร์จิ้น</th>
@@ -67,7 +67,7 @@ export default function ProcedureCostsClient({ report: r }: { report: ProcedureC
                                         <td className="px-3 py-2 text-right tabular-nums">{baht(s.price)}</td>
                                         <td className="px-3 py-2 text-right tabular-nums text-slate-600">{baht(s.material)}</td>
                                         <td className="px-3 py-2 text-right tabular-nums text-slate-600">{baht(s.hand)}</td>
-                                        <td className="px-3 py-2 text-right tabular-nums text-slate-600 hidden md:table-cell">{s.doctorTime ? baht(s.doctorTime) : "—"}</td>
+                                        
                                         <td className="px-3 py-2 text-right tabular-nums text-slate-600 hidden md:table-cell">{s.df ? baht(s.df) : "—"}</td>
                                         <td className="px-3 py-2 text-right tabular-nums font-semibold">{baht(s.cost)}</td>
                                         <td className={`px-3 py-2 text-right tabular-nums ${s.price > 0 ? mCls(s.margin) : "text-slate-400"}`}>{s.price > 0 ? `${s.margin}%` : "—"}</td>
@@ -76,7 +76,7 @@ export default function ProcedureCostsClient({ report: r }: { report: ProcedureC
                             </tbody>
                         </table>
                     </div>
-                    <p className="px-4 py-2 text-[11px] text-slate-400">ตั้งสูตรยา/วัสดุ + ชม.แพทย์ ที่ <Link href="/dashboard/settings/services" className="underline">เมนูบริการ</Link> · คอสตั้งค่ามือ/ต้นทุนวัสดุที่หน้าคอส · DF คิดเมื่อเมนูมีชม.แพทย์ · ไม่รวมค่าธรรมเนียมบัตร (ขึ้นกับวิธีจ่าย)</p>
+                    <p className="px-4 py-2 text-[11px] text-slate-400">ตั้งสูตรยา/วัสดุ + ค่ามือ ที่ <Link href="/dashboard/settings/services" className="underline">เมนูบริการ</Link> · คอสตั้งค่ามือ/ต้นทุนวัสดุที่หน้าคอส · DF แพทย์ % คิดกับเมนูประเภทหัตถการ/ค่าแพทย์ · ค่าชั่วโมงแพทย์คิดจากเวลาทำงานจริงในรายงานรายเดือน · ไม่รวมค่าธรรมเนียมบัตร (ขึ้นกับวิธีจ่าย)</p>
                 </section>
             ) : (
                 <>

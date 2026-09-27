@@ -309,7 +309,7 @@ function ServiceFormModal({
     const [refMode, setRefMode] = useState<RefCommMode>((initial?.ref_comm_mode as RefCommMode) || "");
     const [refVal, setRefVal] = useState(initial?.ref_comm_value != null ? String(initial.ref_comm_value) : "");
     const [teamPct, setTeamPct] = useState(initial?.team_count_pct != null ? String(initial.team_count_pct) : "");
-    const [doctorHours, setDoctorHours] = useState(initial?.doctor_hours != null ? String(initial.doctor_hours) : "");
+    const [doctorHours] = useState(initial?.doctor_hours != null ? String(initial.doctor_hours) : "");
     const [recipe, setRecipe] = useState<RecipeLine[]>([]);
     const [recipeLoaded, setRecipeLoaded] = useState(!initial?.id);
     useEffect(() => {
@@ -502,9 +502,6 @@ function ServiceFormModal({
                                     {recipeLoaded && <button type="button" onClick={() => setRecipe([...recipe, { inventory_item_id: "", qty: 1 }])} className="text-xs font-semibold text-blue-700">+ เพิ่มยา/วัสดุ</button>}
                                     <div className="text-xs text-slate-600 pt-1">ต้นทุนวัสดุต่อครั้ง ≈ <b className="tabular-nums">฿{materialCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b>{Number(sellingPrice) > 0 && ` · ${(materialCost / Number(sellingPrice) * 100).toFixed(0)}% ของราคาขาย`}</div>
                                 </div>
-                            </FieldRow>
-                            <FieldRow label="ชม.แพทย์/เคส" hint="ใช้ประเมินต้นทุนค่าชั่วโมงแพทย์ (เว้นว่าง = ไม่ใช้แพทย์)">
-                                <Input type="number" min="0" step="0.25" value={doctorHours} onChange={e => setDoctorHours(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
                             </FieldRow>
                         </Section>
                     </HorizontalForm>
