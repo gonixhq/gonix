@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -853,69 +853,19 @@ export default function CheckoutForm({
                                         // ยา + แล็บ: หมอเป็นคนสั่ง — ห้ามแก้ qty/ราคา (ลบได้)
                                         // เคาท์เตอร์เป็นคนคีย์ทุกรายการ — แก้ไขได้ทุกฟิลด์
                                         const fieldsLocked = false;
+                                        const hasStaff = (DF_ELIGIBLE.has(it.item_type) && doctors.length > 0) || (HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0);
+                                        const hasOpts = (COURSE_ELIGIBLE.has(it.item_type) && !!it.item_ref_id) || it.segment === "aesthetic";
                                         return (
-                                        <tr key={it.id} className="border-t border-slate-100 hover:bg-slate-50/40">
+                                        <Fragment key={it.id}>
+                                        <tr className={`border-t border-slate-100 ${hasStaff || hasOpts ? "" : "hover:bg-slate-50/40"}`}>
                                             <td className="px-3 py-3 align-top">
-                                                <span className={`text-xs px-2 py-0.5 rounded font-semibold uppercase tracking-wider ${ITEM_TYPE_COLOR[it.item_type] || ITEM_TYPE_COLOR.other}`}>
+                                                <span className={`whitespace-nowrap text-xs px-2 py-0.5 rounded font-semibold uppercase tracking-wider ${ITEM_TYPE_COLOR[it.item_type] || ITEM_TYPE_COLOR.other}`}>
                                                     {ITEM_TYPE_LABEL[it.item_type] || it.item_type}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-3 text-slate-800 font-medium align-top">
                                                 <div className="text-[15px] font-semibold leading-snug">{it.item_name}</div>
                                                 {fieldsLocked && <span className="ml-1.5 text-xs text-slate-500 font-normal" title="หมอเป็นคนสั่ง — ราคา/จำนวนจากระบบ"></span>}
-                                                {/* ผู้ทำ / ค่ามือ — ป้ายชัด ช่องเท่ากัน (iPad แตะง่าย) */}
-                                                {((DF_ELIGIBLE.has(it.item_type) && doctors.length > 0) || (HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0)) && (
-                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[600px]">
-                                                        {DF_ELIGIBLE.has(it.item_type) && doctors.length > 0 && (
-                                                            <label className="block min-w-0">
-                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">แพทย์ผู้ทำ</span>
-                                                                <select aria-label="แพทย์ผู้ทำ" value={it.performer || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, performer: e.target.value } : x))}
-                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.performer ? "border-slate-300 text-slate-800" : "border-amber-400 bg-amber-50 text-amber-800"}`}>
-                                                                    <option value="">— เลือกแพทย์ —</option>
-                                                                    {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                                                                    <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ</option>
-                                                                </select>
-                                                            </label>
-                                                        )}
-                                                        {HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0 && (<>
-                                                            <label className="block min-w-0">
-                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ปฏิบัติหลัก</span>
-                                                                <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
-                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
-                                                                    <option value="">— ไม่มี —</option>
-                                                                    {handStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                                </select>
-                                                            </label>
-                                                            <label className="block min-w-0">
-                                                                <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ช่วย</span>
-                                                                <select aria-label="ผู้ช่วย" value={it.hand_asst || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_asst: e.target.value } : x))}
-                                                                    className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_asst ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
-                                                                    <option value="">— ไม่มี —</option>
-                                                                    {handStaff.filter(s => s.id !== it.hand_main).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                                </select>
-                                                            </label>
-                                                        </>)}
-                                                    </div>
-                                                )}
-                                                {(COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id || it.segment === "aesthetic") && (
-                                                    <div className="mt-2 flex items-center gap-3 flex-wrap text-xs font-normal text-slate-600">
-                                                        {COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id && (
-                                                            <label className="inline-flex items-center gap-1" title="ขายเป็นคอร์ส: ราคาในบรรทัด = ราคาทั้งคอร์ส · ระบบสร้างคอร์สค้างใช้ให้ ตัดครั้งเมื่อมาใช้">
-                                                                คอร์ส
-                                                                <input type="number" min="1" step="1" value={it.course_sessions || ""} placeholder="1"
-                                                                    onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, course_sessions: parseInt(e.target.value) || undefined } : x))}
-                                                                    className="h-6 w-12 rounded border border-slate-200 px-1 text-right tabular-nums" /> ครั้ง
-                                                            </label>
-                                                        )}
-                                                        {isCourse(it) && <span className="text-violet-700">→ สร้างคอร์ส {it.course_sessions} ครั้ง (ราคา = ทั้งคอร์ส · ค่ามือจ่ายตอนใช้)</span>}
-                                                        {it.segment === "aesthetic" && (
-                                                            <label className="inline-flex items-center gap-1">
-                                                                <input type="checkbox" checked={!!it.team_offsite} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, team_offsite: e.target.checked } : x))} />
-                                                                ทำที่สถานพยาบาลอื่น (นับคอมทีม 40%)
-                                                            </label>
-                                                        )}
-                                                    </div>
-                                                )}
                                             </td>
                                             <td className="px-1 py-1">
                                                 {fieldsLocked ? (
@@ -998,6 +948,67 @@ export default function CheckoutForm({
                                                 </button>
                                             </td>
                                         </tr>
+                                        {(hasStaff || hasOpts) && (
+                                            <tr>
+                                                <td />
+                                                <td colSpan={6} className="px-3 pb-3 pt-0">
+                                                    {/* ผู้ทำ / ค่ามือ — ป้ายชัด ช่องเท่ากัน (iPad แตะง่าย) */}
+                                                    {((DF_ELIGIBLE.has(it.item_type) && doctors.length > 0) || (HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0)) && (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-[720px]">
+                                                            {DF_ELIGIBLE.has(it.item_type) && doctors.length > 0 && (
+                                                                <label className="block min-w-0">
+                                                                    <span className="mb-0.5 block text-[11px] font-medium text-slate-500">แพทย์ผู้ทำ</span>
+                                                                    <select aria-label="แพทย์ผู้ทำ" value={it.performer || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, performer: e.target.value } : x))}
+                                                                        className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.performer ? "border-slate-300 text-slate-800" : "border-amber-400 bg-amber-50 text-amber-800"}`}>
+                                                                        <option value="">— เลือกแพทย์ —</option>
+                                                                        {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                                                        <option value={NOT_DOCTOR}>ไม่ใช่แพทย์ทำ</option>
+                                                                    </select>
+                                                                </label>
+                                                            )}
+                                                            {HAND_ELIGIBLE.has(it.item_type) && !isCourse(it) && handStaff.length > 0 && (<>
+                                                                <label className="block min-w-0">
+                                                                    <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ปฏิบัติหลัก</span>
+                                                                    <select aria-label="ผู้ปฏิบัติหลัก" value={it.hand_main || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_main: e.target.value } : x))}
+                                                                        className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_main ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
+                                                                        <option value="">— ไม่มี —</option>
+                                                                        {handStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                    </select>
+                                                                </label>
+                                                                <label className="block min-w-0">
+                                                                    <span className="mb-0.5 block text-[11px] font-medium text-slate-500">ผู้ช่วย</span>
+                                                                    <select aria-label="ผู้ช่วย" value={it.hand_asst || ""} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, hand_asst: e.target.value } : x))}
+                                                                        className={`h-9 w-full rounded-lg border bg-white px-2 text-sm ${it.hand_asst ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-400"}`}>
+                                                                        <option value="">— ไม่มี —</option>
+                                                                        {handStaff.filter(s => s.id !== it.hand_main).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                    </select>
+                                                                </label>
+                                                            </>)}
+                                                        </div>
+                                                    )}
+                                                    {(COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id || it.segment === "aesthetic") && (
+                                                        <div className="mt-2 flex items-center gap-3 flex-wrap text-xs font-normal text-slate-600">
+                                                            {COURSE_ELIGIBLE.has(it.item_type) && it.item_ref_id && (
+                                                                <label className="inline-flex items-center gap-1" title="ขายเป็นคอร์ส: ราคาในบรรทัด = ราคาทั้งคอร์ส · ระบบสร้างคอร์สค้างใช้ให้ ตัดครั้งเมื่อมาใช้">
+                                                                    คอร์ส
+                                                                    <input type="number" min="1" step="1" value={it.course_sessions || ""} placeholder="1"
+                                                                        onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, course_sessions: parseInt(e.target.value) || undefined } : x))}
+                                                                        className="h-6 w-12 rounded border border-slate-200 px-1 text-right tabular-nums" /> ครั้ง
+                                                                </label>
+                                                            )}
+                                                            {isCourse(it) && <span className="text-violet-700">→ สร้างคอร์ส {it.course_sessions} ครั้ง (ราคา = ทั้งคอร์ส · ค่ามือจ่ายตอนใช้)</span>}
+                                                            {it.segment === "aesthetic" && (
+                                                                <label className="inline-flex items-center gap-1">
+                                                                    <input type="checkbox" checked={!!it.team_offsite} onChange={e => setItems(prev => prev.map(x => x.id === it.id ? { ...x, team_offsite: e.target.checked } : x))} />
+                                                                    ทำที่สถานพยาบาลอื่น (นับคอมทีม 40%)
+                                                                </label>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        </Fragment>
                                         );
                                     })}
                                 </tbody>
