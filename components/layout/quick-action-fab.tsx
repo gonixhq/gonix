@@ -7,7 +7,9 @@ import { Plus } from "lucide-react";
 /** ปุ่มลอย "เปิด Visit ใหม่" — กดได้จากทุกหน้า dashboard (ซ่อนในหน้าเปิด visit และแบบฟอร์มซักประวัติ) */
 export default function QuickActionFab() {
     const pathname = usePathname();
-    if (/^\/dashboard\/(patients|finance)\/?$/.test(pathname || "") || /^\/dashboard\/pharmacy\/[^/]+\/?$/.test(pathname || "") || pathname?.startsWith("/dashboard/patients/new") || pathname?.startsWith("/dashboard/visits/new") || /^\/dashboard\/screening\/[^/]+\/?$/.test(pathname || "")) return null;
+    if (/^\/dashboard\/(patients|finance)\/?$/.test(pathname || "") || /^\/dashboard\/pharmacy\/[^/]+\/?$/.test(pathname || "") || pathname?.startsWith("/dashboard/patients/new") || pathname?.startsWith("/dashboard/visits/new") || /^\/dashboard\/screening\/[^/]+\/?$/.test(pathname || "")
+        // หน้าตรวจคนไข้ (หมอ) — ปุ่มลอยบังแผ่นวาด/ช่องกรอก
+        || /^\/dashboard\/visits\/(?!new)[^/]+(\/workspace)?\/?$/.test(pathname || "")) return null;
 
     return (
         <Link
