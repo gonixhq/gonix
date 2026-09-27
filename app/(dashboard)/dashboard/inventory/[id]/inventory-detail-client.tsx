@@ -845,7 +845,7 @@ function ReceiveModal({
                             <option value="">— ไม่ผูก —</option>
                             {bills.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
                         </select>
-                        <p className="text-[11px] text-slate-400 mt-1">ใส่ราคาทุนด้วย เพื่อให้ระบบเทียบยอดรับของกับยอดบิลที่หน้า &quot;บิลค้างจ่าย&quot;</p>
+                        <p className="text-[11px] text-slate-400 mt-1">ใส่ราคาทุนด้วย เพื่อให้ระบบเทียบยอดรับของกับยอดบิลที่หน้า &quot;ค่าใช้จ่าย&quot;</p>
                     </div>
                 )}
 

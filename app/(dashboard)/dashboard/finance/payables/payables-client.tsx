@@ -100,8 +100,8 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Receipt className="h-6 w-6 text-violet-600" />
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800">บิลค้างจ่าย (เจ้าหนี้)</h1>
-                        <p className="text-xs text-slate-500">แล็บภายนอก · บริษัทยา/เวชภัณฑ์ · ค่าใช้จ่ายคลินิก — ติดตามครบกำหนดจ่าย</p>
+                        <h1 className="text-xl font-bold text-slate-800">ค่าใช้จ่าย</h1>
+                        <p className="text-xs text-slate-500">บันทึกบิล/ใบกำกับภาษี · แล็บภายนอก · บริษัทยา · ค่าใช้จ่ายทั่วไป — ติดตามครบกำหนดจ่าย + ส่งสำนักงานบัญชี</p>
                     </div>
                 </div>
                 {tab !== "overview" && tab !== "vendors" && (
@@ -122,7 +122,7 @@ export default function PayablesClient({ month, today, tab, data }: { month: str
             </div>
 
             <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-                {([["overview", "ภาพรวม"], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่าย"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
+                {([["overview", "ภาพรวม"], ["lab", "แล็บภายนอก"], ["supplier", "บริษัทยา"], ["expense", "ค่าใช้จ่ายทั่วไป"], ["accountant", "ส่งบัญชี"], ["vendors", "ผู้ขาย"]] as [PayTab, string][]).map(([k, l]) => (
                     <button key={k} onClick={() => go(k)} className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px ${tab === k ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{l}</button>
                 ))}
             </div>

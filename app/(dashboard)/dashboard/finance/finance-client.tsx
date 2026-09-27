@@ -583,7 +583,7 @@ export default function FinanceClient({
                         <span>ต้นทุนคงที่</span><span>›</span>
                     </Link>
                     <Link href="/dashboard/finance/payables" className="mt-1 flex items-center justify-between text-xs text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
-                        <span>บิลค้างจ่าย (แล็บ · บริษัทยา · ค่าใช้จ่าย)</span><span>›</span>
+                        <span>ค่าใช้จ่าย (แล็บ · บริษัทยา · ค่าใช้จ่ายทั่วไป)</span><span>›</span>
                     </Link>
                     <Link href="/dashboard/finance/monthly-report" className="mt-1 flex items-center justify-between text-xs font-bold text-blue-700 hover:bg-slate-50 rounded -mx-1 px-1">
                         <span>รายงานรายเดือน (กำไรจริง)</span><span>›</span>

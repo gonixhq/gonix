@@ -5,7 +5,7 @@ export type BillType = "lab" | "supplier" | "expense";
 export const BILL_TYPE_LABEL: Record<BillType, string> = {
     lab: "แล็บภายนอก",
     supplier: "บริษัทยา/เวชภัณฑ์",
-    expense: "ค่าใช้จ่ายคลินิก",
+    expense: "ค่าใช้จ่ายทั่วไป",
 };
 
 export const EXPENSE_CATEGORIES: { value: string; label: string }[] = [

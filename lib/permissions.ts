@@ -83,7 +83,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
             { key: "finance.refund", label: "คืนเงิน" },
             { key: "finance.eod", label: "ปิดยอดประจำวัน" },
             { key: "finance.commission", label: "จัดการค่าคอม/จ่ายเซลล์ (ปิดยอด/จ่าย/โอนสิทธิ์)" },
-            { key: "finance.reports", label: "ดูรายงานกำไร/ต้นทุน/บิลค้างจ่าย (ข้อมูลผู้บริหาร)" },
+            { key: "finance.reports", label: "ดูรายงานกำไร/ต้นทุน/ค่าใช้จ่าย (ข้อมูลผู้บริหาร)" },
         ],
     },
     {

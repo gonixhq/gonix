@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 // แถบเมนูย่อยการเงิน — โชว์บนหน้าการเงินหลัก + หน้าย่อย (มีปุ่มกลับ) · ไม่โชว์บนหน้ารายละเอียดใบเสร็จ
 const LINKS: { href: string; label: string; perm: "reports" | "commission" }[] = [
     { href: "/dashboard/finance/monthly-report", label: "รายงานกำไรรายเดือน", perm: "reports" },
-    { href: "/dashboard/finance/payables", label: "บิลค้างจ่าย", perm: "reports" },
+    { href: "/dashboard/finance/payables", label: "ค่าใช้จ่าย", perm: "reports" },
     { href: "/dashboard/finance/fixed-costs", label: "ต้นทุนคงที่", perm: "reports" },
     { href: "/dashboard/finance/procedure-costs", label: "ต้นทุน & มาร์จิ้นหัตถการ", perm: "reports" },
     { href: "/dashboard/finance/team-commission", label: "คอมทีม", perm: "commission" },
