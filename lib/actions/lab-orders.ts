@@ -64,7 +64,7 @@ export async function addLabOrder(vn: string, hn: string, serviceId: string) {
         .select("service_name, item_type, selling_price").eq("clinic_id", clinicId).eq("id", serviceId).maybeSingle();
     if (!s) return { ok: false, error: "ไม่พบรายการ Lab" };
     const { error } = await supabase.from("lab_orders").insert({
-        vn, hn, clinic_id: clinicId,
+        vn, hn, clinic_id: clinicId, service_id: serviceId,
         lab_name: s.service_name, lab_type: (s.item_type as string) || "lab",
         price: num(s.selling_price),
         ordered_by: staffId, status: "ordered",
@@ -82,7 +82,7 @@ export async function addLabPanel(vn: string, hn: string, panelId: string) {
         .select("id, name, price").eq("clinic_id", clinicId).eq("id", panelId).maybeSingle();
     if (!panel) return { ok: false, error: "ไม่พบแพ็กเกจ" };
     const { data: items, error: itemsError } = await supabase.from("anon_panel_items")
-        .select("service_catalog(service_name, item_type)").eq("panel_id", panelId);
+        .select("service_catalog(id, service_name, item_type)").eq("panel_id", panelId);
     const { data: existing, error: existingError } = await supabase.from("lab_orders")
         .select("lab_name").eq("vn", vn).eq("clinic_id", clinicId);
     if (itemsError || existingError) throw new Error("โหลดรายการในแพ็กเกจไม่สำเร็จ กรุณาลองใหม่");
@@ -95,7 +95,7 @@ export async function addLabPanel(vn: string, hn: string, panelId: string) {
         if (!sc?.service_name || have.has(sc.service_name)) continue;
         have.add(sc.service_name);
         // เทสย่อย: กรอกผลได้ แต่ราคา 0 (คิดเงินเป็นแพ็กก้อนเดียว)
-        rows.push({ vn, hn, clinic_id: clinicId, lab_name: sc.service_name, lab_type: (sc.item_type as string) || "lab", price: 0, ordered_by: staffId, status: "ordered" });
+        rows.push({ vn, hn, clinic_id: clinicId, service_id: sc.id, lab_name: sc.service_name, lab_type: (sc.item_type as string) || "lab", price: 0, ordered_by: staffId, status: "ordered" });
     }
     // บรรทัดค่าแพ็กเกจ (คิดเงินก้อนเดียวที่หน้าชำระเงิน) — lab_type=package ไม่โผล่ในช่องกรอกผล/ใบพิมพ์
     const pkgName = `แพ็กเกจ · ${panel.name}`;

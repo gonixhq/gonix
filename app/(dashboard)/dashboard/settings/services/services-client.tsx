@@ -296,6 +296,9 @@ function ServiceFormModal({
     const [serviceCode, setServiceCode] = useState(initial?.service_code || "");
     const [itemType, setItemType] = useState<ServiceItemType>(initial?.item_type as ServiceItemType || "service");
     const [sellingPrice, setSellingPrice] = useState(initial?.selling_price?.toString() || "");
+    const [labCost, setLabCost] = useState(initial?.lab_cost != null ? String(initial.lab_cost) : "");
+    const [labVendor, setLabVendor] = useState(initial?.lab_vendor || "");
+    const isLab = itemType === "lab" || itemType === "lab_external";
     const [durationMin, setDurationMin] = useState(initial?.duration_min?.toString() || "30");
     const [followUpDays, setFollowUpDays] = useState(initial?.follow_up_days || "");
     const [note, setNote] = useState(initial?.note || "");
@@ -342,6 +345,8 @@ function ServiceFormModal({
             ...refCommPayload(refMode, refVal),
             ...teamPctPayload(teamPct),
             doctor_hours: doctorHours === "" ? null : Number(doctorHours) || 0,
+            lab_cost: isLab && labCost !== "" ? Number(labCost) || 0 : null,
+            lab_vendor: isLab ? labVendor : null,
             ...(recipeLoaded ? { recipe } : {}),
         });
         setSubmitting(false);
@@ -419,6 +424,14 @@ function ServiceFormModal({
                                     className={`${FORM_INPUT_CLS} text-right tabular-nums`}
                                 />
                             </FieldRow>
+                            {isLab && (<>
+                                <FieldRow label="ต้นทุนส่งแล็บ (฿)" hint={Number(sellingPrice) > 0 && Number(labCost) > 0 ? `กำไร ฿${(Number(sellingPrice) - Number(labCost)).toLocaleString()} (${Math.round((1 - Number(labCost) / Number(sellingPrice)) * 100)}%)` : "ค่าที่แล็บเก็บเราต่อรายการ"}>
+                                    <Input type="number" min="0" step="0.01" value={labCost} onChange={e => setLabCost(e.target.value)} placeholder="0" className={`${FORM_INPUT_CLS} text-right tabular-nums`} />
+                                </FieldRow>
+                                <FieldRow label="แล็บที่ส่ง" hint="ใช้เทียบใบแจ้งหนี้รายเดือน">
+                                    <Input value={labVendor} onChange={e => setLabVendor(e.target.value)} placeholder="เช่น N Health, BRIA" className={FORM_INPUT_CLS} />
+                                </FieldRow>
+                            </>)}
 
                             <FieldRow label="รอบติดตามผล (วัน)" hint="เช่น 1,7,14 — ชำระบิลแล้วสร้างงานติดตามอัตโนมัติ · เว้นว่าง=ไม่ติดตาม">
                                 <Input

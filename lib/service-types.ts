@@ -25,6 +25,8 @@ export interface ServiceCatalogItem {
     ref_comm_value?: number | null;
     team_count_pct?: number | null;     // % นับเข้าคอมทีม (null = 100)
     doctor_hours?: number | null;       // ชั่วโมงแพทย์มาตรฐานต่อเคส (ประเมินต้นทุน)
+    lab_cost?: number | null;           // ต้นทุนส่งแล็บภายนอกต่อรายการ
+    lab_vendor?: string | null;         // ชื่อแล็บที่ส่ง
 }
 
 /** สูตรหัตถการ 1 บรรทัด (เฟส 4A) */
