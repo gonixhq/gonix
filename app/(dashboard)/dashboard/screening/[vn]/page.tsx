@@ -185,6 +185,7 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
     const [noChronic, setNoChronic] = useState(false);
     const [preScreen, setPreScreen] = useState<PreScreen>({});
     const [showTriage, setShowTriage] = useState(false);
+    const [precheck, setPrecheck] = useState(false);   // หน้าต่างตรวจก่อนส่ง (แทน confirm ของเบราว์เซอร์)
     const vitalsRef = useRef<HTMLDivElement>(null);
 
     const [vitals, setVitals] = useState({
@@ -362,7 +363,10 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
         reloadHistoryOnly();
     }
 
-    async function handleSave(sendToDoctor: boolean, roomIdOverride?: string): Promise<boolean> {
+    const allergyPending = allergies.length === 0 && !allergySummary && !nkda;
+    const prePending = serviceCategory === "aesthetic" && !preScreen.none_confirmed && !PRE_ITEMS.some(i => preScreen[i.key]);
+
+    async function handleSave(sendToDoctor: boolean, roomIdOverride?: string, skipPrecheck = false): Promise<boolean> {
         if (!visit) return false;
 
         // Validate required fields before sending to doctor
@@ -380,11 +384,8 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 window.scrollTo({ top: 0, behavior: "smooth" });
                 return false;
             }
-            // ประวัติแพ้ยังไม่ได้ถาม → ยืนยันก่อน (ไม่บล็อก)
-            if (allergies.length === 0 && !allergySummary && !nkda
-                && !confirm("ยังไม่ได้ยืนยันประวัติแพ้ยา/แพ้สาร\n\nถามคนไข้แล้วหรือยัง? (กด ยกเลิก เพื่อกลับไปบันทึก — หรือ ตกลง เพื่อส่งตรวจต่อ)")) return false;
-            if (serviceCategory === "aesthetic" && !preScreen.none_confirmed && !PRE_ITEMS.some(i => preScreen[i.key])
-                && !confirm("ยังไม่ได้ทำคำถามคัดกรองก่อนหัตถการ\n\nส่งตรวจต่อเลยไหม?")) return false;
+            // ยังไม่ยืนยันประวัติแพ้ / ยังไม่คัดกรอง → เปิดหน้าต่างตรวจก่อนส่ง (ไม่บล็อก — ส่งต่อได้)
+            if (!skipPrecheck && (allergyPending || prePending)) { setPrecheck(true); return false; }
         }
 
         setSaving(true);
@@ -1061,6 +1062,53 @@ export default function ScreeningDetailPage({ params }: { params: Promise<{ vn: 
                 )}
                 </div>
             )}
+            {precheck && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setPrecheck(false)}>
+                    <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-5 space-y-3" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                            <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center"><AlertTriangle className="h-5 w-5 text-amber-600" /></div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-slate-800">ตรวจสอบก่อนส่งตรวจ</h3>
+                                <p className="text-xs text-slate-500">ข้อมูลความปลอดภัยที่ยังไม่ได้ยืนยัน</p>
+                            </div>
+                            <button onClick={() => setPrecheck(false)} className="text-slate-400 hover:text-slate-600" aria-label="ปิด"><X className="h-5 w-5" /></button>
+                        </div>
+
+                        {allergyPending ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+                                <div className="text-sm font-semibold text-amber-900 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4" /> ยังไม่ได้ถามประวัติแพ้ยา / แพ้สาร</div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button onClick={() => confirmNone("nkda", true)} className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold inline-flex items-center gap-1"><Check className="h-4 w-4" /> ถามแล้ว ไม่มีประวัติแพ้</button>
+                                    <button onClick={() => { setPrecheck(false); setShowAddAllergy(true); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="h-9 px-3 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 inline-flex items-center gap-1"><Plus className="h-4 w-4" /> มีประวัติแพ้ — บันทึก</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 flex items-center gap-1.5"><CheckCircle className="h-4 w-4" /> ประวัติแพ้ยืนยันแล้ว</div>
+                        )}
+
+                        {serviceCategory === "aesthetic" && (prePending ? (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+                                <div className="text-sm font-semibold text-amber-900 flex items-center gap-1.5"><Sparkles className="h-4 w-4" /> ยังไม่ได้ทำคัดกรองก่อนหัตถการ</div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button onClick={() => setPreScreen(p => ({ ...p, none_confirmed: true }))} className="h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold inline-flex items-center gap-1"><Check className="h-4 w-4" /> ถามครบแล้ว ไม่มีข้อใด</button>
+                                    <button onClick={() => setPrecheck(false)} className="h-9 px-3 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50">กลับไปติ๊กคัดกรอง</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 flex items-center gap-1.5"><CheckCircle className="h-4 w-4" /> คัดกรองก่อนหัตถการแล้ว</div>
+                        ))}
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                            <button onClick={() => setPrecheck(false)} className="h-10 px-4 rounded-xl text-sm text-slate-600 hover:bg-slate-100">กลับไปแก้ไข</button>
+                            <Button disabled={saving} onClick={() => { setPrecheck(false); void handleSave(true, undefined, true); }}
+                                className={`h-10 rounded-xl px-5 gap-1.5 text-sm font-semibold ${allergyPending || prePending ? "bg-slate-600 hover:bg-slate-700" : "bg-blue-700 hover:bg-blue-800"}`}>
+                                <Send className="h-4 w-4" /> {allergyPending || prePending ? "ส่งตรวจต่อ (ยังไม่ครบ)" : "ส่งตรวจ"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* แถบส่งตรวจ — แถวเดียว ค้างด้านล่าง */}
             <div className="sticky bottom-3 z-30 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-xl shadow-lg px-3 py-2.5 flex flex-wrap items-center gap-2">
             {(() => {
